@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin</groupId>
+        <artifactId>pom</artifactId>
+        <version>2.0.2</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>org.fuin.sokar</groupId>
+    <artifactId>sokar</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <description>Sandboxing AI agents in YOLO mode using Podman and Java/GraalVM (PARENT)</description>
+    <url>https://github.com/fuinorg/sokar/</url>
+
+    <scm>
+        <url>https://github.com/fuinorg/sokar/</url>
+        <connection>scm:git:git://github.com/fuinorg/sokar.git</connection>
+        <developerConnection>scm:git:git@github.com:fuinorg/sokar.git</developerConnection>
+    </scm>
+
+    <issueManagement>
+        <system>GitHub Issues</system>
+        <url>https://github.com/fuinorg/sokar/issues</url>
+    </issueManagement>
+
+    <properties>
+        <!-- Panama FFM is only stable from 22 on, and native-image is built with GraalVM 25. -->
+        <java.release.version>25</java.release.version>
+        <fuin-bom.version>1.0.2-SNAPSHOT</fuin-bom.version>
+        <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
+        <!-- musl cross-toolchain used for the statically linked hook binaries.
+             Install with ./buildtools/install-musl.sh, or override on the command line. -->
+        <musl.home>${user.home}/.local/opt/x86_64-linux-musl-native</musl.home>
+        <musl.gcc>${musl.home}/bin/x86_64-linux-musl-gcc</musl.gcc>
+    </properties>
+
+    <modules>
+        <module>wire</module>
+        <module>core</module>
+        <module>runtime</module>
+        <module>shield</module>
+        <module>clearance</module>
+        <module>vault</module>
+        <module>gate</module>
+        <module>supervisor</module>
+        <module>agents</module>
+        <module>app</module>
+        <module>daemon</module>
+        <module>hooks</module>
+        <module>dist-deb</module>
+        <module>dist-rpm</module>
+    </modules>
+
+    <dependencyManagement>
+
+        <dependencies>
+
+            <!-- Bill of Materials (aligned with Quarkus and Spring Boot BOMs).
+                 Also pins Byte Buddy to 1.17.8, which is required on JDK 25:
+                 earlier versions reject class-file major version 69. -->
+
+            <dependency>
+                <groupId>org.fuin</groupId>
+                <artifactId>bom</artifactId>
+                <version>${fuin-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Modules -->
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-wire</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-runtime</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-shield</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-clearance</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-vault</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-gate</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-supervisor</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-agents</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokard</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-hooks</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-dist-deb</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-dist-rpm</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+        </dependencies>
+
+    </dependencyManagement>
+
+    <build>
+
+        <pluginManagement>
+
+            <plugins>
+
+                <plugin>
+                    <groupId>org.graalvm.buildtools</groupId>
+                    <artifactId>native-maven-plugin</artifactId>
+                    <version>${native-maven-plugin.version}</version>
+                    <extensions>true</extensions>
+                    <configuration>
+                        <fallback>false</fallback>
+                        <buildArgs>
+                            <buildArg>--no-fallback</buildArg>
+                            <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                        </buildArgs>
+                    </configuration>
+                </plugin>
+
+            </plugins>
+
+        </pluginManagement>
+
+    </build>
+
+    <dependencies>
+
+        <!-- compile -->
+
+        <dependency>
+            <groupId>org.jspecify</groupId>
+            <artifactId>jspecify</artifactId>
+        </dependency>
+
+        <!-- test -->
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+</project>

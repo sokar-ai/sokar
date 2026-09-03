@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-hooks</artifactId>
+    <description>Sokar - OCI hooks (HOOKS)</description>
+
+    <dependencies>
+
+        <!-- compile -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-wire</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <profiles>
+
+        <!-- Requires GraalVM as JAVA_HOME and the musl toolchain at ${musl.home}.
+             Produces three statically linked binaries. Static linking is only possible
+             because this module makes no FFM call - enforced by NoForeignFunctionMemoryTest. -->
+
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>build-sokar-hook-supervisor</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>sokar-hook-supervisor</imageName>
+                                    <mainClass>org.fuin.sokar.hooks.SupervisorHook</mainClass>
+                                    <buildArgs combine.children="append">
+                                        <buildArg>--static</buildArg>
+                                        <buildArg>--libc=musl</buildArg>
+                                        <buildArg>-H:CCompilerPath=${musl.gcc}</buildArg>
+                                    </buildArgs>
+                                </configuration>
+                            </execution>
+
+                            <execution>
+                                <id>build-sokar-hook-nft</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>sokar-hook-nft</imageName>
+                                    <mainClass>org.fuin.sokar.hooks.NftHook</mainClass>
+                                    <buildArgs combine.children="append">
+                                        <buildArg>--static</buildArg>
+                                        <buildArg>--libc=musl</buildArg>
+                                        <buildArg>-H:CCompilerPath=${musl.gcc}</buildArg>
+                                    </buildArgs>
+                                </configuration>
+                            </execution>
+
+                            <execution>
+                                <id>build-sokar-hook-reader</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>sokar-hook-reader</imageName>
+                                    <mainClass>org.fuin.sokar.hooks.ReaderHook</mainClass>
+                                    <buildArgs combine.children="append">
+                                        <buildArg>--static</buildArg>
+                                        <buildArg>--libc=musl</buildArg>
+                                        <buildArg>-H:CCompilerPath=${musl.gcc}</buildArg>
+                                    </buildArgs>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
+</project>

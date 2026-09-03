@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokard</artifactId>
+    <description>Sokar - Daemon (DAEMON)</description>
+
+    <dependencies>
+
+        <!-- compile -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-app</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <profiles>
+
+        <!-- Requires GraalVM as JAVA_HOME. Produces target/sokard, dynamically linked
+             against the build host's glibc: this binary uses Panama FFM, and FFM cannot be
+             statically linked because Linker.defaultLookup() dlopens libc.so.6 (spike S5). -->
+
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>build-sokard</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>sokard</imageName>
+                                    <mainClass>org.fuin.sokar.daemon.SokarDaemon</mainClass>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
+</project>
