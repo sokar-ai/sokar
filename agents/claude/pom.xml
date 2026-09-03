@@ -12,7 +12,14 @@
     </parent>
 
     <artifactId>sokar-agent-claude</artifactId>
-    <description>Sokar - Claude Code agent (AGENT-CLAUDE)</description>
+    <description>Sokar agent for Claude Code</description>
+
+    <properties>
+        <!-- The single place this version is written. It is filtered into claude.yaml and it is
+             the upstream half of the package version, so bumping Claude Code is one line here
+             plus the new digest. -->
+        <agent.cli.version>2.1.236</agent.cli.version>
+    </properties>
 
     <dependencies>
 

@@ -22,6 +22,168 @@
          directory at run time, there is no longer a file that lists them either.
          See the README beside this file for what onboarding one costs. -->
 
+    <properties>
+        <!-- Package version is <agent CLI version>-<Sokar release>, the Debian convention of
+             upstream-plus-revision. It matters here: when a vendor releases a new CLI the pinned
+             digest changes, and a package whose version did not change cannot be upgraded by apt
+             or dnf. Each agent sets agent.cli.version; it is filtered into the definition so the
+             version is written once. -->
+        <agent.cli.version>0</agent.cli.version>
+        <build-helper.version>3.6.1</build-helper.version>
+        <jdeb.version>1.14</jdeb.version>
+        <rpm.version>1.13.0</rpm.version>
+        <agent.install.dir>/usr/libexec/sokar/agents</agent.install.dir>
+        <!-- Signing is off for local and CI builds and on for releases, where the key exists.
+             §12 says the shipped packages are signed; this is the switch, not an exemption. -->
+        <rpm.sign.skip>true</rpm.sign.skip>
+    </properties>
+
+    <build>
+
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>agent/*.yaml</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>agent/*.yaml</exclude>
+                </excludes>
+            </resource>
+        </resources>
+
+    </build>
+
+    <profiles>
+
+        <!-- Packaging, shared by every agent so that adding one needs no packaging config at all.
+             Requires -Pnative to have produced the binary; run as: mvn -Pnative,dist package -->
+
+        <profile>
+            <id>dist</id>
+            <build>
+                <plugins>
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>${build-helper.version}</version>
+                        <executions>
+                            <execution>
+                                <id>package-revision</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>regex-property</goal>
+                                </goals>
+                                <configuration>
+                                    <!-- Debian sorts '~' below everything, so 2.1.236-0.1.0~SNAPSHOT
+                                         is older than 2.1.236-0.1.0. Left as '-SNAPSHOT' it sorts
+                                         ABOVE the release, and apt then refuses to upgrade from a
+                                         snapshot to the real thing. -->
+                                    <name>sokar.package.revision</name>
+                                    <value>${project.version}</value>
+                                    <regex>-SNAPSHOT$</regex>
+                                    <replacement>~SNAPSHOT</replacement>
+                                    <failIfNoMatch>false</failIfNoMatch>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.vafer</groupId>
+                        <artifactId>jdeb</artifactId>
+                        <version>${jdeb.version}</version>
+                        <executions>
+                            <execution>
+                                <id>deb</id>
+                                <!-- Not 'package': native-image also binds there, and a plugin
+                                     inherited from a parent runs before the module's own, so the
+                                     binary would not exist yet. -->
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>jdeb</goal>
+                                </goals>
+                                <configuration>
+                                    <name>${project.artifactId}</name>
+                                    <deb>${project.build.directory}/${project.artifactId}_${agent.cli.version}-${sokar.package.revision}_amd64.deb</deb>
+                                    <!-- One control file for every agent, in the parent directory.
+                                         jdeb substitutes [[name]] and friends from the POM. -->
+                                    <controlDir>${project.basedir}/../src/deb/control</controlDir>
+                                    <skipPOMs>false</skipPOMs>
+                                    <dataSet>
+                                        <data>
+                                            <src>${project.build.directory}/${project.artifactId}</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${agent.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                    </dataSet>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>de.dentrassi.maven</groupId>
+                        <artifactId>rpm</artifactId>
+                        <version>${rpm.version}</version>
+                        <executions>
+                            <execution>
+                                <id>rpm</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>rpm</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <packageName>${project.artifactId}</packageName>
+                            <version>${agent.cli.version}</version>
+                            <snapshotVersion>${agent.cli.version}</snapshotVersion>
+                            <release>${sokar.package.revision}</release>
+                            <!-- Without this the plugin substitutes a timestamp release for any
+                                 snapshot build, and the rpm and the deb then disagree about what
+                                 version they are - which is worse than either scheme alone. -->
+                            <forceRelease>true</forceRelease>
+                            <architecture>x86_64</architecture>
+                            <group>Applications/System</group>
+                            <license>Apache-2.0</license>
+                            <packager>fuin.org</packager>
+                            <requires>
+                                <require>sokar</require>
+                            </requires>
+                            <signature>
+                                <skip>${rpm.sign.skip}</skip>
+                            </signature>
+                            <entries>
+                                <entry>
+                                    <name>${agent.install.dir}/${project.artifactId}</name>
+                                    <file>${project.build.directory}/${project.artifactId}</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                            </entries>
+                        </configuration>
+                    </plugin>
+
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
     <modules>
         <module>api</module>
         <module>claude</module>

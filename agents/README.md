@@ -169,6 +169,43 @@ credential layouts. Reach for an override only when they do not.
 the failure this structure exists to prevent: the next agent falls into the
 `else` and is quietly wrong, with nothing to indicate it.
 
+## Packaging
+
+Every agent gets a `.deb` and an `.rpm` from the shared `dist` profile in
+`agents/pom.xml`. **You write no packaging configuration** — declare
+`agent.cli.version` and the rest follows:
+
+```
+mvn -Pnative,dist verify
+  → target/sokar-agent-claude_2.1.236-0.1.0_amd64.deb
+  → target/sokar-agent-claude-2.1.236-0.1.0.x86_64.rpm
+```
+
+Both install one file, `/usr/libexec/sokar/agents/<name>`, which is where Sokar
+looks. Nothing is registered and no post-install script runs: installing the
+package is the whole integration.
+
+**The package version is `<agent CLI version>-<Sokar release>`**, the Debian
+convention of upstream-plus-revision. That is not cosmetic:
+
+```
+$ dpkg -l | grep sokar-agent
+ii  sokar-agent-claude  2.1.236-0.1.0  amd64  Sokar agent for Claude Code
+```
+
+`dpkg -l` and `rpm -q` answer *which agent CLI an image build will install*
+without opening the definition. It also means a new upstream release produces a
+new package version, so `apt upgrade` has something to upgrade to — a scheme
+keyed on the Sokar version alone would produce two different packages carrying
+the same version.
+
+`agent.cli.version` is written once, in the agent's `pom.xml`, and filtered into
+its `agent.yaml`. Bumping a CLI is that line plus the new digest.
+
+Snapshot builds render as `0.1.0~SNAPSHOT`, because `~` sorts *below* everything
+in both Debian and RPM ordering. Left as `-SNAPSHOT` it would sort above the
+release and `apt` would refuse to upgrade from a snapshot to the real thing.
+
 ## Protocol versions
 
 `AgentProtocol.VERSION` is the contract. Sokar and the agents ship as separate
