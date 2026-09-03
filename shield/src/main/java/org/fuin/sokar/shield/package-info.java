@@ -1,5 +1,5 @@
 /**
- * Egress control and audit (SHIELD)
+ * The egress firewall: ruleset generation and the audit event path.
  */
 @NullMarked
 package org.fuin.sokar.shield;

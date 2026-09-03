@@ -1,0 +1,103 @@
+package org.fuin.sokar.shield;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import org.fuin.sokar.core.project.SecurityClass;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Tests for {@link NftRuleset}.
+ * <p>
+ * The two fixtures were loaded into a real container network namespace and checked to deny egress
+ * while leaving loopback alone. Comparing byte for byte here is what keeps that true: a ruleset
+ * that still parses but no longer blocks is the failure this guards against.
+ */
+class NftRulesetTest {
+
+    @Test
+    void rendersTheGuardedRuleset() throws IOException {
+
+        final String rendered = new NftRuleset(SecurityClass.GUARDED)
+                .resolver("10.89.0.1")
+                .allowV4("140.82.112.0/20")
+                .allowV6("2606:50c0::/32")
+                .render();
+
+        assertThat(rendered).isEqualTo(golden("ruleset-guarded.nft"));
+    }
+
+    @Test
+    void rendersTheOfflineRuleset() throws IOException {
+
+        assertThat(new NftRuleset(SecurityClass.OFFLINE).render())
+                .isEqualTo(golden("ruleset-offline.nft"));
+    }
+
+    @Test
+    void alwaysDropsByDefault() {
+
+        for (final SecurityClass securityClass : SecurityClass.values()) {
+            assertThat(new NftRuleset(securityClass).render())
+                    .as("security class %s", securityClass)
+                    .contains("policy drop;");
+        }
+    }
+
+    @Test
+    void offlineConsultsNoAllowSetAtAll() {
+
+        // Adding an address to an offline project must not open anything: the class decides,
+        // not the set contents.
+        final String rendered = new NftRuleset(SecurityClass.OFFLINE)
+                .allowV4("140.82.112.0/20")
+                .resolver("10.89.0.1")
+                .render();
+
+        assertThat(rendered)
+                .doesNotContain("daddr @allowed_v4")
+                .doesNotContain("dport 53 accept");
+    }
+
+    @Test
+    void logsEveryDropSoTheClearancePromptHasSomethingToShow() {
+
+        assertThat(new NftRuleset(SecurityClass.GUARDED).render())
+                .contains("log prefix \"sokar-drop \" group 1");
+    }
+
+    @Test
+    void allowsBothAddressFamiliesWhenNotOffline() {
+
+        final String rendered = new NftRuleset(SecurityClass.ONLINE)
+                .allowV4("1.2.3.0/24")
+                .allowV6("2001:db8::/32")
+                .render();
+
+        assertThat(rendered)
+                .contains("elements = { 1.2.3.0/24 }")
+                .contains("elements = { 2001:db8::/32 }")
+                .contains("ip daddr @allowed_v4 accept")
+                .contains("ip6 daddr @allowed_v6 accept");
+    }
+
+    @Test
+    void keepsEntriesInTheOrderTheyWereAdded() {
+
+        // A set whose order depends on hashing makes the golden files unstable and every diff
+        // unreadable.
+        final String rendered = new NftRuleset(SecurityClass.ONLINE)
+                .allowV4("10.0.0.0/8").allowV4("192.168.0.0/16").allowV4("172.16.0.0/12").render();
+
+        assertThat(rendered).contains("elements = { 10.0.0.0/8, 192.168.0.0/16, 172.16.0.0/12 }");
+    }
+
+    private String golden(String name) throws IOException {
+        try (InputStream in = getClass().getResourceAsStream("/golden/" + name)) {
+            assertThat(in).as("fixture /golden/" + name).isNotNull();
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+}
