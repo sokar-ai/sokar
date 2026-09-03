@@ -255,6 +255,127 @@ class GitGateTest {
         assertThat(gate.pending()).isEmpty();
     }
 
+    private void pushAs(String name) throws IOException {
+        final TaskToken token = TaskToken.mint();
+        try (GitHttpServer server = serve(token)) {
+            git(root, "init", "--initial-branch=main", work.toString());
+            git(work, "config", "http.extraHeader", "Authorization: " + token.basicAuthorization());
+            makeCommit(name + ".txt", "written by the agent");
+            git(work, "push", url(server), "HEAD:" + GitGate.INCOMING + name);
+        }
+    }
+
+    @Test
+    void showsHowLongEachPushHasBeenWaiting() throws IOException {
+
+        // Review lag is the number that says whether the gate is working. A queue nobody reads
+        // turns into bulk approval without reading, and the review was theatre.
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushAs("task-1");
+
+        final var pending = gate.pendingDetail();
+
+        assertThat(pending).hasSize(1);
+        assertThat(pending.getFirst().name()).isEqualTo("task-1");
+        assertThat(pending.getFirst().subject()).isEqualTo("add task-1.txt");
+        assertThat(pending.getFirst().commit()).isNotBlank();
+        assertThat(pending.getFirst().lag(java.time.Instant.now()).isNegative()).isFalse();
+        assertThat(pending.getFirst().lagText(java.time.Instant.now())).endsWith("m");
+    }
+
+    @Test
+    void ordersPendingPushesOldestFirst() throws IOException {
+
+        // The oldest is the one most likely to have been forgotten.
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushAs("task-1");
+        pushAs("task-2");
+
+        assertThat(gate.pendingDetail()).extracting(PendingPush::name)
+                .containsExactly("task-1", "task-2");
+    }
+
+    @Test
+    void backsUpAndRestoresTheMirror() throws IOException {
+
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushAs("task-1");
+
+        final Path bundle = root.resolve("backup/mirror.bundle");
+        gate.backup(bundle);
+
+        assertThat(bundle).exists();
+        assertThat(gate.verifyBackup(bundle)).isTrue();
+
+        final Path elsewhere = root.resolve("restored.git");
+        final GitGate restored = new GitGate(runner, elsewhere, GateMode.GATEKEEPING, null);
+        restored.restore(bundle);
+
+        // The pending push has to survive: it is exactly the work an operator restoring a backup
+        // is least able to reconstruct.
+        assertThat(restored.pending()).containsExactly("task-1");
+    }
+
+    @Test
+    void refusesToRestoreOverAnExistingMirror() throws IOException {
+
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushAs("task-1");
+        final Path bundle = root.resolve("mirror.bundle");
+        gate.backup(bundle);
+
+        // Restoring in place would silently discard whatever has been pushed since the backup.
+        assertThatThrownBy(() -> gate.restore(bundle))
+                .isInstanceOf(GateException.class)
+                .hasMessageContaining("Move it aside first");
+    }
+
+    @Test
+    void refusesToRestoreSomethingThatIsNotABundle() throws IOException {
+
+        final Path notABundle = root.resolve("junk.bundle");
+        Files.writeString(notABundle, "definitely not a git bundle");
+
+        final Path fresh = root.resolve("fresh.git");
+        final GitGate gate = new GitGate(runner, fresh, GateMode.GATEKEEPING, null);
+
+        assertThatThrownBy(() -> gate.restore(notABundle))
+                .isInstanceOf(GateException.class)
+                .hasMessageContaining("not a usable git bundle");
+
+        // The half-made repository must not survive, or the next restore reports that a mirror
+        // already exists when what exists is the wreckage of this attempt.
+        assertThat(fresh.resolve("objects")).doesNotExist();
+    }
+
+    @Test
+    void verifyingWithoutARepositoryIsRefusedRatherThanAnsweredWrongly() throws IOException {
+
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushAs("task-1");
+        final Path bundle = root.resolve("mirror.bundle");
+        gate.backup(bundle);
+
+        // git needs a repository to check a bundle's prerequisites against, so answering this
+        // from nowhere would be a guess. Whether the surrounding directory happens to be a git
+        // repository must not change the result.
+        final GitGate nowhere = new GitGate(runner, root.resolve("absent.git"), GateMode.GATEKEEPING, null);
+
+        assertThatThrownBy(() -> nowhere.verifyBackup(bundle))
+                .isInstanceOf(GateException.class)
+                .hasMessageContaining("without a repository");
+    }
+
+    @Test
+    void saysSoRatherThanFailingWhenThereIsNothingToBackUp() {
+
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+
+        assertThatThrownBy(() -> gate.backup(root.resolve("empty.bundle")))
+                .isInstanceOf(GateException.class)
+                .hasMessageContaining("nothing to back up");
+    }
+
     private String url(GitHttpServer server) {
         return "http://" + InetAddress.getLoopbackAddress().getHostAddress()
                 + ":" + server.port() + "/mirror.git";

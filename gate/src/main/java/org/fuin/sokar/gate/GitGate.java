@@ -109,6 +109,105 @@ public class GitGate {
     }
 
     /**
+     * Returns the pending pushes with the information needed to judge them, oldest first.
+     * <p>
+     * Ordered by age rather than by name, because the oldest is the one most likely to have been
+     * forgotten, and a forgotten queue is how a gate turns into a rubber stamp.
+     *
+     * @return Pending pushes.
+     */
+    public List<PendingPush> pendingDetail() {
+        final CommandResult result = gitIn("for-each-ref",
+                "--format=%(refname)\t%(objectname:short)\t%(committerdate:unix)\t%(contents:subject)",
+                "--sort=committerdate", INCOMING);
+        final List<PendingPush> pushes = new ArrayList<>();
+        result.standardOutput().lines().forEach(line -> {
+            final String[] fields = line.split("\t", 4);
+            if (fields.length == 4 && fields[0].startsWith(INCOMING)) {
+                pushes.add(new PendingPush(fields[0].substring(INCOMING.length()), fields[1],
+                        fields[3], java.time.Instant.ofEpochSecond(Long.parseLong(fields[2].strip()))));
+            }
+        });
+        return List.copyOf(pushes);
+    }
+
+    /**
+     * Writes a bundle holding everything in the mirror, including the pending pushes.
+     * <p>
+     * A git bundle rather than a copy of the directory: it is a single file, it is verifiable with
+     * {@code git bundle verify}, and it can be cloned from directly. A tarball of a live
+     * repository can catch it mid-write.
+     *
+     * @param bundle Where to write it.
+     * @throws GateException If the bundle cannot be written.
+     */
+    public void backup(Path bundle) {
+        try {
+            Files.createDirectories(bundle.toAbsolutePath().getParent());
+        } catch (java.io.IOException ex) {
+            throw new GateException("Cannot create " + bundle.getParent(), ex);
+        }
+        if (gitIn("for-each-ref").standardOutput().isBlank()) {
+            // git refuses to bundle an empty repository, and an operator who asked for a backup
+            // should be told that rather than shown a git error about a bad revision.
+            throw new GateException("The mirror has no refs yet, so there is nothing to back up");
+        }
+        gitIn("bundle", "create", bundle.toString(), "--all");
+    }
+
+    /**
+     * Tells whether a bundle is intact.
+     *
+     * @param bundle The bundle.
+     * @return {@code true} if git can verify it.
+     */
+    public boolean verifyBackup(Path bundle) {
+        // git refuses to verify a bundle without a repository to verify it against - it has to
+        // check whether the bundle's prerequisites are present. So this needs a git directory,
+        // and restore() creates an empty one before calling it.
+        if (!Files.isDirectory(mirror.resolve("objects"))) {
+            throw new GateException("Cannot verify " + bundle
+                    + " without a repository: git needs one to check the bundle's prerequisites");
+        }
+        return runner.run(Command.of(List.of("git", "--git-dir", mirror.toString(),
+                "bundle", "verify", bundle.toString()))).successful();
+    }
+
+    /**
+     * Restores a mirror from a bundle.
+     * <p>
+     * Refuses to write over an existing mirror. Restoring in place would silently discard whatever
+     * the agent has pushed since the backup, which is precisely the work an operator restoring a
+     * backup is least able to reconstruct.
+     *
+     * @param bundle The bundle to restore from.
+     * @throws GateException If the mirror already exists or the bundle is unusable.
+     */
+    public void restore(Path bundle) {
+        if (!Files.isRegularFile(bundle)) {
+            throw new GateException("No bundle at " + bundle);
+        }
+        if (Files.isDirectory(mirror.resolve("objects"))) {
+            throw new GateException("A mirror already exists at " + mirror
+                    + ". Move it aside first: restoring over it would discard whatever has been"
+                    + " pushed since the backup");
+        }
+        // The empty repository has to exist before the bundle can be verified: git checks the
+        // bundle's prerequisites against an object store, and refuses outright without one.
+        git("init", "--bare", mirror.toString());
+        if (!verifyBackup(bundle)) {
+            deleteMirror();
+            throw new GateException(bundle + " is not a usable git bundle");
+        }
+        // Not 'clone --bare': that takes refs/heads/* and silently drops everything else,
+        // including every pending push - which is exactly the work an operator restoring a backup
+        // is least able to reconstruct. Fetching refs/*:refs/* takes all of it.
+        gitIn("fetch", bundle.toString(), "refs/*:refs/*");
+        gitIn("config", "http.receivepack", "true");
+        gitIn("config", "receive.denyCurrentBranch", "ignore");
+    }
+
+    /**
      * Tells whether a ref exists in the mirror.
      *
      * @param ref Ref name.
@@ -184,6 +283,22 @@ public class GitGate {
      */
     public void reject(String name) {
         gitIn("update-ref", "-d", INCOMING + name);
+    }
+
+    private void deleteMirror() {
+        // The half-made repository would otherwise sit there and make the next restore refuse,
+        // telling the operator a mirror exists when what exists is the wreckage of this attempt.
+        try (var paths = Files.walk(mirror)) {
+            paths.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (java.io.IOException ex) {
+                    // Best effort on a cleanup path.
+                }
+            });
+        } catch (java.io.IOException ex) {
+            // Best effort on a cleanup path.
+        }
     }
 
     private void requirePending(String name) {
