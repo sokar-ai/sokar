@@ -40,6 +40,20 @@ public record SokarContext(CommandRunner runner, SokarPaths paths, Consumer<List
     }
 
     /**
+     * Returns the agents installed on this machine, started and handshaken.
+     * <p>
+     * The caller closes it: each agent is a process, and leaving them running would leak one per
+     * task.
+     *
+     * @return Installed agents.
+     */
+    public org.fuin.sokar.agent.api.InstalledAgents agents() {
+        return new org.fuin.sokar.agent.api.InstalledAgents(
+                org.fuin.sokar.agent.api.AgentDirectory.standard(paths.xdg().data()),
+                paths.xdg().runtime());
+    }
+
+    /**
      * Returns a task runner for these settings.
      *
      * @return Runner.

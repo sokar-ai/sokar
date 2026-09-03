@@ -7,8 +7,11 @@ package org.fuin.sokar.core.project;
  * @param description Human-readable description, may be empty.
  * @param securityClass How much the agent is trusted with the outside world.
  * @param baseImage Container image the task image is built from.
+ * @param imageSnippet Extra container-build lines the operator wants in the image, or
+ *        {@code null}. This is how additional tooling gets into a box.
  */
-public record Project(String name, String description, SecurityClass securityClass, String baseImage) {
+public record Project(String name, String description, SecurityClass securityClass, String baseImage,
+        @org.jspecify.annotations.Nullable String imageSnippet) {
 
     /**
      * Constructor with all data.
@@ -17,6 +20,7 @@ public record Project(String name, String description, SecurityClass securityCla
      * @param description Human-readable description, may be empty.
      * @param securityClass How much the agent is trusted with the outside world.
      * @param baseImage Container image the task image is built from.
+     * @param imageSnippet Extra container-build lines, or {@code null}.
      */
     public Project {
         if (name.isBlank()) {
@@ -31,6 +35,16 @@ public record Project(String name, String description, SecurityClass securityCla
         if (baseImage.isBlank()) {
             throw new ProjectException("The base image is required");
         }
+    }
+
+    /**
+     * Returns the operator's own build lines, split into lines.
+     *
+     * @return Lines, empty when the project adds nothing.
+     */
+    public java.util.List<String> imageSnippetLines() {
+        return imageSnippet == null ? java.util.List.of()
+                : imageSnippet.lines().map(String::stripTrailing).toList();
     }
 
     /**

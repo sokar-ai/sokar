@@ -80,10 +80,23 @@ public class Podman {
      * @return Name of the built image.
      */
     public String buildImage(Project project, Path contextDirectory) {
+        return buildImage(project, contextDirectory, ImageLayers.none());
+    }
+
+    /**
+     * Builds the task image for a project, including layers contributed from outside.
+     *
+     * @param project The project.
+     * @param contextDirectory Directory the Containerfile is written into and built from.
+     * @param layers What the agent and the project contribute.
+     * @return Name of the built image.
+     */
+    public String buildImage(Project project, Path contextDirectory, ImageLayers layers) {
         final Path containerfile = contextDirectory.resolve("Containerfile");
         try {
             Files.createDirectories(contextDirectory);
-            Files.writeString(containerfile, Containerfile.render(project), StandardCharsets.UTF_8);
+            Files.writeString(containerfile, Containerfile.render(project, layers),
+                    StandardCharsets.UTF_8);
         } catch (IOException ex) {
             throw new ContainerException("Cannot write " + containerfile, ex);
         }

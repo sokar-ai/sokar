@@ -65,6 +65,21 @@ public class TaskRunner {
      * @throws IOException If a file cannot be written.
      */
     public void start(Project project, String container, PrintWriter out) throws IOException {
+        start(project, container, org.fuin.sokar.runtime.ImageLayers.none(), out);
+    }
+
+    /**
+     * Prepares and starts a container for one task, with layers contributed by an agent and by
+     * the project itself.
+     *
+     * @param project The project.
+     * @param container Container name.
+     * @param layers What the agent and the project add to the image.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, String container,
+            org.fuin.sokar.runtime.ImageLayers layers, PrintWriter out) throws IOException {
 
         final Path state = paths.containerState(container);
         Files.createDirectories(state);
@@ -79,7 +94,7 @@ public class TaskRunner {
                 ruleset.toString(), state.toString()).writeTo(sidecarFile);
         out.println("sidecar   " + sidecarFile);
 
-        final String image = podman.buildImage(project, paths.buildContext(project.name()));
+        final String image = podman.buildImage(project, paths.buildContext(project.name()), layers);
         out.println("image     " + image);
 
         podman.create(new ContainerSpec(container, image)

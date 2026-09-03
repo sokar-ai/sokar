@@ -19,7 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 class PodmanTest {
 
     private static final Project PROJECT =
-            new Project("uc", "Ultimate Container", SecurityClass.GUARDED, "ubuntu:24.04");
+            new Project("uc", "Ultimate Container", SecurityClass.GUARDED, "ubuntu:24.04", null);
 
     private final FakeCommandRunner runner = new FakeCommandRunner();
 

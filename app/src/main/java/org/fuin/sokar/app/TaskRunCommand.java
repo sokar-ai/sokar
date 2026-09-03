@@ -30,6 +30,10 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Project file. Default: ${DEFAULT-VALUE}")
     private Path projectFile = Path.of("project.yml");
 
+    @Option(names = "--agent", paramLabel = "<name>",
+            description = "Agent to install in the image. Default: the only one installed.")
+    private String agentName;
+
     @Option(names = "--shell", paramLabel = "<path>",
             description = "Shell to attach. Default: ${DEFAULT-VALUE}")
     private String shell = "/bin/bash";
@@ -91,9 +95,19 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final TaskRunner runner = context.tasks();
         final String container =
                 runner.containerName(project, task, String.valueOf(ProcessHandle.current().pid()));
-        try {
 
-            runner.start(project, container, out);
+        try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
+
+            final org.fuin.sokar.runtime.ImageLayers layers;
+            try {
+                layers = layers(agents, project, out);
+            } catch (org.fuin.sokar.agent.api.AgentException ex) {
+                err.println("sokar: " + ex.getMessage());
+                err.flush();
+                return 69;
+            }
+
+            runner.start(project, container, layers, out);
             out.println();
 
             if (!keep) {
@@ -115,6 +129,51 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.flush();
             return cleanUp(runner, container, 70);
         }
+    }
+
+    /**
+     * Builds the image layers for this run: the agent's, then the project's own.
+     * <p>
+     * The project's go last so they can rely on the agent already being installed - which is the
+     * usual reason for having them at all.
+     */
+    private org.fuin.sokar.runtime.ImageLayers layers(
+            org.fuin.sokar.agent.api.InstalledAgents agents, Project project, PrintWriter out) {
+
+        org.fuin.sokar.runtime.ImageLayers layers = org.fuin.sokar.runtime.ImageLayers.none();
+
+        final org.fuin.sokar.agent.api.InstalledAgent agent = select(agents);
+        if (agent != null) {
+            out.println("agent     " + agent.name() + " "
+                    + (agent.definition().version() == null ? "" : agent.definition().version()));
+            layers = layers.and(agent.definition().installAsRoot(),
+                    org.fuin.sokar.agent.api.InstallScript.render(agent.definition().artifacts()));
+            layers = layers.and(java.util.List.of(), agent.definition().installAsAgent());
+        }
+
+        if (!project.imageSnippetLines().isEmpty()) {
+            out.println("snippet   " + project.imageSnippetLines().size() + " lines from the project");
+            layers = layers.and(project.imageSnippetLines(), java.util.List.of());
+        }
+        return layers;
+    }
+
+    private org.fuin.sokar.agent.api.InstalledAgent select(
+            org.fuin.sokar.agent.api.InstalledAgents agents) {
+        if (agentName != null) {
+            return agents.require(agentName);
+        }
+        if (agents.size() == 1) {
+            return agents.all().getFirst();
+        }
+        if (agents.size() == 0) {
+            // A task with no agent is legitimate - the walking skeleton attaches a shell - so this
+            // is not an error, only an image without an agent in it.
+            return null;
+        }
+        throw new org.fuin.sokar.agent.api.AgentException(
+                "Several agents are installed (" + String.join(", ", agents.names())
+                        + "), so --agent is required");
     }
 
     private int cleanUp(TaskRunner runner, String container, int code) {

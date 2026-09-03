@@ -1,10 +1,12 @@
 # Sokar
 
-Sandboxing AI agents in YOLO mode using Podman and Java/GraalVM
+Sandboxing AI agents in YOLO mode using Podman and native Java/GraalVM.
 
 Sokar runs each agent task inside a hardened, rootless container with default-deny outbound networking, a credential
 vault that keeps real keys on the host, a per-task git checkpoint, and a desktop notification path for live allow/deny
 decisions.
+
+## Structure
 
 It is built from a Maven multi-module Java 25 project and ships as signed native binaries, with no language runtime
 on the host:
@@ -23,6 +25,50 @@ on the host:
 The three hooks are statically linked against musl and make no native calls, so they run under whatever the OCI runtime
 hands them at container-create time.
 
+
+## Installing additional tooling in a box
+
+A task image is built in three layers, in this order:
+
+1. **base** — the distro image the project names, plus an unprivileged `agent`
+   user, a `/workspace`, and `curl` + CA certificates;
+2. **agent** — whatever the selected agent installs, normally a pinned and
+   digest-verified download of its CLI;
+3. **project** — your own lines.
+
+Your tooling goes in the third. Either inline in `project.yml`:
+
+```yaml
+image:
+  base_image: "ubuntu:24.04"
+  snippet: |
+    RUN apt-get update && apt-get install -y --no-install-recommends ripgrep jq \
+        && rm -rf /var/lib/apt/lists/*
+```
+
+or in a file beside it, for anything longer than a few lines:
+
+```yaml
+image:
+  base_image: "ubuntu:24.04"
+  snippet_file: "tooling.dockerinclude"
+```
+
+The two are mutually exclusive and Sokar says so rather than silently preferring
+one.
+
+**Your lines run as root, before the image drops to the `agent` user**, because
+installing packages is what they are almost always for. They also run *after* the
+agent layer, so they can rely on the agent CLI already being present.
+
+`sokar task run --dry-run` shows what would be built without building it, and the
+generated `Containerfile` is left in `$XDG_DATA_HOME/sokar/build/<project>/` — it
+is meant to be read.
+
+Nothing you add here escapes the rest of the model: the container still starts
+with no capabilities and `NoNewPrivs`, and the egress firewall still applies. If
+your tooling needs to reach a host the project does not allow, the connection is
+blocked and you are prompted — installing something does not widen the network.
 
 ## Building
 

@@ -75,7 +75,8 @@ public final class ProjectReader {
                 required(project, "name", origin, "project"),
                 text(project.get("description")),
                 SecurityClass.parse(required(project, "security_class", origin, "project")),
-                required(image, "base_image", origin, "image"));
+                required(image, "base_image", origin, "image"),
+                snippet(image, origin));
     }
 
     private static Map<?, ?> section(Map<?, ?> root, String name, String origin) {
@@ -95,6 +96,37 @@ public final class ProjectReader {
             throw new ProjectException(origin + ": '" + sectionName + "." + key + "' is required");
         }
         return String.valueOf(value);
+    }
+
+    /**
+     * Reads the operator's own image lines, either inline or from a file beside the project.
+     * <p>
+     * Both forms exist because both are wanted: a couple of packages read better inline, and a
+     * long snippet reads better in a file its own syntax highlighting understands.
+     */
+    @Nullable
+    private static String snippet(Map<?, ?> image, String origin) {
+        final Object inline = image.get("snippet");
+        final Object file = image.get("snippet_file");
+        if (inline != null && file != null) {
+            throw new ProjectException(origin
+                    + ": 'image.snippet' and 'image.snippet_file' are mutually exclusive");
+        }
+        if (inline != null) {
+            return String.valueOf(inline);
+        }
+        if (file == null) {
+            return null;
+        }
+        final Path path = Path.of(origin).toAbsolutePath().getParent().resolve(String.valueOf(file));
+        if (!Files.isRegularFile(path)) {
+            throw new ProjectException(origin + ": no image snippet at " + path);
+        }
+        try {
+            return Files.readString(path, StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new ProjectException("Cannot read " + path, ex);
+        }
     }
 
     private static String text(@Nullable Object value) {
