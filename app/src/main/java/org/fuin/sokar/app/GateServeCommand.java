@@ -1,0 +1,93 @@
+package org.fuin.sokar.app;
+
+import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.file.Path;
+import java.util.concurrent.Callable;
+import org.fuin.sokar.core.project.Project;
+import org.fuin.sokar.gate.GateException;
+import org.fuin.sokar.gate.GitGate;
+import org.fuin.sokar.gate.GitHttpServer;
+import org.fuin.sokar.gate.GitSubprocess;
+import org.fuin.sokar.gate.TaskToken;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Spec;
+
+/**
+ * Serves the project's mirror over git smart-HTTP for one task.
+ * <p>
+ * The agent is given the printed URL and token, and nothing else. It can push, and it cannot reach
+ * the upstream: the token authenticates only to this endpoint, only for this task, and the mirror
+ * forwards nothing without an explicit approval.
+ */
+@Command(name = "serve",
+        mixinStandardHelpOptions = true,
+        description = "Serves the project mirror for an agent to push to.")
+public class GateServeCommand implements Callable<Integer> {
+
+    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
+            description = "Project file. Default: ${DEFAULT-VALUE}")
+    private Path projectFile = Path.of("project.yml");
+
+    @Option(names = "--upstream", paramLabel = "<url>",
+            description = "Upstream repository, used only when approving.")
+    private String upstream;
+
+    @Option(names = "--address", paramLabel = "<ip>",
+            description = "Address to bind. Default: ${DEFAULT-VALUE}")
+    private String address = "127.0.0.1";
+
+    @Option(names = "--port", paramLabel = "<n>",
+            description = "Port to bind, or 0 to pick one. Default: ${DEFAULT-VALUE}")
+    private int port;
+
+    @Option(names = "--seconds", paramLabel = "<n>",
+            description = "Stop after this long. Zero means run until killed.")
+    private int seconds;
+
+    @Spec
+    private CommandSpec spec;
+
+    @Override
+    public Integer call() throws Exception {
+
+        final PrintWriter out = spec.commandLine().getOut();
+        final PrintWriter err = spec.commandLine().getErr();
+
+        try {
+
+            final Project project = GateSupport.project(projectFile);
+            final GitGate gate = GateSupport.gate(project, upstream);
+            gate.initialise();
+
+            final TaskToken token = TaskToken.mint();
+            try (GitHttpServer server = new GitHttpServer(
+                    new InetSocketAddress(InetAddress.getByName(address), port),
+                    gate.mirror(), token, new GitSubprocess())) {
+
+                server.start();
+                out.println("mirror    " + gate.mirror());
+                out.println("mode      " + gate.mode().name().toLowerCase());
+                out.println("url       http://" + address + ":" + server.port() + "/"
+                        + project.name() + ".git");
+                out.println("token     " + token.value());
+                out.flush();
+
+                if (seconds > 0) {
+                    Thread.sleep(java.time.Duration.ofSeconds(seconds));
+                } else {
+                    Thread.currentThread().join();
+                }
+            }
+            return 0;
+
+        } catch (GateException ex) {
+            err.println("sokar: " + ex.getMessage());
+            err.flush();
+            return 70;
+        }
+    }
+}

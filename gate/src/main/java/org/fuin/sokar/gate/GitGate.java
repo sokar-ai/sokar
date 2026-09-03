@@ -1,0 +1,217 @@
+package org.fuin.sokar.gate;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import org.fuin.sokar.core.process.Command;
+import org.fuin.sokar.core.process.CommandException;
+import org.fuin.sokar.core.process.CommandResult;
+import org.fuin.sokar.core.process.CommandRunner;
+import org.jspecify.annotations.Nullable;
+
+/**
+ * A bare mirror an agent pushes into, and from which nothing leaves unreviewed.
+ * <p>
+ * The agent never has the upstream's credentials and never reaches the upstream: it pushes to this
+ * mirror over a local HTTP endpoint. Forwarding is a separate, explicit act by the operator.
+ * <p>
+ * <strong>Agent pushes land under {@code refs/sokar/incoming/}, never on a branch.</strong> A push
+ * to {@code refs/heads/main} would make the mirror's own branches move under the operator while
+ * they are reading them, and would let an agent rewrite history that had already been reviewed.
+ * Incoming refs are inert: nothing reads them but the review command.
+ */
+public class GitGate {
+
+    /** Namespace every agent push lands in. */
+    public static final String INCOMING = "refs/sokar/incoming/";
+
+    private final CommandRunner runner;
+
+    private final Path mirror;
+
+    private final GateMode mode;
+
+    @Nullable
+    private final String upstreamUrl;
+
+    /**
+     * Constructor.
+     *
+     * @param runner Runs git.
+     * @param mirror Directory of the bare mirror.
+     * @param mode What the gate may do.
+     * @param upstreamUrl Upstream to forward to, or {@code null} if there is none.
+     */
+    public GitGate(CommandRunner runner, Path mirror, GateMode mode, @Nullable String upstreamUrl) {
+        this.runner = runner;
+        this.mirror = mirror;
+        this.mode = mode;
+        this.upstreamUrl = upstreamUrl;
+    }
+
+    /**
+     * Returns the mirror directory.
+     *
+     * @return Mirror path.
+     */
+    public Path mirror() {
+        return mirror;
+    }
+
+    /**
+     * Returns the mode.
+     *
+     * @return Gate mode.
+     */
+    public GateMode mode() {
+        return mode;
+    }
+
+    /**
+     * Creates the bare mirror if it is not there, cloning the upstream when one is configured.
+     *
+     * @throws GateException If the mirror cannot be created.
+     */
+    public void initialise() {
+        if (Files.isDirectory(mirror.resolve("objects"))) {
+            return;
+        }
+        try {
+            Files.createDirectories(mirror);
+        } catch (java.io.IOException ex) {
+            throw new GateException("Cannot create " + mirror, ex);
+        }
+        if (upstreamUrl == null) {
+            git("init", "--bare", "--initial-branch=main", mirror.toString());
+        } else {
+            git("clone", "--bare", upstreamUrl, mirror.toString());
+        }
+        // The agent pushes over HTTP, and git refuses that on a bare repository unless told the
+        // repository is meant to be served.
+        gitIn("config", "http.receivepack", "true");
+        gitIn("config", "receive.denyCurrentBranch", "ignore");
+    }
+
+    /**
+     * Returns the refs an agent has pushed and nobody has reviewed.
+     *
+     * @return Incoming refs, without the namespace prefix.
+     */
+    public List<String> pending() {
+        final CommandResult result = gitIn("for-each-ref", "--format=%(refname)", INCOMING);
+        final List<String> refs = new ArrayList<>();
+        result.standardOutput().lines()
+                .map(String::strip)
+                .filter(line -> line.startsWith(INCOMING))
+                .forEach(line -> refs.add(line.substring(INCOMING.length())));
+        return List.copyOf(refs);
+    }
+
+    /**
+     * Tells whether a ref exists in the mirror.
+     *
+     * @param ref Ref name.
+     * @return {@code true} if git can resolve it.
+     */
+    public boolean resolves(String ref) {
+        return runner.run(Command.of(List.of("git", "--git-dir", mirror.toString(),
+                "rev-parse", "--verify", "--quiet", ref))).successful();
+    }
+
+    /**
+     * Returns what an incoming ref would change, as a patch.
+     * <p>
+     * A mirror that was created empty has no branch to compare against, so the first review of
+     * every new project would otherwise fail with a git error about an ambiguous argument. When
+     * the base is missing the whole ref is shown instead, which is the right answer: all of it is
+     * new.
+     *
+     * @param name Incoming ref name, without the namespace prefix.
+     * @param against Ref to compare against, or {@code null} for the whole ref.
+     * @return Unified diff.
+     */
+    public String review(String name, @Nullable String against) {
+        requirePending(name);
+        if (against == null || against.isBlank() || !resolves(against)) {
+            return gitIn("show", "--patch", INCOMING + name).standardOutput();
+        }
+        return gitIn("diff", against, INCOMING + name).standardOutput();
+    }
+
+    /**
+     * Returns the commits an incoming ref adds.
+     *
+     * @param name Incoming ref name, without the namespace prefix.
+     * @param against Ref to compare against, or {@code null} to list the whole history of the ref.
+     * @return One line per commit.
+     */
+    public String log(String name, @Nullable String against) {
+        requirePending(name);
+        final String range = against == null || against.isBlank() || !resolves(against)
+                ? INCOMING + name
+                : against + ".." + INCOMING + name;
+        return gitIn("log", "--oneline", range).standardOutput();
+    }
+
+    /**
+     * Forwards an incoming ref to the upstream.
+     * <p>
+     * The only method that sends anything off the machine, and it is never called by anything the
+     * agent can reach.
+     *
+     * @param name Incoming ref name, without the namespace prefix.
+     * @param branch Upstream branch to push to.
+     * @throws GateException If the mode forbids forwarding, or no upstream is configured.
+     */
+    public void approve(String name, String branch) {
+        if (!mode.canForward()) {
+            throw new GateException("This project's security class is offline, so nothing is"
+                    + " forwarded upstream");
+        }
+        if (upstreamUrl == null) {
+            throw new GateException("No upstream is configured for this project");
+        }
+        requirePending(name);
+        gitIn("push", upstreamUrl, INCOMING + name + ":refs/heads/" + branch);
+        gitIn("update-ref", "-d", INCOMING + name);
+    }
+
+    /**
+     * Discards an incoming ref without forwarding it.
+     *
+     * @param name Incoming ref name, without the namespace prefix.
+     */
+    public void reject(String name) {
+        gitIn("update-ref", "-d", INCOMING + name);
+    }
+
+    private void requirePending(String name) {
+        // Otherwise every mistyped name produces a git error about an ambiguous argument, which
+        // says nothing about what the operator actually got wrong.
+        if (!pending().contains(name)) {
+            throw new GateException("There is no pending push named '" + name + "'"
+                    + (pending().isEmpty() ? ", nothing is pending" : ", try: " + String.join(", ", pending())));
+        }
+    }
+
+    private CommandResult git(String... arguments) {
+        final List<String> all = new ArrayList<>(List.of("git"));
+        all.addAll(List.of(arguments));
+        try {
+            return runner.runOrFail(Command.of(all));
+        } catch (CommandException ex) {
+            throw new GateException(ex.getMessage() == null ? "git failed" : ex.getMessage(), ex);
+        }
+    }
+
+    private CommandResult gitIn(String... arguments) {
+        final List<String> all = new ArrayList<>(List.of("git", "--git-dir", mirror.toString()));
+        all.addAll(List.of(arguments));
+        try {
+            return runner.runOrFail(Command.of(all));
+        } catch (CommandException ex) {
+            throw new GateException(ex.getMessage() == null ? "git failed" : ex.getMessage(), ex);
+        }
+    }
+}
