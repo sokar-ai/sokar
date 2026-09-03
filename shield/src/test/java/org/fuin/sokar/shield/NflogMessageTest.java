@@ -107,6 +107,40 @@ class NflogMessageTest {
     }
 
     @Test
+    void keepsTheAgentsConnectionsAndDropsTheNamespaceNoise() throws IOException {
+
+        // A container namespace produces router solicitations and multicast listener reports that
+        // the default-deny chain drops too. An operator who learns to dismiss prompts is worse
+        // than no prompts at all.
+        final List<BlockedConnection> worth = parseAll().stream()
+                .filter(BlockedConnection::worthAsking).toList();
+
+        assertThat(worth).isNotEmpty();
+        assertThat(worth).extracting(BlockedConnection::describe)
+                .containsOnly("1.1.1.1:443", "9.9.9.9:80");
+        assertThat(parseAll()).hasSizeGreaterThan(worth.size());
+    }
+
+    @Test
+    void classifiesTheAddressesThatShouldNeverRaiseAPrompt() {
+
+        assertThat(ask("224.0.0.251", BlockedConnection.UDP)).as("mDNS multicast").isFalse();
+        assertThat(ask("255.255.255.255", BlockedConnection.UDP)).as("broadcast").isFalse();
+        assertThat(ask("169.254.1.1", BlockedConnection.TCP)).as("link-local").isFalse();
+        assertThat(ask("ff02:0:0:0:0:0:0:2", BlockedConnection.UDP)).as("IPv6 multicast").isFalse();
+        assertThat(ask("fe80:0:0:0:0:0:0:1", BlockedConnection.TCP)).as("IPv6 link-local").isFalse();
+
+        assertThat(ask("1.1.1.1", BlockedConnection.TCP)).as("a real destination").isTrue();
+        assertThat(ask("2606:4700:4700:0:0:0:0:1111", BlockedConnection.TCP))
+                .as("a real IPv6 destination").isTrue();
+        assertThat(ask("1.1.1.1", 58)).as("ICMPv6 is not a connection").isFalse();
+    }
+
+    private boolean ask(String destination, int protocol) {
+        return new BlockedConnection("p", protocol, destination, 443, Instant.EPOCH).worthAsking();
+    }
+
+    @Test
     void rendersAnEventAsTheLineProtocol() {
 
         final BlockedConnection event = new BlockedConnection("sokar-drop ",

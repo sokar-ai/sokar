@@ -53,12 +53,26 @@ public class EgressPolicy {
                 .standardOutput();
     }
 
-    private List<String> nsenter(String... command) {
-        // setns() is per-thread and the JVM gives no control over which thread runs what, so a
-        // child process is the only reliable way into the container's namespace.
-        final List<String> all = new java.util.ArrayList<>(
-                List.of("nsenter", "--target", String.valueOf(containerPid), "--net"));
-        all.addAll(List.of(command));
+    /**
+     * Returns the command that runs the given program inside the container's network namespace.
+     * <p>
+     * {@code podman unshare} first, because a rootless container's namespaces belong to the
+     * operator's user namespace and {@code nsenter} cannot join them from outside it.
+     * {@code setns} is per-thread and the JVM gives no control over which thread runs what, so a
+     * child process is the only reliable way in either case.
+     *
+     * @param command Program and arguments to run inside the namespace.
+     * @param containerPid Host process id of the container's init process.
+     * @return Full argument list.
+     */
+    public static List<String> inNamespace(long containerPid, List<String> command) {
+        final List<String> all = new java.util.ArrayList<>(List.of(
+                "podman", "unshare", "nsenter", "--target", String.valueOf(containerPid), "--net"));
+        all.addAll(command);
         return List.copyOf(all);
+    }
+
+    private List<String> nsenter(String... command) {
+        return inNamespace(containerPid, List.of(command));
     }
 }

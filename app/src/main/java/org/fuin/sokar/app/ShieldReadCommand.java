@@ -34,6 +34,10 @@ public class ShieldReadCommand implements Callable<Integer> {
             description = "Stop after this many events. Zero means run until killed.")
     private int count;
 
+    @Option(names = "--all",
+            description = "Reports every dropped packet, including multicast and link-local noise.")
+    private boolean all;
+
     @Spec
     private CommandSpec spec;
 
@@ -47,6 +51,11 @@ public class ShieldReadCommand implements Callable<Integer> {
 
             final int[] seen = { 0 };
             reader.readUntilStopped(event -> {
+                if (!all && !event.worthAsking()) {
+                    // Router solicitations and multicast listener reports are dropped by the
+                    // default-deny chain too. Passing them on would bury the events that matter.
+                    return;
+                }
                 out.println(event.toJson());
                 out.flush();
                 if (count > 0 && ++seen[0] >= count) {

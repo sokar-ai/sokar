@@ -8,7 +8,7 @@ import picocli.CommandLine.Command;
 @Command(name = "shield",
         mixinStandardHelpOptions = true,
         description = "Inspects the egress firewall.",
-        subcommands = { ShieldReadCommand.class })
+        subcommands = { ShieldReadCommand.class, ShieldWatchCommand.class })
 public class ShieldCommand {
 
 }

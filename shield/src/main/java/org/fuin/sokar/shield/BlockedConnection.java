@@ -57,6 +57,54 @@ public record BlockedConnection(String prefix, int protocol, String destination,
     }
 
     /**
+     * Tells whether this event is worth putting in front of an operator.
+     * <p>
+     * A container's network namespace is noisy in ways that have nothing to do with the agent:
+     * IPv6 router solicitations, multicast listener reports and mDNS all get dropped by the
+     * default-deny chain and all produce events. Asking about those would bury the one prompt that
+     * matters, and an operator who has learned to dismiss prompts is worse than no prompts.
+     * <p>
+     * Only unicast TCP and UDP survive: those are the connections an agent actually makes.
+     *
+     * @return {@code true} if an operator should be asked about it.
+     */
+    public boolean worthAsking() {
+        if (protocol != TCP && protocol != UDP) {
+            return false;
+        }
+        return !isMulticast() && !isLinkLocal();
+    }
+
+    private boolean isMulticast() {
+        if (destination.contains(":")) {
+            // ff00::/8
+            return destination.toLowerCase().startsWith("ff");
+        }
+        final int first = firstOctet();
+        // 224.0.0.0/4 and the 255.255.255.255 broadcast.
+        return (first >= 224 && first <= 239) || destination.equals("255.255.255.255");
+    }
+
+    private boolean isLinkLocal() {
+        if (destination.contains(":")) {
+            // fe80::/10
+            final String lower = destination.toLowerCase();
+            return lower.startsWith("fe8") || lower.startsWith("fe9")
+                    || lower.startsWith("fea") || lower.startsWith("feb");
+        }
+        return destination.startsWith("169.254.");
+    }
+
+    private int firstOctet() {
+        final int dot = destination.indexOf('.');
+        try {
+            return dot < 0 ? -1 : Integer.parseInt(destination.substring(0, dot));
+        } catch (NumberFormatException ex) {
+            return -1;
+        }
+    }
+
+    /**
      * Renders the event as JSON, for the line protocol between reader and hub.
      *
      * @return The document.

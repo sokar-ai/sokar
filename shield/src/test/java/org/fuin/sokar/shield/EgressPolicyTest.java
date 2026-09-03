@@ -28,7 +28,8 @@ class EgressPolicyTest {
         // Adding to the live set rather than reloading the ruleset: a reload drops conntrack
         // state and kills every connection the agent already had open.
         assertThat(runner.only("nft").describe())
-                .isEqualTo("nsenter --target 4711 --net nft add element inet sokar allowed_v4 { 1.1.1.1 }");
+                .isEqualTo("podman unshare nsenter --target 4711 --net"
+                        + " nft add element inet sokar allowed_v4 { 1.1.1.1 }");
     }
 
     @Test
@@ -44,8 +45,11 @@ class EgressPolicyTest {
 
         policy.allow("1.1.1.1");
 
-        // Without nsenter this would edit the host's firewall instead of the container's.
-        assertThat(runner.only("nft").describe()).startsWith("nsenter --target 4711 --net ");
+        // Without this the rule would land in the host's firewall instead of the container's.
+        // 'podman unshare' is needed as well: a rootless container's namespaces belong to the
+        // operator's user namespace, and nsenter cannot join them from outside it.
+        assertThat(runner.only("nft").describe())
+                .startsWith("podman unshare nsenter --target 4711 --net ");
     }
 
     @Test

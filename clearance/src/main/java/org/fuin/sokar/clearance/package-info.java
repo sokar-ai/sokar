@@ -1,5 +1,5 @@
 /**
- * Allow/deny decisions (CLEARANCE)
+ * Asking the operator whether a blocked connection should be allowed.
  */
 @NullMarked
 package org.fuin.sokar.clearance;
