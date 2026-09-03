@@ -39,6 +39,9 @@
              Install with ./buildtools/install-musl.sh, or override on the command line. -->
         <musl.home>${user.home}/.local/opt/x86_64-linux-musl-native</musl.home>
         <musl.gcc>${musl.home}/bin/x86_64-linux-musl-gcc</musl.gcc>
+        <!-- Late-replaced by surefire. Declared empty so '@{argLine}' resolves when JaCoCo,
+             which normally sets this property, is not active. -->
+        <argLine/>
     </properties>
 
     <modules>
@@ -169,6 +172,16 @@
         <pluginManagement>
 
             <plugins>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <!-- Panama downcalls are a restricted operation and will be blocked
+                             outright in a future release without this. -->
+                        <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
+                    </configuration>
+                </plugin>
 
                 <plugin>
                     <groupId>org.graalvm.buildtools</groupId>

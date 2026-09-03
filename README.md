@@ -55,3 +55,17 @@ with `-Dmusl.home=...`. Nothing needs to be added to `PATH`.
 `sokar` and `sokard` are dynamically linked, and deliberately so: they use the
 Foreign Function & Memory API, and `Linker.defaultLookup()` dlopens `libc.so.6`,
 which a static image cannot do.
+
+### FFM metadata
+
+Panama downcalls are not discovered by native-image's static analysis. An unregistered one is not a
+build error, it is a `MissingForeignRegistrationError` at runtime in the shipped binary, so the
+registrations are generated from a test run rather than maintained by hand:
+
+```
+./buildtools/check-ffm-metadata.sh            # verify; non-zero exit on drift
+./buildtools/check-ffm-metadata.sh --update   # rewrite, then commit the result
+```
+
+Run it in CI. After adding or changing a downcall, run it with `--update` and commit
+`reachability-metadata.json` alongside the code.

@@ -20,6 +20,11 @@
 
         <dependency>
             <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
             <artifactId>sokar-runtime</artifactId>
         </dependency>
 
@@ -78,6 +83,9 @@
                                 <configuration>
                                     <imageName>sokar</imageName>
                                     <mainClass>org.fuin.sokar.app.SokarCli</mainClass>
+                                    <buildArgs combine.children="append">
+                                        <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
+                                    </buildArgs>
                                 </configuration>
                             </execution>
                         </executions>

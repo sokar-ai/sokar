@@ -48,6 +48,9 @@
                                 <configuration>
                                     <imageName>sokard</imageName>
                                     <mainClass>org.fuin.sokar.daemon.SokarDaemon</mainClass>
+                                    <buildArgs combine.children="append">
+                                        <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
+                                    </buildArgs>
                                 </configuration>
                             </execution>
                         </executions>
