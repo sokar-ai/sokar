@@ -30,7 +30,8 @@ Use the agent as you want:
 
 - **A file beside your code** — `project.yml` names the base image, the security class and anything else you want
   baked in; each task is a container built from it and thrown away afterwards
-- **The security class belongs to the project** — `offline`, `guarded` or `online`, and no task can talk its way up
+- **The security class belongs to the project** — `offline` forwards nothing upstream ever, `guarded` and `online`
+  forward only what you approve, and no task can talk its way up
 - **Interactive or unattended** — a shell by default, or `-P "…"` to run the agent headlessly and format what it says
 - **Three image layers, the middle one pinned** — your base, then the agent's CLI fetched from a fixed URL and checked
   against a SHA-256, then your own lines
@@ -45,7 +46,7 @@ behave. Big kudos to its developers. If you are more at home in Python, use it. 
 Why build this if Terok is so cool? See [why](why.md)
 
 ## Getting started
--TBD-
+See [getting started](getting-started.md).
 
 ## Adding your tools to a container
 See [your tooling](your-tooling.md).
