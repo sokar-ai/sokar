@@ -8,7 +8,8 @@ import picocli.CommandLine.Command;
 @Command(name = "vault",
         mixinStandardHelpOptions = true,
         description = "Manages stored credentials.",
-        subcommands = { VaultAgentCommand.class, VaultUnlockCommand.class })
+        subcommands = { VaultPutCommand.class, VaultListCommand.class,
+                VaultAgentCommand.class, VaultUnlockCommand.class })
 public class VaultCommand {
 
 }

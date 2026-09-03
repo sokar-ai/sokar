@@ -26,6 +26,8 @@ public class ContainerSpec {
 
     private final List<String> resolvers = new ArrayList<>();
 
+    private final Map<String, String> environment = new LinkedHashMap<>();
+
     /**
      * Constructor with the required data.
      *
@@ -75,6 +77,24 @@ public class ContainerSpec {
     }
 
     /**
+     * Sets an environment variable inside the container.
+     * <p>
+     * <strong>Only ever a phantom token, never a real credential.</strong> A variable passed here
+     * reaches podman's command line, so it is visible in the host's process list for as long as
+     * the create call runs, and it is readable from the container image metadata afterwards. A
+     * phantom token is worth nothing outside this task; the real credential must never take this
+     * path.
+     *
+     * @param name Variable name.
+     * @param value Variable value.
+     * @return This instance.
+     */
+    public ContainerSpec environment(String name, String value) {
+        environment.put(name, value);
+        return this;
+    }
+
+    /**
      * Points the container's resolver at an address.
      *
      * @param address Resolver address, usually loopback inside the container.
@@ -118,6 +138,11 @@ public class ContainerSpec {
         // nft hook installs the ruleset inside this namespace.
         arguments.add("--network");
         arguments.add("private");
+
+        environment.forEach((name, value) -> {
+            arguments.add("--env");
+            arguments.add(name + "=" + value);
+        });
 
         resolvers.forEach(address -> {
             // Without this the agent uses the host's resolver, the firewall sees only addresses,

@@ -34,6 +34,14 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Agent to install in the image. Default: the only one installed.")
     private String agentName;
 
+    @Option(names = "--credential-type", paramLabel = "<type>",
+            description = "Which credential shape the agent gets. Default: ${DEFAULT-VALUE}")
+    private String credentialType = "api-key";
+
+    @Option(names = "--token-hours", paramLabel = "<n>",
+            description = "How long the phantom token is accepted. Default: ${DEFAULT-VALUE}")
+    private int tokenHours = 8;
+
     @Option(names = "--shell", paramLabel = "<path>",
             description = "Shell to attach. Default: ${DEFAULT-VALUE}")
     private String shell = "/bin/bash";
@@ -45,6 +53,10 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     @Option(names = "--dry-run",
             description = "Reports what would be done without starting anything.")
     private boolean dryRun;
+
+    @Option(names = "--no-attach",
+            description = "Starts the container and returns, instead of handing over a shell.")
+    private boolean noAttach;
 
     @Spec
     private CommandSpec spec;
@@ -107,8 +119,16 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 return 69;
             }
 
-            runner.start(project, container, layers, out);
+            runner.start(project, container, layers, environment(agents, out, err), out);
             out.println();
+
+            if (noAttach) {
+                // Everything after start() replaces this process, which makes the normal path
+                // impossible to drive from a script or a test. This is the seam for both.
+                out.println("attached  no");
+                out.flush();
+                return 0;
+            }
 
             if (!keep) {
                 out.println("Attaching. The container is removed when the shell exits.");
@@ -129,6 +149,45 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.flush();
             return cleanUp(runner, container, 70);
         }
+    }
+
+    /**
+     * Builds the environment the container starts with.
+     * <p>
+     * <strong>A phantom token, never the real credential.</strong> The agent inside the container
+     * gets something that only Sokar's broker accepts, only for this task, and only until it ends.
+     * An agent that leaks it has leaked something that stops working when the container does.
+     * <p>
+     * Empty when the vault holds nothing for this agent - which is not an error. A task that only
+     * needs a shell needs no credential, and failing here would make the common case depend on the
+     * uncommon one.
+     */
+    private java.util.Map<String, String> environment(
+            org.fuin.sokar.agent.api.InstalledAgents agents, PrintWriter out, PrintWriter err) {
+
+        final org.fuin.sokar.agent.api.InstalledAgent agent = select(agents);
+        if (agent == null) {
+            return java.util.Map.of();
+        }
+
+        final String variable = agent.definition().tokenVariable(credentialType);
+        if (variable == null) {
+            return java.util.Map.of();
+        }
+
+        final java.util.Map<String, String> credentials = context.credentials();
+        if (!credentials.containsKey(agent.name())) {
+            out.println("token     none - the vault holds no credential for '" + agent.name() + "'");
+            return java.util.Map.of();
+        }
+
+        final org.fuin.sokar.vault.TokenBroker broker =
+                new org.fuin.sokar.vault.TokenBroker(() -> credentials);
+        final org.fuin.sokar.vault.PhantomToken token =
+                broker.mint(agent.name(), task, java.time.Duration.ofHours(tokenHours));
+
+        out.println("token     " + variable + "=" + token);
+        return java.util.Map.of(variable, token.value());
     }
 
     /**

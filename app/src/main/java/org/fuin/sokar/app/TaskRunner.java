@@ -80,6 +80,22 @@ public class TaskRunner {
      */
     public void start(Project project, String container,
             org.fuin.sokar.runtime.ImageLayers layers, PrintWriter out) throws IOException {
+        start(project, container, layers, java.util.Map.of(), out);
+    }
+
+    /**
+     * Prepares and starts a container for one task.
+     *
+     * @param project The project.
+     * @param container Container name.
+     * @param layers What the agent and the project add to the image.
+     * @param environment Variables to set inside the container. Phantom tokens only.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, String container,
+            org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment, PrintWriter out) throws IOException {
 
         final Path state = paths.containerState(container);
         Files.createDirectories(state);
@@ -97,10 +113,12 @@ public class TaskRunner {
         final String image = podman.buildImage(project, paths.buildContext(project.name()), layers);
         out.println("image     " + image);
 
-        podman.create(new ContainerSpec(container, image)
+        final ContainerSpec specification = new ContainerSpec(container, image)
                 .command("sleep", "infinity")
                 .resolver(org.fuin.sokar.shield.DnsPolicy.LISTEN_ADDRESS)
-                .annotation(Sidecar.ANNOTATION, sidecarFile.toString()));
+                .annotation(Sidecar.ANNOTATION, sidecarFile.toString());
+        environment.forEach(specification::environment);
+        podman.create(specification);
         out.println("container " + container);
 
         // If the nft hook fails, this is where it stops: the container never reaches running.

@@ -96,6 +96,15 @@ class PodmanTest {
     }
 
     @Test
+    void passesAnEnvironmentVariableToTheContainer() {
+
+        podman.create(new ContainerSpec("sokar-uc-shell-1", "sokar/uc")
+                .environment("ANTHROPIC_API_KEY", "sokar_pt_phantom"));
+
+        assertThat(runner.only("create").describe()).contains("--env ANTHROPIC_API_KEY=sokar_pt_phantom");
+    }
+
+    @Test
     void relabelsVolumesForSelinux() {
 
         podman.create(new ContainerSpec("sokar-uc-shell-1", "sokar/uc")

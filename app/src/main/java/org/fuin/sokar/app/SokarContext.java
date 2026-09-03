@@ -40,6 +40,56 @@ public record SokarContext(CommandRunner runner, SokarPaths paths, Consumer<List
     }
 
     /**
+     * Returns the credentials the vault holds, keyed by agent name.
+     * <p>
+     * Empty when there is no vault or it cannot be unlocked without asking. A task that needs no
+     * credential must not be blocked by one that is merely absent.
+     *
+     * @return Credentials, possibly empty.
+     */
+    public org.fuin.sokar.vault.VaultFile vault() {
+        return new org.fuin.sokar.vault.VaultFile(paths.xdg().data().resolve("vault.bin"));
+    }
+
+    /**
+     * Returns the vault passphrase, or fails saying what was tried.
+     *
+     * @return The passphrase.
+     * @throws org.fuin.sokar.vault.VaultException If no tier produced one.
+     */
+    public char[] requirePassphrase() {
+        final var runner = new ProcessCommandRunner();
+        return new org.fuin.sokar.vault.PassphraseTiers(
+                org.fuin.sokar.vault.KernelKeyring.source(VaultUnlockCommand.KEY),
+                new org.fuin.sokar.vault.ConsolePassphrase("Vault passphrase: ")).require();
+    }
+
+    /**
+     * Returns the credentials the vault holds, keyed by agent name.
+     * <p>
+     * Empty when there is no vault or it cannot be unlocked without asking. A task that needs no
+     * credential must not be blocked by one that is merely absent.
+     *
+     * @return Credentials, possibly empty.
+     */
+    public java.util.Map<String, String> credentials() {
+        final org.fuin.sokar.vault.VaultFile vault = vault();
+        if (!vault.exists()) {
+            return java.util.Map.of();
+        }
+        final java.util.Optional<char[]> passphrase = new org.fuin.sokar.vault.PassphraseTiers(
+                org.fuin.sokar.vault.KernelKeyring.source(VaultUnlockCommand.KEY)).passphrase();
+        if (passphrase.isEmpty()) {
+            return java.util.Map.of();
+        }
+        try {
+            return vault.read(passphrase.get());
+        } catch (org.fuin.sokar.vault.VaultException ex) {
+            return java.util.Map.of();
+        }
+    }
+
+    /**
      * Returns the agents installed on this machine, started and handshaken.
      * <p>
      * The caller closes it: each agent is a process, and leaving them running would leak one per
