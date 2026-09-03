@@ -39,6 +39,16 @@ Six files, none of them outside this directory except two lines of `pom.xml`.
 Copy an existing one. The only dependency is `sokar-agent-api`. **Do not add a
 dependency on another agent** — the build will reject it.
 
+Declare **two** things:
+
+- **its own `<version>`**, not Sokar's. This is the package version, and it is
+  what makes the agent releasable on its own schedule. Sokar's dependencies still
+  resolve because the root POM pins them with `${sokar.version}` rather than
+  `${project.version}` — a parent's `${project.version}` is interpolated against
+  the module that inherits it, so it would resolve to *your* version and find
+  nothing.
+- **`agent.cli.version`**, the CLI version this agent installs.
+
 ### 2. `agents/<name>/src/main/resources/agent/<name>.yaml`
 
 The definition. Everything that is data lives here:
@@ -172,37 +182,40 @@ the failure this structure exists to prevent: the next agent falls into the
 ## Packaging
 
 Every agent gets a `.deb` and an `.rpm` from the shared `dist` profile in
-`agents/pom.xml`. **You write no packaging configuration** — declare
-`agent.cli.version` and the rest follows:
+`agents/pom.xml`. **You write no packaging configuration** — declare the module's
+`<version>` and `agent.cli.version`, and the rest follows:
 
 ```
 mvn -Pnative,dist verify
-  → target/sokar-agent-claude_2.1.236-0.1.0_amd64.deb
-  → target/sokar-agent-claude-2.1.236-0.1.0.x86_64.rpm
+  → target/sokar-agent-claude_1.0.0~SNAPSHOT_amd64.deb
+  → target/sokar-agent-claude-1.0.0~SNAPSHOT-1.x86_64.rpm
 ```
 
 Both install one file, `/usr/libexec/sokar/agents/<name>`, which is where Sokar
 looks. Nothing is registered and no post-install script runs: installing the
 package is the whole integration.
 
-**The package version is `<agent CLI version>-<Sokar release>`**, the Debian
-convention of upstream-plus-revision. That is not cosmetic:
+**The package version is the agent module's own version**, and nothing else.
+Sokar's release line does not appear in the artifact — that is the point of
+shipping agents separately. An agent released against an unchanged CLI is still
+an upgrade, which a version keyed on the CLI alone could not express.
+
+The **CLI version lives in the description**, so the package still answers what
+an image build will fetch:
 
 ```
 $ dpkg -l | grep sokar-agent
-ii  sokar-agent-claude  2.1.236-0.1.0  amd64  Sokar agent for Claude Code
+ii  sokar-agent-claude  1.0.0~SNAPSHOT  amd64  Sokar agent for Claude Code 2.1.236
+
+$ dpkg -s sokar-agent-claude | grep ^Description
+Description: Sokar agent for Claude Code 2.1.236
 ```
 
-`dpkg -l` and `rpm -q` answer *which agent CLI an image build will install*
-without opening the definition. It also means a new upstream release produces a
-new package version, so `apt upgrade` has something to upgrade to — a scheme
-keyed on the Sokar version alone would produce two different packages carrying
-the same version.
-
 `agent.cli.version` is written once, in the agent's `pom.xml`, and filtered into
-its `agent.yaml`. Bumping a CLI is that line plus the new digest.
+its `agent.yaml` and the package description. Bumping a CLI is that line plus the
+new digest — and the module `<version>`, since the package contents changed.
 
-Snapshot builds render as `0.1.0~SNAPSHOT`, because `~` sorts *below* everything
+Snapshot builds render as `1.0.0~SNAPSHOT`, because `~` sorts *below* everything
 in both Debian and RPM ordering. Left as `-SNAPSHOT` it would sort above the
 release and `apt` would refuse to upgrade from a snapshot to the real thing.
 

@@ -1,19 +1,20 @@
 Package: [[name]]
-# Not [[version]]: that is the Maven version, and apt compares on this line. Using it would
-# make "dpkg -l | grep sokar-agent" report the Sokar release while the file name says which
-# Claude Code it installs, and only the file name would be right.
-Version: [[agent.cli.version]]-[[sokar.package.revision]]
+# Not [[version]]: that is the raw Maven version, and apt compares on this line. This is the
+# agent module's version with -SNAPSHOT rewritten to ~SNAPSHOT, which sorts below the release
+# rather than above it.
+Version: [[agent.package.version]]
 Section: utils
 Priority: optional
 Architecture: amd64
 Maintainer: fuin.org <info@fuin.org>
 Homepage: https://github.com/fuinorg/sokar
 Depends: sokar
-Description: [[description]]
+Description: [[description]] [[agent.cli.version]]
  Installs into /usr/libexec/sokar/agents, where the sokar binary looks for
  agents. Nothing needs to be registered: sokar scans that directory and asks
  whatever it finds to describe itself, so installing this package is enough.
  .
- This package is versioned as <agent-cli-version>-<sokar-release>, so
- "dpkg -l | grep sokar-agent" answers which agent CLI an image build will
- install without consulting the definition.
+ The package version is this agent's own version, independent of Sokar's release
+ line. The agent CLI version it installs is on the Description line above, so
+ "dpkg -s sokar-agent-claude" answers what an image build will fetch without
+ consulting the definition.

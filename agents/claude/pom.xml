@@ -12,6 +12,17 @@
     </parent>
 
     <artifactId>sokar-agent-claude</artifactId>
+
+    <!-- Deliberately NOT Sokar's version. An agent ships and versions on its own cadence, and
+         this is the version its .deb and .rpm carry; Sokar's release line does not appear in
+         the artifact at all.
+
+         The Sokar dependencies below resolve through the root dependencyManagement, which pins
+         ${sokar.version} rather than ${project.version}. That matters: a parent's
+         ${project.version} is interpolated against the module that inherits it, so it would
+         resolve to THIS version and find nothing. -->
+
+    <version>1.0.0-SNAPSHOT</version>
     <description>Sokar agent for Claude Code</description>
 
     <properties>

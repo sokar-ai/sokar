@@ -23,11 +23,11 @@
          See the README beside this file for what onboarding one costs. -->
 
     <properties>
-        <!-- Package version is <agent CLI version>-<Sokar release>, the Debian convention of
-             upstream-plus-revision. It matters here: when a vendor releases a new CLI the pinned
-             digest changes, and a package whose version did not change cannot be upgraded by apt
-             or dnf. Each agent sets agent.cli.version; it is filtered into the definition so the
-             version is written once. -->
+        <!-- The agent CLI version this agent installs. Filtered into the agent's definition so
+             it is written once, and carried in the package DESCRIPTION so that 'dpkg -s' and
+             'rpm -qi' still answer which CLI an image build will install. It is deliberately
+             NOT part of the package version: the package version is the agent module's own
+             version, so an agent released against an unchanged CLI is still an upgrade. -->
         <agent.cli.version>0</agent.cli.version>
         <build-helper.version>3.6.1</build-helper.version>
         <jdeb.version>1.14</jdeb.version>
@@ -81,11 +81,16 @@
                                     <goal>regex-property</goal>
                                 </goals>
                                 <configuration>
-                                    <!-- Debian sorts '~' below everything, so 2.1.236-0.1.0~SNAPSHOT
-                                         is older than 2.1.236-0.1.0. Left as '-SNAPSHOT' it sorts
-                                         ABOVE the release, and apt then refuses to upgrade from a
-                                         snapshot to the real thing. -->
-                                    <name>sokar.package.revision</name>
+                                    <!-- Debian and RPM sort '~' below everything, so 1.0.0~SNAPSHOT
+                                         is older than 1.0.0. Left as '-SNAPSHOT' it sorts ABOVE
+                                         the release, and apt then refuses to upgrade from a
+                                         snapshot to the real thing.
+
+                                         ${project.version} here is the AGENT module's version:
+                                         regex-property is plugin configuration, resolved at
+                                         execution time against the current project. That is the
+                                         mechanism the whole scheme rests on. -->
+                                    <name>agent.package.version</name>
                                     <value>${project.version}</value>
                                     <regex>-SNAPSHOT$</regex>
                                     <replacement>~SNAPSHOT</replacement>
@@ -111,7 +116,7 @@
                                 </goals>
                                 <configuration>
                                     <name>${project.artifactId}</name>
-                                    <deb>${project.build.directory}/${project.artifactId}_${agent.cli.version}-${sokar.package.revision}_amd64.deb</deb>
+                                    <deb>${project.build.directory}/${project.artifactId}_${agent.package.version}_amd64.deb</deb>
                                     <!-- One control file for every agent, in the parent directory.
                                          jdeb substitutes [[name]] and friends from the POM. -->
                                     <controlDir>${project.basedir}/../src/deb/control</controlDir>
@@ -149,9 +154,11 @@
                         </executions>
                         <configuration>
                             <packageName>${project.artifactId}</packageName>
-                            <version>${agent.cli.version}</version>
-                            <snapshotVersion>${agent.cli.version}</snapshotVersion>
-                            <release>${sokar.package.revision}</release>
+                            <version>${agent.package.version}</version>
+                            <snapshotVersion>${agent.package.version}</snapshotVersion>
+                            <release>1</release>
+                            <summary>${project.description}</summary>
+                            <description>Sokar agent for Claude Code ${agent.cli.version}. Installs into /usr/libexec/sokar/agents, where the sokar binary scans for agents.</description>
                             <!-- Without this the plugin substitutes a timestamp release for any
                                  snapshot build, and the rpm and the deb then disagree about what
                                  version they are - which is worse than either scheme alone. -->
