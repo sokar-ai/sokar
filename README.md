@@ -2,40 +2,40 @@
 
 **Sandboxing AI agents in YOLO mode using Podman and native Java/GraalVM.**
 
-<img align="left" height="300" width="217" src="doc/sokar-300.png" alt="Sokar with AI agent in podman">
-Sokar runs each agent task inside a hardened, rootless container with default-deny outbound networking, a credential
-vault that keeps real keys on the host, a per-task git checkpoint, and a desktop notification path for live allow/deny
+Sokar runs each agent inside a hardened, rootless container with default-deny outbound networking, a credential
+vault that keeps real keys on the host, a git checkpoint for every run, and a desktop notification path for live allow/deny
 decisions.
 
-A project is a `project.yml` beside your code — a name, a security class, a base image, and any extra lines you want
-in the task image. A task is one container built from that, and it is removed again when the shell exits unless you
-ask for it to stay. Everything on that path is a single binary: `sokard` exists for a desktop client, and
-`sokar task run` never waits for it.
+Use the agent as you want:
+- Work locally: interactive in a shell, or headless and unattended with `--clearance=allow|deny|off`
+- Supervise agents from a Flutter client — desktop, then phone over an SSH tunnel — wherever they run **TODO**
 
-Anything marked **TODO** below is not built yet. Everything else is exercised by
-`buildtools/e2e-tier1.sh`, which runs 23 checks against a real container and needs no provider account.
+<img align="left" height="500" width="295" src="doc/sokar-500.png" alt="Sokar with AI agent in podman">
 
 ### Hardening
 
-- **Rootless podman** — runs as your own user, and as an unprivileged account inside the container
-- **No capabilities, no privilege gain** — `--cap-drop ALL` and `no-new-privileges`, verified in a live container
-- **Default-deny egress** — nftables loaded into the container's netns by a hook that fails closed
-- **DNS you can read** — the resolver answers only declared domains, so a block names a host, not an address
-- **Live Allow / Deny prompts** — drops go to NFLOG, then to a desktop notification, once per destination
-- **Per-task git gate** — the agent pushes to a mirror on the host; you review before anything leaves
-- **The real credential never enters the container** — a phantom token, swapped for the key by a proxy on a unix
-  socket, with the provider's own host firewalled off so there is no way around it
-- **Signed commits without a key in the container** — signing happens in the vault, over an agent socket **TODO**
+- **Fail-closed egress** — a default-deny nftables ruleset is loaded into the container's network namespace before
+  the workload runs, and if it cannot be loaded the container does not start
+- **Nothing to escalate to** — every capability dropped and `no-new-privileges` set at create time, inside a rootless
+  container whose agent is an unprivileged account
+- **The key stays on the host** — the container holds a task-scoped phantom token, a proxy on a unix socket swaps it
+  for the real credential, and the provider's own host is firewalled off so nothing can go around it; commit signing
+  works the same way, over an agent socket **TODO**
+- **Work leaves only through review** — the agent pushes to a host-side mirror under `refs/sokar/incoming/`, and
+  nothing reaches an upstream until you approve it
+- **Recorded before anyone is asked** — drops land in a JSON-per-line audit file whether or not a prompt is running,
+  and the desktop Allow/Deny appears once per destination and is never re-asked
 
 ### Features
 
-- **Projects ⊃ Tasks** — a `project.yml` beside your code, one throwaway container per task
-- **Three security classes** — `offline`, `guarded`, `online`; set by the project, not raisable by a task
-- **Shell or headless** — a shell by default, or `-P "…"` to run the agent and format its output
-- **Layered images** — base distro · the agent's pinned CLI, checked against a SHA-256 · your own lines
-- **Agents are separate packages** — own binary, own `.deb`/`.rpm`, found by a directory scan; nothing in Sokar
-  names one, and an ArchUnit test fails the build if that changes
-- **Codex alongside Claude Code** — same install path, no change to Sokar itself **TODO**
+- **A file beside your code** — `project.yml` names the base image, the security class and anything else you want
+  baked in; each task is a container built from it and thrown away afterwards
+- **The security class belongs to the project** — `offline`, `guarded` or `online`, and no task can talk its way up
+- **Interactive or unattended** — a shell by default, or `-P "…"` to run the agent headlessly and format what it says
+- **Three image layers, the middle one pinned** — your base, then the agent's CLI fetched from a fixed URL and checked
+  against a SHA-256, then your own lines
+- **An agent is a package, not a patch** — its own binary and its own `.deb`/`.rpm`, discovered by a directory scan,
+  with an ArchUnit test failing the build if anything in Sokar ever names one; Codex arrives the same way **TODO**
 
 <br clear="left"/>
 
