@@ -18,7 +18,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Modules whose tests exercise FFM. Add a module here when it starts making downcalls.
-MODULES="core shield"
+MODULES="core shield vault"
 
 UPDATE=0
 [ "${1:-}" = "--update" ] && UPDATE=1

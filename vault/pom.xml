@@ -44,4 +44,30 @@
 
     </dependencies>
 
+    <profiles>
+
+        <!-- Runs the tests under the tracing agent, which records the libkeyutils downcalls the
+             kernel-keyring tier makes. Unlike the netlink calls in sokar-shield these are
+             observable: binding a key needs no capability a test process lacks. -->
+
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <agent>
+                                <enabled>true</enabled>
+                            </agent>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
 </project>

@@ -38,6 +38,10 @@ public class VaultAgentCommand implements Callable<Integer> {
             description = "Command whose first output line is the vault passphrase.")
     private String passphraseCommand;
 
+    @Option(names = "--systemd-credential", paramLabel = "<file>",
+            description = "systemd-creds encrypted file holding the vault passphrase.")
+    private String systemdCredential;
+
     @Option(names = "--ephemeral",
             description = "Generates a throwaway key instead of reading the vault. For testing.")
     private boolean ephemeral;
@@ -97,11 +101,13 @@ public class VaultAgentCommand implements Callable<Integer> {
     }
 
     private char[] passphrase() {
-        if (passphraseCommand == null) {
-            throw new VaultException("No passphrase source, pass --passphrase-command");
-        }
-        final var result = new org.fuin.sokar.core.process.ProcessCommandRunner()
-                .runOrFail(org.fuin.sokar.core.process.Command.of("sh", "-c", passphraseCommand));
-        return result.trimmedOutput().toCharArray();
+        final var runner = new org.fuin.sokar.core.process.ProcessCommandRunner();
+        return new org.fuin.sokar.vault.PassphraseTiers(
+                // The keyring first here, unlike 'vault unlock': this runs per task, and the whole
+                // point of the cache is that it answers without asking anyone.
+                org.fuin.sokar.vault.KernelKeyring.source(VaultUnlockCommand.KEY),
+                new org.fuin.sokar.vault.SystemdCredential(runner, systemdCredential),
+                new org.fuin.sokar.vault.CommandPassphrase(runner, passphraseCommand),
+                new org.fuin.sokar.vault.ConsolePassphrase("Vault passphrase: ")).require();
     }
 }
