@@ -15,7 +15,7 @@ import picocli.CommandLine.Model.CommandSpec;
         mixinStandardHelpOptions = true,
         versionProvider = SokarVersion.class,
         description = "Runs AI agent tasks inside hardened, rootless containers.",
-        subcommands = { TaskCommand.class, DoctorCommand.class })
+        subcommands = { TaskCommand.class, SetupCommand.class, DoctorCommand.class })
 public class SokarCli implements Callable<Integer> {
 
     @Spec
@@ -35,6 +35,7 @@ public class SokarCli implements Callable<Integer> {
      * @param args Command line arguments.
      */
     public static void main(String[] args) {
-        System.exit(new CommandLine(new SokarCli()).execute(args));
+        System.exit(new CommandLine(new SokarCli(), new SokarFactory(SokarContext.real()))
+                .execute(args));
     }
 }

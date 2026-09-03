@@ -1,20 +1,34 @@
 package org.fuin.sokar.hooks;
 
-/**
- * Entry point of the {@code sokar-hook-reader} binary.
- * <p>
- * Starts the NFLOG reader at {@code createRuntime}. Soft-fail.
- * <p>
- * Compiled {@code --static --libc=musl}. This binary must make no FFM call - see
- * {@code NoForeignFunctionMemoryTest} and spike S5.
- */
-public final class ReaderHook {
+import org.fuin.sokar.wire.Sidecar;
 
-    private ReaderHook() {
-        throw new UnsupportedOperationException("Utility class");
+/**
+ * Starts the NFLOG reader that turns dropped packets into audit events.
+ * <p>
+ * <strong>Soft-fail.</strong> Losing the audit trail costs visibility, not containment: the
+ * firewall is already loaded by the time this runs, and it keeps dropping whether anyone is
+ * listening or not.
+ */
+public class ReaderHook extends Hook {
+
+    /**
+     * Constructor.
+     */
+    public ReaderHook() {
+        super("reader", false);
     }
 
-    public static void main(final String[] args) {
-        System.out.println("sokar-hook-reader (skeleton)");
+    @Override
+    protected void run(OciState state, Sidecar sidecar) throws Exception {
+        log(sidecar, "createRuntime", "reader not implemented yet");
+    }
+
+    /**
+     * Entry point of the {@code sokar-hook-reader} binary.
+     *
+     * @param args Command line arguments; the first is the stage name.
+     */
+    public static void main(String[] args) {
+        System.exit(new ReaderHook().execute(args, System.in, System.err));
     }
 }

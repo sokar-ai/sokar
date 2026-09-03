@@ -1,20 +1,36 @@
 package org.fuin.sokar.hooks;
 
-/**
- * Entry point of the {@code sokar-hook-supervisor} binary.
- * <p>
- * Starts the per-container supervisor at {@code createRuntime} and reaps it at {@code poststop}. Soft-fail.
- * <p>
- * Compiled {@code --static --libc=musl}. This binary must make no FFM call - see
- * {@code NoForeignFunctionMemoryTest} and spike S5.
- */
-public final class SupervisorHook {
+import org.fuin.sokar.wire.Sidecar;
 
-    private SupervisorHook() {
-        throw new UnsupportedOperationException("Utility class");
+/**
+ * Starts the per-container supervisor, and reaps it once the container is gone.
+ * <p>
+ * <strong>Soft-fail.</strong> Without a supervisor the task loses the vault broker, the SSH signer
+ * and the git gate, and will fail when it tries to use them - visibly, at the point of use.
+ * Refusing to start the container instead would turn a degraded run into no run at all.
+ */
+public class SupervisorHook extends Hook {
+
+    /**
+     * Constructor.
+     */
+    public SupervisorHook() {
+        super("supervisor", false);
     }
 
-    public static void main(final String[] args) {
-        System.out.println("sokar-hook-supervisor (skeleton)");
+    @Override
+    protected void run(OciState state, Sidecar sidecar) throws Exception {
+        // The supervisor itself arrives with the vault and the git gate. Until then the hook is
+        // installed and gated correctly, which is what the container lifecycle depends on.
+        log(sidecar, "createRuntime", "supervisor not implemented yet");
+    }
+
+    /**
+     * Entry point of the {@code sokar-hook-supervisor} binary.
+     *
+     * @param args Command line arguments; the first is the stage name.
+     */
+    public static void main(String[] args) {
+        System.exit(new SupervisorHook().execute(args, System.in, System.err));
     }
 }
