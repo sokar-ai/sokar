@@ -35,6 +35,8 @@
         <java.release.version>25</java.release.version>
         <fuin-bom.version>1.0.2-SNAPSHOT</fuin-bom.version>
         <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
+        <picocli.version>4.7.7</picocli.version>
+        <snakeyaml.version>2.7</snakeyaml.version>
         <!-- musl cross-toolchain used for the statically linked hook binaries.
              Install with ./buildtools/install-musl.sh, or override on the command line. -->
         <musl.home>${user.home}/.local/opt/x86_64-linux-musl-native</musl.home>
@@ -75,6 +77,26 @@
                 <version>${fuin-bom.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Third party not covered by the BOM -->
+
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli</artifactId>
+                <version>${picocli.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli-codegen</artifactId>
+                <version>${picocli.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>${snakeyaml.version}</version>
             </dependency>
 
             <!-- Modules -->

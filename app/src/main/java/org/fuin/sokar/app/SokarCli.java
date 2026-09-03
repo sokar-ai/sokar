@@ -1,25 +1,40 @@
 package org.fuin.sokar.app;
 
-import org.fuin.sokar.core.hardening.ProcessHardening;
+import java.util.concurrent.Callable;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Spec;
+import picocli.CommandLine.Model.CommandSpec;
 
 /**
  * Entry point of the {@code sokar} binary.
  * <p>
- * Placeholder for the picocli command tree. For now it reports the process-hardening state, which
- * exercises a real FFM downcall and so proves that the committed reachability metadata is complete
- * for this binary.
+ * Picocli instantiates the command object, so this is a normal class rather than a utility class.
  */
-public final class SokarCli {
+@Command(name = "sokar",
+        mixinStandardHelpOptions = true,
+        versionProvider = SokarVersion.class,
+        description = "Runs AI agent tasks inside hardened, rootless containers.",
+        subcommands = { TaskCommand.class, DoctorCommand.class })
+public class SokarCli implements Callable<Integer> {
 
-    private SokarCli() {
-        throw new UnsupportedOperationException("Utility class");
+    @Spec
+    private CommandSpec spec;
+
+    @Override
+    public Integer call() {
+        // Invoked without a subcommand. Usage on stderr and a non-zero exit, so that a script
+        // that forgets the subcommand fails instead of looking successful.
+        spec.commandLine().usage(spec.commandLine().getErr());
+        return 2;
     }
 
+    /**
+     * Runs the command line.
+     *
+     * @param args Command line arguments.
+     */
     public static void main(String[] args) {
-        System.out.println("sokar (skeleton)");
-        System.out.println("  dumpable            = " + ProcessHardening.dumpable());
-        System.out.println("  noNewPrivileges     = " + ProcessHardening.noNewPrivileges());
-        System.out.println("  hardening covers    = "
-                + (ProcessHardening.appliesToWholeProcess() ? "the whole process" : "this thread only"));
+        System.exit(new CommandLine(new SokarCli()).execute(args));
     }
 }
