@@ -40,6 +40,8 @@ release of Sokar, and Sokar contains no reference to any agent. To build both, s
 sokar setup
 ```
 
+It prints one line per file it writes:
+
 ```
 installed /home/you/.config/containers/containers.conf.d/50-sokar.conf
 installed /home/you/.config/containers/oci/hooks.d/sokar-hook-nft-createRuntime.json
@@ -147,6 +149,8 @@ To add your own tooling to the image, see [your tooling](your-tooling.md).
 sokar task run
 ```
 
+It builds the image, starts the container, and reports what it wired up:
+
 ```
 task           shell
 project        myproject
@@ -201,6 +205,8 @@ Back on the host, in the project directory:
 ```
 sokar gate pending
 ```
+
+lists what is waiting:
 
 ```
 NAME                 WAITING    COMMIT     SUBJECT
