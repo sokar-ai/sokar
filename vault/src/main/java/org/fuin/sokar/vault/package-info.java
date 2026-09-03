@@ -1,5 +1,5 @@
 /**
- * Credential store (VAULT)
+ * The credential store and the brokers that use secrets without handing them out.
  */
 @NullMarked
 package org.fuin.sokar.vault;

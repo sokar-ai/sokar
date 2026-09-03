@@ -38,6 +38,7 @@
         <picocli.version>4.7.7</picocli.version>
         <snakeyaml.version>2.7</snakeyaml.version>
         <dbus-java.version>5.2.0</dbus-java.version>
+        <bouncycastle.version>1.85.2</bouncycastle.version>
         <!-- musl cross-toolchain used for the statically linked hook binaries.
              Install with ./buildtools/install-musl.sh, or override on the command line. -->
         <musl.home>${user.home}/.local/opt/x86_64-linux-musl-native</musl.home>
@@ -98,6 +99,12 @@
                 <groupId>org.yaml</groupId>
                 <artifactId>snakeyaml</artifactId>
                 <version>${snakeyaml.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
             </dependency>
 
             <dependency>

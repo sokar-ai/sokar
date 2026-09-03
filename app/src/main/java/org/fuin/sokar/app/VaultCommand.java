@@ -1,0 +1,14 @@
+package org.fuin.sokar.app;
+
+import picocli.CommandLine.Command;
+
+/**
+ * The {@code sokar vault} command group.
+ */
+@Command(name = "vault",
+        mixinStandardHelpOptions = true,
+        description = "Manages stored credentials.",
+        subcommands = { VaultAgentCommand.class })
+public class VaultCommand {
+
+}
