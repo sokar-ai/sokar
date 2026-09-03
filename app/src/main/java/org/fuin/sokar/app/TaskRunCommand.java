@@ -70,6 +70,11 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "How long the agent may run. Default: ${DEFAULT-VALUE}")
     private int minutes = 30;
 
+    @Option(names = "--clearance", paramLabel = "<mode>",
+            description = "What to do with a blocked connection: prompt, allow, deny, or off."
+                    + " Default: ${DEFAULT-VALUE}")
+    private String clearance = "prompt";
+
     @Option(names = "--raw",
             description = "Shows the agent's output as it came, without its own formatter.")
     private boolean raw;
@@ -150,6 +155,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             runner.start(project, container, layers, environmentCache, domains, out);
             out.println();
 
+            startClearance(runner, container, out, err);
+
             if (prompt != null) {
                 return runAgent(runner, agents, container, out, err);
             }
@@ -180,6 +187,66 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.println("sokar: " + ex);
             err.flush();
             return cleanUp(runner, container, 70);
+        }
+    }
+
+    /**
+     * Starts the clearance watcher for this container, following the events the reader hook is
+     * already writing.
+     * <p>
+     * Detached on purpose. This process either replaces itself with a shell or returns when the
+     * agent finishes, and in both cases the watcher has to outlive it - a blocked connection
+     * during an interactive session needs a prompt just as much as one during a headless run. The
+     * watcher writes a pid file, and the supervisor hook reaps it at poststop.
+     */
+    private void startClearance(TaskRunner runner, String container,
+            PrintWriter out, PrintWriter err) {
+
+        if ("off".equals(clearance)) {
+            return;
+        }
+
+        // The watcher edits the container's live nftables set, which means entering its network
+        // namespace, which means knowing its pid. Starting one without it produces a watcher that
+        // reaches a verdict and cannot act on it - which reads exactly like a working watcher.
+        final java.util.Optional<Long> pid = runner.containerPid(container);
+        if (pid.isEmpty()) {
+            err.println("sokar: the container reports no process, so no clearance watcher"
+                    + " was started; blocked connections will stay blocked");
+            err.flush();
+            return;
+        }
+
+        final java.nio.file.Path state = context.paths().containerState(container);
+        final java.nio.file.Path events =
+                state.resolve(org.fuin.sokar.wire.ReaderEvents.FILE);
+
+        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
+                ProcessHandle.current().info().command().orElse("sokar"),
+                "shield", "watch",
+                "--project", container,
+                "--pid", String.valueOf(pid.get()),
+                "--events", events.toString(),
+                "--socket", state.resolve("clearance.sock").toString(),
+                "--pid-file", state.resolve("watcher.pid").toString()));
+        switch (clearance) {
+            case "allow" -> command.add("--allow-all");
+            case "deny" -> command.add("--deny-all");
+            default -> { }
+        }
+
+        try {
+            new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .redirectOutput(state.resolve("clearance.log").toFile())
+                    .start();
+            out.println("clearance " + clearance + ", log at " + state.resolve("clearance.log"));
+            out.flush();
+        } catch (java.io.IOException ex) {
+            // Losing the prompt costs recourse, not containment: the firewall keeps dropping
+            // either way. Saying so beats failing a task that may not need it.
+            err.println("sokar: could not start the clearance watcher: " + ex.getMessage());
+            err.flush();
         }
     }
 

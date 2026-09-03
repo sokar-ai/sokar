@@ -84,22 +84,38 @@ public class SupervisorHook extends Hook {
         log(sidecar, "createRuntime", "resolver started, pid " + resolver.pid());
     }
 
+    /**
+     * Stops every helper that left a pid file behind.
+     * <p>
+     * Not just this hook's own: the reader hook starts one, and {@code task run} starts the
+     * clearance watcher. Each writes a {@code *.pid} file into the container's state directory,
+     * and this is the one place that runs when the container is definitely gone. Reaping by
+     * convention rather than by a list means a helper added later is cleaned up without anyone
+     * remembering to come back here.
+     */
     private void reap(Sidecar sidecar) {
-        final Path pidFile = Path.of(sidecar.stateDirectory()).resolve(PID_FILE);
+        final Path stateDirectory = Path.of(sidecar.stateDirectory());
+        try (var files = Files.list(stateDirectory)) {
+            files.filter(path -> path.getFileName().toString().endsWith(".pid"))
+                    .forEach(path -> reapOne(sidecar, path));
+        } catch (IOException | RuntimeException ex) {
+            // The container is already gone. Anything that outlives it is tidied when the runtime
+            // directory is cleared at logout, and failing here helps nobody.
+            log(sidecar, "poststop", "could not list the state directory: " + ex);
+        }
+    }
+
+    private void reapOne(Sidecar sidecar, Path pidFile) {
+        final String name = pidFile.getFileName().toString().replace(".pid", "");
         try {
-            if (!Files.isRegularFile(pidFile)) {
-                return;
-            }
             final long pid = Long.parseLong(Files.readString(pidFile, StandardCharsets.UTF_8).strip());
             ProcessHandle.of(pid).ifPresent(handle -> {
                 handle.destroy();
-                log(sidecar, "poststop", "resolver " + pid + " stopped");
+                log(sidecar, "poststop", name + " " + pid + " stopped");
             });
             Files.deleteIfExists(pidFile);
         } catch (IOException | RuntimeException ex) {
-            // The container is already gone. A resolver that outlives it is tidied when the
-            // runtime directory is cleared at logout, and failing here helps nobody.
-            log(sidecar, "poststop", "could not reap the resolver: " + ex);
+            log(sidecar, "poststop", "could not reap " + name + ": " + ex);
         }
     }
 

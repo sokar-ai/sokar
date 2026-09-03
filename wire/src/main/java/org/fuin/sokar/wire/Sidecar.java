@@ -22,20 +22,23 @@ import java.util.Map;
  * @param securityClass The project's security class, lower case.
  * @param rulesetFile Path to the generated nftables ruleset the nft hook loads.
  * @param dnsConfigFile Path to the generated dnsmasq configuration the supervisor hook loads.
+ * @param sokarBinary Path to the {@code sokar} binary, so a hook can start the long-running
+ *        helpers that need it. The hooks are static and make no native calls; anything that does
+ *        has to be a separate process, and this is where they find it.
  * @param stateDirectory Directory the hooks write their own state into.
  */
 public record Sidecar(int version, String project, String securityClass,
-        String rulesetFile, String dnsConfigFile, String stateDirectory) {
+        String rulesetFile, String dnsConfigFile, String sokarBinary, String stateDirectory) {
 
     /**
      * Current schema version.
      * <p>
-     * Bumped to 2 when the resolver configuration was added. The hooks are installed from the
+     * Bumped to 3 when the path to the {@code sokar} binary was added. The hooks are installed from the
      * same package as the {@code sokar} binary, so the two are never out of step in a normal
      * installation - and a hook that quietly ignored this field would leave the container with a
      * resolver address and nothing listening on it, which is worse than refusing to start.
      */
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     /** OCI annotation the hooks are gated on, and whose value is the path to this file. */
     public static final String ANNOTATION = "org.fuin.sokar.sidecar";
@@ -48,6 +51,7 @@ public record Sidecar(int version, String project, String securityClass,
      * @param securityClass The project's security class, lower case.
      * @param rulesetFile Path to the generated nftables ruleset.
      * @param dnsConfigFile Path to the generated dnsmasq configuration.
+     * @param sokarBinary Path to the {@code sokar} binary.
      * @param stateDirectory Directory the hooks write their own state into.
      */
     public Sidecar {
@@ -71,6 +75,7 @@ public record Sidecar(int version, String project, String securityClass,
         map.put("securityClass", securityClass);
         map.put("rulesetFile", rulesetFile);
         map.put("dnsConfigFile", dnsConfigFile);
+        map.put("sokarBinary", sokarBinary);
         map.put("stateDirectory", stateDirectory);
         return Json.write(map);
     }
@@ -94,7 +99,7 @@ public record Sidecar(int version, String project, String securityClass,
         }
         return new Sidecar(version, string(map, "project"), string(map, "securityClass"),
                 string(map, "rulesetFile"), string(map, "dnsConfigFile"),
-                string(map, "stateDirectory"));
+                string(map, "sokarBinary"), string(map, "stateDirectory"));
     }
 
     /**

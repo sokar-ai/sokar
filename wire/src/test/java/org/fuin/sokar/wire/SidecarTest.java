@@ -15,7 +15,7 @@ class SidecarTest {
 
     private static final Sidecar SIDECAR = new Sidecar(Sidecar.VERSION, "uc", "guarded",
             "/run/user/1000/sokar/uc/ruleset.nft", "/run/user/1000/sokar/uc/dns.conf",
-            "/run/user/1000/sokar/uc");
+            "/usr/bin/sokar", "/run/user/1000/sokar/uc");
 
     @Test
     void survivesARoundTrip() {
@@ -36,7 +36,7 @@ class SidecarTest {
     void refusesAVersionItDoesNotKnow() {
 
         // The nft hook fails closed, so acting on a misread file is worse than refusing it.
-        final String json = SIDECAR.toJson().replace("\"version\":2", "\"version\":99");
+        final String json = SIDECAR.toJson().replace("\"version\":3", "\"version\":99");
 
         assertThatThrownBy(() -> Sidecar.fromJson(json))
                 .isInstanceOf(JsonException.class)
@@ -46,7 +46,7 @@ class SidecarTest {
     @Test
     void refusesAMissingField() {
 
-        assertThatThrownBy(() -> Sidecar.fromJson("{\"version\":2,\"project\":\"uc\"}"))
+        assertThatThrownBy(() -> Sidecar.fromJson("{\"version\":3,\"project\":\"uc\"}"))
                 .isInstanceOf(JsonException.class)
                 .hasMessageContaining("securityClass");
     }

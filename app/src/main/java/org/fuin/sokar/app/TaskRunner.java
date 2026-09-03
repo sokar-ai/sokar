@@ -134,7 +134,8 @@ public class TaskRunner {
         final Path sidecarFile = state.resolve("sidecar.json");
         new Sidecar(Sidecar.VERSION, project.name(),
                 project.securityClass().name().toLowerCase(),
-                ruleset.toString(), dnsConfig.toString(), state.toString()).writeTo(sidecarFile);
+                ruleset.toString(), dnsConfig.toString(), sokarBinary(), state.toString())
+                .writeTo(sidecarFile);
         out.println("sidecar   " + sidecarFile);
 
         final String image = podman.buildImage(project, paths.buildContext(project.name()), layers);
@@ -151,6 +152,16 @@ public class TaskRunner {
         // If the nft hook fails, this is where it stops: the container never reaches running.
         podman.start(container);
         out.println("started   yes");
+    }
+
+    /**
+     * Returns the path of the running sokar binary, for the hooks to start helpers with.
+     *
+     * @return Absolute path, or the bare name if this process cannot see its own path - which
+     *         happens under a JVM and is why the hooks check the file before using it.
+     */
+    private String sokarBinary() {
+        return ProcessHandle.current().info().command().orElse("sokar");
     }
 
     private org.fuin.sokar.shield.DnsPolicy dnsPolicyFor(Project project,
@@ -221,6 +232,16 @@ public class TaskRunner {
             java.util.Map<String, String> environment,
             Path logFile, java.time.Duration timeout) {
         return podman.execute(container, environment, agent.buildCommand(request), logFile, timeout);
+    }
+
+    /**
+     * Returns the host process id of a running container's init process.
+     *
+     * @param container Container name.
+     * @return Process id, or empty if it is not running.
+     */
+    public java.util.Optional<Long> containerPid(String container) {
+        return podman.pidOf(container);
     }
 
     /**

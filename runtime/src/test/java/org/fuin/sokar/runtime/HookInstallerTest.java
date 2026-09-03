@@ -30,7 +30,9 @@ class HookInstallerTest {
                 "sokar-hook-nft-poststop.json",
                 "sokar-hook-supervisor-createRuntime.json",
                 "sokar-hook-supervisor-poststop.json",
-                "sokar-hook-reader-createRuntime.json");
+                "sokar-hook-reader-createRuntime.json",
+                // The reader starts a long-running process, so it needs a stage that stops it.
+                "sokar-hook-reader-poststop.json");
     }
 
     @Test
@@ -83,7 +85,7 @@ class HookInstallerTest {
 
         final var written = installer(root).install();
 
-        assertThat(written).hasSize(6);
+        assertThat(written).hasSize(7);
         assertThat(root.resolve("containers/containers.conf.d/50-sokar.conf")).exists();
         assertThat(root.resolve("containers/oci/hooks.d/sokar-hook-nft-createRuntime.json")).exists();
     }
@@ -106,7 +108,7 @@ class HookInstallerTest {
         installer(root).install();
         final var second = installer(root).install();
 
-        assertThat(second).hasSize(6);
+        assertThat(second).hasSize(7);
     }
 
     @Test
@@ -114,7 +116,7 @@ class HookInstallerTest {
 
         installer(root).install();
 
-        assertThat(installer(root).uninstall()).isEqualTo(6);
+        assertThat(installer(root).uninstall()).isEqualTo(7);
         assertThat(installer(root).uninstall()).isZero();
     }
 

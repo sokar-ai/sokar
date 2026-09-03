@@ -77,6 +77,15 @@ public class ShieldWatchCommand implements Callable<Integer> {
             description = "Where to create the clearance socket. Default: beside the container state.")
     private Path socket;
 
+    @Option(names = "--events", paramLabel = "<file>",
+            description = "Follows an events file the reader hook is writing, instead of starting"
+                    + " a reader. Use this when the container already has one.")
+    private Path events;
+
+    @Option(names = "--pid-file", paramLabel = "<file>",
+            description = "Writes this process's id here, so the poststop hook can reap it.")
+    private Path pidFile;
+
     @Spec
     private CommandSpec spec;
 
@@ -104,8 +113,17 @@ public class ShieldWatchCommand implements Callable<Integer> {
                 }
                 return verdict;
             }, address -> {
-                policy.allow(address);
-                out.println("allowed   " + address);
+                try {
+                    policy.allow(address);
+                    out.println("allowed   " + address);
+                } catch (RuntimeException ex) {
+                    // Never silent. A verdict of allow that did not take effect leaves the
+                    // operator believing they unblocked something they did not, and the agent
+                    // failing for a reason the log says was resolved.
+                    err.println("sokar: DECIDED ALLOW BUT COULD NOT APPLY IT for " + address
+                            + ": " + ex.getMessage());
+                    err.flush();
+                }
                 out.flush();
             });
 
@@ -114,14 +132,24 @@ public class ShieldWatchCommand implements Callable<Integer> {
                 service.start();
                 out.println("clearance " + service.socketPath());
 
-                reader = startReader(service.socketPath());
-                out.println("watching  NFLOG group " + group + " for project " + project);
-                out.flush();
+                writePidFile(err);
 
-                if (count > 0) {
-                    enough.await();
+                if (events != null) {
+                    // The reader hook already started one inside the container and is appending to
+                    // this file. Starting a second reader would bind the same NFLOG group twice
+                    // and split the events between them.
+                    out.println("following " + events + " for project " + project);
+                    out.flush();
+                    follow(hub, out, err, enough);
                 } else {
-                    reader.waitFor();
+                    reader = startReader(service.socketPath());
+                    out.println("watching  NFLOG group " + group + " for project " + project);
+                    out.flush();
+                    if (count > 0) {
+                        enough.await();
+                    } else {
+                        reader.waitFor();
+                    }
                 }
             }
             return 0;
@@ -141,10 +169,79 @@ public class ShieldWatchCommand implements Callable<Integer> {
         }
     }
 
+    /**
+     * Turns one line of the reader's output into a decision.
+     *
+     * @return The verdict, or {@code null} if the line was not an event.
+     */
+    private Verdict handle(ClearanceHub hub, String line, PrintWriter err) {
+        try {
+            if (!(org.fuin.sokar.wire.Json.parse(line) instanceof java.util.Map<?, ?> event)) {
+                return null;
+            }
+            final String destination = String.valueOf(event.get("destination"));
+            final String protocol = String.valueOf(event.get("protocol"));
+            final int port = event.get("port") instanceof Number number ? number.intValue() : 0;
+            final String shown = port == 0 ? destination : destination + ":" + port;
+            return hub.handle(protocol + "/" + destination + "/" + port, destination, shown, protocol);
+        } catch (RuntimeException ex) {
+            // A line the reader could not have produced is not worth stopping for; a partially
+            // written last line is normal when following a file that is still being appended to.
+            return null;
+        }
+    }
+
     private Path socketPath() {
         return socket != null ? socket
                 : Path.of(System.getProperty("java.io.tmpdir")).resolve("sokar-clearance-"
                         + containerPid + ".sock");
+    }
+
+    private void writePidFile(PrintWriter err) {
+        if (pidFile == null) {
+            return;
+        }
+        try {
+            java.nio.file.Files.writeString(pidFile,
+                    String.valueOf(ProcessHandle.current().pid()),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            // Not fatal: it only means poststop cannot reap this process, and the runtime
+            // directory is cleared at logout anyway.
+            err.println("sokar: cannot write " + pidFile + ": " + ex.getMessage());
+            err.flush();
+        }
+    }
+
+    /**
+     * Follows an events file the reader hook is appending to.
+     * <p>
+     * A file rather than a socket, because the two ends have different lifetimes: the reader
+     * starts with the container and the watcher may be started, stopped and restarted while the
+     * task runs. Re-reading from the beginning on start is deliberate - a destination decided
+     * before the watcher existed should still be applied.
+     */
+    private void follow(ClearanceHub hub, PrintWriter out, PrintWriter err,
+            java.util.concurrent.CountDownLatch enough) throws IOException, InterruptedException {
+
+        long position = 0;
+        while (enough.getCount() > 0) {
+            if (java.nio.file.Files.exists(events)) {
+                try (var lines = java.nio.file.Files.lines(events)) {
+                    final long[] seen = { 0 };
+                    final long start = position;
+                    lines.forEach(line -> {
+                        if (seen[0]++ >= start) {
+                            handle(hub, line, err);
+                        }
+                    });
+                    position = seen[0];
+                }
+            }
+            if (enough.await(1, java.util.concurrent.TimeUnit.SECONDS)) {
+                return;
+            }
+        }
     }
 
     private Process startReader(Path clearanceSocket) throws IOException {

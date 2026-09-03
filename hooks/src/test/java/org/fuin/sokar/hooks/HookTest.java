@@ -57,7 +57,7 @@ class HookTest {
         final Path file = dir.resolve("sidecar.json");
         new Sidecar(Sidecar.VERSION, "uc", "guarded",
                 dir.resolve("ruleset.nft").toString(), dir.resolve("dns.conf").toString(),
-                dir.toString()).writeTo(file);
+                "/usr/bin/sokar", dir.toString()).writeTo(file);
         return file;
     }
 
@@ -120,7 +120,8 @@ class HookTest {
 
         final Path file = dir.resolve("sidecar.json");
         new Sidecar(Sidecar.VERSION, "uc", "guarded", dir.resolve("r.nft").toString(),
-                dir.resolve("dns.conf").toString(), "/proc/nowhere-writable").writeTo(file);
+                dir.resolve("dns.conf").toString(), "/usr/bin/sokar",
+                "/proc/nowhere-writable").writeTo(file);
 
         // A hook that cannot write its log has still done its job. On the fail-closed path,
         // throwing here would stop a container for the wrong reason.

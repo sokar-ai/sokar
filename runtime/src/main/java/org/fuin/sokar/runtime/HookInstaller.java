@@ -62,7 +62,7 @@ public class HookInstaller {
     private static final Map<String, List<String>> HOOKS = Map.of(
             "sokar-hook-nft", List.of(CREATE_RUNTIME, POSTSTOP),
             "sokar-hook-supervisor", List.of(CREATE_RUNTIME, POSTSTOP),
-            "sokar-hook-reader", List.of(CREATE_RUNTIME));
+            "sokar-hook-reader", List.of(CREATE_RUNTIME, POSTSTOP));
 
     private String descriptor(String binary, String stage) {
 
