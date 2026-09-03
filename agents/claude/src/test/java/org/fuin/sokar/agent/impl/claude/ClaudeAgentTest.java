@@ -136,10 +136,42 @@ class ClaudeAgentTest {
     }
 
     @Test
-    void contributesAnImageLayer() {
+    void installsAPinnedAndVerifiedBinary() {
 
-        assertThat(agent.imageLayer().asAgent())
-                .anyMatch(line -> line.contains("claude.ai/install.sh"));
+        // Not 'curl | bash'. The version and digest are what make an image build reproducible
+        // and make "which version ran" answerable from the definition.
+        final var definition = agent.definition();
+
+        assertThat(definition.version()).isEqualTo("2.1.236");
+        assertThat(definition.artifacts()).singleElement().satisfies(artifact -> {
+            assertThat(artifact.url()).startsWith("https://downloads.claude.ai/");
+            assertThat(artifact.url()).contains(definition.version());
+            assertThat(artifact.sha256()).matches("[a-f0-9]{64}");
+            assertThat(artifact.unverified()).isFalse();
+            assertThat(artifact.target()).isEqualTo("/home/agent/.local/bin/claude");
+        });
+        assertThat(definition.unverifiedArtifacts()).isEmpty();
+    }
+
+    @Test
+    void contributesAnImageLayerThatChecksBeforeItInstalls() {
+
+        final var lines = agent.imageLayer().asAgent();
+
         assertThat(agent.imageLayer().isEmpty()).isFalse();
+        assertThat(lines).anyMatch(line -> line.contains("sha256sum -c -"));
+
+        final int check = indexOf(lines, "sha256sum -c -");
+        final int install = indexOf(lines, "install -D");
+        assertThat(install).isGreaterThan(check);
+    }
+
+    private static int indexOf(java.util.List<String> lines, String text) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).contains(text)) {
+                return i;
+            }
+        }
+        return -1;
     }
 }
