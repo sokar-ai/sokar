@@ -48,7 +48,7 @@ Why build this if Terok is so cool? See [why](why.md)
 -TBD-
 
 ## Adding your tools to a container
-See [my tooling](my-tooling.md).
+See [your tooling](your-tooling.md).
 
 ## Adding a new agent
 See [Onboarding a new agent](agents/README.md#onboarding-a-new-agent)

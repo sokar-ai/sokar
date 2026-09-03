@@ -22,6 +22,19 @@ public record TaskWiring(@Nullable String gateAddress, int gatePort, @Nullable P
     public static final String VAULT_MOUNT = "/run/sokar/vault.sock";
 
     /**
+     * Base URL handed to an agent alongside {@link #VAULT_MOUNT}.
+     * <p>
+     * The socket carries the traffic, so the host and port here are never dialled - but the
+     * variable still has to be set. Measured: with only the socket variable set, Claude Code
+     * falls back to its own compiled-in endpoint and resolves {@code api.anthropic.com} 184 times
+     * in a single run, which the firewall then drops. Setting a base URL is what stops it.
+     * <p>
+     * Loopback rather than a real name so that an agent which ignores the socket variable fails
+     * closed against nothing listening, instead of reaching the provider.
+     */
+    public static final String VAULT_URL = "http://localhost:9419";
+
+    /**
      * Returns wiring for a task with nothing attached.
      *
      * @return Empty wiring.

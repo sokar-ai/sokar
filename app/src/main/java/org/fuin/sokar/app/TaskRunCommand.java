@@ -365,6 +365,11 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         if (route.socketEnvironment() != null) {
             environment.put(route.socketEnvironment(), TaskWiring.VAULT_MOUNT);
         }
+        if (agent.definition().baseUrlEnvironment() != null) {
+            // Both, always. The socket variable only picks the transport; without a base URL the
+            // agent uses its own compiled-in endpoint and never touches the socket at all.
+            environment.put(agent.definition().baseUrlEnvironment(), TaskWiring.VAULT_URL);
+        }
         out.println("vault     " + socket + " -> " + route.upstream());
         out.println("token     " + variable + "=" + org.fuin.sokar.vault.PhantomToken.abbreviate(token));
         out.flush();
