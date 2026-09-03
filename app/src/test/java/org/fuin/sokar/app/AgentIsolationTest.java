@@ -88,15 +88,28 @@ class AgentIsolationTest {
 
         final List<String> offences = new ArrayList<>();
         try (Stream<Path> sources = Files.walk(root)) {
-            sources.filter(path -> path.toString().endsWith(".java"))
+            sources.filter(AgentIsolationTest::isProductSource)
                     .filter(path -> !root.relativize(path).startsWith(AGENTS_DIRECTORY))
-                    .filter(path -> !path.toString().contains("/target/"))
                     .forEach(path -> scan(root, path, agentNames, offences));
         }
 
         assertThat(offences)
                 .as("agent names used as string literals outside %s/", AGENTS_DIRECTORY)
                 .isEmpty();
+    }
+
+    /**
+     * Tells whether a path is Java this project builds.
+     * <p>
+     * Scoped to Maven source roots rather than every {@code .java} file under the repository. The
+     * first version was not, and reported a spike probe under {@code .sokar/} - a scratch file
+     * from Phase 0 that is not compiled, not shipped, and not subject to any of this.
+     */
+    private static boolean isProductSource(Path path) {
+        final String name = path.toString();
+        return name.endsWith(".java")
+                && !name.contains("/target/")
+                && (name.contains("/src/main/java/") || name.contains("/src/test/java/"));
     }
 
     private static void scan(Path root, Path file, List<String> agentNames, List<String> offences) {
@@ -130,10 +143,14 @@ class AgentIsolationTest {
         }
         try (Stream<Path> definitions = Files.walk(agents)) {
             return definitions
+                    // Not target/: a built module holds a copy of its own definition, and counting
+                    // it would report every offence twice.
+                    .filter(path -> !path.toString().contains("/target/"))
                     .filter(path -> path.getParent() != null
                             && path.getParent().getFileName().toString().equals("agent"))
                     .filter(path -> path.getFileName().toString().endsWith(".yaml"))
                     .map(path -> path.getFileName().toString().replace(".yaml", ""))
+                    .distinct()
                     .sorted()
                     .toList();
         }
