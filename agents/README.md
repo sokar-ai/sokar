@@ -72,12 +72,35 @@ provider:
 allowed_domains:              # what the shield and the resolver must permit
   - api.example.com
 
-install:                      # container build fragments; shell, unavoidably
-  as_root: |
+install:                      # what the image build fetches, pinned and verified
+  version: "1.4.0"
+  artifacts:
+    - url: https://example.com/releases/1.4.0/example-cli-linux-amd64
+      sha256: "…64 lower-case hex…"
+      target: /home/agent/.local/bin/example-cli
+      mode: "0755"
+  as_root: |                  # anything else; shell, unavoidably
     RUN mkdir -p /opt/example && chown agent /opt/example
-  as_agent: |
-    RUN curl -fsSL https://example.com/install.sh | bash
 ```
+
+**A digest is required.** The fetch and the check are generated into one `RUN`
+with `set -e`, so a mismatch fails the layer and nothing is installed — verified
+against a real container: correct digest installs and runs, wrong digest exits 1
+with `sha256sum: FAILED`.
+
+Where a publisher offers no digest, say so rather than dropping the field:
+
+```yaml
+    - url: https://example.com/install.sh
+      unverified: true
+      reason: "the publisher offers no digest"
+      target: /home/agent/.local/bin/example-cli
+```
+
+An artifact marked `unverified` with no `reason` is rejected. A gap that has to
+be written down is a gap somebody notices; a missing field is a habit.
+`sokar agents --supply-chain` lists every artifact and marks the unverified ones,
+so an audit reads the roster rather than the build logs.
 
 ### 3. `agents/<name>/src/main/java/org/fuin/sokar/agent/impl/<name>/<Name>Agent.java`
 

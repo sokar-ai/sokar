@@ -49,6 +49,9 @@ public final class AgentDefinitionJson {
         out.put("tokenEnvironment", definition.tokenEnvironment());
         putIfPresent(out, "baseUrlEnvironment", definition.baseUrlEnvironment());
         out.put("allowedDomains", definition.allowedDomains());
+        putIfPresent(out, "version", definition.version());
+        out.put("artifacts", definition.artifacts().stream()
+                .map(AgentDefinitionJson::writeArtifact).toList());
         out.put("installAsRoot", definition.installAsRoot());
         out.put("installAsAgent", definition.installAsAgent());
         return out;
@@ -82,8 +85,40 @@ public final class AgentDefinitionJson {
                 map(source.get("tokenEnvironment")),
                 optional(source, "baseUrlEnvironment"),
                 strings(source.get("allowedDomains")),
+                optional(source, "version"),
+                readArtifacts(source.get("artifacts")),
                 strings(source.get("installAsRoot")),
                 strings(source.get("installAsAgent")));
+    }
+
+    private static Map<String, Object> writeArtifact(InstallArtifact artifact) {
+        final Map<String, Object> out = new LinkedHashMap<>();
+        out.put("url", artifact.url());
+        putIfPresent(out, "sha256", artifact.sha256());
+        out.put("target", artifact.target());
+        out.put("mode", artifact.mode());
+        out.put("unverified", Boolean.valueOf(artifact.unverified()));
+        putIfPresent(out, "reason", artifact.reason());
+        return out;
+    }
+
+    private static List<InstallArtifact> readArtifacts(@Nullable Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        final List<InstallArtifact> result = new ArrayList<>();
+        for (final Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                result.add(new InstallArtifact(
+                        string(map, "url"),
+                        optional(map, "sha256"),
+                        string(map, "target"),
+                        string(map, "mode"),
+                        Boolean.TRUE.equals(map.get("unverified")),
+                        optional(map, "reason")));
+            }
+        }
+        return List.copyOf(result);
     }
 
     private static void putIfPresent(Map<String, Object> target, String key, @Nullable Object value) {

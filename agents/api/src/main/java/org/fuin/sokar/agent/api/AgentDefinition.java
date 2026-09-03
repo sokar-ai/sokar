@@ -22,13 +22,17 @@ import org.jspecify.annotations.Nullable;
  *        fallback key.
  * @param baseUrlEnvironment Variable naming the API endpoint, or {@code null}.
  * @param allowedDomains Domains the agent needs to resolve and reach.
+ * @param version Version of the agent CLI this definition installs, or {@code null} if it
+ *        installs nothing.
+ * @param artifacts Files the image build fetches, each pinned and verified.
  * @param installAsRoot Container build fragments run as root, possibly empty.
  * @param installAsAgent Container build fragments run as the agent user, possibly empty.
  */
 public record AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
         HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
         Map<String, String> tokenEnvironment, @Nullable String baseUrlEnvironment,
-        List<String> allowedDomains, List<String> installAsRoot, List<String> installAsAgent) {
+        List<String> allowedDomains, @Nullable String version, List<InstallArtifact> artifacts,
+        List<String> installAsRoot, List<String> installAsAgent) {
 
     /** Key in {@code tokenEnvironment} used when no credential type matches. */
     public static final String DEFAULT_TOKEN_KEY = "_default";
@@ -46,6 +50,8 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
      * @param tokenEnvironment Credential type to environment variable.
      * @param baseUrlEnvironment Variable naming the API endpoint, or {@code null}.
      * @param allowedDomains Domains the agent needs.
+     * @param version Version of the agent CLI installed.
+     * @param artifacts Files the image build fetches.
      * @param installAsRoot Build fragments run as root.
      * @param installAsAgent Build fragments run as the agent user.
      */
@@ -63,10 +69,26 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
             throw new AgentException("Agent '" + name
                     + "' says it supports resume but names no flag for it");
         }
+        if (!artifacts.isEmpty() && (version == null || version.isBlank())) {
+            // An artifact list without a version cannot answer "which version ran?" after the
+            // fact, which is half the reason for declaring the artifacts at all.
+            throw new AgentException("Agent '" + name
+                    + "' installs artifacts but declares no version");
+        }
         tokenEnvironment = Map.copyOf(tokenEnvironment);
         allowedDomains = List.copyOf(allowedDomains);
+        artifacts = List.copyOf(artifacts);
         installAsRoot = List.copyOf(installAsRoot);
         installAsAgent = List.copyOf(installAsAgent);
+    }
+
+    /**
+     * Returns the artifacts this agent installs without a digest.
+     *
+     * @return Unverifiable artifacts, empty when everything is pinned.
+     */
+    public List<InstallArtifact> unverifiedArtifacts() {
+        return InstallScript.unverified(artifacts);
     }
 
     /**

@@ -94,8 +94,33 @@ public final class AgentDefinitionReader {
                 map(provider.get("token_env")),
                 optional(provider, "base_url_env"),
                 strings(root.get("allowed_domains")),
+                optional(install, "version"),
+                artifacts(install.get("artifacts"), origin),
                 strings(install.get("as_root")),
                 strings(install.get("as_agent")));
+    }
+
+    private static List<InstallArtifact> artifacts(@Nullable Object value, String origin) {
+        if (value == null) {
+            return List.of();
+        }
+        if (!(value instanceof List<?> list)) {
+            throw new AgentException(origin + ": 'install.artifacts' must be a list");
+        }
+        final List<InstallArtifact> result = new ArrayList<>();
+        for (final Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                throw new AgentException(origin + ": each install artifact must be a mapping");
+            }
+            result.add(new InstallArtifact(
+                    required(map, "url", origin),
+                    optional(map, "sha256"),
+                    required(map, "target", origin),
+                    map.get("mode") == null ? "0755" : String.valueOf(map.get("mode")),
+                    Boolean.TRUE.equals(map.get("unverified")),
+                    optional(map, "reason")));
+        }
+        return List.copyOf(result);
     }
 
     private static Map<?, ?> section(Map<?, ?> root, String name, String origin) {

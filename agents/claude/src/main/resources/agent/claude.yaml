@@ -38,5 +38,17 @@ allowed_domains:
   - statsig.anthropic.com
 
 install:
-  as_agent: |
-    RUN curl -fsSL https://claude.ai/install.sh | bash
+  # Pinned, not "latest". Anthropic publishes a per-version manifest.json carrying a
+  # SHA-256 per platform, so this is verifiable rather than trusted:
+  #   https://downloads.claude.ai/claude-code-releases/<version>/manifest.json
+  #
+  # Bumping it is a one-line change plus the new digest, and until it is bumped every
+  # image build installs the same bytes. `sokar agents --supply-chain` reports what is
+  # pinned here, so "which version ran" is answerable from the definition rather than
+  # from a build log that may no longer exist.
+  version: "2.1.236"
+  artifacts:
+    - url: https://downloads.claude.ai/claude-code-releases/2.1.236/linux-x64/claude
+      sha256: "6c8818fa22187aa555c242be4abbacc44d6b71a32ac9631ee7b2b5d12f51f752"
+      target: /home/agent/.local/bin/claude
+      mode: "0755"

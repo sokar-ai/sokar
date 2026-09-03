@@ -32,8 +32,31 @@ public class AgentsCommand implements Callable<Integer> {
             description = "Extra directory to scan, before the standard ones.")
     private Path directory;
 
+    @Option(names = "--supply-chain",
+            description = "Show what each agent installs, and whether it can be verified.")
+    private boolean supplyChain;
+
     @Spec
     private CommandSpec spec;
+
+    private void supplyChain(PrintWriter out, InstalledAgent agent) {
+
+        final var definition = agent.definition();
+        out.println("             installs: "
+                + (definition.version() == null ? "nothing" : definition.version()));
+
+        for (final var artifact : definition.artifacts()) {
+            out.println("               " + artifact.target());
+            out.println("                 from   " + artifact.url());
+            if (artifact.unverified()) {
+                // Named rather than merely omitted: an operator auditing this needs the gaps to
+                // stand out, not to be inferred from a missing line.
+                out.println("                 sha256 UNVERIFIED - " + artifact.reason());
+            } else {
+                out.println("                 sha256 " + artifact.sha256());
+            }
+        }
+    }
 
     @Override
     public Integer call() {
@@ -68,6 +91,9 @@ public class AgentsCommand implements Callable<Integer> {
                                 + String.join(", ", agent.definition().allowedDomains()));
                         out.println("             resume:  "
                                 + (agent.definition().supportsResume() ? "yes" : "no"));
+                    }
+                    if (supplyChain) {
+                        supplyChain(out, agent);
                     }
                 }
                 out.flush();
