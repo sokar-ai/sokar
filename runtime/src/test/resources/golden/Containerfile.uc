@@ -26,5 +26,10 @@ RUN mkdir -p /workspace && chown agent:agent /workspace
 USER agent
 WORKDIR /workspace
 
+# Agents install into ~/.local/bin, which is not on PATH for a non-login
+# shell - and 'podman exec' is one. Without this the agent is present and
+# not findable, which reads as a broken install rather than a missing PATH.
+ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin
+
 LABEL org.fuin.sokar.project="uc"
 LABEL org.fuin.sokar.security-class="guarded"

@@ -17,7 +17,11 @@ headless:
   model_flag: "--model"
   max_turns_flag: "--max-turns"
   verbose_flag: "--verbose"
-  output_format_flags: ["--output-format", "stream-json"]
+  # --verbose is not optional here: Claude Code refuses stream-json in print mode without
+  # it ("--output-format=stream-json requires --verbose"). It belongs in this list rather
+  # than being requested separately, because it is part of what machine-readable output
+  # costs for THIS agent, and another agent's answer will differ.
+  output_format_flags: ["--output-format", "stream-json", "--verbose"]
 
 session:
   supports_resume: true

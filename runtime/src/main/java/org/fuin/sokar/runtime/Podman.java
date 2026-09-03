@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
 import org.fuin.sokar.core.process.Command;
 import org.fuin.sokar.core.process.CommandResult;
@@ -183,6 +185,50 @@ public class Podman {
                 .filter(name -> !name.isEmpty())
                 .filter(ContainerName::isSokar)
                 .toList();
+    }
+
+    /**
+     * Runs a command inside a running container and writes its output to a file.
+     * <p>
+     * Output goes to a file rather than being collected in memory: an agent run produces a great
+     * deal of it, and the file is also what the agent's own formatter is later asked to render.
+     *
+     * @param container Container name or id.
+     * @param environment Extra variables for this command only.
+     * @param command Program and arguments.
+     * @param output File to write standard output and error into.
+     * @param timeout How long the command may run.
+     * @return Exit code of the command.
+     * @throws ContainerException If the command cannot be started.
+     */
+    public int execute(String container, Map<String, String> environment, List<String> command,
+            Path output, Duration timeout) {
+
+        final List<String> arguments = new ArrayList<>(List.of(executable, "exec"));
+        environment.forEach((name, value) -> {
+            arguments.add("--env");
+            arguments.add(name + "=" + value);
+        });
+        arguments.add(container);
+        arguments.addAll(command);
+
+        try {
+            final Process process = new ProcessBuilder(arguments)
+                    .redirectErrorStream(true)
+                    .redirectOutput(output.toFile())
+                    .start();
+            if (!process.waitFor(timeout.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
+                throw new ContainerException("The agent did not finish within "
+                        + timeout.toSeconds() + " seconds");
+            }
+            return process.exitValue();
+        } catch (IOException ex) {
+            throw new ContainerException("Cannot run the agent in " + container, ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ContainerException("Interrupted while running the agent", ex);
+        }
     }
 
     /**

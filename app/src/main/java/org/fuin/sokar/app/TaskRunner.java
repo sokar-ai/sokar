@@ -202,6 +202,28 @@ public class TaskRunner {
     }
 
     /**
+     * Runs an agent inside a running container.
+     * <p>
+     * The command is built by the agent itself, over varlink, from its own declared flags -
+     * Sokar does not know how to invoke it and should not learn. The output is written to a file
+     * so the same agent can be asked to render it afterwards.
+     *
+     * @param agent The installed agent.
+     * @param container Container to run in.
+     * @param request What to ask the agent to do.
+     * @param environment Variables for the run; phantom tokens only.
+     * @param logFile Where the agent's raw output goes.
+     * @param timeout How long the agent may run.
+     * @return Exit code of the agent.
+     */
+    public int runAgent(org.fuin.sokar.agent.api.InstalledAgent agent, String container,
+            org.fuin.sokar.agent.api.RunRequest request,
+            java.util.Map<String, String> environment,
+            Path logFile, java.time.Duration timeout) {
+        return podman.execute(container, environment, agent.buildCommand(request), logFile, timeout);
+    }
+
+    /**
      * Returns the command that attaches a shell to a running container.
      *
      * @param container Container name.

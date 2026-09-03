@@ -82,6 +82,11 @@ public final class Containerfile {
         lines.add("");
         lines.add("USER agent");
         lines.add("WORKDIR /workspace");
+        lines.add("");
+        lines.add("# Agents install into ~/.local/bin, which is not on PATH for a non-login");
+        lines.add("# shell - and 'podman exec' is one. Without this the agent is present and");
+        lines.add("# not findable, which reads as a broken install rather than a missing PATH.");
+        lines.add("ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin");
 
         if (!layers.asAgent().isEmpty()) {
             lines.add("");

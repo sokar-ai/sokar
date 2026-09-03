@@ -54,6 +54,26 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Reports what would be done without starting anything.")
     private boolean dryRun;
 
+    @Option(names = { "-P", "--prompt" }, paramLabel = "<text>",
+            description = "Runs the agent with this prompt instead of attaching a shell.")
+    private String prompt;
+
+    @Option(names = "--model", paramLabel = "<name>",
+            description = "Model to ask the agent for. Only if the agent declares a model flag.")
+    private String model;
+
+    @Option(names = "--max-turns", paramLabel = "<n>",
+            description = "Turn limit. Only if the agent declares one.")
+    private Integer maxTurns;
+
+    @Option(names = "--minutes", paramLabel = "<n>",
+            description = "How long the agent may run. Default: ${DEFAULT-VALUE}")
+    private int minutes = 30;
+
+    @Option(names = "--raw",
+            description = "Shows the agent's output as it came, without its own formatter.")
+    private boolean raw;
+
     @Option(names = "--no-attach",
             description = "Starts the container and returns, instead of handing over a shell.")
     private boolean noAttach;
@@ -62,6 +82,9 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     private CommandSpec spec;
 
     private SokarContext context = SokarContext.real();
+
+    /** The phantom-token environment, kept so the agent run gets the same one the container has. */
+    private java.util.Map<String, String> environmentCache = java.util.Map.of();
 
     @Override
     public void setContext(SokarContext context) {
@@ -123,8 +146,13 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             final java.util.List<String> domains = selected == null
                     ? java.util.List.of() : selected.definition().allowedDomains();
 
-            runner.start(project, container, layers, environment(agents, out, err), domains, out);
+            environmentCache = environment(agents, out, err);
+            runner.start(project, container, layers, environmentCache, domains, out);
             out.println();
+
+            if (prompt != null) {
+                return runAgent(runner, agents, container, out, err);
+            }
 
             if (noAttach) {
                 // Everything after start() replaces this process, which makes the normal path
@@ -153,6 +181,82 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.flush();
             return cleanUp(runner, container, 70);
         }
+    }
+
+    /**
+     * Runs the agent, then renders its output with the agent's own formatter.
+     * <p>
+     * Both halves come from the agent: Sokar knows neither how to invoke it nor how to read what
+     * it produced. That is the whole point of the boundary - a second agent with a different
+     * command line and a different output format needs no change here.
+     */
+    private int runAgent(TaskRunner runner, org.fuin.sokar.agent.api.InstalledAgents agents,
+            String container, PrintWriter out, PrintWriter err) {
+
+        final org.fuin.sokar.agent.api.InstalledAgent agent = select(agents);
+        if (agent == null) {
+            err.println("sokar: --prompt needs an agent, and none is installed");
+            err.flush();
+            return 69;
+        }
+
+        final java.nio.file.Path log = context.paths().containerState(container).resolve("task.log");
+        final org.fuin.sokar.agent.api.RunRequest request = new org.fuin.sokar.agent.api.RunRequest(
+                prompt, model, maxTurns, null, false, !raw);
+
+        out.println();
+        out.println("running   " + agent.name() + " (up to " + minutes + " minutes)");
+        out.flush();
+
+        int code;
+        String timedOut = null;
+        try {
+            code = runner.runAgent(agent, container, request,
+                    environmentCache, log, java.time.Duration.ofMinutes(minutes));
+        } catch (org.fuin.sokar.runtime.ContainerException ex) {
+            // Whatever the agent managed to say before it was killed is the most useful thing
+            // there is at this point. Throwing here would discard it, which is the opposite of
+            // what someone diagnosing a stuck run needs.
+            code = 124;
+            timedOut = ex.getMessage();
+        }
+
+        out.println();
+        try {
+            if (raw) {
+                java.nio.file.Files.readAllLines(log).forEach(out::println);
+            } else {
+                // The agent renders its own output. A second agent with a different format needs
+                // no change here, which is the property the reference implementation lost by
+                // branching on the agent's name in its log viewer.
+                final int[] shown = { 0 };
+                agent.formatLog(log, line -> {
+                    shown[0]++;
+                    out.println(line);
+                });
+                if (shown[0] == 0 && java.nio.file.Files.size(log) > 0) {
+                    // The formatter suppressed everything - which is right for a run that only
+                    // produced setup chatter, and unhelpful when that is all there was. Silence
+                    // is the one thing that tells a reader nothing, so fall back to the raw text.
+                    out.println("(nothing to render; showing the raw output)");
+                    out.println();
+                    java.nio.file.Files.readAllLines(log).forEach(out::println);
+                }
+            }
+        } catch (java.io.IOException | RuntimeException ex) {
+            err.println("sokar: cannot render the agent output at " + log + ": " + ex.getMessage());
+            err.flush();
+        }
+        out.flush();
+
+        out.println();
+        if (timedOut != null) {
+            err.println("sokar: " + timedOut);
+            err.flush();
+        }
+        out.println("agent exited with " + code + "; output kept at " + log);
+        out.flush();
+        return code == 0 ? 0 : 70;
     }
 
     /**

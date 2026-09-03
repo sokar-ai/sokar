@@ -53,7 +53,9 @@ class ClaudeAgentTest {
         assertThat(agent.headlessCommand(
                 new RunRequest("fix the bug", "sonnet", Integer.valueOf(3), null, false, true)))
                 .containsExactly("claude", "--model", "sonnet", "--max-turns", "3",
-                        "--output-format", "stream-json", "-p", "fix the bug");
+                        // --verbose is part of what machine-readable output costs for Claude:
+                        // it refuses stream-json in print mode without it. Found by running it.
+                        "--output-format", "stream-json", "--verbose", "-p", "fix the bug");
     }
 
     @Test
