@@ -49,6 +49,7 @@ public final class AgentDefinitionJson {
         out.put("tokenEnvironment", definition.tokenEnvironment());
         putIfPresent(out, "baseUrlEnvironment", definition.baseUrlEnvironment());
         out.put("allowedDomains", definition.allowedDomains());
+        out.put("refusedDomains", definition.refusedDomains());
         putIfPresent(out, "version", definition.version());
         out.put("artifacts", definition.artifacts().stream()
                 .map(AgentDefinitionJson::writeArtifact).toList());
@@ -85,6 +86,7 @@ public final class AgentDefinitionJson {
                 map(source.get("tokenEnvironment")),
                 optional(source, "baseUrlEnvironment"),
                 strings(source.get("allowedDomains")),
+                strings(source.get("refusedDomains")),
                 optional(source, "version"),
                 readArtifacts(source.get("artifacts")),
                 strings(source.get("installAsRoot")),

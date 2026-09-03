@@ -79,6 +79,43 @@ class AgentDefinitionReaderTest {
     }
 
     @Test
+    void readsTheDomainsAnAgentIsDeliberatelyDenied() {
+
+        // Telemetry hosts are declared, not merely left out: the firewall cannot tell an
+        // oversight from a policy, and the domain-coverage test needs to.
+        final AgentDefinition definition = read(MINIMAL + """
+                allowed_domains:
+                  - api.example.com
+                refused_domains:
+                  - telemetry.example.com
+                """);
+
+        assertThat(definition.allowedDomains()).containsExactly("api.example.com");
+        assertThat(definition.refusedDomains()).containsExactly("telemetry.example.com");
+    }
+
+    @Test
+    void refusesADomainThatIsBothAllowedAndRefused() {
+
+        // Which list wins would otherwise depend on which one the ruleset consults first.
+        assertThatThrownBy(() -> read(MINIMAL + """
+                allowed_domains:
+                  - api.example.com
+                refused_domains:
+                  - api.example.com
+                """))
+                .isInstanceOf(AgentException.class)
+                .hasMessageContaining("both allows and refuses")
+                .hasMessageContaining("api.example.com");
+    }
+
+    @Test
+    void refusingNothingIsTheNormalCase() {
+
+        assertThat(read(MINIMAL).refusedDomains()).isEmpty();
+    }
+
+    @Test
     void mapsCredentialTypesToEnvironmentVariables() {
 
         final AgentDefinition definition = read(MINIMAL + """

@@ -22,6 +22,9 @@ import org.jspecify.annotations.Nullable;
  *        fallback key.
  * @param baseUrlEnvironment Variable naming the API endpoint, or {@code null}.
  * @param allowedDomains Domains the agent needs to resolve and reach.
+ * @param refusedDomains Domains the agent is known to ask for and is deliberately not given -
+ *        telemetry and crash reporting. Declared rather than merely absent so that a test can
+ *        tell a policy choice from an oversight, and so an operator can see what is refused.
  * @param version Version of the agent CLI this definition installs, or {@code null} if it
  *        installs nothing.
  * @param artifacts Files the image build fetches, each pinned and verified.
@@ -31,7 +34,8 @@ import org.jspecify.annotations.Nullable;
 public record AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
         HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
         Map<String, String> tokenEnvironment, @Nullable String baseUrlEnvironment,
-        List<String> allowedDomains, @Nullable String version, List<InstallArtifact> artifacts,
+        List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
+        List<InstallArtifact> artifacts,
         List<String> installAsRoot, List<String> installAsAgent) {
 
     /** Key in {@code tokenEnvironment} used when no credential type matches. */
@@ -50,6 +54,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
      * @param tokenEnvironment Credential type to environment variable.
      * @param baseUrlEnvironment Variable naming the API endpoint, or {@code null}.
      * @param allowedDomains Domains the agent needs.
+     * @param refusedDomains Domains it asks for and is deliberately denied.
      * @param version Version of the agent CLI installed.
      * @param artifacts Files the image build fetches.
      * @param installAsRoot Build fragments run as root.
@@ -77,6 +82,15 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         }
         tokenEnvironment = Map.copyOf(tokenEnvironment);
         allowedDomains = List.copyOf(allowedDomains);
+        refusedDomains = List.copyOf(refusedDomains);
+        for (final String domain : refusedDomains) {
+            if (allowedDomains.contains(domain)) {
+                // Both lists reaching the firewall would make the ruleset depend on which one is
+                // consulted first. Refusing the definition is the only unambiguous answer.
+                throw new AgentException("Agent '" + name + "' both allows and refuses '"
+                        + domain + "'");
+            }
+        }
         artifacts = List.copyOf(artifacts);
         installAsRoot = List.copyOf(installAsRoot);
         installAsAgent = List.copyOf(installAsAgent);

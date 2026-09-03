@@ -31,6 +31,10 @@ cleanup() {
     [ -n "$CONTAINER" ] && podman rm -f "$CONTAINER" >/dev/null 2>&1
     podman rmi -f "sokar/$PROJECT" >/dev/null 2>&1
     rm -rf "$WORK" "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT"
+    # The gate mirror too: it outlives the container, and a mirror left from an earlier run
+    # already holds the ref this run pushes, so the push fails as a non-fast-forward and
+    # reads as a broken gate.
+    rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/mirrors/$PROJECT.git"
     :
 }
 trap cleanup EXIT
@@ -191,6 +195,51 @@ else
     fail "no token line in the output at all"
 fi
 
+# --------------------------------------------------------- credential exchange
+#
+# A phantom token is only half a credential scheme. The agent gets 'sokar_pt_...' instead
+# of the real key, which is the point - but something has to accept it and swap it for the
+# real credential on the way out, or the provider just answers 401 and the agent looks
+# misconfigured.
+#
+# The redemption point is reached through the agent's own base-url variable
+# (ANTHROPIC_BASE_URL for Claude Code, declared as base_url_env in the definition): Sokar
+# points the agent at a local endpoint, that endpoint redeems the token and forwards the
+# request upstream with the real key.
+#
+# So: if a phantom token was injected, a base-url variable must be set too, and it must
+# point somewhere that answers. Checked here because it needs no provider account - the
+# agent never has to authenticate for this to be measurable.
+echo
+echo "-- credential exchange --"
+
+PHANTOM_VAR="$(podman exec "$CONTAINER" sh -c \
+    'env | grep -E "=sokar_pt_" | cut -d= -f1' 2>/dev/null | head -1)"
+
+if [ -z "$PHANTOM_VAR" ]; then
+    info "no phantom token in this run, so there is nothing to redeem"
+else
+    BASE_URL="$(podman exec "$CONTAINER" sh -c \
+        'env | grep -E "^[A-Z_]*BASE_URL=" | cut -d= -f2-' 2>/dev/null | head -1)"
+
+    if [ -n "$BASE_URL" ]; then
+        pass "the agent is pointed at a redemption endpoint ($BASE_URL)"
+        if podman exec "$CONTAINER" sh -c \
+                "curl -s -o /dev/null --max-time 10 '$BASE_URL' 2>/dev/null"; then
+            pass "the redemption endpoint answers from inside the container"
+        else
+            fail "the redemption endpoint does not answer from inside the container"
+            info "the token is unredeemable, so every provider call will fail with 401"
+        fi
+    else
+        fail "$PHANTOM_VAR holds a phantom token that nothing can redeem"
+        info "no base-url variable is set, so the agent talks straight to the provider"
+        info "and presents 'sokar_pt_...' as if it were a real key - measured: HTTP 401"
+        info "the broker mints tokens and TokenBroker.exchange is never called in"
+        info "production; the forwarding endpoint that would call it does not exist yet"
+    fi
+fi
+
 # ------------------------------------------------------------- domain coverage
 #
 # The check this whole script exists for. The agent runs with the FAKE credential, so
@@ -217,9 +266,23 @@ else
         'timeout 45 ~/.local/bin/claude -p hello >/dev/null 2>&1' >/dev/null 2>&1 || true
     sleep 2
 
+    # Names the agent's definition says it deliberately does not get. Without this the check
+    # pressures whoever runs it into allowing telemetry, which is the opposite of the point:
+    # Claude Code 2.1.236 resolves a Datadog log intake, and refusing it is correct.
+    REFUSED="$("$SOKAR" agents --verbose 2>/dev/null \
+        | sed -n 's/^ *refused: *//p' | tr ',' '\n' | tr -d ' ' | grep . || true)"
+
     UNDECLARED="$(grep -oE 'config [a-z0-9.-]+ is NXDOMAIN' "$DNS_LOG" 2>/dev/null \
         | awk '{print $2}' | sort -u \
         | grep -vE '\.(fritz\.box|local|localdomain)$' || true)"
+
+    if [ -n "$REFUSED" ]; then
+        BLOCKED="$(echo "$UNDECLARED" | grep -Fxf <(echo "$REFUSED") || true)"
+        UNDECLARED="$(echo "$UNDECLARED" | grep -Fxvf <(echo "$REFUSED") || true)"
+        for name in $BLOCKED; do
+            info "refused as declared: $name"
+        done
+    fi
 
     QUERIED="$(grep -oE 'query\[[A-Z]+\] [a-z0-9.-]+' "$DNS_LOG" 2>/dev/null \
         | awk '{print $2}' | sort -u | wc -l)"

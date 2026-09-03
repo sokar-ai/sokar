@@ -41,6 +41,19 @@ allowed_domains:
   - claude.ai
   - statsig.anthropic.com
 
+# Names Claude Code asks for that it does NOT get. Listed rather than simply left out of
+# allowed_domains, because the two cases look identical to the firewall and completely
+# different to a reviewer: an undeclared name is usually a bug that breaks the agent for
+# everyone, while these are a deliberate refusal. The domain-coverage test in
+# buildtools/e2e-tier1.sh uses this list to tell them apart, and 'sokar agents --verbose'
+# shows it, so an operator can see what is being blocked rather than discovering it in a
+# drop log.
+#
+# Found by measurement, not from documentation: 2.1.236 resolves the Datadog intake below
+# during a normal run. The CLI works without it.
+refused_domains:
+  - http-intake.logs.us5.datadoghq.com
+
 install:
   # Pinned, not "latest". Anthropic publishes a per-version manifest.json carrying a
   # SHA-256 per platform, so this is verifiable rather than trusted:

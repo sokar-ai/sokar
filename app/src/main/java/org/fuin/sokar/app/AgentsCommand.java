@@ -89,6 +89,12 @@ public class AgentsCommand implements Callable<Integer> {
                     if (verbose) {
                         out.println("             domains: "
                                 + String.join(", ", agent.definition().allowedDomains()));
+                        if (!agent.definition().refusedDomains().isEmpty()) {
+                            // Shown so that a blocked connection is something the operator was
+                            // told about, rather than something they find in a drop log.
+                            out.println("             refused: "
+                                    + String.join(", ", agent.definition().refusedDomains()));
+                        }
                         out.println("             resume:  "
                                 + (agent.definition().supportsResume() ? "yes" : "no"));
                     }

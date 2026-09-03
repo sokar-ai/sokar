@@ -94,6 +94,7 @@ public final class AgentDefinitionReader {
                 map(provider.get("token_env")),
                 optional(provider, "base_url_env"),
                 strings(root.get("allowed_domains")),
+                strings(root.get("refused_domains")),
                 optional(install, "version"),
                 artifacts(install.get("artifacts"), origin),
                 strings(install.get("as_root")),
