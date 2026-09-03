@@ -183,14 +183,8 @@
                 <version>${project.version}</version>
             </dependency>
 
-            <dependency>
-                <groupId>org.fuin.sokar</groupId>
-                <artifactId>sokar-agents-bundle</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
-            <!-- Agents. Listed here only so the bundle can omit versions; nothing
-                 in Sokar depends on one. -->
+            <!-- Agents. Managed here so the reactor builds them; nothing in Sokar
+                 depends on one, and no module lists them. -->
 
             <dependency>
                 <groupId>org.fuin.sokar</groupId>

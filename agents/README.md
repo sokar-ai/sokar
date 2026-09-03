@@ -1,18 +1,34 @@
 # Agents
 
-An agent is a **module**. Sokar discovers it at runtime and never names it.
+An agent is **its own native binary and its own package**. Sokar finds it by
+scanning a directory and talks varlink to it. Nothing in Sokar names an agent,
+and nothing lists them — an agent installed after Sokar shipped works with the
+binary that is already there.
 
 ```
 agents/
-├── api/          sokar-agent-api       the SPI; depends on sokar-core
-├── bundle/       sokar-agents-bundle   the one file that names agents
-├── claude/       sokar-agent-claude    depends on sokar-agent-api only
+├── api/          sokar-agent-api       the SPI and the protocol; both sides link it
+├── claude/       sokar-agent-claude    → its own binary
 └── <yours>/
 ```
 
-The dependency arrow points one way. An agent knows about Sokar; Sokar does not
-know about agents. Two tests in `sokar-app` fail the build if that stops being
-true — see *Enforcement* below.
+```
+$ sokar agents
+no agents installed. Looked in:
+  ~/.local/share/sokar/agents
+  /usr/libexec/sokar/agents
+
+$ cp sokar-agent-claude ~/.local/share/sokar/agents/
+$ sokar agents
+NAME         BINARY           LABEL                  FROM
+claude       claude           Claude Code            ~/.local/share/sokar/agents/sokar-agent-claude
+```
+
+No rebuild. No re-sign. The `sokar` binary contains no occurrence of the string
+`claude` — checkable with `strings`.
+
+An agent developed outside this repository needs nothing from it but the
+published `sokar-agent-api`.
 
 ## Onboarding a new agent
 
@@ -82,18 +98,26 @@ One line: the fully qualified class name. This is how `ServiceLoader` finds it,
 and native-image resolves it at build time with no metadata of any kind
 (verified, spike S9).
 
-### 5. `agents/pom.xml`
+### 5. A `main`, and the native profile
 
-One `<module>` line.
+```java
+public static void main(String[] args) {
+    AgentMain.run(new ExampleAgent(), args);
+}
+```
 
-### 6. `agents/bundle/pom.xml`
+Copy the `native` profile from `agents/claude/pom.xml` and change the image
+name. The binary answers two modes: `serve <socket>` for Sokar, and `describe`
+for a human — `sokar-agent-example describe | jq` is what to reach for when
+Sokar will not use an agent that looks installed.
 
-One `<dependency>`. **This is the only file in the repository that names
-agents.** A native image cannot load code at runtime, so the binary has to
-contain its agents at build time and something has to list them; this is that
-something. It is a packaging fact, not a code dependency.
+### 6. `agents/pom.xml`
 
-Nothing in `core`, `app`, or any other agent changes.
+One `<module>` line, and only so this repository builds it. An agent maintained
+elsewhere skips even this.
+
+Nothing in `core`, `app`, or any other agent changes, and there is no file
+anywhere that lists agents.
 
 ### What you do *not* have to write
 
@@ -121,6 +145,32 @@ credential layouts. Reach for an override only when they do not.
 **Never** add a branch outside your module that tests an agent's name. That is
 the failure this structure exists to prevent: the next agent falls into the
 `else` and is quietly wrong, with nothing to indicate it.
+
+## Protocol versions
+
+`AgentProtocol.VERSION` is the contract. Sokar and the agents ship as separate
+packages, so an untested combination is a matter of time: an agent states which
+version it speaks, and Sokar refuses one it does not know rather than reading a
+field that means something else now.
+
+Raise it when a change would make an older Sokar misread a newer agent, or the
+reverse. Adding an optional field does not qualify; renaming or removing one
+does.
+
+## When an agent will not start
+
+A broken agent is reported against its own name and the others keep working —
+one bad package must not make the machine look as though it has no agents.
+
+```
+$ sokar agents
+claude       claude           Claude Code            …/sokar-agent-claude
+sokar: sokar-agent-broken is installed but unusable:
+       …/sokar-agent-broken exited without becoming ready, saying: config file missing
+```
+
+A binary that died and one that hung are different problems, and the message
+says which.
 
 ## Enforcement
 

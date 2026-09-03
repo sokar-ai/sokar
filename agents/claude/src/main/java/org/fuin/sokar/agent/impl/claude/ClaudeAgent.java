@@ -33,4 +33,13 @@ public final class ClaudeAgent extends YamlAgent {
     public LogFormatter logFormatter() {
         return new ClaudeStreamJsonFormatter();
     }
+
+    /**
+     * Entry point of the {@code sokar-agent-claude} binary.
+     *
+     * @param args Command line arguments.
+     */
+    public static void main(String[] args) {
+        org.fuin.sokar.agent.api.AgentMain.run(new ClaudeAgent(), args);
+    }
 }

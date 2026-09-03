@@ -15,14 +15,16 @@
     <packaging>pom</packaging>
     <description>Sokar - Agents (PARENT)</description>
 
-    <!-- One submodule per agent, plus the SPI they implement and the bundle that
-         collects them. Nothing outside this directory names an agent; see the
-         README beside this file for what onboarding one costs. -->
+    <!-- One submodule per agent, plus the SPI both sides share.
+
+         Each agent builds its own native binary and its own package. Nothing in
+         Sokar names an agent, and since agents are discovered by scanning a
+         directory at run time, there is no longer a file that lists them either.
+         See the README beside this file for what onboarding one costs. -->
 
     <modules>
         <module>api</module>
         <module>claude</module>
-        <module>bundle</module>
     </modules>
 
 </project>

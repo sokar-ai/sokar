@@ -86,15 +86,6 @@
             <artifactId>sokar-agent-api</artifactId>
         </dependency>
 
-        <!-- runtime only: puts the agents on the classpath for ServiceLoader.
-             Deliberately not 'compile' - no code here may reference an agent. -->
-
-        <dependency>
-            <groupId>org.fuin.sokar</groupId>
-            <artifactId>sokar-agents-bundle</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-
     </dependencies>
 
     <build>

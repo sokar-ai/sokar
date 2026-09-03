@@ -28,6 +28,14 @@
             <artifactId>snakeyaml</artifactId>
         </dependency>
 
+        <!-- The varlink client and server. Both halves of the agent protocol live here, so
+             Sokar and every agent binary agree on the wire by construction. -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-clearance</artifactId>
+        </dependency>
+
         <!-- test -->
 
         <dependency>

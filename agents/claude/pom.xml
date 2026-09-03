@@ -39,4 +39,37 @@
 
     </dependencies>
 
+    <profiles>
+
+        <!-- Requires GraalVM as JAVA_HOME. Produces target/sokar-agent-claude, which is installed
+             into the agent directory and started by Sokar on demand. Versioned, built and
+             delivered independently of the sokar binary. -->
+
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>build-sokar-agent-claude</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>sokar-agent-claude</imageName>
+                                    <mainClass>org.fuin.sokar.agent.impl.claude.ClaudeAgent</mainClass>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
 </project>
