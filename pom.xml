@@ -179,7 +179,13 @@
 
             <dependency>
                 <groupId>org.fuin.sokar</groupId>
-                <artifactId>sokar-agents</artifactId>
+                <artifactId>sokar-agent-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-agents-bundle</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

@@ -12,17 +12,16 @@
     </parent>
 
     <artifactId>sokar-agents</artifactId>
-    <description>Sokar - Agent roster and images (AGENTS)</description>
+    <packaging>pom</packaging>
+    <description>Sokar - Agents (PARENT)</description>
 
-    <dependencies>
+    <!-- One submodule per agent, plus the SPI they implement and the bundle that
+         collects them. Nothing outside this directory names an agent; see the
+         README beside this file for what onboarding one costs. -->
 
-        <!-- compile -->
-
-        <dependency>
-            <groupId>org.fuin.sokar</groupId>
-            <artifactId>sokar-core</artifactId>
-        </dependency>
-
-    </dependencies>
+    <modules>
+        <module>api</module>
+        <module>bundle</module>
+    </modules>
 
 </project>
