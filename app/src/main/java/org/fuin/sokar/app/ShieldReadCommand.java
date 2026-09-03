@@ -38,16 +38,21 @@ public class ShieldReadCommand implements Callable<Integer> {
             description = "Reports every dropped packet, including multicast and link-local noise.")
     private boolean all;
 
+    @Option(names = "--report-to", paramLabel = "<socket>",
+            description = "Sends each event to a clearance service over varlink instead of stdout.")
+    private java.nio.file.Path reportTo;
+
     @Spec
     private CommandSpec spec;
 
     @Override
-    public Integer call() {
+    public Integer call() throws java.io.IOException {
 
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        try (NflogReader reader = new NflogReader(group)) {
+        try (NflogReader reader = new NflogReader(group);
+                org.fuin.sokar.clearance.varlink.VarlinkClient client = connect()) {
 
             final int[] seen = { 0 };
             reader.readUntilStopped(event -> {
@@ -56,8 +61,12 @@ public class ShieldReadCommand implements Callable<Integer> {
                     // default-deny chain too. Passing them on would bury the events that matter.
                     return;
                 }
-                out.println(event.toJson());
-                out.flush();
+                if (client == null) {
+                    out.println(event.toJson());
+                    out.flush();
+                } else {
+                    report(client, event, err);
+                }
                 if (count > 0 && ++seen[0] >= count) {
                     reader.stop();
                 }
@@ -71,6 +80,28 @@ public class ShieldReadCommand implements Callable<Integer> {
             err.println("sokar: the reader must run inside the container's network namespace");
             err.flush();
             return 69;
+        }
+    }
+
+    private org.fuin.sokar.clearance.varlink.VarlinkClient connect() {
+        return reportTo == null ? null
+                : new org.fuin.sokar.clearance.varlink.VarlinkClient(reportTo);
+    }
+
+    private void report(org.fuin.sokar.clearance.varlink.VarlinkClient client,
+            BlockedConnection event, PrintWriter err) {
+        try {
+            client.call(org.fuin.sokar.clearance.ClearanceService.INTERFACE + ".Report",
+                    java.util.Map.of(
+                            "prefix", event.prefix(),
+                            "protocol", event.protocolName(),
+                            "destination", event.destination(),
+                            "port", Integer.valueOf(event.port())));
+        } catch (RuntimeException ex) {
+            // The hub going away must not stop the reader: the firewall keeps dropping either way,
+            // and a reader that exits takes the audit trail with it.
+            err.println("sokar: cannot report " + event.describe() + ": " + ex.getMessage());
+            err.flush();
         }
     }
 

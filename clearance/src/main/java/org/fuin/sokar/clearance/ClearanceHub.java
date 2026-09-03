@@ -71,6 +71,23 @@ public class ClearanceHub {
     }
 
     /**
+     * Records a verdict that came from somewhere other than this hub's own prompt.
+     * <p>
+     * Used by the varlink {@code Verdict} method, so an operator can answer from a client that is
+     * not the notification Sokar raised.
+     *
+     * @param key Deduplication key for the destination.
+     * @param address Address to allow if the verdict allows it.
+     * @param verdict What was decided.
+     */
+    public void decide(String key, String address, Verdict verdict) {
+        final Verdict previous = decided.put(key, verdict);
+        if (verdict.allows() && (previous == null || !previous.allows())) {
+            allow.accept(address);
+        }
+    }
+
+    /**
      * Returns the destinations that have been decided, and how.
      *
      * @return Decisions so far.

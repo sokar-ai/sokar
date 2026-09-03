@@ -84,6 +84,7 @@ public class TaskRunner {
 
         podman.create(new ContainerSpec(container, image)
                 .command("sleep", "infinity")
+                .resolver(org.fuin.sokar.shield.DnsPolicy.LISTEN_ADDRESS)
                 .annotation(Sidecar.ANNOTATION, sidecarFile.toString()));
         out.println("container " + container);
 

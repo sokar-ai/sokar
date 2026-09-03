@@ -24,6 +24,8 @@ public class ContainerSpec {
 
     private final Map<Path, String> volumes = new LinkedHashMap<>();
 
+    private final List<String> resolvers = new ArrayList<>();
+
     /**
      * Constructor with the required data.
      *
@@ -73,6 +75,17 @@ public class ContainerSpec {
     }
 
     /**
+     * Points the container's resolver at an address.
+     *
+     * @param address Resolver address, usually loopback inside the container.
+     * @return This instance.
+     */
+    public ContainerSpec resolver(String address) {
+        resolvers.add(address);
+        return this;
+    }
+
+    /**
      * Returns the container name.
      *
      * @return Name.
@@ -105,6 +118,13 @@ public class ContainerSpec {
         // nft hook installs the ruleset inside this namespace.
         arguments.add("--network");
         arguments.add("private");
+
+        resolvers.forEach(address -> {
+            // Without this the agent uses the host's resolver, the firewall sees only addresses,
+            // and a name the operator would have recognised reaches the prompt as a bare IP.
+            arguments.add("--dns");
+            arguments.add(address);
+        });
 
         annotations.forEach((key, value) -> {
             arguments.add("--annotation");

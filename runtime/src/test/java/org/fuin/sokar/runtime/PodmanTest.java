@@ -88,6 +88,14 @@ class PodmanTest {
     }
 
     @Test
+    void pointsTheContainerAtSokarsOwnResolver() {
+
+        podman.create(new ContainerSpec("sokar-uc-shell-1", "sokar/uc").resolver("127.0.0.1"));
+
+        assertThat(runner.only("create").describe()).contains("--dns 127.0.0.1");
+    }
+
+    @Test
     void relabelsVolumesForSelinux() {
 
         podman.create(new ContainerSpec("sokar-uc-shell-1", "sokar/uc")

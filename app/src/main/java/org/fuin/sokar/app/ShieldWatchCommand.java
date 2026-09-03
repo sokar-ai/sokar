@@ -1,16 +1,14 @@
 package org.fuin.sokar.app;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.clearance.ClearanceException;
 import org.fuin.sokar.clearance.ClearanceHub;
+import org.fuin.sokar.clearance.ClearanceService;
 import org.fuin.sokar.clearance.ClearancePrompt;
 import org.fuin.sokar.clearance.ClearanceRequest;
 import org.fuin.sokar.clearance.DesktopPrompt;
@@ -18,7 +16,6 @@ import org.fuin.sokar.clearance.Verdict;
 import org.fuin.sokar.core.process.ProcessCommandRunner;
 import org.fuin.sokar.shield.EgressPolicy;
 import org.fuin.sokar.shield.NftRuleset;
-import org.fuin.sokar.wire.Json;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -37,6 +34,11 @@ import picocli.CommandLine.Spec;
  * <p>
  * An allow is added to the live nftables set, so the agent's next attempt succeeds. Reloading the
  * ruleset instead would drop conntrack state and kill every connection it already had open.
+ * <p>
+ * The two halves talk varlink over a unix socket rather than a pipe. A pipe has exactly one
+ * reader, and these events are interesting to more than one thing: the prompt, a terminal watching
+ * along, later a GUI. {@code Subscribe} exists for those, and it is why the transport is a
+ * protocol rather than a stream of lines.
  */
 @Command(name = "watch",
         mixinStandardHelpOptions = true,
@@ -71,6 +73,10 @@ public class ShieldWatchCommand implements Callable<Integer> {
             description = "Stop after this many decisions. Zero means run until killed.")
     private int count;
 
+    @Option(names = "--socket", paramLabel = "<path>",
+            description = "Where to create the clearance socket. Default: beside the container state.")
+    private Path socket;
+
     @Spec
     private CommandSpec spec;
 
@@ -85,29 +91,37 @@ public class ShieldWatchCommand implements Callable<Integer> {
         Process reader = null;
         try (AutoCloseable prompt = prompt()) {
 
-            final ClearanceHub hub = new ClearanceHub(project, (ClearancePrompt) prompt, address -> {
+            final java.util.concurrent.atomic.AtomicInteger decisions =
+                    new java.util.concurrent.atomic.AtomicInteger();
+            final java.util.concurrent.CountDownLatch enough = new java.util.concurrent.CountDownLatch(1);
+
+            final ClearanceHub hub = new ClearanceHub(project, request -> {
+                final Verdict verdict = ((ClearancePrompt) prompt).ask(request);
+                out.println("decided   " + verdict.name().toLowerCase() + "  " + request.destination());
+                out.flush();
+                if (count > 0 && decisions.incrementAndGet() >= count) {
+                    enough.countDown();
+                }
+                return verdict;
+            }, address -> {
                 policy.allow(address);
                 out.println("allowed   " + address);
                 out.flush();
             });
 
-            reader = startReader();
-            out.println("watching  NFLOG group " + group + " for project " + project);
-            out.flush();
+            try (ClearanceService service = new ClearanceService(socketPath(), hub)) {
 
-            int decisions = 0;
-            try (BufferedReader lines = new BufferedReader(
-                    new InputStreamReader(reader.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = lines.readLine()) != null) {
-                    final Verdict verdict = handle(hub, line, err);
-                    if (verdict != null) {
-                        out.println("decided   " + verdict.name().toLowerCase() + "  " + line);
-                        out.flush();
-                        if (count > 0 && ++decisions >= count) {
-                            break;
-                        }
-                    }
+                service.start();
+                out.println("clearance " + service.socketPath());
+
+                reader = startReader(service.socketPath());
+                out.println("watching  NFLOG group " + group + " for project " + project);
+                out.flush();
+
+                if (count > 0) {
+                    enough.await();
+                } else {
+                    reader.waitFor();
                 }
             }
             return 0;
@@ -127,32 +141,21 @@ public class ShieldWatchCommand implements Callable<Integer> {
         }
     }
 
-    private Process startReader() throws IOException {
+    private Path socketPath() {
+        return socket != null ? socket
+                : Path.of(System.getProperty("java.io.tmpdir")).resolve("sokar-clearance-"
+                        + containerPid + ".sock");
+    }
+
+    private Process startReader(Path clearanceSocket) throws IOException {
         // The reader is this same binary, re-invoked inside the namespace. One artifact, and the
         // reader is therefore always the same version as the watcher.
         final String self = ProcessHandle.current().info().command()
                 .orElseThrow(() -> new IOException("Cannot determine the path of this binary"));
         final List<String> command = EgressPolicy.inNamespace(containerPid,
-                List.of(self, "shield", "read", "--group", String.valueOf(group)));
-        return new ProcessBuilder(command).redirectErrorStream(false).start();
-    }
-
-    private Verdict handle(ClearanceHub hub, String line, PrintWriter err) {
-        try {
-            if (!(Json.parse(line) instanceof Map<?, ?> event)) {
-                return null;
-            }
-            final String destination = String.valueOf(event.get("destination"));
-            final String protocol = String.valueOf(event.get("protocol"));
-            final int port = event.get("port") instanceof Number number ? number.intValue() : 0;
-            final String shown = port == 0 ? destination : destination + ":" + port;
-            return hub.handle(protocol + "/" + destination + "/" + port, destination, shown, protocol);
-        } catch (RuntimeException ex) {
-            // A line the reader could not have produced is not worth stopping for.
-            err.println("sokar: ignoring unreadable event: " + line);
-            err.flush();
-            return null;
-        }
+                List.of(self, "shield", "read", "--group", String.valueOf(group),
+                        "--report-to", clearanceSocket.toString()));
+        return new ProcessBuilder(command).inheritIO().start();
     }
 
     private AutoCloseable prompt() {
