@@ -44,12 +44,29 @@ public class GateServeCommand implements Callable<Integer> {
             description = "Port to bind, or 0 to pick one. Default: ${DEFAULT-VALUE}")
     private int port;
 
+    @Option(names = "--pid-file", paramLabel = "<file>",
+            description = "Writes this process's id here, so the poststop hook can reap it.")
+    private Path pidFile;
+
     @Option(names = "--seconds", paramLabel = "<n>",
             description = "Stop after this long. Zero means run until killed.")
     private int seconds;
 
     @Spec
     private CommandSpec spec;
+
+    private void writePidFile(PrintWriter err) {
+        if (pidFile == null) {
+            return;
+        }
+        try {
+            java.nio.file.Files.writeString(pidFile, String.valueOf(ProcessHandle.current().pid()),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException ex) {
+            err.println("sokar: cannot write " + pidFile + ": " + ex.getMessage());
+            err.flush();
+        }
+    }
 
     @Override
     public Integer call() throws Exception {
@@ -60,15 +77,23 @@ public class GateServeCommand implements Callable<Integer> {
         try {
 
             final Project project = GateSupport.project(projectFile);
-            final GitGate gate = GateSupport.gate(project, upstream);
+            final String effectiveUpstream = upstream != null ? upstream
+                    : System.getenv("SOKAR_GATE_UPSTREAM");
+            final GitGate gate = GateSupport.gate(project, effectiveUpstream);
             gate.initialise();
 
-            final TaskToken token = TaskToken.mint();
+            // From the environment when a task started this gate, so the container and the gate
+            // agree on it. Never from an argument: a command line is visible in the host's
+            // process list, and this token authenticates pushes.
+            final String supplied = System.getenv("SOKAR_GATE_TOKEN");
+            final TaskToken token = supplied == null || supplied.isBlank()
+                    ? TaskToken.mint() : new TaskToken(supplied);
             try (GitHttpServer server = new GitHttpServer(
                     new InetSocketAddress(InetAddress.getByName(address), port),
                     gate.mirror(), token, new GitSubprocess())) {
 
                 server.start();
+                writePidFile(err);
                 out.println("mirror    " + gate.mirror());
                 out.println("mode      " + gate.mode().name().toLowerCase());
                 out.println("url       http://" + address + ":" + server.port() + "/"

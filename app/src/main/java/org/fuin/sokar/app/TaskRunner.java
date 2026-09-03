@@ -114,12 +114,34 @@ public class TaskRunner {
             org.fuin.sokar.runtime.ImageLayers layers,
             java.util.Map<String, String> environment,
             java.util.List<String> allowedDomains, PrintWriter out) throws IOException {
+        start(project, container, layers, environment, allowedDomains, null, 0, out);
+    }
+
+    /**
+     * Prepares and starts a container for one task.
+     *
+     * @param project The project.
+     * @param container Container name.
+     * @param layers What the agent and the project add to the image.
+     * @param environment Variables to set inside the container.
+     * @param allowedDomains Domains the container's resolver will answer for.
+     * @param gateAddress Address of Sokar's git gate, or {@code null} if there is none.
+     * @param gatePort Port of the git gate.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, String container,
+            org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment,
+            java.util.List<String> allowedDomains,
+            String gateAddress, int gatePort, PrintWriter out) throws IOException {
 
         final Path state = paths.containerState(container);
         Files.createDirectories(state);
 
         final Path ruleset = state.resolve("ruleset.nft");
-        Files.writeString(ruleset, rulesetFor(project, hostResolvers()), StandardCharsets.UTF_8);
+        Files.writeString(ruleset, rulesetFor(project, hostResolvers(), gateAddress, gatePort),
+                StandardCharsets.UTF_8);
         out.println("policy    " + ruleset);
 
         // Written before the container is created, like the ruleset: the supervisor hook reads
@@ -199,8 +221,14 @@ public class TaskRunner {
         return found.isEmpty() ? java.util.List.of("8.8.8.8") : found;
     }
 
-    private String rulesetFor(Project project, java.util.List<String> upstreamResolvers) {
+    private String rulesetFor(Project project, java.util.List<String> upstreamResolvers,
+            String gateAddress, int gatePort) {
         final NftRuleset ruleset = new NftRuleset(project.securityClass());
+        if (gateAddress != null) {
+            // Before the security-class check on purpose: the gate is on this machine, and an
+            // offline project still has to be able to commit.
+            ruleset.gate(gateAddress, gatePort);
+        }
         if (project.securityClass() != SecurityClass.OFFLINE) {
             ruleset.allowV4("127.0.0.0/8");
             // The resolver runs INSIDE this namespace, so its own upstream queries are subject to
@@ -232,6 +260,21 @@ public class TaskRunner {
             java.util.Map<String, String> environment,
             Path logFile, java.time.Duration timeout) {
         return podman.execute(container, environment, agent.buildCommand(request), logFile, timeout);
+    }
+
+    /**
+     * Runs a command inside a running container.
+     *
+     * @param container Container name.
+     * @param environment Variables for this command.
+     * @param command Program and arguments.
+     * @param log File the output goes to.
+     * @param timeout How long it may run.
+     * @return Exit code.
+     */
+    public int execute(String container, java.util.Map<String, String> environment,
+            java.util.List<String> command, Path log, java.time.Duration timeout) {
+        return podman.execute(container, environment, command, log, timeout);
     }
 
     /**

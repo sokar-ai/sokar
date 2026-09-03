@@ -33,6 +33,8 @@ public class NftRuleset {
 
     private final Set<String> resolvers = new LinkedHashSet<>();
 
+    private final Set<String> gateEndpoints = new LinkedHashSet<>();
+
     /**
      * Constructor with the project's security class.
      *
@@ -76,6 +78,22 @@ public class NftRuleset {
     }
 
     /**
+     * Allows the container to reach Sokar's own git gate.
+     * <p>
+     * Separate from {@link #allowV4(String)} so it survives the security class: an offline project
+     * still pushes to the gate, because the gate is on this machine and is the *reason* the
+     * project can be offline. Blocking it would mean an offline agent could not commit at all.
+     *
+     * @param address Address the gate listens on.
+     * @param port Port the gate listens on.
+     * @return This instance.
+     */
+    public NftRuleset gate(String address, int port) {
+        gateEndpoints.add(address + " tcp dport " + port);
+        return this;
+    }
+
+    /**
      * Renders the ruleset.
      *
      * @return File content, ending in a line separator.
@@ -110,6 +128,16 @@ public class NftRuleset {
         lines.add("");
         lines.add("        # Loopback is inside the namespace, so this reaches nothing outside it.");
         lines.add("        oif \"lo\" accept");
+
+        if (!gateEndpoints.isEmpty()) {
+            lines.add("");
+            lines.add("        # Sokar's own git gate, on this machine. Allowed for every security");
+            lines.add("        # class including offline: the gate is why an offline project can");
+            lines.add("        # still commit, and nothing here leaves the host.");
+            for (final String endpoint : gateEndpoints) {
+                lines.add("        ip daddr " + endpoint + " accept");
+            }
+        }
 
         if (securityClass != SecurityClass.OFFLINE) {
             if (!resolvers.isEmpty()) {

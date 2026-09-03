@@ -70,6 +70,15 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "How long the agent may run. Default: ${DEFAULT-VALUE}")
     private int minutes = 30;
 
+    @Option(names = "--upstream", paramLabel = "<url>",
+            description = "Upstream the gate forwards approved pushes to.")
+    private String upstream;
+
+    @Option(names = "--no-gate",
+            description = "Runs without a workspace or a git gate. The agent gets an empty"
+                    + " directory and cannot commit anywhere.")
+    private boolean noGate;
+
     @Option(names = "--clearance", paramLabel = "<mode>",
             description = "What to do with a blocked connection: prompt, allow, deny, or off."
                     + " Default: ${DEFAULT-VALUE}")
@@ -136,6 +145,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final String container =
                 runner.containerName(project, task, String.valueOf(ProcessHandle.current().pid()));
 
+        final TaskWorkspace workspace = openWorkspace(project, out, err);
+
         try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
 
             final org.fuin.sokar.runtime.ImageLayers layers;
@@ -151,8 +162,22 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             final java.util.List<String> domains = selected == null
                     ? java.util.List.of() : selected.definition().allowedDomains();
 
-            environmentCache = environment(agents, out, err);
-            runner.start(project, container, layers, environmentCache, domains, out);
+            environmentCache = new java.util.LinkedHashMap<>(environment(agents, out, err));
+            if (workspace != null) {
+                environmentCache.putAll(workspace.environment(project, task));
+            }
+
+            // The port is decided before this, so the firewall rule can name it; the gate itself
+            // starts afterwards, because its log lives in the state directory that start()
+            // creates. Starting it first silently failed to spawn at all.
+            runner.start(project, container, layers, environmentCache, domains,
+                    workspace == null ? null : TaskWorkspace.gateAddress(),
+                    workspace == null ? 0 : workspace.port(), out);
+
+            if (workspace != null) {
+                startGate(runner, workspace, container, out, err);
+                prepareWorkspace(runner, workspace, container, out, err);
+            }
             out.println();
 
             startClearance(runner, container, out, err);
@@ -188,6 +213,125 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.flush();
             return cleanUp(runner, container, 70);
         }
+    }
+
+    /**
+     * Opens the git gate for this task, unless the caller asked for none.
+     *
+     * @return The workspace, or {@code null} when running without a gate.
+     */
+    private TaskWorkspace openWorkspace(Project project, PrintWriter out, PrintWriter err) {
+        if (noGate || dryRun) {
+            return null;
+        }
+        try {
+            return new TaskWorkspace(
+                    GateSupport.gate(project, upstream), TaskWorkspace.containerVisibleHost());
+        } catch (RuntimeException ex) {
+            // A task with no workspace is still a useful task - a shell in a hardened box - so
+            // this reports and continues rather than refusing to start.
+            err.println("sokar: no git gate for this task: " + ex.getMessage());
+            err.flush();
+            return null;
+        }
+    }
+
+    /**
+     * Starts the git gate as its own process.
+     * <p>
+     * Detached, like the clearance watcher and for the same reason: this process either returns or
+     * replaces itself with a shell, and the gate has to be there for as long as the container is.
+     * The first version of this held the server in {@code task run} and it died the moment the
+     * command finished - the container could then commit and never push.
+     * <p>
+     * The token goes through the environment, not the command line: a command line is visible in
+     * the host's process list, and this token authenticates pushes.
+     */
+    private void startGate(TaskRunner runner, TaskWorkspace workspace, String container,
+            PrintWriter out, PrintWriter err) {
+
+        final java.nio.file.Path state = context.paths().containerState(container);
+        final java.util.List<String> command = java.util.List.of(
+                ProcessHandle.current().info().command().orElse("sokar"),
+                "gate", "serve",
+                "--project", projectFile.toAbsolutePath().toString(),
+                "--address", "0.0.0.0",
+                "--port", String.valueOf(workspace.port()),
+                "--pid-file", state.resolve("gate.pid").toString());
+
+        try {
+            final ProcessBuilder builder = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .redirectOutput(state.resolve("gate.log").toFile());
+            builder.environment().put("SOKAR_GATE_TOKEN", workspace.token().value());
+            if (upstream != null) {
+                builder.environment().put("SOKAR_GATE_UPSTREAM", upstream);
+            }
+            builder.start();
+            out.println("gate      " + workspace.url(project(out, err)));
+            final String mismatch = gateReachability(runner, container);
+            if (mismatch != null) {
+                err.println("sokar: " + mismatch);
+                err.flush();
+            }
+            out.flush();
+        } catch (java.io.IOException ex) {
+            err.println("sokar: could not start the git gate: " + ex.getMessage());
+            err.flush();
+        }
+    }
+
+    /**
+     * Asks the container where it reaches this host, and compares that with the address the
+     * firewall was told to allow.
+     * <p>
+     * The two are derived independently - one by podman, one by
+     * {@link TaskWorkspace#gateAddress()} - and when they disagreed the only symptom was a push
+     * that hung for two minutes and then failed to connect. Cheap to check, so it is checked.
+     *
+     * @param container Container name.
+     * @return {@code null} if the gate is reachable, otherwise a message saying why not.
+     */
+    private String gateReachability(TaskRunner runner, String container) {
+        try {
+            final java.nio.file.Path out = java.nio.file.Files.createTempFile("sokar-hosts", "");
+            try {
+                final int code = runner.execute(container, java.util.Map.of(),
+                        java.util.List.of("cat", "/etc/hosts"), out,
+                        java.time.Duration.ofSeconds(20));
+                if (code != 0) {
+                    return null;
+                }
+                return TaskWorkspace.verify(java.nio.file.Files.readString(out));
+            } finally {
+                java.nio.file.Files.deleteIfExists(out);
+            }
+        } catch (java.io.IOException ex) {
+            return null;
+        }
+    }
+
+    private Project project(PrintWriter out, PrintWriter err) {
+        return ProjectReader.read(projectFile);
+    }
+
+    /**
+     * Clones the mirror into the container's workspace.
+     */
+    private void prepareWorkspace(TaskRunner runner, TaskWorkspace workspace, String container,
+            PrintWriter out, PrintWriter err) {
+
+        final java.nio.file.Path log =
+                context.paths().containerState(container).resolve("workspace.log");
+        final int code = runner.execute(container, environmentCache, workspace.cloneCommand(),
+                log, java.time.Duration.ofMinutes(5));
+        if (code == 0) {
+            out.println("workspace " + TaskWorkspace.MOUNT + " ready");
+        } else {
+            err.println("sokar: could not prepare the workspace, see " + log);
+            err.flush();
+        }
+        out.flush();
     }
 
     /**

@@ -237,6 +237,56 @@ else
     fi
 fi
 
+# ------------------------------------------------------------ workspace and gate
+#
+# The agent gets its repository through Sokar's git gate, not from a bind mount: the
+# container clones over HTTP from a mirror on the host and pushes back to a ref the
+# operator reviews. Nothing the agent writes reaches the real upstream unreviewed.
+#
+# Worth checking here because the failure mode was invisible. The firewall rule that
+# opens the gate port needs the address the container reaches the host on; that was
+# resolved from a name podman only writes inside the container, so on the host it
+# threw, the rule was quietly omitted, and every push hung until it timed out. A
+# working clone proves nothing - only a push does.
+echo
+echo "-- workspace and gate --"
+
+if podman exec "$CONTAINER" sh -c 'test -d /workspace/.git' 2>/dev/null; then
+    pass "the workspace is a git repository the agent can work in"
+
+    if podman exec "$CONTAINER" sh -c 'cd /workspace && git remote get-url sokar' \
+            >/dev/null 2>&1; then
+        pass "the workspace has a remote pointing back at the gate"
+    else
+        fail "the workspace has no gate remote, so the agent cannot hand work back"
+    fi
+
+    PUSH_OUT="$(podman exec "$CONTAINER" sh -c 'cd /workspace \
+        && git -c user.email=agent@localhost -c user.name=agent commit -q --allow-empty \
+             -m "e2e: work from the agent" \
+        && timeout 30 git push sokar HEAD:"$SOKAR_TASK_REF"' 2>&1)" && PUSHED=0 || PUSHED=1
+
+    if [ "$PUSHED" -eq 0 ]; then
+        pass "the agent can push its work through the gate"
+    else
+        fail "the agent could not push through the gate"
+        echo "$PUSH_OUT" | tail -3 | while read -r line; do info "  $line"; done
+        info "check that the ruleset opens the gate port - a missing rule looks"
+        info "exactly like this, as a connect timeout rather than a refusal"
+    fi
+
+    if [ "$PUSHED" -eq 0 ]; then
+        if (cd "$WORK" && "$SOKAR" gate pending 2>/dev/null) \
+                | grep -q "e2e: work from the agent"; then
+            pass "the pushed work is waiting for review on the host"
+        else
+            fail "the push succeeded but nothing is pending for review"
+        fi
+    fi
+else
+    fail "no workspace in the container, so the agent has nothing to work on"
+fi
+
 echo
 if [ "$FAILURES" -eq 0 ]; then
     echo "== all checks passed =="
