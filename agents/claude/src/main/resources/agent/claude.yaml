@@ -1,0 +1,42 @@
+# Claude Code.
+#
+# Everything here is data. The one thing that is not - reading an OAuth token out
+# of the credentials file Claude writes at login - is a method override in
+# ClaudeAgent, in this module, rather than a branch somewhere in Sokar.
+
+name: claude
+label: Claude Code
+binary: claude
+
+git_identity:
+  name: Claude
+  email: noreply@anthropic.com
+
+headless:
+  prompt_flag: "-p"
+  model_flag: "--model"
+  max_turns_flag: "--max-turns"
+  verbose_flag: "--verbose"
+  output_format_flags: ["--output-format", "stream-json"]
+
+session:
+  supports_resume: true
+  resume_flag: "--resume"
+
+provider:
+  # Claude switches the variable by credential type: an OAuth token and an API
+  # key go to different places, and sending one as the other fails in a way that
+  # looks like a bad key.
+  token_env:
+    oauth: CLAUDE_CODE_OAUTH_TOKEN
+    _default: ANTHROPIC_API_KEY
+  base_url_env: ANTHROPIC_BASE_URL
+
+allowed_domains:
+  - api.anthropic.com
+  - claude.ai
+  - statsig.anthropic.com
+
+install:
+  as_agent: |
+    RUN curl -fsSL https://claude.ai/install.sh | bash

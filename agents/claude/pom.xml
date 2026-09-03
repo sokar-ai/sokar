@@ -11,21 +11,21 @@
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>sokar-agent-api</artifactId>
-    <description>Sokar - Agent SPI (AGENT-API)</description>
+    <artifactId>sokar-agent-claude</artifactId>
+    <description>Sokar - Claude Code agent (AGENT-CLAUDE)</description>
 
     <dependencies>
 
-        <!-- compile -->
+        <!-- compile: the SPI, and nothing else. Never another agent. -->
 
         <dependency>
             <groupId>org.fuin.sokar</groupId>
-            <artifactId>sokar-core</artifactId>
+            <artifactId>sokar-agent-api</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.yaml</groupId>
-            <artifactId>snakeyaml</artifactId>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-wire</artifactId>
         </dependency>
 
         <!-- test -->

@@ -95,6 +95,15 @@ something. It is a packaging fact, not a code dependency.
 
 Nothing in `core`, `app`, or any other agent changes.
 
+### What you do *not* have to write
+
+No native-image metadata. `ServiceLoader` classes are resolved by native-image on
+its own, but the resources those classes read are not — an unregistered
+definition means the agent is discovered and then fails to construct, with
+`No agent definition at /agent/<name>.yaml`. `sokar-agent-api` registers the glob
+`agent/*.yaml` once, and resource registration is a pattern over the whole
+classpath, so it covers every agent that will ever exist.
+
 ## When YAML is not enough
 
 Override a method on `Agent`, **in your own module**:
