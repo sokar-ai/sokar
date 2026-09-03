@@ -1,5 +1,5 @@
 /**
- * Container lifecycle (RUNTIME)
+ * Building task images and running task containers with podman.
  */
 @NullMarked
 package org.fuin.sokar.runtime;

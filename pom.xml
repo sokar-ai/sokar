@@ -115,6 +115,14 @@
 
             <dependency>
                 <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-core</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
                 <artifactId>sokar-runtime</artifactId>
                 <version>${project.version}</version>
             </dependency>
