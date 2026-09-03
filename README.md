@@ -6,6 +6,25 @@ Sokar runs each agent task inside a hardened, rootless container with default-de
 vault that keeps real keys on the host, a per-task git checkpoint, and a desktop notification path for live allow/deny
 decisions.
 
+Sokar is inspired by [Terok AI](https://github.com/terok-ai/terok) — not a fork and not a port, but it owes that
+project a great deal: the architecture, and a lot of hard-won knowledge about how podman, nftables and D-Bus actually
+behave. Big kudos to its developers. If you are more at home in Python, use it. It's a cool project!
+
+## Why build this if Terok is so cool?
+
+- **It's Java** — Sorry, I'm a Java developer and Python is not my world. Fixes and enhancements are simply easier for
+  me here.
+- **No Python runtime** — One signed native binary per host role. The package is files; nothing has to be installed on
+  the host before Sokar will run.
+- **APT/DNF packaging** — Installed with `apt` or `dnf`, under whatever policy your machines already have.
+- **Easy to add an agent** — An agent is its own binary and its own package, discovered at runtime. Nothing in Sokar
+  names it or depends on it, and the build fails if anything starts to. Adding one — including a proprietary agent that
+  will never be upstreamed — means adding a directory, not patching Sokar.
+- **Pinned, verifiable installs** — An agent CLI is fetched from a pinned URL and checked against a SHA-256 before it
+  is allowed to run. No `curl | bash` in the middle of a tool whose job is containment.
+- **Fast startup** — 1–2 ms cold start, against roughly 10 ms for the equivalent Python. Small numbers, but the OCI
+  hooks fire twice per container start, so it sits on a path you notice.
+
 ## Structure
 
 It is built from a Maven multi-module Java 25 project and ships as signed native binaries, with no language runtime
@@ -28,15 +47,35 @@ hands them at container-create time.
 
 ## Installing additional tooling in a box
 
-A task image is built in three layers, in this order:
+First, an ambiguity worth clearing up, because two different things get called
+"the agent":
+
+- **`sokar-agent-claude`** is the `.deb`/`.rpm`, and it installs **on the host**,
+  into `/usr/libexec/sokar/agents/`. It is Sokar's *adapter*: it knows how to talk
+  to Claude Code — which flags it takes, where it writes its credentials, how to
+  read its output. It is about 6 MB and contains exactly one file.
+- **`claude`** is the CLI itself, and it goes **inside the task image**, because
+  that is where it has to run. It is about 320 MB.
+
+The package does not contain the CLI. It carries the *instructions* for installing
+one: a pinned URL and a SHA-256. Sokar asks the installed adapter for those over
+varlink and folds them into the generated `Containerfile`. That keeps the package
+small and lets podman's layer cache download the CLI once per pinned version
+rather than once per build.
+
+So a task image is built in three layers, in this order:
 
 1. **base** — the distro image the project names, plus an unprivileged `agent`
    user, a `/workspace`, and `curl` + CA certificates;
-2. **agent** — whatever the selected agent installs, normally a pinned and
-   digest-verified download of its CLI;
+2. **agent** — the pinned, digest-verified download the installed agent adapter
+   asked for;
 3. **project** — your own lines.
 
-Your tooling goes in the third. Either inline in `project.yml`:
+Note that layer 2 needs network access **at image build time**, to the vendor's
+download host. The egress firewall governs the running task container, not the
+build, so an air-gapped machine needs a mirror for that URL.
+
+Your tooling goes in the third layer. Either inline in `project.yml`:
 
 ```yaml
 image:
