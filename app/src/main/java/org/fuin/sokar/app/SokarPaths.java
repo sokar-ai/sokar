@@ -11,14 +11,41 @@ import org.fuin.sokar.core.config.XdgPaths;
  */
 public record SokarPaths(XdgPaths xdg, Path binaryDirectory) {
 
+    /** Where the sokar package puts the hook binaries. */
+    static final Path PACKAGED_HOOKS = Path.of("/usr/libexec/sokar/hooks");
+
+    /** Name of a hook binary, used to tell an install apart from an empty directory. */
+    private static final String MARKER = "sokar-hook-nft";
+
     /**
-     * Returns the paths for the current user, with the hook binaries in {@code ~/.local/bin}.
+     * Returns the paths for the current user.
+     * <p>
+     * The hook binaries come either from a package, which installs them system-wide, or from a
+     * local build, which leaves them in {@code ~/.local/bin}. The operator's own copy wins, the
+     * same order {@code AgentDirectory} uses for agents, so a developer can test a hook without
+     * uninstalling the package.
      *
      * @return Paths.
      */
     public static SokarPaths current() {
-        return new SokarPaths(XdgPaths.current(),
-                Path.of(System.getProperty("user.home"), ".local", "bin"));
+        return new SokarPaths(XdgPaths.current(), hookBinaries(
+                Path.of(System.getProperty("user.home"), ".local", "bin"), PACKAGED_HOOKS));
+    }
+
+    /**
+     * Picks the first directory that actually holds the hooks.
+     *
+     * @param locations Directories to consider, the operator's own first.
+     * @return The first directory containing a hook binary, or the first location if none does -
+     *         so that an error message names the place a developer would look.
+     */
+    static Path hookBinaries(Path... locations) {
+        for (final Path location : locations) {
+            if (java.nio.file.Files.isRegularFile(location.resolve(MARKER))) {
+                return location;
+            }
+        }
+        return locations[0];
     }
 
     /**

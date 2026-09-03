@@ -13,6 +13,149 @@
 
     <artifactId>sokar-dist-rpm</artifactId>
     <packaging>pom</packaging>
-    <description>Sokar - RPM packaging (DIST-RPM)</description>
+    <description>Sandboxes AI agent tasks in hardened rootless containers</description>
+
+    <properties>
+        <rpm.version>1.13.0</rpm.version>
+        <build-helper.version>3.6.1</build-helper.version>
+        <package.name>sokar</package.name>
+        <hook.install.dir>/usr/libexec/sokar/hooks</hook.install.dir>
+        <!-- Signing is off for local and CI builds and on for releases, where the key exists. -->
+        <rpm.sign.skip>true</rpm.sign.skip>
+    </properties>
+
+    <!-- Reactor ordering only; see the note in dist-deb. -->
+    <dependencies>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-app</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokard</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-hooks</artifactId>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+
+        <!-- Requires -Pnative to have produced the binaries; run as: mvn -Pnative,dist package -->
+        <profile>
+            <id>dist</id>
+            <build>
+                <plugins>
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>${build-helper.version}</version>
+                        <executions>
+                            <execution>
+                                <id>package-version</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>regex-property</goal>
+                                </goals>
+                                <configuration>
+                                    <name>sokar.package.version</name>
+                                    <value>${project.version}</value>
+                                    <regex>-SNAPSHOT$</regex>
+                                    <replacement>~SNAPSHOT</replacement>
+                                    <failIfNoMatch>false</failIfNoMatch>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>de.dentrassi.maven</groupId>
+                        <artifactId>rpm</artifactId>
+                        <version>${rpm.version}</version>
+                        <executions>
+                            <execution>
+                                <id>rpm</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>rpm</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <packageName>${package.name}</packageName>
+                            <version>${sokar.package.version}</version>
+                            <snapshotVersion>${sokar.package.version}</snapshotVersion>
+                            <release>1</release>
+                            <summary>${project.description}</summary>
+                            <description>Sandboxes an AI agent task in a hardened, rootless podman container: egress is default-deny, credentials stay on the host behind a broker, and the agent hands its work back through a git gate the operator reviews.
+
+Installs the sokar and sokard binaries and the three OCI hooks. The hooks are NOT registered by this package: podman reads hook descriptors per user, so each operator runs "sokar setup" once. Nothing here touches a system-wide podman configuration.
+
+This package contains no agent. Agents ship separately as sokar-agent-* packages, which sokar discovers by scanning /usr/libexec/sokar/agents.</description>
+                            <!-- Without this the plugin substitutes a timestamp release for any
+                                 snapshot build, and the rpm and the deb then disagree about what
+                                 version they are. -->
+                            <forceRelease>true</forceRelease>
+                            <architecture>x86_64</architecture>
+                            <group>Applications/System</group>
+                            <license>Apache-2.0</license>
+                            <packager>fuin.org</packager>
+                            <requires>
+                                <require>podman</require>
+                                <require>nftables</require>
+                                <require>dnsmasq</require>
+                                <require>git</require>
+                                <require>util-linux</require>
+                            </requires>
+                            <signature>
+                                <skip>${rpm.sign.skip}</skip>
+                            </signature>
+                            <entries>
+                                <entry>
+                                    <name>/usr/bin/sokar</name>
+                                    <file>${project.basedir}/../app/target/sokar</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>/usr/bin/sokard</name>
+                                    <file>${project.basedir}/../daemon/target/sokard</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${hook.install.dir}/sokar-hook-nft</name>
+                                    <file>${project.basedir}/../hooks/target/sokar-hook-nft</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${hook.install.dir}/sokar-hook-supervisor</name>
+                                    <file>${project.basedir}/../hooks/target/sokar-hook-supervisor</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${hook.install.dir}/sokar-hook-reader</name>
+                                    <file>${project.basedir}/../hooks/target/sokar-hook-reader</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                            </entries>
+                        </configuration>
+                    </plugin>
+
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
 
 </project>

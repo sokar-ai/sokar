@@ -1,0 +1,24 @@
+Package: [[name]]
+# Not [[version]]: that is the raw Maven version, and apt compares on this line. This is Sokar's
+# version with -SNAPSHOT rewritten to ~SNAPSHOT, which sorts below the release rather than above
+# it - the same rule the agent packages follow.
+Version: [[sokar.package.version]]
+Section: admin
+Priority: optional
+Architecture: amd64
+Maintainer: fuin.org <info@fuin.org>
+Homepage: https://github.com/fuinorg/sokar
+Depends: podman, nftables, dnsmasq-base, git, util-linux
+Description: [[description]]
+ Sandboxes an AI agent task in a hardened, rootless podman container: egress is
+ default-deny, credentials stay on the host behind a broker, and the agent hands
+ its work back through a git gate the operator reviews.
+ .
+ Installs the sokar and sokard binaries and the three OCI hooks. The hooks are
+ statically linked and are NOT registered by this package: podman reads hook
+ descriptors per user, so each operator runs "sokar setup" once, which writes
+ them into ~/.config/containers and points podman at them. Nothing here touches
+ a system-wide podman configuration.
+ .
+ This package contains no agent. Agents ship separately as sokar-agent-*
+ packages, which sokar discovers by scanning /usr/libexec/sokar/agents.

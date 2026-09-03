@@ -13,6 +13,152 @@
 
     <artifactId>sokar-dist-deb</artifactId>
     <packaging>pom</packaging>
-    <description>Sokar - Debian packaging (DIST-DEB)</description>
+    <description>Sandboxes AI agent tasks in hardened rootless containers</description>
+
+    <properties>
+        <jdeb.version>1.14</jdeb.version>
+        <build-helper.version>3.6.1</build-helper.version>
+        <!-- The package name, which is not the module name: the module builds the package, the
+             package is what an operator installs and what an agent package depends on. -->
+        <package.name>sokar</package.name>
+        <hook.install.dir>/usr/libexec/sokar/hooks</hook.install.dir>
+    </properties>
+
+    <!-- Not used for a classpath - this module produces no code. It is here so the reactor builds
+         the binaries before this module packages them; without it the ordering is undefined and
+         the packaging silently picks up whatever an earlier build left in target. -->
+    <dependencies>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-app</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokard</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-hooks</artifactId>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+
+        <!-- Requires -Pnative to have produced the binaries; run as: mvn -Pnative,dist package -->
+        <profile>
+            <id>dist</id>
+            <build>
+                <plugins>
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>${build-helper.version}</version>
+                        <executions>
+                            <execution>
+                                <id>package-version</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>regex-property</goal>
+                                </goals>
+                                <configuration>
+                                    <!-- Debian sorts '~' below everything, so 0.1.0~SNAPSHOT is
+                                         older than 0.1.0. Left as '-SNAPSHOT' it sorts ABOVE the
+                                         release and apt refuses the upgrade. -->
+                                    <name>sokar.package.version</name>
+                                    <value>${project.version}</value>
+                                    <regex>-SNAPSHOT$</regex>
+                                    <replacement>~SNAPSHOT</replacement>
+                                    <failIfNoMatch>false</failIfNoMatch>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.vafer</groupId>
+                        <artifactId>jdeb</artifactId>
+                        <version>${jdeb.version}</version>
+                        <executions>
+                            <execution>
+                                <id>deb</id>
+                                <!-- 'verify' for the same reason as the agents: native-image binds
+                                     to 'package' and inherited plugins run first. -->
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>jdeb</goal>
+                                </goals>
+                                <configuration>
+                                    <name>${package.name}</name>
+                                    <deb>${project.build.directory}/${package.name}_${sokar.package.version}_amd64.deb</deb>
+                                    <controlDir>${project.basedir}/src/deb/control</controlDir>
+                                    <skipPOMs>false</skipPOMs>
+                                    <dataSet>
+                                        <data>
+                                            <src>${project.basedir}/../app/target/sokar</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/bin</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../daemon/target/sokard</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/bin</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../hooks/target/sokar-hook-nft</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${hook.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../hooks/target/sokar-hook-supervisor</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${hook.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../hooks/target/sokar-hook-reader</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${hook.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                    </dataSet>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
 
 </project>
