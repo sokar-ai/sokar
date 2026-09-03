@@ -16,6 +16,7 @@ class ProjectReaderTest {
               name: "uc"
               description: "Ultimate Container"
               security_class: "online"
+              upstream: "git@github.com:example/uc.git"
 
             image:
               base_image: "ubuntu:24.04"
@@ -35,6 +36,37 @@ class ProjectReaderTest {
         assertThat(project.securityClass()).isEqualTo(SecurityClass.ONLINE);
         assertThat(project.baseImage()).isEqualTo("ubuntu:24.04");
         assertThat(project.imageName()).isEqualTo("sokar/uc");
+        assertThat(project.upstream()).isEqualTo("git@github.com:example/uc.git");
+    }
+
+    @Test
+    void anOnlineProjectWithoutAnUpstreamIsRefused() {
+
+        // Online puts the agent's own remote at the upstream, so without one the class means
+        // nothing. Caught here rather than as a git error inside a container.
+        assertThatThrownBy(() -> read("""
+                project:
+                  name: "uc"
+                  security_class: "online"
+                image:
+                  base_image: "ubuntu:24.04"
+                """))
+                .isInstanceOf(ProjectException.class)
+                .hasMessageContaining("is online, so it needs an upstream");
+    }
+
+    @Test
+    void theOtherClassesDoNotNeedAnUpstream() {
+
+        // A guarded project keeps the gate in the path, and an approved push names the upstream
+        // on the command line. Requiring it here would make the common case depend on the rare.
+        assertThat(read("""
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                """).upstream()).isNull();
     }
 
     @Test

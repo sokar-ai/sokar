@@ -76,7 +76,8 @@ public final class ProjectReader {
                 text(project.get("description")),
                 SecurityClass.parse(required(project, "security_class", origin, "project")),
                 required(image, "base_image", origin, "image"),
-                snippet(image, origin));
+                snippet(image, origin),
+                text(project.get("upstream")).isEmpty() ? null : text(project.get("upstream")));
     }
 
     private static Map<?, ?> section(Map<?, ?> root, String name, String origin) {

@@ -2,6 +2,7 @@ package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import org.jspecify.annotations.Nullable;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -32,13 +33,19 @@ public class TaskWorkspace {
      */
     private static final String GATE_ADDRESS = "169.254.1.2";
 
-    private final GitGate gate;
+    /** The gate, or {@code null} for an online project that pushes to its upstream directly. */
+    private final @Nullable GitGate gate;
 
-    private final TaskToken token;
+    /** The gate's token, {@code null} when there is no gate. */
+    private final @Nullable TaskToken token;
 
     private final String host;
 
+    /** The gate's port, zero when there is no gate. */
     private final int port;
+
+    /** The upstream, set only when there is no gate. */
+    private final @Nullable String upstream;
 
     /**
      * Prepares the settings for one task's gate.
@@ -50,12 +57,54 @@ public class TaskWorkspace {
      * @param gate The project's gate.
      * @param host Address the container reaches the host on.
      */
-    public TaskWorkspace(GitGate gate, String host) {
+    private TaskWorkspace(@Nullable GitGate gate, String host,
+            @Nullable String upstream) {
         this.gate = gate;
         this.host = host;
-        this.token = TaskToken.mint();
-        this.port = freePort();
-        gate.initialise();
+        this.upstream = upstream;
+        this.token = gate == null ? null : TaskToken.mint();
+        this.port = gate == null ? 0 : freePort();
+        if (gate != null) {
+            gate.initialise();
+        }
+    }
+
+    /**
+     * A workspace whose remote is the gate on this machine.
+     * <p>
+     * What {@code offline} and {@code guarded} projects get: the agent never learns the upstream
+     * URL, and nothing it pushes leaves the machine until an operator approves it.
+     *
+     * @param gate The project's gate.
+     * @param host Address the container reaches the host on.
+     * @return A gated workspace.
+     */
+    public static TaskWorkspace gated(GitGate gate, String host) {
+        return new TaskWorkspace(gate, host, null);
+    }
+
+    /**
+     * A workspace whose remote is the project's real upstream.
+     * <p>
+     * What an {@code online} project gets, and the whole of what that class means: the gate is out
+     * of the path, the agent clones from and pushes to the upstream itself, and there is no review
+     * step. The container therefore needs credentials for that remote, which is the cost of the
+     * class.
+     *
+     * @param upstream Upstream repository URL.
+     * @return A direct workspace.
+     */
+    public static TaskWorkspace direct(String upstream) {
+        return new TaskWorkspace(null, containerVisibleHost(), upstream);
+    }
+
+    /**
+     * Returns whether the gate is in the path.
+     *
+     * @return {@code true} when the agent pushes to the gate rather than to the upstream.
+     */
+    public boolean gated() {
+        return gate != null;
     }
 
     /**
@@ -98,7 +147,8 @@ public class TaskWorkspace {
      * @return Gate URL.
      */
     public String url(Project project) {
-        return "http://" + host + ":" + port() + "/" + project.name() + ".git";
+        return gate == null ? upstream
+                : "http://" + host + ":" + port() + "/" + project.name() + ".git";
     }
 
     /**
@@ -112,14 +162,19 @@ public class TaskWorkspace {
      * @return Variables to set in the container.
      */
     public Map<String, String> environment(Project project, String taskName) {
-        final String header = "Authorization: Basic " + Base64.getEncoder().encodeToString(
-                ("sokar:" + token.value()).getBytes(StandardCharsets.UTF_8));
         final Map<String, String> environment = new LinkedHashMap<>();
-        environment.put("GIT_CONFIG_COUNT", "1");
-        environment.put("GIT_CONFIG_KEY_0", "http.extraHeader");
-        environment.put("GIT_CONFIG_VALUE_0", header);
-        environment.put("SOKAR_GATE_URL", url(project));
-        environment.put("SOKAR_TASK_REF", GitGate.INCOMING + taskName);
+        if (token != null) {
+            final String header = "Authorization: Basic " + Base64.getEncoder().encodeToString(
+                    ("sokar:" + token.value()).getBytes(StandardCharsets.UTF_8));
+            environment.put("GIT_CONFIG_COUNT", "1");
+            environment.put("GIT_CONFIG_KEY_0", "http.extraHeader");
+            environment.put("GIT_CONFIG_VALUE_0", header);
+        }
+        environment.put("SOKAR_REMOTE_URL", url(project));
+        // A gated push goes to a ref no branch points at, so nothing an operator is reading moves
+        // underneath them. A direct push has no review step and so goes to a real branch.
+        environment.put("SOKAR_TASK_REF",
+                gate == null ? "refs/heads/" + taskName : GitGate.INCOMING + taskName);
         return Map.copyOf(environment);
     }
 
@@ -135,7 +190,7 @@ public class TaskWorkspace {
         return java.util.List.of("sh", "-c",
                 "set -e; cd " + MOUNT + "; "
                         + "if [ ! -d .git ]; then git init -q -b main .; "
-                        + "git remote add sokar \"$SOKAR_GATE_URL\"; fi; "
+                        + "git remote add sokar \"$SOKAR_REMOTE_URL\"; fi; "
                         + "git fetch -q sokar 2>/dev/null || true; "
                         + "git config user.name \"${SOKAR_GIT_NAME:-agent}\"; "
                         + "git config user.email \"${SOKAR_GIT_EMAIL:-agent@localhost}\"");

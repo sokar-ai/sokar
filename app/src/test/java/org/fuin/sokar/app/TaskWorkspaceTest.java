@@ -18,6 +18,53 @@ class TaskWorkspaceTest {
     }
 
     @Test
+    void testReadsTheHostFromAnSshRemote() {
+
+        // Not a URL, and the common shape for a git remote. The firewall and the resolver both
+        // need the host, so getting this wrong means an online task cannot reach its upstream.
+        assertThat(TaskRunCommand.upstreamHost("git@github.com:you/repo.git"))
+                .isEqualTo("github.com");
+    }
+
+    @Test
+    void testReadsTheHostFromAnHttpsRemote() {
+
+        assertThat(TaskRunCommand.upstreamHost("https://github.com/you/repo.git"))
+                .isEqualTo("github.com");
+        assertThat(TaskRunCommand.upstreamHost("https://user@git.example.com:8443/repo.git"))
+                .isEqualTo("git.example.com");
+    }
+
+    @Test
+    void testSaysNothingRatherThanGuessing() {
+
+        // A host it cannot read must not become a firewall rule for the wrong name.
+        assertThat(TaskRunCommand.upstreamHost(null)).isNull();
+        assertThat(TaskRunCommand.upstreamHost("   ")).isNull();
+        assertThat(TaskRunCommand.upstreamHost("/srv/git/repo.git")).isNull();
+    }
+
+    @Test
+    void testAGatedWorkspacePushesToAReviewRefAndADirectOneToABranch() {
+
+        // The whole difference between guarded and online, in one place: a gated push lands
+        // where no branch points, so nothing an operator is reading moves underneath them; a
+        // direct push has no review step and so goes to a real branch.
+        final org.fuin.sokar.core.project.Project online = new org.fuin.sokar.core.project.Project(
+                "uc", "", org.fuin.sokar.core.project.SecurityClass.ONLINE, "ubuntu:24.04", null,
+                "git@github.com:you/repo.git");
+        final TaskWorkspace direct = TaskWorkspace.direct(online.upstream());
+
+        assertThat(direct.gated()).isFalse();
+        assertThat(direct.url(online)).isEqualTo("git@github.com:you/repo.git");
+        assertThat(direct.environment(online, "shell"))
+                .containsEntry("SOKAR_TASK_REF", "refs/heads/shell")
+                .containsEntry("SOKAR_REMOTE_URL", "git@github.com:you/repo.git")
+                // No gate means no gate token, so no credential header is invented for one.
+                .doesNotContainKey("GIT_CONFIG_VALUE_0");
+    }
+
+    @Test
     void testVerifyAcceptsTheMappingPodmanWrites() {
 
         // Given

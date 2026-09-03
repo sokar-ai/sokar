@@ -167,7 +167,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             java.nio.file.Files.createDirectories(state);
 
             TaskWiring wiring = new TaskWiring(
-                    workspace == null ? null : TaskWorkspace.gateAddress(),
+                    workspace == null || !workspace.gated() ? null : TaskWorkspace.gateAddress(),
                     workspace == null ? 0 : workspace.port(), null);
 
             environmentCache = new java.util.LinkedHashMap<>();
@@ -191,6 +191,15 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
             if (workspace != null) {
                 environmentCache.putAll(workspace.environment(project, task));
+                if (!workspace.gated()) {
+                    // The upstream is on the internet, so an online task needs it resolvable and
+                    // reachable. A gated task never does: its remote is on this machine.
+                    final String host = upstreamHost(project.upstream());
+                    if (host != null && !domains.contains(host)) {
+                        domains.add(host);
+                        out.println("upstream  " + host + " (the agent pushes there directly)");
+                    }
+                }
             }
 
             // The port is decided before this, so the firewall rule can name it; the gate itself
@@ -199,7 +208,9 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             runner.start(project, container, layers, environmentCache, domains, wiring, out);
 
             if (workspace != null) {
-                startGate(runner, workspace, container, out, err);
+                if (workspace.gated()) {
+                    startGate(runner, workspace, container, out, err);
+                }
                 prepareWorkspace(runner, workspace, container, out, err);
             }
             out.println();
@@ -249,7 +260,13 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return null;
         }
         try {
-            return new TaskWorkspace(
+            if (project.securityClass() == org.fuin.sokar.core.project.SecurityClass.ONLINE) {
+                // Online takes the gate out of the path entirely: the agent's remote IS the
+                // upstream. Nothing is reviewed, which is what the class is for and why a project
+                // has to opt into it rather than a task asking for it.
+                return TaskWorkspace.direct(project.upstream());
+            }
+            return TaskWorkspace.gated(
                     GateSupport.gate(project, upstream), TaskWorkspace.containerVisibleHost());
         } catch (RuntimeException ex) {
             // A task with no workspace is still a useful task - a shell in a hardened box - so
@@ -470,6 +487,37 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         } catch (java.io.IOException ex) {
             return null;
         }
+    }
+
+    /**
+     * Returns the host part of a git remote, for the firewall and the resolver.
+     * <p>
+     * Handles the two shapes a git remote actually takes: an SSH one like
+     * {@code git@github.com:you/repo.git}, which is not a URL, and an ordinary
+     * {@code https://} URL.
+     *
+     * @param upstream Remote as written in the project file.
+     * @return Host, or {@code null} if none can be read.
+     */
+    static String upstreamHost(String upstream) {
+        if (upstream == null || upstream.isBlank()) {
+            return null;
+        }
+        final String value = upstream.strip();
+        if (value.contains("://")) {
+            final String rest = value.substring(value.indexOf("://") + 3);
+            final String authority = rest.split("/", 2)[0];
+            final String hostPort = authority.contains("@")
+                    ? authority.substring(authority.indexOf('@') + 1) : authority;
+            final String host = hostPort.split(":", 2)[0];
+            return host.isBlank() ? null : host;
+        }
+        if (value.contains("@") && value.contains(":")) {
+            final String afterUser = value.substring(value.indexOf('@') + 1);
+            final String host = afterUser.split(":", 2)[0];
+            return host.isBlank() ? null : host;
+        }
+        return null;
     }
 
     private Project project(PrintWriter out, PrintWriter err) {
