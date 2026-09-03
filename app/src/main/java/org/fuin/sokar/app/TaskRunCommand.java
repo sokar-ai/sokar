@@ -159,10 +159,36 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             }
 
             final org.fuin.sokar.agent.api.InstalledAgent selected = select(agents);
-            final java.util.List<String> domains = selected == null
-                    ? java.util.List.of() : selected.definition().allowedDomains();
 
-            environmentCache = new java.util.LinkedHashMap<>(environment(agents, out, err));
+            // The state directory has to exist before anything writes into it. start() also
+            // creates it, but the credential proxy needs it first: it writes its socket, its
+            // token and its pid there, and it has to be listening before the container exists.
+            final java.nio.file.Path state = context.paths().containerState(container);
+            java.nio.file.Files.createDirectories(state);
+
+            TaskWiring wiring = new TaskWiring(
+                    workspace == null ? null : TaskWorkspace.gateAddress(),
+                    workspace == null ? 0 : workspace.port(), null);
+
+            environmentCache = new java.util.LinkedHashMap<>();
+            final java.util.List<String> domains = new java.util.ArrayList<>(selected == null
+                    ? java.util.List.of() : selected.definition().allowedDomains());
+
+            final CredentialPlumbing plumbing = startVault(selected, container, out, err);
+            if (plumbing != null) {
+                environmentCache.putAll(plumbing.environment());
+                wiring = wiring.withVaultSocket(plumbing.socket());
+                // The other half of the containment. An agent that ignores the socket - Claude
+                // Code compiles in its own base URL - must not be able to reach the provider
+                // directly, or it sends the phantom token upstream and the leak is invisible.
+                if (domains.remove(plumbing.upstreamHost())) {
+                    out.println("denied    " + plumbing.upstreamHost()
+                            + " (reachable only through the credential proxy)");
+                }
+            } else {
+                environmentCache.putAll(environment(agents, out, err));
+            }
+
             if (workspace != null) {
                 environmentCache.putAll(workspace.environment(project, task));
             }
@@ -170,9 +196,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // The port is decided before this, so the firewall rule can name it; the gate itself
             // starts afterwards, because its log lives in the state directory that start()
             // creates. Starting it first silently failed to spawn at all.
-            runner.start(project, container, layers, environmentCache, domains,
-                    workspace == null ? null : TaskWorkspace.gateAddress(),
-                    workspace == null ? 0 : workspace.port(), out);
+            runner.start(project, container, layers, environmentCache, domains, wiring, out);
 
             if (workspace != null) {
                 startGate(runner, workspace, container, out, err);
@@ -247,6 +271,138 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * The token goes through the environment, not the command line: a command line is visible in
      * the host's process list, and this token authenticates pushes.
      */
+    /**
+     * What the credential proxy set up for this task.
+     *
+     * @param socket Host path of the socket the container mounts.
+     * @param upstreamHost Provider host to withhold from the firewall.
+     * @param environment Variables the container needs to use the proxy.
+     */
+    private record CredentialPlumbing(java.nio.file.Path socket, String upstreamHost,
+            java.util.Map<String, String> environment) {
+    }
+
+    /**
+     * Starts the credential proxy for this task, detached, and returns how to reach it.
+     * <p>
+     * Detached for the same reason as the gate and the clearance watcher: this process either
+     * replaces itself with a shell or returns when the agent finishes, and the proxy has to
+     * outlive both. It writes a pid file that the poststop hook reaps.
+     * <p>
+     * <strong>The proxy mints the token, not this process.</strong> The real credential then only
+     * ever exists in the proxy, which is the property that makes the phantom token worth having.
+     * This process waits for the token file to appear and injects the value into the container.
+     *
+     * @param agent The selected agent, or {@code null}.
+     * @param container Container name.
+     * @param out Where progress is reported.
+     * @param err Where problems are reported.
+     * @return The plumbing, or {@code null} when this task brokers no credential.
+     */
+    private CredentialPlumbing startVault(org.fuin.sokar.agent.api.InstalledAgent agent,
+            String container, PrintWriter out, PrintWriter err) {
+
+        if (agent == null) {
+            return null;
+        }
+        final org.fuin.sokar.agent.api.ProviderRoute route = agent.definition().route();
+        final String variable = agent.definition().tokenVariable(credentialType);
+        if (route == null || variable == null) {
+            // Nothing to proxy through. Not an error - an agent may take no credential at all -
+            // but if it takes one and cannot be redirected, say so rather than issue a token
+            // that cannot work.
+            if (variable != null) {
+                err.println("sokar: '" + agent.name() + "' declares no proxy route, so its"
+                        + " credential cannot be brokered; it will not authenticate");
+                err.flush();
+            }
+            return null;
+        }
+        if (!context.credentials().containsKey(agent.name())) {
+            out.println("token     none - the vault holds no credential for '"
+                    + agent.name() + "'");
+            return null;
+        }
+
+        final java.nio.file.Path state = context.paths().containerState(container);
+        final java.nio.file.Path socket = state.resolve("vault.sock");
+        final java.nio.file.Path tokenFile = state.resolve("vault.token");
+        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
+                ProcessHandle.current().info().command().orElse("sokar"),
+                "vault", "serve",
+                "--socket", socket.toString(),
+                "--agent", agent.name(),
+                "--task", task,
+                "--upstream", route.upstream(),
+                "--auth-header", route.authHeaderFor(credentialType),
+                "--auth-prefix", route.authPrefixFor(credentialType),
+                "--token-file", tokenFile.toString(),
+                "--pid-file", state.resolve("vault.pid").toString(),
+                "--hours", String.valueOf(tokenHours)));
+
+        try {
+            java.nio.file.Files.deleteIfExists(tokenFile);
+            new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .redirectOutput(state.resolve("vault.log").toFile())
+                    .start();
+        } catch (java.io.IOException ex) {
+            err.println("sokar: could not start the credential proxy: " + ex.getMessage());
+            err.flush();
+            return null;
+        }
+
+        final String token = awaitToken(socket, tokenFile);
+        if (token == null) {
+            err.println("sokar: the credential proxy did not come up, see "
+                    + state.resolve("vault.log"));
+            err.flush();
+            return null;
+        }
+
+        final java.util.Map<String, String> environment = new java.util.LinkedHashMap<>();
+        environment.put(variable, token);
+        if (route.socketEnvironment() != null) {
+            environment.put(route.socketEnvironment(), TaskWiring.VAULT_MOUNT);
+        }
+        out.println("vault     " + socket + " -> " + route.upstream());
+        out.println("token     " + variable + "=" + org.fuin.sokar.vault.PhantomToken.abbreviate(token));
+        out.flush();
+        return new CredentialPlumbing(socket, route.upstreamHost(), environment);
+    }
+
+    /**
+     * Waits for the proxy to be listening and to have written its token.
+     * <p>
+     * Both, not either: the socket exists a moment before the token file does, and starting the
+     * container with an empty token produces an authentication failure that looks like a bad
+     * credential.
+     *
+     * @param socket Socket the proxy binds.
+     * @param tokenFile File the proxy writes its token to.
+     * @return The token, or {@code null} if it did not appear in time.
+     */
+    private static String awaitToken(java.nio.file.Path socket, java.nio.file.Path tokenFile) {
+        final long deadline = System.nanoTime() + java.time.Duration.ofSeconds(20).toNanos();
+        while (System.nanoTime() < deadline) {
+            try {
+                if (java.nio.file.Files.exists(socket) && java.nio.file.Files.exists(tokenFile)) {
+                    final String token = java.nio.file.Files.readString(tokenFile).strip();
+                    if (!token.isEmpty()) {
+                        return token;
+                    }
+                }
+                Thread.sleep(100);
+            } catch (java.io.IOException ex) {
+                return null;
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }
+        return null;
+    }
+
     private void startGate(TaskRunner runner, TaskWorkspace workspace, String container,
             PrintWriter out, PrintWriter err) {
 

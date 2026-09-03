@@ -114,7 +114,7 @@ public class TaskRunner {
             org.fuin.sokar.runtime.ImageLayers layers,
             java.util.Map<String, String> environment,
             java.util.List<String> allowedDomains, PrintWriter out) throws IOException {
-        start(project, container, layers, environment, allowedDomains, null, 0, out);
+        start(project, container, layers, environment, allowedDomains, TaskWiring.none(), out);
     }
 
     /**
@@ -125,8 +125,7 @@ public class TaskRunner {
      * @param layers What the agent and the project add to the image.
      * @param environment Variables to set inside the container.
      * @param allowedDomains Domains the container's resolver will answer for.
-     * @param gateAddress Address of Sokar's git gate, or {@code null} if there is none.
-     * @param gatePort Port of the git gate.
+     * @param wiring Host-side endpoints this container is attached to.
      * @param out Where progress is reported.
      * @throws IOException If a file cannot be written.
      */
@@ -134,13 +133,14 @@ public class TaskRunner {
             org.fuin.sokar.runtime.ImageLayers layers,
             java.util.Map<String, String> environment,
             java.util.List<String> allowedDomains,
-            String gateAddress, int gatePort, PrintWriter out) throws IOException {
+            TaskWiring wiring, PrintWriter out) throws IOException {
 
         final Path state = paths.containerState(container);
         Files.createDirectories(state);
 
         final Path ruleset = state.resolve("ruleset.nft");
-        Files.writeString(ruleset, rulesetFor(project, hostResolvers(), gateAddress, gatePort),
+        Files.writeString(ruleset,
+                rulesetFor(project, hostResolvers(), wiring.gateAddress(), wiring.gatePort()),
                 StandardCharsets.UTF_8);
         out.println("policy    " + ruleset);
 
@@ -168,6 +168,12 @@ public class TaskRunner {
                 .resolver(org.fuin.sokar.shield.DnsPolicy.LISTEN_ADDRESS)
                 .annotation(Sidecar.ANNOTATION, sidecarFile.toString());
         environment.forEach(specification::environment);
+        if (wiring.vaultSocket() != null) {
+            // The credential proxy. Mounted rather than reached over the network on purpose: it
+            // needs no firewall rule, and the provider's own host is withheld from the ruleset
+            // so this is the only route to a working credential.
+            specification.volume(wiring.vaultSocket(), TaskWiring.VAULT_MOUNT);
+        }
         podman.create(specification);
         out.println("container " + container);
 

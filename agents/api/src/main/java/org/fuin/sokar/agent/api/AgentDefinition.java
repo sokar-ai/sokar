@@ -21,6 +21,8 @@ import org.jspecify.annotations.Nullable;
  * @param tokenEnvironment Credential type to environment variable, with {@code _default} as the
  *        fallback key.
  * @param baseUrlEnvironment Variable naming the API endpoint, or {@code null}.
+ * @param route How the vault proxy stands in for the provider, or {@code null} if the agent
+ *        cannot be redirected and must be given its credential directly.
  * @param allowedDomains Domains the agent needs to resolve and reach.
  * @param refusedDomains Domains the agent is known to ask for and is deliberately not given -
  *        telemetry and crash reporting. Declared rather than merely absent so that a test can
@@ -34,7 +36,7 @@ import org.jspecify.annotations.Nullable;
 public record AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
         HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
         Map<String, String> tokenEnvironment, @Nullable String baseUrlEnvironment,
-        List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
+        @Nullable ProviderRoute route, List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
         List<InstallArtifact> artifacts,
         List<String> installAsRoot, List<String> installAsAgent) {
 
@@ -53,6 +55,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
      * @param resumeFlag Flag continuing a session, or {@code null}.
      * @param tokenEnvironment Credential type to environment variable.
      * @param baseUrlEnvironment Variable naming the API endpoint, or {@code null}.
+     * @param route Vault proxy route, or {@code null}.
      * @param allowedDomains Domains the agent needs.
      * @param refusedDomains Domains it asks for and is deliberately denied.
      * @param version Version of the agent CLI installed.

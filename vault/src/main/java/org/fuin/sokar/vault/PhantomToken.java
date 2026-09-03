@@ -62,10 +62,23 @@ public record PhantomToken(String value, String scope, String subject, Instant e
                 presented.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Shortens a token value for printing.
+     * <p>
+     * Shared with {@link #toString()} so there is one rule rather than two: a token that is
+     * printed whole makes any log a usable credential for the token's lifetime, and that has to
+     * be true everywhere, not only where a {@code PhantomToken} object happens to be at hand.
+     *
+     * @param value Token value.
+     * @return Enough to recognise it by, and not enough to use.
+     */
+    public static String abbreviate(String value) {
+        return value.substring(0, Math.min(PREFIX.length() + 4, value.length())) + "...";
+    }
+
     @Override
     public String toString() {
         // These end up in logs and exception messages by accident.
-        return "PhantomToken[" + scope + "/" + subject + " "
-                + value.substring(0, Math.min(PREFIX.length() + 4, value.length())) + "...]";
+        return "PhantomToken[" + scope + "/" + subject + " " + abbreviate(value) + "]";
     }
 }

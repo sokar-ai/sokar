@@ -200,16 +200,16 @@ fi
 # A phantom token is only half a credential scheme. The agent gets 'sokar_pt_...' instead
 # of the real key, which is the point - but something has to accept it and swap it for the
 # real credential on the way out, or the provider just answers 401 and the agent looks
-# misconfigured.
+# misconfigured. That is exactly what happened before the proxy existed.
 #
-# The redemption point is reached through the agent's own base-url variable
-# (ANTHROPIC_BASE_URL for Claude Code, declared as base_url_env in the definition): Sokar
-# points the agent at a local endpoint, that endpoint redeems the token and forwards the
-# request upstream with the real key.
+# Sokar runs a per-task proxy on a unix socket the container has bind-mounted. The agent is
+# pointed at it through its own socket variable (ANTHROPIC_UNIX_SOCKET for Claude Code); the
+# proxy verifies the token, injects the real credential and reissues the request upstream.
 #
-# So: if a phantom token was injected, a base-url variable must be set too, and it must
-# point somewhere that answers. Checked here because it needs no provider account - the
-# agent never has to authenticate for this to be measurable.
+# All of this is checkable WITHOUT a provider account, which is why it lives in tier 1. The
+# vault holds a deliberately fake key, so a request that reaches the provider comes back
+# rejected - and that rejection is the proof: it is the PROVIDER's error message, not the
+# proxy's, so the whole chain ran. Only a 200 needs a real account, and that is tier 2.
 echo
 echo "-- credential exchange --"
 
@@ -219,24 +219,58 @@ PHANTOM_VAR="$(podman exec "$CONTAINER" sh -c \
 if [ -z "$PHANTOM_VAR" ]; then
     info "no phantom token in this run, so there is nothing to redeem"
 else
-    BASE_URL="$(podman exec "$CONTAINER" sh -c \
-        'env | grep -E "^[A-Z_]*BASE_URL=" | cut -d= -f2-' 2>/dev/null | head -1)"
+    SOCKET_VAR="$(podman exec "$CONTAINER" sh -c \
+        'env | grep -E "^[A-Z_]*(UNIX_SOCKET|BASE_URL)=" | cut -d= -f1' 2>/dev/null | head -1)"
 
-    if [ -n "$BASE_URL" ]; then
-        pass "the agent is pointed at a redemption endpoint ($BASE_URL)"
-        if podman exec "$CONTAINER" sh -c \
-                "curl -s -o /dev/null --max-time 10 '$BASE_URL' 2>/dev/null"; then
-            pass "the redemption endpoint answers from inside the container"
-        else
-            fail "the redemption endpoint does not answer from inside the container"
-            info "the token is unredeemable, so every provider call will fail with 401"
-        fi
-    else
+    if [ -z "$SOCKET_VAR" ]; then
         fail "$PHANTOM_VAR holds a phantom token that nothing can redeem"
-        info "no base-url variable is set, so the agent talks straight to the provider"
-        info "and presents 'sokar_pt_...' as if it were a real key - measured: HTTP 401"
-        info "the broker mints tokens and TokenBroker.exchange is never called in"
-        info "production; the forwarding endpoint that would call it does not exist yet"
+        info "the agent is pointed at no proxy, so it talks straight to the provider and"
+        info "presents 'sokar_pt_...' as if it were a real key"
+    else
+        pass "the agent is pointed at a redemption endpoint ($SOCKET_VAR)"
+
+        SOCKET="$(podman exec "$CONTAINER" sh -c "printenv $SOCKET_VAR" 2>/dev/null)"
+        if podman exec "$CONTAINER" sh -c "test -S '$SOCKET'" 2>/dev/null; then
+            pass "the proxy socket is mounted in the container"
+        else
+            fail "$SOCKET_VAR names '$SOCKET', which is not a socket in the container"
+        fi
+
+        # The whole point, and the one check a wrong answer cannot fake: the reply must be
+        # the PROVIDER's rejection of the fake key, not the proxy's rejection of the token.
+        # If the proxy answered, the swap never happened.
+        REPLY="$(podman exec "$CONTAINER" sh -c "curl -s --max-time 30 --unix-socket '$SOCKET' \
+            -H \"x-api-key: \$$PHANTOM_VAR\" -H 'anthropic-version: 2023-06-01' \
+            -H 'content-type: application/json' -X POST http://api.anthropic.com/v1/messages \
+            -d '{\"model\":\"claude-3-5-haiku-20241022\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}'" \
+            2>/dev/null)"
+
+        if echo "$REPLY" | grep -q "sokar:"; then
+            fail "the proxy rejected this task's own token"
+            info "$(echo "$REPLY" | head -c 200)"
+        elif echo "$REPLY" | grep -qi "api key\|authentication"; then
+            pass "a request through the proxy reached the provider and was answered by it"
+            info "the provider rejected the fake key, which is the expected end of this path"
+        elif [ -z "$REPLY" ]; then
+            fail "a request through the proxy got no answer at all"
+            info "the proxy is listening but nothing came back - check vault.log in the"
+            info "container state directory"
+        else
+            fail "unexpected answer through the proxy"
+            info "$(echo "$REPLY" | head -c 200)"
+        fi
+
+        # Half the containment is the proxy; the other half is that the direct route is shut.
+        # Claude Code compiles in its own base URL and would otherwise ignore the socket.
+        if podman exec "$CONTAINER" sh -c \
+                'curl -s -o /dev/null --max-time 15 https://api.anthropic.com/v1/messages' \
+                2>/dev/null; then
+            fail "the container can still reach the provider directly"
+            info "an agent that ignores the socket would send the phantom token upstream,"
+            info "and the leak would be invisible"
+        else
+            pass "the provider is unreachable except through the proxy"
+        fi
     fi
 fi
 
@@ -269,8 +303,12 @@ else
     # Names the agent's definition says it deliberately does not get. Without this the check
     # pressures whoever runs it into allowing telemetry, which is the opposite of the point:
     # Claude Code 2.1.236 resolves a Datadog log intake, and refusing it is correct.
+    # Two kinds of name that are absent from allowed_domains on purpose, and neither is a
+    # bug: one the agent is deliberately denied, one it reaches through the credential proxy
+    # instead. Without both, this check reports the containment working as a failure.
     REFUSED="$("$SOKAR" agents --verbose 2>/dev/null \
-        | sed -n 's/^ *refused: *//p' | tr ',' '\n' | tr -d ' ' | grep . || true)"
+        | sed -n -e 's/^ *refused: *//p' -e 's/^ *proxied: \([^ ]*\).*/\1/p' \
+        | tr ',' '\n' | tr -d ' ' | grep . || true)"
 
     UNDECLARED="$(grep -oE 'config [a-z0-9.-]+ is NXDOMAIN' "$DNS_LOG" 2>/dev/null \
         | awk '{print $2}' | sort -u \
@@ -280,7 +318,7 @@ else
         BLOCKED="$(echo "$UNDECLARED" | grep -Fxf <(echo "$REFUSED") || true)"
         UNDECLARED="$(echo "$UNDECLARED" | grep -Fxvf <(echo "$REFUSED") || true)"
         for name in $BLOCKED; do
-            info "refused as declared: $name"
+            info "blocked on purpose: $name"
         done
     fi
 

@@ -93,12 +93,34 @@ public final class AgentDefinitionReader {
                 optional(session, "resume_flag"),
                 map(provider.get("token_env")),
                 optional(provider, "base_url_env"),
+                route(provider, origin),
                 strings(root.get("allowed_domains")),
                 strings(root.get("refused_domains")),
                 optional(install, "version"),
                 artifacts(install.get("artifacts"), origin),
                 strings(install.get("as_root")),
                 strings(install.get("as_agent")));
+    }
+
+    /**
+     * Reads the {@code proxy} block inside {@code provider}.
+     * <p>
+     * Absent for an agent that cannot be redirected at a proxy. That is a real case rather than
+     * an error - it means the agent has to be given its credential directly, which is a decision
+     * the operator makes with {@code --credential-type direct}, not something this reader can fix.
+     *
+     * @param provider The provider block.
+     * @param origin Where the definition came from, for error messages.
+     * @return Route, or {@code null} when no proxy block is declared.
+     */
+    @Nullable
+    private static ProviderRoute route(Map<?, ?> provider, String origin) {
+        if (!(provider.get("proxy") instanceof Map<?, ?> proxy)) {
+            return null;
+        }
+        return new ProviderRoute(required(proxy, "upstream", origin),
+                optional(proxy, "socket_env"),
+                map(proxy.get("auth_header")), map(proxy.get("auth_prefix")));
     }
 
     private static List<InstallArtifact> artifacts(@Nullable Object value, String origin) {

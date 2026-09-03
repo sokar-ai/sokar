@@ -79,6 +79,54 @@ class AgentDefinitionReaderTest {
     }
 
     @Test
+    void readsTheProxyRouteAndTheHostItImplies() {
+
+        final AgentDefinition definition = read(MINIMAL + """
+                provider:
+                  token_env:
+                    _default: API_KEY
+                  proxy:
+                    upstream: https://api.example.com
+                    socket_env: EXAMPLE_UNIX_SOCKET
+                    auth_header:
+                      oauth: Authorization
+                      _default: x-api-key
+                    auth_prefix:
+                      oauth: "Bearer "
+                      _default: ""
+                """);
+
+        assertThat(definition.route()).isNotNull();
+        assertThat(definition.route().socketEnvironment()).isEqualTo("EXAMPLE_UNIX_SOCKET");
+        // The host is derived, not declared twice: it is what the deny rule needs.
+        assertThat(definition.route().upstreamHost()).isEqualTo("api.example.com");
+        assertThat(definition.route().authHeaderFor("oauth")).isEqualTo("Authorization");
+        assertThat(definition.route().authPrefixFor("oauth")).isEqualTo("Bearer ");
+        assertThat(definition.route().authHeaderFor("api-key")).isEqualTo("x-api-key");
+        assertThat(definition.route().authPrefixFor("api-key")).isEmpty();
+    }
+
+    @Test
+    void anAgentThatCannotBeRedirectedHasNoRoute() {
+
+        // Not an error. It means the agent must be given its credential directly, which is
+        // the operator's decision to make rather than the reader's to paper over.
+        assertThat(read(MINIMAL).route()).isNull();
+    }
+
+    @Test
+    void refusesAnUpstreamThatWouldSendTheCredentialInTheClear() {
+
+        assertThatThrownBy(() -> read(MINIMAL + """
+                provider:
+                  proxy:
+                    upstream: http://api.example.com
+                """))
+                .isInstanceOf(AgentException.class)
+                .hasMessageContaining("must be an https URL");
+    }
+
+    @Test
     void readsTheDomainsAnAgentIsDeliberatelyDenied() {
 
         // Telemetry hosts are declared, not merely left out: the firewall cannot tell an

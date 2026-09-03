@@ -36,6 +36,30 @@ provider:
     _default: ANTHROPIC_API_KEY
   base_url_env: ANTHROPIC_BASE_URL
 
+  # Where the vault proxy stands in for Anthropic. The agent gets a phantom token and
+  # talks to a unix socket; the proxy verifies the token, puts the real credential in the
+  # header named here, and reissues the request upstream over TLS.
+  #
+  # A socket rather than a port: it needs no firewall hole, no plaintext hop across the
+  # namespace boundary, and its 0600 file permissions are the access control.
+  #
+  # Declaring the upstream also produces the deny rule. Claude Code compiles in its own
+  # base URL, so an agent that ignores ANTHROPIC_UNIX_SOCKET would otherwise send the
+  # phantom token straight to api.anthropic.com. While the proxy is in use that host is
+  # withheld from the firewall, and a bypass shows up as a dropped connection in the audit
+  # trail rather than as an authentication error nobody can explain.
+  proxy:
+    upstream: https://api.anthropic.com
+    socket_env: ANTHROPIC_UNIX_SOCKET
+    # An OAuth token is a bearer token; an API key is not, and Anthropic reads it from its
+    # own header. Sending either as the other fails exactly like a bad credential.
+    auth_header:
+      oauth: Authorization
+      _default: x-api-key
+    auth_prefix:
+      oauth: "Bearer "
+      _default: ""
+
 allowed_domains:
   - api.anthropic.com
   - claude.ai

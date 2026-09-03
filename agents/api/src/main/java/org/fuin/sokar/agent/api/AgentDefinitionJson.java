@@ -48,6 +48,14 @@ public final class AgentDefinitionJson {
         putIfPresent(out, "resumeFlag", definition.resumeFlag());
         out.put("tokenEnvironment", definition.tokenEnvironment());
         putIfPresent(out, "baseUrlEnvironment", definition.baseUrlEnvironment());
+        if (definition.route() != null) {
+            final Map<String, Object> route = new java.util.LinkedHashMap<>();
+            route.put("upstream", definition.route().upstream());
+            putIfPresent(route, "socketEnvironment", definition.route().socketEnvironment());
+            route.put("authHeader", definition.route().authHeader());
+            route.put("authPrefix", definition.route().authPrefix());
+            out.put("route", route);
+        }
         out.put("allowedDomains", definition.allowedDomains());
         out.put("refusedDomains", definition.refusedDomains());
         putIfPresent(out, "version", definition.version());
@@ -85,6 +93,7 @@ public final class AgentDefinitionJson {
                 optional(source, "resumeFlag"),
                 map(source.get("tokenEnvironment")),
                 optional(source, "baseUrlEnvironment"),
+                route(source.get("route")),
                 strings(source.get("allowedDomains")),
                 strings(source.get("refusedDomains")),
                 optional(source, "version"),
@@ -155,6 +164,27 @@ public final class AgentDefinitionJson {
         final List<String> result = new ArrayList<>();
         list.forEach(item -> result.add(String.valueOf(item)));
         return List.copyOf(result);
+    }
+
+    /**
+     * Reads a provider route, absent for an agent that cannot be redirected.
+     *
+     * @param value Route object, or {@code null}.
+     * @return Route, or {@code null}.
+     */
+    @Nullable
+    private static ProviderRoute route(@Nullable Object value) {
+        if (!(value instanceof Map<?, ?> source)) {
+            return null;
+        }
+        final Object upstream = source.get("upstream");
+        if (upstream == null) {
+            return null;
+        }
+        return new ProviderRoute(String.valueOf(upstream),
+                source.get("socketEnvironment") == null ? null
+                        : String.valueOf(source.get("socketEnvironment")),
+                map(source.get("authHeader")), map(source.get("authPrefix")));
     }
 
     private static Map<String, String> map(@Nullable Object value) {
