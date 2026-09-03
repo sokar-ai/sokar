@@ -104,8 +104,9 @@ Some details worth knowing:
 interchangeable — an API key and a subscription token go in different headers, and
 sending one as the other fails in a way that looks exactly like a wrong key. Claude
 Code takes an API key by default, or a subscription OAuth token if you add
-`--credential-type oauth` to `sokar task run`. `sokar agents --verbose` shows what
-each installed agent needs to reach.
+`--credential-type oauth` to `sokar task run` — see
+[the Claude Code guide](agents/claude/README.md) for where to get each.
+`sokar agents --verbose` shows what each installed agent needs to reach.
 
 ## 4. Describe your project
 

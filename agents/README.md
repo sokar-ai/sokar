@@ -152,6 +152,28 @@ elsewhere skips even this.
 Nothing in `core`, `app`, or any other agent changes, and there is no file
 anywhere that lists agents.
 
+### 7. `agents/<name>/README.md`
+
+The one piece of documentation an agent must ship, because nothing else can hold
+it: **which credentials the agent accepts, and where an operator gets each one.**
+
+Sokar cannot answer that. It knows the variable a credential goes in, because the
+definition declares it, and `sokar agents --verbose` prints what an agent needs to
+reach — but the difference between an API key and a subscription token, which
+console issues it, and which `--credential-type` matches, is knowledge about a
+vendor. Put it beside the vendor's adapter, not in Sokar's own documentation,
+for the same reason the code lives here.
+
+[`claude/README.md`](claude/README.md) is the worked example. Cover at least:
+
+- each credential kind, the `--credential-type` that selects it, and where to get
+  it
+- what the container actually receives, and what it does not
+- how to bump the pinned CLI version and digest
+- what to check when authentication fails — the `request` lines in `vault.log`
+  distinguish "the provider rejected your key" from "the agent never used the
+  proxy", and those have completely different fixes
+
 ### What you do *not* have to write
 
 No native-image metadata. `ServiceLoader` classes are resolved by native-image on
