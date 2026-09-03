@@ -1,0 +1,76 @@
+package org.fuin.sokar.app;
+
+import java.io.PrintWriter;
+import java.util.concurrent.Callable;
+import org.fuin.sokar.shield.BlockedConnection;
+import org.fuin.sokar.shield.NetlinkException;
+import org.fuin.sokar.shield.NflogReader;
+import org.fuin.sokar.shield.NftRuleset;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Spec;
+
+/**
+ * Reads dropped packets from an NFLOG group and prints them as line JSON.
+ * <p>
+ * Started by the reader hook, which enters the container's network namespace first. It is not a
+ * command an operator would normally type, but it is genuinely useful when diagnosing a container
+ * that cannot reach something, so it is not hidden.
+ * <p>
+ * This is also where the netlink downcalls are exercised in the shipped binary, which is how the
+ * hand-written FFM registrations in {@code sokar-shield} get verified rather than assumed.
+ */
+@Command(name = "read",
+        mixinStandardHelpOptions = true,
+        description = "Reads blocked connections from the container's firewall log.")
+public class ShieldReadCommand implements Callable<Integer> {
+
+    @Option(names = "--group", paramLabel = "<n>",
+            description = "NFLOG group to bind. Default: ${DEFAULT-VALUE}")
+    private int group = NftRuleset.NFLOG_GROUP;
+
+    @Option(names = "--count", paramLabel = "<n>",
+            description = "Stop after this many events. Zero means run until killed.")
+    private int count;
+
+    @Spec
+    private CommandSpec spec;
+
+    @Override
+    public Integer call() {
+
+        final PrintWriter out = spec.commandLine().getOut();
+        final PrintWriter err = spec.commandLine().getErr();
+
+        try (NflogReader reader = new NflogReader(group)) {
+
+            final int[] seen = { 0 };
+            reader.readUntilStopped(event -> {
+                out.println(event.toJson());
+                out.flush();
+                if (count > 0 && ++seen[0] >= count) {
+                    reader.stop();
+                }
+            });
+            return 0;
+
+        } catch (NetlinkException ex) {
+            // Almost always: started outside the container's network namespace, where there is no
+            // CAP_NET_ADMIN. Say that rather than printing an errno.
+            err.println("sokar: " + ex.getMessage());
+            err.println("sokar: the reader must run inside the container's network namespace");
+            err.flush();
+            return 69;
+        }
+    }
+
+    /**
+     * Returns the event type this command reports, so the class is not mistaken for unused.
+     *
+     * @return Event class.
+     */
+    static Class<BlockedConnection> eventType() {
+        return BlockedConnection.class;
+    }
+}

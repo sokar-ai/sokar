@@ -18,7 +18,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Modules whose tests exercise FFM. Add a module here when it starts making downcalls.
-MODULES="core"
+MODULES="core shield"
 
 UPDATE=0
 [ "${1:-}" = "--update" ] && UPDATE=1
@@ -49,23 +49,35 @@ import json, os, sys
 
 generated, committed, update = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
 
-actual = {"foreign": json.load(open(generated)).get("foreign", {})}
-expected = json.load(open(committed)) if os.path.exists(committed) else None
+def key(entry):
+    return json.dumps(entry, sort_keys=True)
 
-if actual == expected:
-    print("    up to date")
+recorded = json.load(open(generated)).get("foreign", {}).get("downcalls", [])
+committed_doc = json.load(open(committed)) if os.path.exists(committed) else {"foreign": {}}
+existing = committed_doc.get("foreign", {}).get("downcalls", [])
+
+# The committed file must be a SUPERSET of what the agent saw. The agent only records what a test
+# actually executed, and some downcalls cannot be executed in a test at all - binding an NFLOG
+# group needs CAP_NET_ADMIN, and an exec path replaces the process. Those entries are written by
+# hand, so demanding equality here would delete them on every run.
+missing = [e for e in recorded if key(e) not in {key(x) for x in existing}]
+
+if not missing:
+    print("    up to date (%d registered, %d observed)" % (len(existing), len(recorded)))
     sys.exit(0)
 
 if update:
+    merged = existing + missing
+    merged.sort(key=key)
     os.makedirs(os.path.dirname(committed), exist_ok=True)
     with open(committed, "w") as fp:
-        fp.write(json.dumps(actual, indent=2) + "\n")
-    print("    updated " + committed)
+        fp.write(json.dumps({"foreign": {"downcalls": merged}}, indent=2) + "\n")
+    print("    added %d downcall(s) to %s" % (len(missing), committed))
     sys.exit(0)
 
 print("    STALE: " + committed)
-print("    committed: " + json.dumps(expected))
-print("    recorded : " + json.dumps(actual))
+for entry in missing:
+    print("    not registered: " + key(entry))
 print("    run buildtools/check-ffm-metadata.sh --update and commit the result")
 sys.exit(1)
 PY
