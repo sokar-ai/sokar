@@ -66,10 +66,11 @@ public class DnsPolicy {
      * Marks a domain whose resolved addresses are added to the firewall's allow set as they are
      * looked up.
      * <p>
-     * For the one host a project names itself - its upstream. Declaring a domain otherwise only
-     * teaches the resolver about it; the firewall still drops the connection and waits for a
-     * clearance decision, which is right for a host an agent chose and wrong for the host the
-     * operator wrote in the project file.
+     * This is what a declared domain means: resolving a name and being allowed to reach it are
+     * one decision, not two. Without it a declared host resolves and is then dropped, raising a
+     * clearance prompt about something the definition already declared - measured on
+     * {@code github.com}, dropped twenty times while the operator saw only a hang. The prompt
+     * exists for what an agent reached for that nobody declared.
      * <p>
      * Resolved rather than pinned because pinning does not work: a large host rotates addresses,
      * and the address this machine resolves at task start is measurably not the one the container
@@ -155,9 +156,9 @@ public class DnsPolicy {
                 }
                 if (!autoAllowed.isEmpty()) {
                     lines.add("");
-                    lines.add("# The project's own upstream. Every address answered for these is");
-                    lines.add("# added to the firewall's allow set, so what the container was told");
-                    lines.add("# and what it may reach cannot drift apart.");
+                    lines.add("# Every address answered for these is added to the firewall's allow");
+                    lines.add("# set as it is answered, so what the container was told and what it");
+                    lines.add("# may reach cannot drift apart. Note dnsmasq matches subdomains here.");
                     for (final String domain : autoAllowed) {
                         lines.add("nftset=/" + domain + "/inet#sokar#allowed_v4");
                     }

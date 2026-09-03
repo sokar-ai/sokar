@@ -200,15 +200,11 @@ public class TaskRunner {
             java.util.List<String> allowedDomains) {
         final org.fuin.sokar.shield.DnsPolicy policy =
                 new org.fuin.sokar.shield.DnsPolicy(project.securityClass());
-        final String upstreamHost = project.securityClass() == SecurityClass.ONLINE
-                ? TaskRunCommand.upstreamHost(project.upstream()) : null;
-        allowedDomains.forEach(domain -> {
-            if (domain.equals(upstreamHost)) {
-                policy.autoAllow(domain);
-            } else {
-                policy.allow(domain);
-            }
-        });
+        // Every allowed domain, not just the upstream. Resolving a name and being allowed to
+        // reach it are the same decision: a domain that resolves but is then dropped produces a
+        // clearance prompt for a host the definition already declared, which is a prompt about
+        // nothing. The prompt is for what an agent reached for that nobody declared.
+        allowedDomains.forEach(policy::autoAllow);
         // The upstream resolvers the host itself uses. Anything the policy does not allow is
         // NXDOMAIN before it ever reaches them.
         hostResolvers().forEach(policy::upstream);
