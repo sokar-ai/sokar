@@ -19,10 +19,10 @@ Use the agent as you want:
 - **Nothing to escalate to** — every capability dropped and `no-new-privileges` set at create time, inside a rootless
   container whose agent is an unprivileged account
 - **The key stays on the host** — the container holds a task-scoped phantom token, a proxy on a unix socket swaps it
-  for the real credential, and the provider's own host is firewalled off so nothing can go around it; commit signing
-  works the same way, over an agent socket **TODO**
-- **Work leaves only through review** — the agent pushes to a host-side mirror under `refs/sokar/incoming/`, and
-  nothing reaches an upstream until you approve it
+  for the real credential, and the provider's own host is firewalled off so nothing can go around it; git signing
+  works the same way, over an agent socket
+- **Work leaves only through review** — an `offline` or `guarded` task pushes to a host-side mirror under
+  `refs/sokar/incoming/`, and nothing reaches an upstream until you approve it
 - **Recorded before anyone is asked** — drops land in a JSON-per-line audit file whether or not a prompt is running,
   and the desktop Allow/Deny appears once per destination and is never re-asked
 
