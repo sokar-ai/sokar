@@ -83,6 +83,8 @@ public class VaultProxy implements AutoCloseable, Runnable {
 
     private final ServerSocketChannel server;
 
+    private final java.util.function.Consumer<String> log;
+
     private volatile boolean running = true;
 
     /**
@@ -96,7 +98,28 @@ public class VaultProxy implements AutoCloseable, Runnable {
      */
     public VaultProxy(Path socket, String upstream, TokenExchange exchange,
             String authHeader, String authPrefix) {
+        this(socket, upstream, exchange, authHeader, authPrefix, line -> { });
+    }
 
+    /**
+     * Constructor that also reports what passes through.
+     * <p>
+     * One line per request, without the token or the credential. Worth having: when an agent
+     * fails to authenticate, the first question is whether it used the proxy at all, and that is
+     * otherwise unanswerable from the outside - an agent that silently ignores the socket looks
+     * exactly like one whose credential is wrong.
+     *
+     * @param socket Path to bind.
+     * @param upstream Real API endpoint.
+     * @param exchange Turns a presented token into a credential.
+     * @param authHeader Header the credential belongs in.
+     * @param authPrefix String placed before the credential.
+     * @param log Receives one line per request.
+     */
+    public VaultProxy(Path socket, String upstream, TokenExchange exchange,
+            String authHeader, String authPrefix, java.util.function.Consumer<String> log) {
+
+        this.log = log;
         this.socket = socket;
         this.upstream = upstream.endsWith("/")
                 ? upstream.substring(0, upstream.length() - 1) : upstream;
@@ -178,6 +201,7 @@ public class VaultProxy implements AutoCloseable, Runnable {
 
         final TokenExchange.Result result = exchange.exchange(presented(head));
         if (result instanceof TokenExchange.Rejected) {
+            log.accept(head.method() + " " + head.target() + " -> 401 token not accepted");
             // Deliberately the provider's own vocabulary: an agent that gets this should behave
             // as it would for any rejected credential rather than treat it as a transport fault.
             out.write(HttpHead.response(401, "Unauthorized",
@@ -187,6 +211,7 @@ public class VaultProxy implements AutoCloseable, Runnable {
             return;
         }
         if (result instanceof TokenExchange.Unavailable unavailable) {
+            log.accept(head.method() + " " + head.target() + " -> 503 " + unavailable.reason());
             out.write(HttpHead.response(503, "Service Unavailable",
                     "{\"type\":\"error\",\"error\":{\"type\":\"api_error\","
                     + "\"message\":\"sokar: " + unavailable.reason() + "\"}}"));
@@ -210,6 +235,8 @@ public class VaultProxy implements AutoCloseable, Runnable {
             return;
         }
 
+        log.accept(head.method() + " " + head.target() + " -> " + response.statusCode()
+                + " from the provider");
         writeResponse(out, response);
     }
 

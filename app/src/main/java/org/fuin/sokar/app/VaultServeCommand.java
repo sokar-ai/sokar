@@ -100,7 +100,10 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
         }
 
         try (VaultProxy proxy = new VaultProxy(socket, upstream,
-                exchange(broker, token, credentials), authHeader, authPrefix)) {
+                exchange(broker, token, credentials), authHeader, authPrefix, line -> {
+                    out.println("request   " + line);
+                    out.flush();
+                })) {
 
             writeOwnerOnly(tokenFile, token.value(), err);
             writeOwnerOnly(pidFile, String.valueOf(ProcessHandle.current().pid()), err);
