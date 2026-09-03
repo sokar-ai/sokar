@@ -102,6 +102,11 @@ See [build.md](build.md). Three things that will bite:
   without the base-URL variable the agent falls back to its own compiled-in
   endpoint. Both must be set. Residual DNS lookups for the provider are *not*
   evidence of a bypass — check the proxy's request log, which exists for this.
+- **`dnsmasq --nftset` is load-bearing, and its absence is silent.** It is what
+  makes a declared domain reachable rather than merely resolvable. A dnsmasq
+  compiled without it accepts the config and opens nothing. `sokar doctor` probes
+  for it; note that `no-nftset` contains `nftset`, so a substring check reports
+  the opposite of the truth.
 - **Terok is the reference when something is unclear.** Sibling checkouts live in
   `../terok-ai/`: `terok`, `terok-sandbox`, `terok-executor`, `terok-shield`,
   `terok-clearance`, `terok-util`. It has already hit most of these problems.

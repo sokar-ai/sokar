@@ -52,7 +52,19 @@ user, so a package installing them system-wide would fire them for every contain
 you run, including ones that have nothing to do with Sokar. Re-running `sokar
 setup` is safe.
 
-`sokar doctor` confirms where everything lives.
+`sokar doctor` confirms where everything lives, and answers one question worth
+asking before your first task:
+
+```
+dnsmasq nftset      yes
+```
+
+That is how a declared domain becomes reachable rather than merely resolvable —
+dnsmasq adds each address it answers to the firewall's allow set. A dnsmasq
+without it accepts the configuration and silently never opens anything, so names
+resolve, nothing connects, and there is no error to read. If `doctor` says
+anything but `yes`, install a dnsmasq built with nftset support (2.87 or later)
+before going further.
 
 ## 3. Put a credential in the vault
 
