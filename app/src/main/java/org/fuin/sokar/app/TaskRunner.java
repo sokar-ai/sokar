@@ -96,18 +96,45 @@ public class TaskRunner {
     public void start(Project project, String container,
             org.fuin.sokar.runtime.ImageLayers layers,
             java.util.Map<String, String> environment, PrintWriter out) throws IOException {
+        start(project, container, layers, environment, java.util.List.of(), out);
+    }
+
+    /**
+     * Prepares and starts a container for one task.
+     *
+     * @param project The project.
+     * @param container Container name.
+     * @param layers What the agent and the project add to the image.
+     * @param environment Variables to set inside the container. Phantom tokens only.
+     * @param allowedDomains Domains the container's resolver will answer for.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, String container,
+            org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment,
+            java.util.List<String> allowedDomains, PrintWriter out) throws IOException {
 
         final Path state = paths.containerState(container);
         Files.createDirectories(state);
 
         final Path ruleset = state.resolve("ruleset.nft");
-        Files.writeString(ruleset, rulesetFor(project), StandardCharsets.UTF_8);
+        Files.writeString(ruleset, rulesetFor(project, hostResolvers()), StandardCharsets.UTF_8);
         out.println("policy    " + ruleset);
+
+        // Written before the container is created, like the ruleset: the supervisor hook reads
+        // it while the container is coming up.
+        final Path dnsConfig = state.resolve("dns.conf");
+        Files.writeString(dnsConfig, dnsPolicyFor(project, allowedDomains).render(),
+                StandardCharsets.UTF_8);
+        out.println("resolver  " + dnsConfig
+                + (allowedDomains.isEmpty() ? " (no domains allowed)"
+                        : " (" + allowedDomains.size() + " domains)"));
 
         final Path sidecarFile = state.resolve("sidecar.json");
         new Sidecar(Sidecar.VERSION, project.name(),
                 project.securityClass().name().toLowerCase(),
-                ruleset.toString(), state.toString()).writeTo(sidecarFile);
+                ruleset.toString(), dnsConfig.toString(), state.toString()).writeTo(sidecarFile);
         out.println("sidecar   " + sidecarFile);
 
         final String image = podman.buildImage(project, paths.buildContext(project.name()), layers);
@@ -126,13 +153,50 @@ public class TaskRunner {
         out.println("started   yes");
     }
 
-    private String rulesetFor(Project project) {
+    private org.fuin.sokar.shield.DnsPolicy dnsPolicyFor(Project project,
+            java.util.List<String> allowedDomains) {
+        final org.fuin.sokar.shield.DnsPolicy policy =
+                new org.fuin.sokar.shield.DnsPolicy(project.securityClass());
+        allowedDomains.forEach(policy::allow);
+        // The upstream resolvers the host itself uses. Anything the policy does not allow is
+        // NXDOMAIN before it ever reaches them.
+        hostResolvers().forEach(policy::upstream);
+        return policy;
+    }
+
+    /**
+     * Returns the resolvers the host uses, so allowed queries go somewhere real.
+     *
+     * @return Resolver addresses, falling back to a public one when /etc/resolv.conf says nothing
+     *         usable. The fallback matters: the container's own resolv.conf points at loopback, so
+     *         inheriting it would make the resolver forward to itself.
+     */
+    private java.util.List<String> hostResolvers() {
+        final java.util.List<String> found = new java.util.ArrayList<>();
+        try {
+            for (final String line : Files.readAllLines(Path.of("/etc/resolv.conf"))) {
+                if (line.startsWith("nameserver ")) {
+                    final String address = line.substring("nameserver ".length()).strip();
+                    if (!address.startsWith("127.") && !address.contains(":")) {
+                        found.add(address);
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            // Fall through to the default below.
+        }
+        return found.isEmpty() ? java.util.List.of("8.8.8.8") : found;
+    }
+
+    private String rulesetFor(Project project, java.util.List<String> upstreamResolvers) {
         final NftRuleset ruleset = new NftRuleset(project.securityClass());
         if (project.securityClass() != SecurityClass.OFFLINE) {
-            // The curated egress sets arrive with the shield phase. Until then a non-offline
-            // project is no more open than an offline one, which is the safe direction to be
-            // wrong in.
             ruleset.allowV4("127.0.0.0/8");
+            // The resolver runs INSIDE this namespace, so its own upstream queries are subject to
+            // this ruleset. Without these rules dnsmasq answers every query with REFUSED and the
+            // container looks like it has no network at all - which is what happened the first
+            // time this was wired up.
+            upstreamResolvers.forEach(ruleset::resolver);
         }
         return ruleset.render();
     }

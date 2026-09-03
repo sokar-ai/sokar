@@ -36,11 +36,14 @@ public abstract class Hook {
     /**
      * Does the hook's work.
      *
+     * @param stage Which stage fired, {@code createRuntime} or {@code poststop}. The runtime does
+     *        not tell a hook this, so it arrives in the arguments and one descriptor is installed
+     *        per stage.
      * @param state Container state from the runtime.
      * @param sidecar What the launcher wrote for this container.
      * @throws Exception If the work could not be done.
      */
-    protected abstract void run(OciState state, Sidecar sidecar) throws Exception;
+    protected abstract void run(String stage, OciState state, Sidecar sidecar) throws Exception;
 
     /**
      * Runs the hook and returns the process exit code.
@@ -67,7 +70,7 @@ public abstract class Hook {
 
             final Sidecar sidecar = Sidecar.readFrom(Path.of(sidecarPath));
             log(sidecar, stage, "start");
-            run(state, sidecar);
+            run(stage, state, sidecar);
             log(sidecar, stage, "ok");
             return 0;
 

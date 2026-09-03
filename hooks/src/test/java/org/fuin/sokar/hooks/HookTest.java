@@ -28,7 +28,7 @@ class HookTest {
         }
 
         @Override
-        protected void run(OciState state, Sidecar sidecar) {
+        protected void run(String stage, OciState state, Sidecar sidecar) {
             throw new IllegalStateException("deliberate");
         }
     }
@@ -41,7 +41,7 @@ class HookTest {
         }
 
         @Override
-        protected void run(OciState state, Sidecar sidecar) {
+        protected void run(String stage, OciState state, Sidecar sidecar) {
             seen = state;
         }
     }
@@ -56,7 +56,8 @@ class HookTest {
     private Path sidecarFile(Path dir) throws IOException {
         final Path file = dir.resolve("sidecar.json");
         new Sidecar(Sidecar.VERSION, "uc", "guarded",
-                dir.resolve("ruleset.nft").toString(), dir.toString()).writeTo(file);
+                dir.resolve("ruleset.nft").toString(), dir.resolve("dns.conf").toString(),
+                dir.toString()).writeTo(file);
         return file;
     }
 
@@ -119,7 +120,7 @@ class HookTest {
 
         final Path file = dir.resolve("sidecar.json");
         new Sidecar(Sidecar.VERSION, "uc", "guarded", dir.resolve("r.nft").toString(),
-                "/proc/nowhere-writable").writeTo(file);
+                dir.resolve("dns.conf").toString(), "/proc/nowhere-writable").writeTo(file);
 
         // A hook that cannot write its log has still done its job. On the fail-closed path,
         // throwing here would stop a container for the wrong reason.

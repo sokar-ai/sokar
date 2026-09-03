@@ -28,7 +28,12 @@ public class NftHook extends Hook {
     }
 
     @Override
-    protected void run(OciState state, Sidecar sidecar) throws Exception {
+    protected void run(String stage, OciState state, Sidecar sidecar) throws Exception {
+
+        if (!"createRuntime".equals(stage)) {
+            // At poststop the namespace is already gone; there is nothing to unload.
+            return;
+        }
 
         final Path ruleset = Path.of(sidecar.rulesetFile());
         if (!Files.isRegularFile(ruleset)) {

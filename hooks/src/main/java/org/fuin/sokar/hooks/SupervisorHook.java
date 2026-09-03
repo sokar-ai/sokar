@@ -1,15 +1,31 @@
 package org.fuin.sokar.hooks;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.fuin.sokar.wire.Sidecar;
 
 /**
- * Starts the per-container supervisor, and reaps it once the container is gone.
+ * Starts the per-container services, and reaps them once the container is gone.
  * <p>
- * <strong>Soft-fail.</strong> Without a supervisor the task loses the vault broker, the SSH signer
- * and the git gate, and will fail when it tries to use them - visibly, at the point of use.
- * Refusing to start the container instead would turn a degraded run into no run at all.
+ * Today that means the resolver. A task container's {@code resolv.conf} points at its own
+ * loopback, so without something listening there the agent cannot resolve anything at all - and
+ * the failure looks like a network problem rather than a missing process.
+ * <p>
+ * <strong>Soft-fail.</strong> A container without a resolver is degraded, and visibly so at the
+ * point of use. Refusing to start it would turn a degraded run into no run, which is the wrong
+ * trade for something that is not a containment property.
  */
 public class SupervisorHook extends Hook {
+
+    /** File the resolver's process id is written to, so poststop can reap it. */
+    static final String PID_FILE = "dnsmasq.pid";
+
+    /** File the resolver's query log is written to. */
+    static final String LOG_FILE = "dnsmasq.log";
 
     /**
      * Constructor.
@@ -19,10 +35,72 @@ public class SupervisorHook extends Hook {
     }
 
     @Override
-    protected void run(OciState state, Sidecar sidecar) throws Exception {
-        // The supervisor itself arrives with the vault and the git gate. Until then the hook is
-        // installed and gated correctly, which is what the container lifecycle depends on.
-        log(sidecar, "createRuntime", "supervisor not implemented yet");
+    protected void run(String stage, OciState state, Sidecar sidecar) throws Exception {
+        if ("poststop".equals(stage)) {
+            reap(sidecar);
+        } else {
+            startResolver(state, sidecar);
+        }
+    }
+
+    private void startResolver(OciState state, Sidecar sidecar) throws IOException {
+
+        final Path config = Path.of(sidecar.dnsConfigFile());
+        if (!Files.isRegularFile(config)) {
+            throw new IOException("No resolver configuration at " + config);
+        }
+        if (state.pid() <= 0) {
+            throw new IOException("The runtime reported no container process");
+        }
+
+        final Path state_ = Path.of(sidecar.stateDirectory());
+        Files.createDirectories(state_);
+
+        // nsenter for the same reason the nft hook uses it: setns is per-thread and this process
+        // must not join the container's network namespace itself.
+        final List<String> command = List.of("nsenter", "--target", String.valueOf(state.pid()),
+                "--net", "dnsmasq", "--keep-in-foreground", "--conf-file=" + config);
+
+        final Process resolver = new ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .redirectOutput(state_.resolve(LOG_FILE).toFile())
+                .start();
+
+        // Deliberately not waited for: it has to outlive this hook. A child survives its parent,
+        // and poststop reaps it from the recorded pid.
+        Files.writeString(state_.resolve(PID_FILE), String.valueOf(resolver.pid()),
+                StandardCharsets.UTF_8);
+
+        // Give it long enough to fail loudly. A configuration error kills dnsmasq immediately, and
+        // reporting that here beats a container that resolves nothing for reasons nobody logged.
+        try {
+            if (resolver.waitFor(500, TimeUnit.MILLISECONDS)) {
+                throw new IOException("The resolver exited immediately with "
+                        + resolver.exitValue() + "; see " + state_.resolve(LOG_FILE));
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
+        log(sidecar, "createRuntime", "resolver started, pid " + resolver.pid());
+    }
+
+    private void reap(Sidecar sidecar) {
+        final Path pidFile = Path.of(sidecar.stateDirectory()).resolve(PID_FILE);
+        try {
+            if (!Files.isRegularFile(pidFile)) {
+                return;
+            }
+            final long pid = Long.parseLong(Files.readString(pidFile, StandardCharsets.UTF_8).strip());
+            ProcessHandle.of(pid).ifPresent(handle -> {
+                handle.destroy();
+                log(sidecar, "poststop", "resolver " + pid + " stopped");
+            });
+            Files.deleteIfExists(pidFile);
+        } catch (IOException | RuntimeException ex) {
+            // The container is already gone. A resolver that outlives it is tidied when the
+            // runtime directory is cleared at logout, and failing here helps nobody.
+            log(sidecar, "poststop", "could not reap the resolver: " + ex);
+        }
     }
 
     /**

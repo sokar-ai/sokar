@@ -19,7 +19,7 @@ public class ReaderHook extends Hook {
     }
 
     @Override
-    protected void run(OciState state, Sidecar sidecar) throws Exception {
+    protected void run(String stage, OciState state, Sidecar sidecar) throws Exception {
         log(sidecar, "createRuntime", "reader not implemented yet");
     }
 

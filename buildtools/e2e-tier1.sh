@@ -191,6 +191,52 @@ else
     fail "no token line in the output at all"
 fi
 
+# ------------------------------------------------------------- domain coverage
+#
+# The check this whole script exists for. The agent runs with the FAKE credential, so
+# authentication fails - that is expected and is not what is being measured. What is measured
+# is which names it asked the resolver for. The resolver answers only the domains the agent's
+# own definition declares and returns NXDOMAIN for everything else, and it logs every query.
+#
+# So a name that appears in the log as NXDOMAIN is a host the agent needs and did not declare.
+# That is the failure that breaks an agent for every user of it, and this finds it without an
+# account with any provider.
+echo
+echo "-- domain coverage --"
+
+STATE_DIR="$(grep '^sidecar ' "$START_LOG" | awk '{print $2}' | xargs dirname 2>/dev/null)"
+DNS_LOG="$STATE_DIR/dnsmasq.log"
+
+if [ ! -f "$DNS_LOG" ]; then
+    fail "the resolver did not start, so coverage cannot be measured"
+else
+    pass "the container has a working resolver"
+
+    # A short, cheap prompt. It will fail to authenticate; the connection attempts are the point.
+    podman exec "$CONTAINER" sh -c \
+        'timeout 45 ~/.local/bin/claude -p hello >/dev/null 2>&1' >/dev/null 2>&1 || true
+    sleep 2
+
+    UNDECLARED="$(grep -oE 'config [a-z0-9.-]+ is NXDOMAIN' "$DNS_LOG" 2>/dev/null \
+        | awk '{print $2}' | sort -u \
+        | grep -vE '\.(fritz\.box|local|localdomain)$' || true)"
+
+    QUERIED="$(grep -oE 'query\[[A-Z]+\] [a-z0-9.-]+' "$DNS_LOG" 2>/dev/null \
+        | awk '{print $2}' | sort -u | wc -l)"
+    info "the agent asked for $QUERIED distinct name(s)"
+
+    if [ -z "$UNDECLARED" ]; then
+        pass "every name the agent resolved is declared in allowed_domains"
+    else
+        fail "the agent needs names its definition does not declare:"
+        echo "$UNDECLARED" | while read -r name; do
+            [ -n "$name" ] && info "  $name"
+        done
+        info "add them to allowed_domains in the agent's definition, or the agent will"
+        info "fail for every user in a way that looks like a credential problem"
+    fi
+fi
+
 echo
 if [ "$FAILURES" -eq 0 ]; then
     echo "== all checks passed =="

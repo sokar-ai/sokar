@@ -119,7 +119,11 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 return 69;
             }
 
-            runner.start(project, container, layers, environment(agents, out, err), out);
+            final org.fuin.sokar.agent.api.InstalledAgent selected = select(agents);
+            final java.util.List<String> domains = selected == null
+                    ? java.util.List.of() : selected.definition().allowedDomains();
+
+            runner.start(project, container, layers, environment(agents, out, err), domains, out);
             out.println();
 
             if (noAttach) {
