@@ -103,17 +103,26 @@ each installed agent needs to reach.
 project:
   name: "myproject"
   security_class: "guarded"
+  # upstream: "git@github.com:you/myproject.git"   # required when security_class is online
 image:
   base_image: "ubuntu:24.04"
 ```
 
 `security_class` is one of:
 
-| Class | Egress | The gate |
+| Class | The agent's remote | Review |
 |---|---|---|
-| `offline` | nothing leaves the container | nothing is ever forwarded upstream |
-| `guarded` | only what the agent declares it needs | forwards only what you explicitly approve |
-| `online` | only what the agent declares it needs | forwards only what you explicitly approve |
+| `offline` | the gate, on this machine | nothing is ever forwarded upstream |
+| `guarded` | the gate, on this machine | you review, then `approve` forwards |
+| `online` | **the real upstream** | none — the agent pushes to it directly |
+
+An `online` project must name its `upstream`, and Sokar refuses to load one that
+does not. That class takes the gate out of the path entirely, which is the whole
+of what it means: the agent clones from and pushes to your real remote, and
+nothing waits for you. It gets a key to do that through an agent socket, so the
+private key stays in the vault — store one with
+`sokar vault put ssh.default`, taking a base64 Ed25519 seed, and add the public
+key (`sokar vault agent --print-public-key`) to your forge.
 
 The class belongs to the project. A task cannot raise it from the command line.
 

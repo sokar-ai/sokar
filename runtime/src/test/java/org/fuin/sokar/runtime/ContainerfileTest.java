@@ -60,13 +60,14 @@ class ContainerfileTest {
     @Test
     void everyImageCanFetchAndVerifyADownload() {
 
-        // Every pinned agent install needs curl, and cloning the workspace from the gate needs
-        // git; a base image cannot be assumed to have either. Without this the failure is a
-        // confusing "curl: not found" inside someone else's layer.
+        // Every pinned agent install needs curl, cloning the workspace needs git, and an online
+        // project pushes over ssh; a base image cannot be assumed to have any of them. Without
+        // this the failure is a confusing "not found" inside someone else's layer.
         assertThat(Containerfile.render(
                 new Project("uc", "", SecurityClass.GUARDED, "ubuntu:24.04", null)))
                 .contains("command -v curl")
                 .contains("command -v git")
+                .contains("command -v ssh")
                 .contains("ca-certificates");
     }
 
@@ -75,7 +76,7 @@ class ContainerfileTest {
 
         assertThat(Containerfile.render(
                 new Project("uc", "", SecurityClass.GUARDED, "scratch", null)))
-                .contains("no curl/git and no known package manager in scratch");
+                .contains("no curl/git/ssh and no known package manager in scratch");
     }
 
     @Test

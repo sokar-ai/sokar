@@ -104,7 +104,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testPutsTheRealCredentialInTheDeclaredHeader(@TempDir Path dir) throws IOException {
+    void putsTheRealCredentialInTheDeclaredHeader(@TempDir Path dir) throws IOException {
 
         // Given
         final Path socket = dir.resolve("vault.sock");
@@ -125,7 +125,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testUsesABearerPrefixWhenTheRouteAsksForOne(@TempDir Path dir) throws IOException {
+    void usesABearerPrefixWhenTheRouteAsksForOne(@TempDir Path dir) throws IOException {
 
         final Path socket = dir.resolve("vault.sock");
         try (VaultProxy proxy = proxy(socket, "Authorization", "Bearer ", REAL)) {
@@ -138,7 +138,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testTheProviderNeverSeesThePhantomToken(@TempDir Path dir) throws IOException {
+    void theProviderNeverSeesThePhantomToken(@TempDir Path dir) throws IOException {
 
         // The point of the whole scheme. An agent may also send its token in a header the route
         // does not name, so every credential header is stripped, not just the expected one.
@@ -158,7 +158,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testRejectsATokenThatIsNotThisTasks(@TempDir Path dir) throws IOException {
+    void rejectsATokenThatIsNotThisTasks(@TempDir Path dir) throws IOException {
 
         final Path socket = dir.resolve("vault.sock");
         try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
@@ -174,7 +174,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testRejectsARequestWithNoCredentialAtAll(@TempDir Path dir) throws IOException {
+    void rejectsARequestWithNoCredentialAtAll(@TempDir Path dir) throws IOException {
 
         final Path socket = dir.resolve("vault.sock");
         try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
@@ -185,7 +185,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testSaysSoWhenTheVaultHasNothing(@TempDir Path dir) throws IOException {
+    void saysSoWhenTheVaultHasNothing(@TempDir Path dir) throws IOException {
 
         // Distinguishable from a rejected token, because the operator's fix is different: unlock
         // the vault or store a credential, rather than restart the task.
@@ -202,7 +202,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testForwardsAChunkedRequestBody(@TempDir Path dir) throws IOException {
+    void forwardsAChunkedRequestBody(@TempDir Path dir) throws IOException {
 
         // Real clients do this, and a body that arrives in chunks must reach the provider whole.
         final Path socket = dir.resolve("vault.sock");
@@ -218,7 +218,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testStreamsTheAnswerBackRatherThanBufferingIt(@TempDir Path dir) throws IOException {
+    void streamsTheAnswerBackRatherThanBufferingIt(@TempDir Path dir) throws IOException {
 
         // A completion arrives as server-sent events. The body must come back chunked, or the
         // agent shows nothing until the answer is complete.
@@ -237,7 +237,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testTheDirectoryIsWhatKeepsOtherUsersOut(@TempDir Path dir) throws IOException {
+    void theDirectoryIsWhatKeepsOtherUsersOut(@TempDir Path dir) throws IOException {
 
         // Measured: a rootless container's agent user is a subordinate uid on the host and
         // cannot open an owner-only socket - the connect fails. So the socket is permissive and
@@ -255,7 +255,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testRemovesTheSocketWhenItStops(@TempDir Path dir) throws IOException {
+    void removesTheSocketWhenItStops(@TempDir Path dir) throws IOException {
 
         // A socket file left behind makes the next run's bind fail, or worse, look like it worked.
         final Path socket = dir.resolve("vault.sock");
@@ -264,7 +264,7 @@ class VaultProxyTest {
     }
 
     @Test
-    void testKeepsServingAfterARequestItRejected(@TempDir Path dir) throws IOException {
+    void keepsServingAfterARequestItRejected(@TempDir Path dir) throws IOException {
 
         final Path socket = dir.resolve("vault.sock");
         try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {

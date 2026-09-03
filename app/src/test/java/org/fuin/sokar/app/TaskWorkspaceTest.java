@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class TaskWorkspaceTest {
 
     @Test
-    void testGateAddressIsNotResolved() {
+    void theGateAddressIsAConstantNotALookup() {
 
         // The name podman uses does not exist on the host, so resolving it here returned null and
         // the firewall rule for the gate was silently left out. It must be a constant.
@@ -18,7 +18,7 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void testReadsTheHostFromAnSshRemote() {
+    void readsTheHostFromAnSshRemote() {
 
         // Not a URL, and the common shape for a git remote. The firewall and the resolver both
         // need the host, so getting this wrong means an online task cannot reach its upstream.
@@ -27,7 +27,7 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void testReadsTheHostFromAnHttpsRemote() {
+    void readsTheHostFromAnHttpsRemote() {
 
         assertThat(TaskRunCommand.upstreamHost("https://github.com/you/repo.git"))
                 .isEqualTo("github.com");
@@ -36,7 +36,7 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void testSaysNothingRatherThanGuessing() {
+    void saysNothingRatherThanGuessing() {
 
         // A host it cannot read must not become a firewall rule for the wrong name.
         assertThat(TaskRunCommand.upstreamHost(null)).isNull();
@@ -45,7 +45,7 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void testAGatedWorkspacePushesToAReviewRefAndADirectOneToABranch() {
+    void aGatedWorkspacePushesToAReviewRefAndADirectOneToABranch() {
 
         // The whole difference between guarded and online, in one place: a gated push lands
         // where no branch points, so nothing an operator is reading moves underneath them; a
@@ -65,7 +65,7 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void testVerifyAcceptsTheMappingPodmanWrites() {
+    void acceptsTheMappingPodmanWrites() {
 
         // Given
         final String hosts = """
@@ -78,7 +78,7 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void testVerifyReportsADifferentAddress() {
+    void reportsADifferentAddress() {
 
         // Given
         final String hosts = "10.0.2.2\thost.containers.internal\n";
@@ -91,7 +91,7 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void testVerifyReportsAMissingEntry() {
+    void reportsAMissingEntry() {
 
         // Given
         final String hosts = "127.0.0.1\tlocalhost\n";
@@ -104,7 +104,7 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void testVerifyIgnoresCommentsAndBlankLines() {
+    void ignoresCommentsAndBlankLines() {
 
         // Given
         final String hosts = """

@@ -174,6 +174,10 @@ public class TaskRunner {
             // so this is the only route to a working credential.
             specification.volume(wiring.vaultSocket(), TaskWiring.VAULT_MOUNT);
         }
+        if (wiring.sshSocket() != null) {
+            // The ssh-agent. The private key never crosses this: only signatures do.
+            specification.volume(wiring.sshSocket(), TaskWiring.SSH_MOUNT);
+        }
         podman.create(specification);
         out.println("container " + container);
 
@@ -196,7 +200,15 @@ public class TaskRunner {
             java.util.List<String> allowedDomains) {
         final org.fuin.sokar.shield.DnsPolicy policy =
                 new org.fuin.sokar.shield.DnsPolicy(project.securityClass());
-        allowedDomains.forEach(policy::allow);
+        final String upstreamHost = project.securityClass() == SecurityClass.ONLINE
+                ? TaskRunCommand.upstreamHost(project.upstream()) : null;
+        allowedDomains.forEach(domain -> {
+            if (domain.equals(upstreamHost)) {
+                policy.autoAllow(domain);
+            } else {
+                policy.allow(domain);
+            }
+        });
         // The upstream resolvers the host itself uses. Anything the policy does not allow is
         // NXDOMAIN before it ever reaches them.
         hostResolvers().forEach(policy::upstream);
@@ -225,6 +237,34 @@ public class TaskRunner {
             // Fall through to the default below.
         }
         return found.isEmpty() ? java.util.List.of("8.8.8.8") : found;
+    }
+
+    /**
+     * Resolves the upstream's addresses, so the firewall can name them.
+     * <p>
+     * Pinned at task start rather than followed: a large host rotates addresses, and a task that
+     * runs long enough for that to matter will see a clearance prompt for the new one, which is
+     * the safe way to be wrong.
+     *
+     * @param upstream Remote as written in the project file.
+     * @return Addresses, empty when the host cannot be resolved.
+     */
+    private static java.util.List<String> upstreamAddresses(String upstream) {
+        final String host = TaskRunCommand.upstreamHost(upstream);
+        if (host == null) {
+            return java.util.List.of();
+        }
+        try {
+            return java.util.Arrays.stream(java.net.InetAddress.getAllByName(host))
+                    .filter(address -> address instanceof java.net.Inet4Address)
+                    .map(java.net.InetAddress::getHostAddress)
+                    .distinct()
+                    .toList();
+        } catch (java.net.UnknownHostException ex) {
+            // Reported by the resolver line instead; a task that cannot resolve its upstream is
+            // a task whose push will fail loudly rather than silently.
+            return java.util.List.of();
+        }
     }
 
     private String rulesetFor(Project project, java.util.List<String> upstreamResolvers,

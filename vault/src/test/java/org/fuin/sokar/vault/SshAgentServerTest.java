@@ -122,17 +122,20 @@ class SshAgentServerTest {
     }
 
     @Test
-    void createsTheSocketWithOwnerOnlyPermissions(@TempDir Path dir) throws IOException {
+    void putsTheAccessControlOnTheDirectoryNotTheSocket(@TempDir Path dir) throws IOException {
 
-        // Anyone who can open the socket can sign with the key, so the permissions are the access
-        // control.
+        // Anyone who can open this socket can sign with the key, so something has to keep other
+        // users away - but it cannot be the socket's own mode. Measured: a rootless container's
+        // agent user is a subordinate uid on the host and cannot open an owner-only socket, so an
+        // owner-only agent socket is one no task can ever use. The directory does the work.
         try (SshAgentServer server = agent(dir)) {
 
-            assertThat(java.nio.file.Files.getPosixFilePermissions(server.socketPath()))
-                    .containsExactlyInAnyOrder(
-                            java.nio.file.attribute.PosixFilePermission.OWNER_READ,
-                            java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
-                            java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE);
+            assertThat(java.nio.file.attribute.PosixFilePermissions.toString(
+                    java.nio.file.Files.getPosixFilePermissions(server.socketPath())))
+                    .isEqualTo("rw-rw-rw-");
+            assertThat(java.nio.file.attribute.PosixFilePermissions.toString(
+                    java.nio.file.Files.getPosixFilePermissions(server.socketPath().getParent())))
+                    .isEqualTo("rwx------");
         }
     }
 

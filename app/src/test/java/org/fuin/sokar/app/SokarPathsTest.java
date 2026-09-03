@@ -14,7 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 class SokarPathsTest {
 
     @Test
-    void testPrefersTheOperatorsOwnBuildOverThePackage(@TempDir Path dir) throws IOException {
+    void prefersTheOperatorsOwnBuildOverThePackage(@TempDir Path dir) throws IOException {
 
         // Given
         final Path own = Files.createDirectory(dir.resolve("local"));
@@ -27,7 +27,7 @@ class SokarPathsTest {
     }
 
     @Test
-    void testFallsBackToThePackagedLocation(@TempDir Path dir) throws IOException {
+    void fallsBackToThePackagedLocation(@TempDir Path dir) throws IOException {
 
         // A packaged install is the normal case: the hooks are in /usr/libexec/sokar/hooks and
         // nothing is in ~/.local/bin. Looking only at the latter made "sokar setup" fail there.
@@ -39,7 +39,7 @@ class SokarPathsTest {
     }
 
     @Test
-    void testNamesTheOperatorsDirectoryWhenNothingIsInstalled(@TempDir Path dir) {
+    void namesTheOperatorsDirectoryWhenNothingIsInstalled(@TempDir Path dir) {
 
         // So the error tells a developer where their build should have put them.
         final Path own = dir.resolve("local");
@@ -47,7 +47,7 @@ class SokarPathsTest {
     }
 
     @Test
-    void testAnEmptyDirectoryDoesNotCount(@TempDir Path dir) throws IOException {
+    void anEmptyDirectoryDoesNotCount(@TempDir Path dir) throws IOException {
 
         final Path own = Files.createDirectory(dir.resolve("local"));
         final Path packaged = Files.createDirectory(dir.resolve("libexec"));

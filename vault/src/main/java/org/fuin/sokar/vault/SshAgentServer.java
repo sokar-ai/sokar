@@ -65,12 +65,19 @@ public class SshAgentServer implements AutoCloseable, Runnable {
         try {
             Files.createDirectories(socketPath.toAbsolutePath().getParent());
             Files.deleteIfExists(socketPath);
+            // The DIRECTORY is the access control, not the socket file. Measured: a rootless
+            // container's agent user is a subordinate uid on the host, so it cannot open an
+            // owner-only socket the host user owns - the connect fails outright, and the task
+            // simply cannot sign. Podman's --userns=keep-id would fix that only by pinning the
+            // agent's uid in the image, which Sokar deliberately does not do. So the socket is
+            // permissive inside a 0700 directory, and only the one container it is mounted into
+            // can see it at all. Same reasoning as the vault proxy's socket.
+            Files.setPosixFilePermissions(socketPath.toAbsolutePath().getParent(),
+                    PosixFilePermissions.fromString("rwx------"));
             channel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
             channel.bind(UnixDomainSocketAddress.of(socketPath));
-            // Anyone who can open this socket can sign with the key, so the permissions are the
-            // access control. The container reaches it through a bind mount as the same uid.
             Files.setPosixFilePermissions(socketPath,
-                    PosixFilePermissions.fromString("rwx------"));
+                    PosixFilePermissions.fromString("rw-rw-rw-"));
         } catch (IOException ex) {
             throw new VaultException("Cannot create the agent socket at " + socketPath, ex);
         }

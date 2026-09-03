@@ -50,6 +50,10 @@ public class VaultAgentCommand implements Callable<Integer> {
             description = "Prints the public key in authorized_keys form and keeps running.")
     private boolean printPublicKey;
 
+    @Option(names = "--pid-file", paramLabel = "<file>",
+            description = "Writes this process's id here, so the poststop hook can reap it.")
+    private Path pidFile;
+
     @Option(names = "--seconds", paramLabel = "<n>",
             description = "Stop after this long. Zero means run until killed.")
     private int seconds;
@@ -76,6 +80,16 @@ public class VaultAgentCommand implements Callable<Integer> {
 
             if (printPublicKey) {
                 out.println(key.authorizedKeysLine());
+            }
+            if (pidFile != null) {
+                try {
+                    java.nio.file.Files.writeString(pidFile,
+                            String.valueOf(ProcessHandle.current().pid()),
+                            java.nio.charset.StandardCharsets.UTF_8);
+                } catch (java.io.IOException ex) {
+                    err.println("sokar: cannot write " + pidFile + ": " + ex.getMessage());
+                    err.flush();
+                }
             }
             out.println("agent     " + agent.socketPath());
             out.flush();

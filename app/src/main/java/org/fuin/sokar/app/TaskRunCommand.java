@@ -168,7 +168,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
             TaskWiring wiring = new TaskWiring(
                     workspace == null || !workspace.gated() ? null : TaskWorkspace.gateAddress(),
-                    workspace == null ? 0 : workspace.port(), null);
+                    workspace == null ? 0 : workspace.port(), null, null);
 
             environmentCache = new java.util.LinkedHashMap<>();
             final java.util.List<String> domains = new java.util.ArrayList<>(selected == null
@@ -192,6 +192,20 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             if (workspace != null) {
                 environmentCache.putAll(workspace.environment(project, task));
                 if (!workspace.gated()) {
+                    // Pushing to a real upstream needs a credential for it. The key stays in the
+                    // vault and the container gets an agent socket, so a task can sign without
+                    // ever holding anything it could leak.
+                    final java.nio.file.Path sshSocket = startSshAgent(container, out, err);
+                    if (sshSocket != null) {
+                        wiring = wiring.withSshSocket(sshSocket);
+                        environmentCache.put("SSH_AUTH_SOCK", TaskWiring.SSH_MOUNT);
+                        // Host keys cannot be known in advance for an arbitrary upstream, and a
+                        // prompt in a container nobody is watching hangs the push. Trust on first
+                        // use, recorded, and only reachable through the egress rules above.
+                        environmentCache.put("GIT_SSH_COMMAND",
+                                "ssh -o StrictHostKeyChecking=accept-new"
+                                + " -o UserKnownHostsFile=/home/agent/.ssh/known_hosts");
+                    }
                     // The upstream is on the internet, so an online task needs it resolvable and
                     // reachable. A gated task never does: its remote is on this machine.
                     final String host = upstreamHost(project.upstream());
@@ -487,6 +501,65 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         } catch (java.io.IOException ex) {
             return null;
         }
+    }
+
+    /**
+     * Starts the ssh-agent for this task, detached, and returns the socket to mount.
+     * <p>
+     * Only for an online project, because only an online project pushes to a remote that wants a
+     * key. The key itself stays in the vault: the container gets a socket that signs, so a leak
+     * from inside the box yields nothing reusable.
+     * <p>
+     * Detached and pid-filed for the same reason as the gate and the credential proxy - it has to
+     * outlive a {@code task run} that either returns or replaces itself with a shell, and the
+     * poststop hook reaps every {@code *.pid} in the state directory.
+     *
+     * @param container Container name.
+     * @param out Where progress is reported.
+     * @param err Where problems are reported.
+     * @return Host path of the socket, or {@code null} if the agent could not be started.
+     */
+    private java.nio.file.Path startSshAgent(String container, PrintWriter out, PrintWriter err) {
+
+        final java.nio.file.Path state = context.paths().containerState(container);
+        final java.nio.file.Path socket = state.resolve("ssh-agent.sock");
+        final java.util.List<String> command = java.util.List.of(
+                ProcessHandle.current().info().command().orElse("sokar"),
+                "vault", "agent",
+                "--socket", socket.toString(),
+                "--pid-file", state.resolve("ssh-agent.pid").toString());
+
+        try {
+            java.nio.file.Files.deleteIfExists(socket);
+            new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .redirectOutput(state.resolve("ssh-agent.log").toFile())
+                    .start();
+        } catch (java.io.IOException ex) {
+            err.println("sokar: could not start the ssh-agent: " + ex.getMessage());
+            err.flush();
+            return null;
+        }
+
+        final long deadline = System.nanoTime() + java.time.Duration.ofSeconds(15).toNanos();
+        while (System.nanoTime() < deadline) {
+            if (java.nio.file.Files.exists(socket)) {
+                out.println("ssh       " + socket + " (signs without lending the key)");
+                out.flush();
+                return socket;
+            }
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }
+        err.println("sokar: the ssh-agent did not come up, see " + state.resolve("ssh-agent.log"));
+        err.println("sokar: an online task cannot push without it;"
+                + " store a key with 'sokar vault put ssh.default'");
+        err.flush();
+        return null;
     }
 
     /**
