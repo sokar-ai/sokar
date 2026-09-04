@@ -7,6 +7,10 @@ import org.fuin.sokar.agent.api.ContainerSetup;
 /**
  * What Claude Code needs in a fresh container before it will run.
  * <p>
+ * The endpoint is not used: this agent is told where to send its requests with environment
+ * variables, which is the shape it declared. An agent that can only be given a URL writes it into
+ * a file here instead.
+ * <p>
  * Two files for two different owners, which is why each is produced somewhere else:
  * {@link ClaudeFirstRun} is the agent's own state, and {@link AnthropicCredentialFile} is the
  * shape the provider expects a credential in. This class only says that a container needs both.
@@ -14,7 +18,8 @@ import org.fuin.sokar.agent.api.ContainerSetup;
 public class ClaudeContainerSetup implements ContainerSetup {
 
     @Override
-    public List<ContainerFile> files(String token, String credentialType, String workspace) {
+    public List<ContainerFile> files(String token, String credentialType, String workspace,
+            String endpoint) {
         return List.of(
                 ContainerFile.of(ClaudeFirstRun.FILE, ClaudeFirstRun.document(workspace)),
                 ContainerFile.secret(AnthropicCredentialFile.FILE,

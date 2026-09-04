@@ -32,8 +32,15 @@ public record TaskWiring(@Nullable String gateAddress, int gatePort, @Nullable P
      * <p>
      * Loopback rather than a real name so that an agent which ignores the socket variable fails
      * closed against nothing listening, instead of reaching the provider.
+     * <p>
+     * The same address is where the proxy actually listens for an agent that declared it can only
+     * address a URL - bound inside that container's own network namespace. One convention for
+     * both: for a socket agent nothing answers here, and for a URL agent the broker does.
      */
     public static final String VAULT_URL = "http://localhost:9419";
+
+    /** Port in {@link #VAULT_URL}, bound in the container's namespace for a URL agent. */
+    public static final int VAULT_PORT = 9419;
 
     /**
      * Where the ssh-agent socket is mounted inside the container.

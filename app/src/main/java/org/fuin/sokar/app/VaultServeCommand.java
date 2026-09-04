@@ -30,12 +30,17 @@ import picocli.CommandLine.Spec;
  */
 @Command(name = "serve",
         mixinStandardHelpOptions = true,
-        description = "Serves the credential proxy for one task on a unix socket.")
+        description = "Serves the credential proxy for one task.")
 public class VaultServeCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
-    @Option(names = "--socket", paramLabel = "<file>", required = true,
+    @Option(names = "--socket", paramLabel = "<file>",
             description = "Unix socket to bind, created owner-only.")
     private Path socket;
+
+    @Option(names = "--listen", paramLabel = "<port>",
+            description = "Loopback port to bind instead of a socket, for an agent that can only"
+                    + " be given a URL. Expected to run inside the task's network namespace.")
+    private int listen;
 
     @Option(names = "--agent", paramLabel = "<name>", required = true,
             description = "Agent whose credential is brokered. Also the token's scope.")
@@ -102,6 +107,16 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
     @Override
     public Integer call() throws Exception {
 
+        if ((socket == null) == (listen <= 0)) {
+            // Refused rather than guessed at: one of them is where the agent will look, and
+            // serving the wrong one fails as an authentication error nobody can place.
+            spec.commandLine().getErr().println(
+                    "sokar: give exactly one of --socket and --listen");
+            spec.commandLine().getErr().flush();
+            return 64;
+        }
+
+
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
@@ -123,16 +138,21 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             return 70;
         }
 
-        try (VaultProxy proxy = new VaultProxy(socket, upstream,
-                exchange(broker, token, credentials), authHeader, authPrefix, line -> {
-                    out.println("request   " + line);
-                    out.flush();
-                })) {
+        final java.util.function.Consumer<String> requests = line -> {
+            out.println("request   " + line);
+            out.flush();
+        };
+        try (VaultProxy proxy = socket != null
+                ? new VaultProxy(socket, upstream, exchange(broker, token, credentials),
+                        authHeader, authPrefix, requests)
+                : new VaultProxy(new java.net.InetSocketAddress("127.0.0.1", listen), upstream,
+                        exchange(broker, token, credentials), authHeader, authPrefix, requests)) {
 
             writeOwnerOnly(tokenFile, token.value(), err);
             writeOwnerOnly(pidFile, String.valueOf(ProcessHandle.current().pid()), err);
 
-            out.println("socket    " + socket);
+            out.println(socket != null ? "socket    " + socket
+                    : "listening 127.0.0.1:" + listen + " in the task's namespace");
             out.println("upstream  " + upstream);
             out.println("scope     " + agent + "/" + task);
             out.println("header    " + authHeader);

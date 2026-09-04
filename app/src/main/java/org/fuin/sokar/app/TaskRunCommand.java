@@ -286,7 +286,15 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             final java.util.List<String> domains = new java.util.ArrayList<>(selected == null
                     ? java.util.List.of() : selected.definition().allowedDomains());
 
-            final CredentialPlumbing plumbing = startVault(selected, container, out, err);
+            // An agent that can only address a URL is served inside its own container's namespace,
+            // which does not exist yet - so that one is started after the container, below.
+            final boolean brokerAfterStart = selected != null
+                    && selected.definition().route() != null
+                    && selected.definition().route().endpoint()
+                            == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL;
+
+            CredentialPlumbing plumbing =
+                    brokerAfterStart ? null : startVault(selected, container, 0, out, err);
             if (plumbing != null) {
                 environmentCache.putAll(plumbing.environment());
                 wiring = wiring.withVaultSocket(plumbing.socket());
@@ -332,6 +340,21 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // creates. Starting it first silently failed to spawn at all.
             runner.start(project, container, layers, environmentCache, domains, wiring, out);
 
+            if (brokerAfterStart) {
+                final java.util.Optional<Long> pid = runner.containerPid(container);
+                if (pid.isEmpty()) {
+                    err.println("sokar: the container reports no process, so the credential proxy"
+                            + " has no namespace to listen in");
+                    err.flush();
+                } else {
+                    plumbing = startVault(selected, container, pid.get(), out, err);
+                    if (plumbing != null) {
+                        out.println("provider  " + plumbing.upstreamHost()
+                                + " reachable; the credential is not, only a task-scoped token");
+                    }
+                }
+            }
+
             if (workspace != null) {
                 if (workspace.gated()) {
                     startGate(runner, workspace, container, out, err);
@@ -339,7 +362,11 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 prepareWorkspace(runner, workspace, container, out, err);
             }
 
-            placeAgentFiles(runner, selected, container, environmentCache, out, err);
+            placeAgentFiles(runner, selected, container,
+                    brokerAfterStart && plumbing != null
+                            ? withToken(environmentCache, selected, plumbing)
+                            : environmentCache,
+                    out, err);
             out.println();
 
             startClearance(runner, project, container, out, err);
@@ -474,7 +501,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         }
         try {
             final var files = agent.containerSetup(token, credentialType(agent.name()),
-                    TaskWorkspace.MOUNT);
+                    TaskWorkspace.MOUNT, endpointFor(agent, environment));
             for (final var file : files) {
                 runner.place(container, file);
             }
@@ -488,6 +515,53 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.println("sokar: could not prepare the agent's files: " + ex.getMessage());
             err.flush();
         }
+    }
+
+    /**
+     * Returns the container's variables plus the token, for an agent whose broker started late.
+     * <p>
+     * The container's own environment cannot carry it - the container already existed when the
+     * token was minted - so it reaches the agent in the files it asked for, and this is how the
+     * setup call is told what to write.
+     *
+     * @param environment What the container was given.
+     * @param agent The agent.
+     * @param plumbing What the proxy reported.
+     * @return Variables including the token.
+     */
+    private java.util.Map<String, String> withToken(java.util.Map<String, String> environment,
+            org.fuin.sokar.agent.api.InstalledAgent agent, CredentialPlumbing plumbing) {
+        final java.util.Map<String, String> all = new java.util.LinkedHashMap<>(environment);
+        all.putAll(plumbing.environment());
+        final String variable = agent.definition().tokenVariable(credentialType(agent.name()));
+        if (variable != null && plumbing.token() != null) {
+            all.put(variable, plumbing.token());
+        }
+        return all;
+    }
+
+    /**
+     * Returns where the agent was told to send its requests.
+     * <p>
+     * A socket agent already has the path in a variable, and repeating it here costs nothing. An
+     * agent that can only address a URL has no variable to read it from, which is the whole reason
+     * the endpoint is passed to the agent rather than left implicit.
+     *
+     * @param agent The agent.
+     * @param environment What the container was given.
+     * @return Endpoint, or empty when nothing was brokered.
+     */
+    private static String endpointFor(org.fuin.sokar.agent.api.InstalledAgent agent,
+            java.util.Map<String, String> environment) {
+        final var route = agent.definition().route();
+        if (route == null) {
+            return "";
+        }
+        if (route.endpoint() == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL) {
+            return TaskWiring.VAULT_URL;
+        }
+        final String variable = route.socketEnvironment();
+        return variable == null ? "" : environment.getOrDefault(variable, "");
     }
 
     /**
@@ -509,7 +583,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * @param environment Variables the container needs to use the proxy.
      */
     private record CredentialPlumbing(java.nio.file.Path socket, String upstreamHost,
-            java.util.Map<String, String> environment) {
+            java.util.Map<String, String> environment,
+            @org.jspecify.annotations.Nullable String token) {
     }
 
     /**
@@ -547,7 +622,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     }
 
     private CredentialPlumbing startVault(org.fuin.sokar.agent.api.InstalledAgent agent,
-            String container, PrintWriter out, PrintWriter err) {
+            String container, long namespacePid, PrintWriter out, PrintWriter err) {
 
         if (agent == null) {
             return null;
@@ -572,13 +647,26 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return null;
         }
 
+        final boolean asUrl =
+                route.endpoint() == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL;
         final java.nio.file.Path state = context.paths().containerState(container);
         final java.nio.file.Path socket = state.resolve("vault.sock");
         final java.nio.file.Path tokenFile = state.resolve("vault.token");
-        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
+
+        // A URL endpoint is bound inside the task's own network namespace: a host-side listener is
+        // either unreachable from a rootless container or bound to every interface, and neither is
+        // acceptable for something that answers with a credential. Entering the namespace is how
+        // the ruleset and the resolver already get there.
+        final java.util.List<String> command = new java.util.ArrayList<>(asUrl
+                ? org.fuin.sokar.shield.EgressPolicy.inNamespace(namespacePid,
+                        java.util.List.of(ProcessHandle.current().info().command().orElse("sokar"),
+                                "vault", "serve",
+                                "--listen", String.valueOf(TaskWiring.VAULT_PORT)))
+                : java.util.List.of(
                 ProcessHandle.current().info().command().orElse("sokar"),
                 "vault", "serve",
-                "--socket", socket.toString(),
+                "--socket", socket.toString()));
+        command.addAll(java.util.List.of(
                 "--agent", agent.name(),
                 "--task", task,
                 "--upstream", route.upstream(),
@@ -594,14 +682,15 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("vault.log").toFile())
                     .start();
-            recordHelper("vault", command, java.util.Map.of(), TaskHelpers.BEFORE);
+            recordHelper("vault", command, java.util.Map.of(),
+                    asUrl ? TaskHelpers.AFTER : TaskHelpers.BEFORE);
         } catch (java.io.IOException ex) {
             err.println("sokar: could not start the credential proxy: " + ex.getMessage());
             err.flush();
             return null;
         }
 
-        final String token = awaitToken(socket, tokenFile);
+        final String token = awaitToken(asUrl ? null : socket, tokenFile);
         if (token == null) {
             err.println("sokar: the credential proxy did not come up, see "
                     + state.resolve("vault.log"));
@@ -610,8 +699,12 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         }
 
         final java.util.Map<String, String> environment = new java.util.LinkedHashMap<>();
-        environment.put(variable, token);
-        if (route.socketEnvironment() != null) {
+        if (!asUrl) {
+            // A URL agent's container already exists by now, so its environment cannot be changed:
+            // the token reaches it in the files the agent asks for instead.
+            environment.put(variable, token);
+        }
+        if (route.socketEnvironment() != null && !asUrl) {
             environment.put(route.socketEnvironment(), TaskWiring.VAULT_MOUNT);
         }
         if (agent.definition().baseUrlEnvironment() != null) {
@@ -622,7 +715,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         out.println("vault     " + socket + " -> " + route.upstream());
         out.println("token     " + variable + "=" + org.fuin.sokar.vault.PhantomToken.abbreviate(token));
         out.flush();
-        return new CredentialPlumbing(socket, route.upstreamHost(), environment);
+        return new CredentialPlumbing(socket, route.upstreamHost(), environment, token);
     }
 
     /**
@@ -636,11 +729,16 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * @param tokenFile File the proxy writes its token to.
      * @return The token, or {@code null} if it did not appear in time.
      */
-    private static String awaitToken(java.nio.file.Path socket, java.nio.file.Path tokenFile) {
+    private static String awaitToken(java.nio.file.@org.jspecify.annotations.Nullable Path socket,
+            java.nio.file.Path tokenFile) {
         final long deadline = System.nanoTime() + java.time.Duration.ofSeconds(20).toNanos();
         while (System.nanoTime() < deadline) {
             try {
-                if (java.nio.file.Files.exists(socket) && java.nio.file.Files.exists(tokenFile)) {
+                // A proxy that bound a port leaves no socket file to wait for; the token file is
+                // written after it is listening either way, so that is the signal that works for
+                // both.
+                if ((socket == null || java.nio.file.Files.exists(socket))
+                        && java.nio.file.Files.exists(tokenFile)) {
                     final String token = java.nio.file.Files.readString(tokenFile).strip();
                     if (!token.isEmpty()) {
                         return token;

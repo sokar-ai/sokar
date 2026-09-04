@@ -61,7 +61,9 @@ public class AgentServer implements AutoCloseable {
             for (final ContainerFile file : agent.containerSetup().files(
                     String.valueOf(parameters.get("token")),
                     String.valueOf(parameters.get("credentialType")),
-                    String.valueOf(parameters.get("workspace")))) {
+                    String.valueOf(parameters.get("workspace")),
+                    parameters.get("endpoint") == null ? ""
+                            : String.valueOf(parameters.get("endpoint")))) {
                 final Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("path", file.path());
                 entry.put("content", file.content());
