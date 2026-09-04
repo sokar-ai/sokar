@@ -2,15 +2,21 @@
 
 **Sandboxing AI agents in YOLO mode using Podman and native Java/GraalVM.**
 
-Sokar runs each agent inside a hardened, rootless container with default-deny outbound networking, a credential
-vault that keeps real keys on the host, a git checkpoint for every run, and a desktop notification path for live allow/deny
-decisions.
+<img align="left" height="400" width="260" src="doc/sokar-400.png" alt="Sokar with AI agent in podman">
 
-Use the agent as you want:
-- Work locally: interactive in a shell, or headless and unattended
-- Supervise agents from a Flutter client — wherever they run :construction:
+Normally, an AI agent will stop and ask you: "Can I edit this file?" or "Can I run this terminal command?". 
+In YOLO mode, it skips those questions and directly modifies code, deletes files, installs packages, 
+or runs terminal scripts completely unattended.
 
-<img align="left" height="500" width="295" src="doc/sokar-500.png" alt="Sokar with AI agent in podman">
+Sokar makes that safe anyway: It runs each agent inside a hardened, rootless container with default-deny
+outbound networking, a credential vault that keeps real keys on the host, a git checkpoint for every run, and
+a desktop notification path for live allow/deny decisions.
+
+Use the agent as you want: Work locally: interactive in a shell, or headless and unattended.
+
+Supervise agents from a Flutter client — wherever they run :construction:
+
+<br clear="left"/>
 
 ### Hardening
 
@@ -36,9 +42,7 @@ Use the agent as you want:
 - **Three image layers, the middle one pinned** — your base, then the agent's CLI fetched from a fixed URL and checked
   against a SHA-256, then your own lines
 - **An agent is a package, not a patch** — its own binary and its own `.deb`/`.rpm`, discovered by a directory scan,
-  with an ArchUnit test failing the build if anything in Sokar ever names one; Codex arrives the same way **TODO**
-
-<br clear="left"/>
+  with an ArchUnit test failing the build if anything in Sokar ever names one; Codex arrives the same way :construction:
 
 > Sokar is inspired by [Terok AI](https://github.com/terok-ai/terok) — not a fork and not a port, but it owes that
 project a great deal: the architecture, and a lot of hard-won knowledge about how podman, nftables and D-Bus actually
