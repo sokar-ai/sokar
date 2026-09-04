@@ -919,7 +919,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
         final var credentials = context.credentials();
         if (!credentials.containsKey(agent.name())) {
-            out.println("token     none - the vault holds no credential for '" + agent.name() + "'");
+            // Reported once already, where the proxy would have been started.
             return java.util.Map.of();
         }
 

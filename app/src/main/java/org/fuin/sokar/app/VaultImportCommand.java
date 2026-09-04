@@ -55,6 +55,28 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
                 : Path.of(path);
     }
 
+    /**
+     * Caches the passphrase that was just typed, so the next command does not ask again.
+     * <p>
+     * Importing is normally the first thing an operator does, and being asked twice in a row for
+     * the same secret reads as something having gone wrong.
+     *
+     * @param passphrase The passphrase.
+     * @param out Where to report.
+     */
+    private static void cache(char[] passphrase, PrintWriter out) {
+        if (!org.fuin.sokar.vault.KernelKeyring.available()) {
+            return;
+        }
+        try {
+            new org.fuin.sokar.vault.KernelKeyring(VaultUnlockCommand.KEY).store(passphrase);
+            out.println("unlocked  cached for this session");
+        } catch (RuntimeException ex) {
+            // Not being able to cache is not a reason for the import to have failed.
+            return;
+        }
+    }
+
     @Override
     public Integer call() {
 
@@ -93,10 +115,12 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
             }
 
             final Credential value = credential.get();
-            context.vault().update(context.requirePassphrase(), entries -> {
+            final char[] passphrase = context.requirePassphrase();
+            context.vault().update(passphrase, entries -> {
                 entries.put(agent.name(), new VaultEntry(value.secret(), value.type()));
                 return entries;
             });
+            cache(passphrase, out);
             // The value is never echoed: what is useful is that it arrived and which kind it is.
             out.println("imported  " + agent.name() + " (" + value.type() + ", "
                     + value.secret().length() + " characters) from " + directory);
