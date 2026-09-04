@@ -42,6 +42,25 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     private static final String DEFAULT_CREDENTIAL_TYPE = "api-key";
 
     /**
+     * Says why this task cannot authenticate, before anything is built.
+     *
+     * @param agent The selected agent, or {@code null}.
+     * @return The reason, or {@code null} when there is nothing in the way.
+     */
+    @org.jspecify.annotations.Nullable
+    private String unbrokerable(org.fuin.sokar.agent.api.@org.jspecify.annotations.Nullable
+            InstalledAgent agent) {
+        if (agent == null || agent.definition().route() == null) {
+            return null;
+        }
+        final String type = credentialType(agent.name());
+        final String reason = agent.definition().route().unbrokerableReason(type);
+        return reason == null ? null
+                : "'" + agent.name() + "' cannot use a '" + type + "' credential through the"
+                        + " proxy - " + reason;
+    }
+
+    /**
      * Returns which credential kind this task uses.
      * <p>
      * The kind belongs to the secret, so the stored entry decides it and the flag only overrides.
@@ -169,6 +188,17 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final TaskWorkspace workspace = openWorkspace(project, out, err);
 
         try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
+
+            final String refusal = unbrokerable(select(agents));
+            if (refusal != null) {
+                // Before the image, the container and the token: a task that cannot authenticate
+                // fails inside the box with a message about the operator's network.
+                err.println("sokar: " + refusal);
+                err.println("sokar: store a credential of another kind, or override with"
+                        + " --credential-type");
+                err.flush();
+                return 69;
+            }
 
             final org.fuin.sokar.runtime.ImageLayers layers;
             try {
@@ -389,16 +419,6 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         }
         final org.fuin.sokar.agent.api.ProviderRoute route = agent.definition().route();
         final String type = credentialType(agent.name());
-        if (route != null && route.unbrokerableReason(type) != null) {
-            // Letting this run produces a network error from inside the container that blames
-            // the operator's connection, which is the least useful place to find out.
-            err.println("sokar: '" + agent.name() + "' cannot use a '" + type + "' credential"
-                    + " through the proxy - " + route.unbrokerableReason(type));
-            err.println("sokar: store a credential of another kind, or override with"
-                    + " --credential-type");
-            err.flush();
-            return null;
-        }
         final String variable = agent.definition().tokenVariable(type);
         if (route == null || variable == null) {
             // Nothing to proxy through. Not an error - an agent may take no credential at all -
@@ -855,7 +875,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final org.fuin.sokar.vault.PhantomToken token =
                 broker.mint(agent.name(), task, java.time.Duration.ofHours(tokenHours));
 
-        out.println("token     " + variable + "=" + token);
+        out.println("token     " + variable + "="
+                + org.fuin.sokar.vault.PhantomToken.abbreviate(token.value()));
         return java.util.Map.of(variable, token.value());
     }
 

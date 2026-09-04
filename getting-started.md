@@ -9,6 +9,11 @@ something has a trap in it, the trap is named rather than left for you to find.
 
 ## Before you start
 
+**Sokar runs on Linux only.** The containment is kernel machinery — an nftables
+ruleset loaded into the container's network namespace, OCI hooks, user namespaces,
+the kernel keyring — none of which exists on macOS or Windows, where a container
+runtime would put all of it on the far side of a virtual machine.
+
 Rootless podman has to work as your own user — `podman info` should succeed
 without `sudo`.
 
@@ -151,6 +156,8 @@ Some details worth knowing:
 
 - The **first** `unlock` on a machine with no vault sets the passphrase. There is
   no separate init step.
+- `sokar vault remove <name>` deletes an entry. Removing one that is not there is
+  not an error, so a cleanup script can run twice.
 - `unlock` caches the passphrase in the kernel keyring for the rest of the
   session, so you type it once. `sokar vault unlock --forget` clears it.
 - When a vault already exists, `unlock` opens it before caching and refuses a
