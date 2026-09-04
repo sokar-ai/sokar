@@ -120,7 +120,8 @@ public final class AgentDefinitionReader {
         }
         return new ProviderRoute(required(proxy, "upstream", origin),
                 optional(proxy, "socket_env"),
-                map(proxy.get("auth_header")), map(proxy.get("auth_prefix")));
+                map(proxy.get("auth_header")), map(proxy.get("auth_prefix")),
+                map(proxy.get("unbrokerable")));
     }
 
     private static List<InstallArtifact> artifacts(@Nullable Object value, String origin) {

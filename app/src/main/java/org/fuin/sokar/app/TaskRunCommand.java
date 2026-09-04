@@ -389,6 +389,16 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         }
         final org.fuin.sokar.agent.api.ProviderRoute route = agent.definition().route();
         final String type = credentialType(agent.name());
+        if (route != null && route.unbrokerableReason(type) != null) {
+            // Letting this run produces a network error from inside the container that blames
+            // the operator's connection, which is the least useful place to find out.
+            err.println("sokar: '" + agent.name() + "' cannot use a '" + type + "' credential"
+                    + " through the proxy - " + route.unbrokerableReason(type));
+            err.println("sokar: store a credential of another kind, or override with"
+                    + " --credential-type");
+            err.flush();
+            return null;
+        }
         final String variable = agent.definition().tokenVariable(type);
         if (route == null || variable == null) {
             // Nothing to proxy through. Not an error - an agent may take no credential at all -

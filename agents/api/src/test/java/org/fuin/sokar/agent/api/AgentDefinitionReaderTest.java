@@ -232,4 +232,19 @@ class AgentDefinitionReaderTest {
                 .isInstanceOf(AgentException.class)
                 .hasMessageContaining("/x/claude.yaml");
     }
+
+    @Test
+    void readsTheCredentialKindsTheProxyCannotCarry() {
+        final AgentDefinition definition = read(MINIMAL + """
+                provider:
+                  proxy:
+                    upstream: https://example.test
+                    unbrokerable:
+                      oauth: "it contacts the provider directly"
+                """);
+
+        assertThat(definition.route().unbrokerableReason("oauth"))
+                .isEqualTo("it contacts the provider directly");
+        assertThat(definition.route().unbrokerableReason("api-key")).isNull();
+    }
 }

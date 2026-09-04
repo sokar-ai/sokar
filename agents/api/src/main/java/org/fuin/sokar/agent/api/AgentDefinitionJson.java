@@ -54,6 +54,7 @@ public final class AgentDefinitionJson {
             putIfPresent(route, "socketEnvironment", definition.route().socketEnvironment());
             route.put("authHeader", definition.route().authHeader());
             route.put("authPrefix", definition.route().authPrefix());
+            route.put("unbrokerable", definition.route().unbrokerable());
             out.put("route", route);
         }
         out.put("allowedDomains", definition.allowedDomains());
@@ -184,7 +185,8 @@ public final class AgentDefinitionJson {
         return new ProviderRoute(String.valueOf(upstream),
                 source.get("socketEnvironment") == null ? null
                         : String.valueOf(source.get("socketEnvironment")),
-                map(source.get("authHeader")), map(source.get("authPrefix")));
+                map(source.get("authHeader")), map(source.get("authPrefix")),
+                map(source.get("unbrokerable")));
     }
 
     private static Map<String, String> map(@Nullable Object value) {

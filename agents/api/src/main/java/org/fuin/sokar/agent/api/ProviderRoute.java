@@ -24,7 +24,32 @@ import org.jspecify.annotations.Nullable;
  * @param authPrefix Credential type to the string placed before the credential.
  */
 public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
-        Map<String, String> authHeader, Map<String, String> authPrefix) {
+        Map<String, String> authHeader, Map<String, String> authPrefix,
+        Map<String, String> unbrokerable) {
+
+    /**
+     * Constructor for a route that can carry every credential kind.
+     *
+     * @param upstream Real API endpoint.
+     * @param socketEnvironment Variable naming the proxy socket, or {@code null}.
+     * @param authHeader Header to use, by credential kind.
+     * @param authPrefix Value prefix, by credential kind.
+     */
+    public ProviderRoute(String upstream, @Nullable String socketEnvironment,
+            Map<String, String> authHeader, Map<String, String> authPrefix) {
+        this(upstream, socketEnvironment, authHeader, authPrefix, Map.of());
+    }
+
+    /**
+     * Returns why a credential kind cannot go through the proxy.
+     *
+     * @param type Credential kind.
+     * @return The reason, or {@code null} when the kind is fine.
+     */
+    @Nullable
+    public String unbrokerableReason(@Nullable String type) {
+        return type == null ? null : unbrokerable.get(type);
+    }
 
     /**
      * Constructor with all data.

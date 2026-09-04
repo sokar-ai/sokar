@@ -72,16 +72,23 @@ it with your real credential, and reissues the request to
 token stops working when the task ends.
 
 > [!WARNING]
-> **A subscription token may not work through the proxy.** Measured on 2026-09-04:
-> with `--type oauth` the token variable, the base URL and the socket were all set
-> correctly and the proxy was running, yet **no request ever reached it** and the CLI
-> reported `ENOTFOUND api.anthropic.com` — it went to its compiled-in endpoint and
-> was firewalled off, as intended. The same plumbing demonstrably works with an API
-> key. The likely reason is that the CLI refuses to send a subscription token to a
-> base URL that is not Anthropic's, which would be a deliberate restriction on their
-> side. **Until this is settled, use an API key.** Making OAuth work by allowing
-> `api.anthropic.com` through the firewall is not an option: the real token would
-> then leave the container, which is what this design exists to prevent.
+> **A subscription token does not work through the proxy. Use an API key.**
+> Measured on 2026-09-04, same machine and build, credential kind the only variable:
+>
+> | stored as | requests reaching the proxy | result |
+> |---|---|---|
+> | `--type oauth` | **0** | `ENOTFOUND api.anthropic.com` |
+> | `--type api-key` | **19** | `401 from the provider` |
+>
+> With `oauth` the token variable, the base URL and the socket were all set and the
+> proxy was running; the CLI ignored the base URL and went to its own endpoint, which
+> is firewalled off exactly as intended. Opening `api.anthropic.com` would fix it and
+> is not an option: the real token would then leave the container, which is the one
+> thing this design exists to prevent.
+>
+> The limitation is declared in `claude.yaml` as `provider.proxy.unbrokerable`, so
+> `sokar vault put --type oauth` and `sokar task run` both say so rather than letting
+> you discover it as a network error.
 
 **Both variables are set on purpose.** `ANTHROPIC_UNIX_SOCKET` only selects the
 transport. Without `ANTHROPIC_BASE_URL`, Claude Code falls back to its own

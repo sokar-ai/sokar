@@ -44,6 +44,34 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         this.context = context;
     }
 
+    /**
+     * Says so when the agent of this name cannot use a credential of this kind.
+     * <p>
+     * Checked here as well as at task start, because storing is where the choice is made and a
+     * task may not be run for days.
+     *
+     * @param err Where to report.
+     */
+    private void warnIfUnbrokerable(PrintWriter err) {
+        if (type == null) {
+            return;
+        }
+        try (var agents = context.agents()) {
+            agents.find(name).ifPresent(agent -> {
+                final var route = agent.definition().route();
+                final String reason = route == null ? null : route.unbrokerableReason(type);
+                if (reason != null) {
+                    err.println("sokar: '" + name + "' cannot use a '" + type + "' credential"
+                            + " through the proxy - " + reason);
+                    err.flush();
+                }
+            });
+        } catch (RuntimeException ex) {
+            // Storing must not fail because an agent could not be asked.
+            return;
+        }
+    }
+
     @Override
     public Integer call() throws IOException {
 
@@ -77,6 +105,7 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         // The value is never echoed, not even truncated: a terminal scrollback is a file.
         out.println("stored    " + name + " (" + (type == null ? "kind not stated" : type) + ", "
                 + value.length() + " characters)");
+        warnIfUnbrokerable(err);
         if (new org.fuin.sokar.vault.VaultEntry(value, type).implausiblyShort()) {
             err.println("sokar: that is only " + value.length() + " characters, which is shorter"
                     + " than any real credential - check it is not a placeholder");
