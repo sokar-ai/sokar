@@ -31,7 +31,7 @@ what the requirement says, or whether it survives at all.
 | 19 | [Task Templates](0019-Task-Templates.md) | Common jobs are startable as named templates carrying their own prompt and settings, rather than retyped each time. |  |
 | 20 | [Narrow The Git Endpoint](0020-Narrow-The-Git-Endpoint.md) | The host endpoint a task clones from should not be reachable from the local network. | yes |
 | 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
-| 21 | [Second Agent](0021-Second-Agent.md) | A second agent is packaged and installed alongside the first, proving that adding one needs no change to anything else; carries the candidate matrix. | yes |
+| 21 | [More Agents Providers](0021-More-Agents-Providers.md) | Which agents and providers to support next, and the one chosen to be built second. | yes |
 | 22 | [Recovery And Panic](0022-Recovery-And-Panic.md) | A task that has gone wrong can be isolated for inspection, and everything can be stopped at once. |  |
 | 23 | [McSokar Apple Containers](0023-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
 
