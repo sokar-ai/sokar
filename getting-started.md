@@ -116,7 +116,21 @@ before going further.
 > whole design exists to prevent. Authenticate on the host, once, and store the
 > result below.
 
-**Unlock first, then store. In that order.**
+**First, get the credential — on the host.** Which one depends on how you pay:
+
+| You have | Where the value comes from | Store it with |
+|---|---|---|
+| an API key | your provider's console, as a long `sk-…` string | `--type api-key` |
+| a subscription | the agent's own login on this machine (see below) | `--type oauth` |
+
+For a subscription there is no key to copy from a web page: the value is produced by
+the agent's login, run **on the host**. For Claude Code that is `claude setup-token`,
+which needs the agent installed on the host and prints a long-lived token to paste
+below — see [the Claude Code guide](agents/claude/README.md). This is also why
+logging in inside the container is both blocked and pointless: the value has to end
+up in the vault, on the host, where the box cannot reach it.
+
+**Then unlock and store, in that order.**
 
 ```
 sokar vault unlock

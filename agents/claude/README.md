@@ -71,6 +71,18 @@ it with your real credential, and reissues the request to
 `https://api.anthropic.com`. Your key never enters the container, and the phantom
 token stops working when the task ends.
 
+> [!WARNING]
+> **A subscription token may not work through the proxy.** Measured on 2026-09-04:
+> with `--type oauth` the token variable, the base URL and the socket were all set
+> correctly and the proxy was running, yet **no request ever reached it** and the CLI
+> reported `ENOTFOUND api.anthropic.com` — it went to its compiled-in endpoint and
+> was firewalled off, as intended. The same plumbing demonstrably works with an API
+> key. The likely reason is that the CLI refuses to send a subscription token to a
+> base URL that is not Anthropic's, which would be a deliberate restriction on their
+> side. **Until this is settled, use an API key.** Making OAuth work by allowing
+> `api.anthropic.com` through the firewall is not an option: the real token would
+> then leave the container, which is what this design exists to prevent.
+
 **Both variables are set on purpose.** `ANTHROPIC_UNIX_SOCKET` only selects the
 transport. Without `ANTHROPIC_BASE_URL`, Claude Code falls back to its own
 compiled-in endpoint — measured, it then resolved `api.anthropic.com` 184 times
