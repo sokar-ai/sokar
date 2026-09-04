@@ -64,12 +64,12 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
      * @param passphrase The passphrase.
      * @param out Where to report.
      */
-    private static void cache(char[] passphrase, PrintWriter out) {
+    private void cache(char[] passphrase, PrintWriter out) {
         if (!org.fuin.sokar.vault.KernelKeyring.available()) {
             return;
         }
         try {
-            new org.fuin.sokar.vault.KernelKeyring(VaultUnlockCommand.KEY).store(passphrase);
+            new org.fuin.sokar.vault.KernelKeyring(context.paths().vaultKeyringKey()).store(passphrase);
             out.println("unlocked  cached for this session");
         } catch (RuntimeException ex) {
             // Not being able to cache is not a reason for the import to have failed.

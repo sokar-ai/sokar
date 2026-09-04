@@ -29,6 +29,9 @@ FAILURES=0
 
 cleanup() {
     [ -n "$CONTAINER" ] && podman rm -f "$CONTAINER" >/dev/null 2>&1
+    # This run's own passphrase, cached under a key derived from its own vault path. The
+    # operator's stays where it was, which is the point of keying it that way.
+    [ -n "${SOKAR_VAULT:-}" ] && "$SOKAR" vault unlock --forget >/dev/null 2>&1
     podman rmi -f "sokar/$PROJECT" >/dev/null 2>&1
     rm -rf "$WORK" "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT"
     # The gate mirror too: it outlives the container, and a mirror left from an earlier run
@@ -82,16 +85,27 @@ DOMAINS="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print("\n".join(json.
 info "CLI version $CLI_VERSION, token variable $TOKEN_ENV"
 
 # ------------------------------------------------------------------ the vault
-# A deliberately fake credential, so the token-injection path is exercised with no account
-# anywhere. It is stored under the agent's name, which is the scope the broker mints for.
-VAULT_ADDED=""
-if "$SOKAR" vault list >/dev/null 2>&1; then
-    if ! "$SOKAR" vault list 2>/dev/null | grep -q '^claude'; then
-        if echo "sk-ant-e2e-not-a-real-key" | "$SOKAR" vault put claude >/dev/null 2>&1; then
-            VAULT_ADDED="yes"
-        fi
+# A vault of this run's own, never the operator's. Reading theirs made the result depend on
+# what they happened to have stored: with a real credential present this script silently
+# tested that instead of its own fake one, and reported failures that were not real.
+#
+# Only the vault is redirected, not the whole data directory: the container runtime keeps
+# its image store there, and pointing that at a temp directory rebuilds every layer and
+# leaves directories behind that a normal user cannot delete.
+export SOKAR_VAULT="$WORK/vault.bin"
+FAKE_CREDENTIAL="sk-ant-e2e-not-a-real-key"
+
+VAULT_READY=""
+if "$SOKAR" vault unlock --passphrase-command "printf e2e-tier1" >/dev/null 2>&1; then
+    if printf '%s' "$FAKE_CREDENTIAL" \
+            | "$SOKAR" vault put claude --type api-key >/dev/null 2>&1; then
+        VAULT_READY="yes"
     fi
 fi
+[ -n "$VAULT_READY" ] || {
+    echo "could not prepare this run's own vault at $SOKAR_VAULT"
+    exit 2
+}
 
 cat > "$WORK/project.yml" <<EOF
 project:
@@ -108,7 +122,10 @@ EOF
 echo
 echo "-- image build --"
 START_LOG="$WORK/start.log"
-if (cd "$WORK" && "$SOKAR" task run --keep --no-attach > "$START_LOG" 2>&1); then
+# --clearance deny: an acceptance run must not raise a prompt on somebody's desktop and
+# then wait for it. A blocked destination is data here, not a question.
+if (cd "$WORK" && "$SOKAR" task run --keep --no-attach --clearance deny \
+        > "$START_LOG" 2>&1); then
     pass "task run built the image and started the container"
 else
     fail "task run failed"
@@ -264,7 +281,7 @@ else
         # withholding it stopped them dead. What must never be in the container is the real
         # credential, so that is what this checks - the direct route carries the phantom token
         # or nothing, and the phantom token is worth nothing outside this task.
-        if podman exec "$CONTAINER" sh -c 'env' 2>/dev/null | grep -q "sk-ant-e2e-not-a-real-key"; then
+        if podman exec "$CONTAINER" sh -c 'env' 2>/dev/null | grep -q "$FAKE_CREDENTIAL"; then
             fail "the real credential is in the container's environment"
         else
             pass "the container holds no credential, only a task-scoped token"

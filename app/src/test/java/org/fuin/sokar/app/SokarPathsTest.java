@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.fuin.sokar.core.config.XdgPaths;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -80,5 +81,26 @@ class SokarPathsTest {
         Files.writeString(packaged.resolve("sokar-hook-nft"), "");
 
         assertThat(SokarPaths.shadowedHooks(packaged, packaged)).isNull();
+    }
+
+    @Test
+    void keysThePassphraseCacheToTheVaultItUnlocks(@TempDir Path dir) {
+
+        // One shared name meant unlocking one vault silently replaced the cached passphrase of
+        // another. An acceptance run could log the operator out of their own vault that way.
+        final XdgPaths xdg = XdgPaths.of(name -> null, dir);
+        final SokarPaths one = new SokarPaths(xdg, dir.resolve("bin"));
+
+        assertThat(one.vaultKeyringKey()).startsWith("sokar:vault:");
+        assertThat(one.vaultKeyringKey()).isEqualTo(one.vaultKeyringKey());
+    }
+
+    @Test
+    void usesTheOperatorsOwnVaultWhenNothingOverridesIt(@TempDir Path dir) {
+
+        // The negative case: an override that leaked in by accident would send every command at
+        // a vault the operator never chose.
+        assertThat(new SokarPaths(XdgPaths.of(name -> null, dir), dir.resolve("bin")).vaultFile())
+                .isEqualTo(XdgPaths.of(name -> null, dir).data().resolve("vault.bin"));
     }
 }

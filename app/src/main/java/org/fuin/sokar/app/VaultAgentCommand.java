@@ -106,7 +106,7 @@ public class VaultAgentCommand implements Callable<Integer> {
 
     private SigningKey fromVault() {
         final VaultFile vault = new VaultFile(
-                new SokarPaths(XdgPaths.current(), Path.of("")).xdg().data().resolve("vault.bin"));
+                new SokarPaths(XdgPaths.current(), Path.of("")).vaultFile());
         final var entry = vault.read(passphrase()).get(keyName);
         if (entry == null) {
             throw new VaultException("The vault has no entry named '" + keyName + "'");
@@ -119,7 +119,8 @@ public class VaultAgentCommand implements Callable<Integer> {
         return new org.fuin.sokar.vault.PassphraseTiers(
                 // The keyring first here, unlike 'vault unlock': this runs per task, and the whole
                 // point of the cache is that it answers without asking anyone.
-                org.fuin.sokar.vault.KernelKeyring.source(VaultUnlockCommand.KEY),
+                org.fuin.sokar.vault.KernelKeyring.source(new SokarPaths(XdgPaths.current(),
+                        Path.of("")).vaultKeyringKey()),
                 new org.fuin.sokar.vault.SystemdCredential(runner, systemdCredential),
                 new org.fuin.sokar.vault.CommandPassphrase(runner, passphraseCommand),
                 new org.fuin.sokar.vault.ConsolePassphrase("Vault passphrase: ")).require();

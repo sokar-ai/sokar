@@ -26,9 +26,6 @@ import picocli.CommandLine.Spec;
         description = "Caches the vault passphrase in the kernel keyring for this session.")
 public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
-    /** Keyring description under which the passphrase is cached. */
-    public static final String KEY = "sokar:vault";
-
     @Option(names = "--forget", description = "Removes the cached passphrase instead.")
     private boolean forget;
 
@@ -62,7 +59,7 @@ public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.Conte
             return 69;
         }
 
-        final KernelKeyring keyring = new KernelKeyring(KEY);
+        final KernelKeyring keyring = new KernelKeyring(context.paths().vaultKeyringKey());
 
         if (forget) {
             out.println(keyring.forget() ? "forgotten" : "nothing was cached");

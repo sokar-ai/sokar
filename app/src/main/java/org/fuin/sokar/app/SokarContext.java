@@ -70,7 +70,7 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
      * @return Credentials, possibly empty.
      */
     public org.fuin.sokar.vault.VaultFile vault() {
-        return new org.fuin.sokar.vault.VaultFile(paths.xdg().data().resolve("vault.bin"));
+        return new org.fuin.sokar.vault.VaultFile(paths.vaultFile());
     }
 
     /**
@@ -82,7 +82,7 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
     public char[] requirePassphrase() {
         final var runner = new ProcessCommandRunner();
         return new org.fuin.sokar.vault.PassphraseTiers(
-                org.fuin.sokar.vault.KernelKeyring.source(VaultUnlockCommand.KEY),
+                org.fuin.sokar.vault.KernelKeyring.source(paths.vaultKeyringKey()),
                 new org.fuin.sokar.vault.ConsolePassphrase("Vault passphrase: ")).require();
     }
 
@@ -100,7 +100,7 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
             return java.util.Map.of();
         }
         final java.util.Optional<char[]> passphrase = new org.fuin.sokar.vault.PassphraseTiers(
-                org.fuin.sokar.vault.KernelKeyring.source(VaultUnlockCommand.KEY)).passphrase();
+                org.fuin.sokar.vault.KernelKeyring.source(paths.vaultKeyringKey())).passphrase();
         if (passphrase.isEmpty()) {
             return java.util.Map.of();
         }

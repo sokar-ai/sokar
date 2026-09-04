@@ -100,6 +100,38 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
         return null;
     }
 
+    /** Environment variable naming a vault other than this user's own. */
+    public static final String VAULT_VARIABLE = "SOKAR_VAULT";
+
+    /**
+     * Returns the vault this process should use.
+     * <p>
+     * Overridable because an acceptance run must not read or write the operator's own vault: the
+     * data directory itself cannot be redirected, since the container runtime keeps its whole
+     * image store under it.
+     *
+     * @return Path of the vault file.
+     */
+    public Path vaultFile() {
+        final String override = System.getenv(VAULT_VARIABLE);
+        return override == null || override.isBlank()
+                ? xdg.data().resolve("vault.bin") : Path.of(override);
+    }
+
+    /**
+     * Returns the keyring description under which this vault's passphrase is cached.
+     * <p>
+     * Keyed by the vault it unlocks. A single shared name meant unlocking one vault silently
+     * replaced the cached passphrase of another, which is how an acceptance run could log the
+     * operator out of their own.
+     *
+     * @return Keyring description.
+     */
+    public String vaultKeyringKey() {
+        final Path file = vaultFile();
+        return "sokar:vault:" + Integer.toHexString(file.toAbsolutePath().toString().hashCode());
+    }
+
     /**
      * Returns the directory podman reads hook descriptors from.
      *
