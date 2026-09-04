@@ -272,10 +272,21 @@ class VaultFileTest {
     }
 
     @Test
-    void spotsAValueTooShortToBeACredential() {
+    void spotsAValueThatIsNotACredential() {
 
-        // The 8-character placeholder that reached a real vault and failed as an auth error.
-        assertThat(VaultEntry.of("testtest").implausiblyShort()).isTrue();
-        assertThat(VaultEntry.of("sk-ant-" + "x".repeat(40)).implausiblyShort()).isFalse();
+        // All three reached a real vault. The placeholder is the one a length check misses: it is
+        // 24 characters, and it is what the guide tells you to replace.
+        assertThat(VaultEntry.of("<your real key or token>").suspicious())
+                .contains("placeholder");
+        assertThat(VaultEntry.of("testtest").suspicious()).contains("8 characters");
+        assertThat(VaultEntry.of("sk ant token with spaces here").suspicious())
+                .contains("spaces");
+    }
+
+    @Test
+    void acceptsAValueThatLooksLikeACredential() {
+
+        // The negative case: warning about a real key would teach the operator to ignore it.
+        assertThat(VaultEntry.of("sk-ant-api03-" + "x".repeat(90)).suspicious()).isNull();
     }
 }

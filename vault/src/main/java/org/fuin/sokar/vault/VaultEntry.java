@@ -25,11 +25,23 @@ public record VaultEntry(String value, @Nullable String type) {
     }
 
     /**
-     * Returns whether the value is too short to be a real credential.
+     * Returns why this value does not look like a credential.
      *
-     * @return {@code true} when it is implausibly short.
+     * @return A reason, or {@code null} when nothing is obviously wrong.
      */
-    public boolean implausiblyShort() {
-        return value.length() < 20;
+    @Nullable
+    public String suspicious() {
+        if (value.startsWith("<") && value.endsWith(">")) {
+            return "it looks like a placeholder from the documentation, not a credential";
+        }
+        if (value.chars().anyMatch(Character::isWhitespace)) {
+            // Every credential kind in use is a single opaque token; whitespace means a copied
+            // sentence, a shell that split an argument, or a placeholder.
+            return "it contains spaces, and no credential does";
+        }
+        if (value.length() < 20) {
+            return "it is only " + value.length() + " characters, shorter than any real credential";
+        }
+        return null;
     }
 }

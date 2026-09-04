@@ -139,7 +139,7 @@ up in the vault, on the host, where the box cannot reach it.
 
 ```
 sokar vault unlock
-printf '%s' 'sk-ant-your-real-key' | sokar vault put claude --type api-key
+printf '%s' 'sk-ant-...' | sokar vault put claude --type api-key   # your real key here
 ```
 
 The order is not a style preference. `vault put` reads the credential from

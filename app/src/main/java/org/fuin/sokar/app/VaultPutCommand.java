@@ -106,9 +106,9 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         out.println("stored    " + name + " (" + (type == null ? "kind not stated" : type) + ", "
                 + value.length() + " characters)");
         warnIfUnbrokerable(err);
-        if (new org.fuin.sokar.vault.VaultEntry(value, type).implausiblyShort()) {
-            err.println("sokar: that is only " + value.length() + " characters, which is shorter"
-                    + " than any real credential - check it is not a placeholder");
+        final String suspicious = new org.fuin.sokar.vault.VaultEntry(value, type).suspicious();
+        if (suspicious != null) {
+            err.println("sokar: check what you stored - " + suspicious);
             err.flush();
         }
         out.flush();
