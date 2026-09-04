@@ -34,6 +34,12 @@ Renewal is also where the credential is most exposed: it is the one exchange who
 answer is a *new* credential. Whatever answers it has to mint a task-scoped value
 rather than pass one through.
 
+Two shapes of renewal exist, and only one is interceptable. Some agents renew over
+the same API path they use, which a redirected endpoint would cover. Others delegate
+renewal to a separate tool on the machine - a cloud vendor's own CLI, say - which
+never passes through the agent's endpoint at all and would have to be either present
+in the container or answered another way.
+
 ## To be checked
 
 - **Which credential kinds actually expire in practice**, and over what period. A
@@ -46,3 +52,6 @@ rather than pass one through.
   provider directly, ignoring the endpoint it was given.
 - Whether an agent can be told its credential does not expire, and whether that is
   honoured or merely recorded.
+- Whether an agent that accepts a credential **by reference to an environment
+  variable** sidesteps this entirely. If the stored value is a pointer rather than a
+  token, there may be nothing for the agent to consider expired.

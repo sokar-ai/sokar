@@ -36,7 +36,7 @@ be given the real credential or not supported.
 | Codex CLI | OpenAI | yes | account sign-in or API key | likely, unverified |
 | Gemini CLI | Google | yes | account sign-in or API key | likely, unverified |
 | GitHub Copilot CLI | GitHub Copilot, which fronts several models | yes | forge account, device flow | unlikely, unverified |
-| OpenCode | many, chosen per session | **no** | per-provider API keys | by construction, unverified |
+| OpenCode | many, chosen per session | **no** | per provider: pasted key in one store, browser sign-in, or env var | **documented** - a base URL per provider |
 | Oh My Pi | many, 40+ | **no** | per provider: env var, stored key, or sign-in with refresh | yes for common API dialects, by design |
 
 Ordered by reported usage among professional developers, except the last, which is
@@ -62,6 +62,10 @@ rediscovering:
   common API dialect. That is the property brokering depends on, and it exists by
   design there rather than by accident.
 - **Adding one is a declaration plus a registry entry**, not a change to the agent.
+- **Credentials land in one store** rather than one file per provider, and at least
+  one agent lets a stored value be written as a reference to an environment variable
+  instead of a literal. That indirection is the cleanest thing Sokar could ask for:
+  no file to seed, no format to imitate, just a variable already being injected.
 
 Two of those land directly on Sokar's own design:
 
