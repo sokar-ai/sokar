@@ -329,7 +329,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             placeAgentFiles(runner, selected, container, environmentCache, out, err);
             out.println();
 
-            startClearance(runner, container, out, err);
+            startClearance(runner, project, container, out, err);
 
             if (prompt != null) {
                 return runAgent(runner, agents, container, out, err);
@@ -815,7 +815,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * during an interactive session needs a prompt just as much as one during a headless run. The
      * watcher writes a pid file, and the supervisor hook reaps it at poststop.
      */
-    private void startClearance(TaskRunner runner, String container,
+    private void startClearance(TaskRunner runner, Project project, String container,
             PrintWriter out, PrintWriter err) {
 
         if ("off".equals(clearance)) {
@@ -840,7 +840,9 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
                 ProcessHandle.current().info().command().orElse("sokar"),
                 "shield", "watch",
-                "--project", container,
+                // What the prompt shows. A container name carries a pid and identifies nothing
+                // an operator recognises; project and task are what they chose.
+                "--project", project.name() + "/" + task,
                 "--pid", String.valueOf(pid.get()),
                 "--events", events.toString(),
                 "--socket", state.resolve("clearance.sock").toString(),
