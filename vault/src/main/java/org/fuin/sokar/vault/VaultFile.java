@@ -166,12 +166,28 @@ public class VaultFile {
             cipher.updateAAD(content, 0, HEADER_LENGTH);
             return parse(new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8));
         } catch (GeneralSecurityException ex) {
-            // Deliberately does not distinguish a wrong passphrase from a damaged file: both mean
-            // the tag did not verify, and guessing which would be guessing.
+            // A GCM tag failure cannot tell the two apart, so neither does this message.
             throw new VaultException("Cannot decrypt " + file
-                    + " - wrong passphrase, or the file has been altered");
+                    + " - wrong passphrase, or the file has been altered."
+                    + " If the passphrase should be right, a cached one may be in the way:"
+                    + " run 'sokar vault unlock --forget' and try again");
         } finally {
             Arrays.fill(key, (byte) 0);
+        }
+    }
+
+    /**
+     * Tells whether a passphrase decrypts this vault.
+     *
+     * @param passphrase The passphrase.
+     * @return {@code true} when the vault opens, {@code false} when it does not for any reason.
+     */
+    public boolean accepts(char[] passphrase) {
+        try {
+            read(passphrase);
+            return true;
+        } catch (VaultException ex) {
+            return false;
         }
     }
 

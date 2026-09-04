@@ -229,4 +229,24 @@ class VaultFileTest {
 
         assertThat(vault.read(PASSPHRASE)).isEqualTo(ENTRIES);
     }
+
+    @Test
+    void acceptsOnlyThePassphraseItWasWrittenWith(@TempDir Path dir) {
+
+        // What "vault unlock" checks before caching: it used to cache anything typed, so a typo
+        // surfaced later as a message about a possibly altered file.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("example", "a-secret"), PASSPHRASE);
+
+        assertThat(vault.accepts(PASSPHRASE)).isTrue();
+        assertThat(vault.accepts("wrong".toCharArray())).isFalse();
+    }
+
+    @Test
+    void acceptsNothingWhenThereIsNoVault(@TempDir Path dir) {
+
+        // The negative case: a missing file must not read as "this passphrase is fine", or the
+        // check would pass for every passphrase on a machine with no vault.
+        assertThat(new VaultFile(dir.resolve("absent.bin")).accepts(PASSPHRASE)).isFalse();
+    }
 }

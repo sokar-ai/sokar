@@ -24,7 +24,7 @@ import picocli.CommandLine.Spec;
 @Command(name = "unlock",
         mixinStandardHelpOptions = true,
         description = "Caches the vault passphrase in the kernel keyring for this session.")
-public class VaultUnlockCommand implements Callable<Integer> {
+public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
     /** Keyring description under which the passphrase is cached. */
     public static final String KEY = "sokar:vault";
@@ -42,6 +42,13 @@ public class VaultUnlockCommand implements Callable<Integer> {
 
     @Spec
     private CommandSpec spec;
+
+    private SokarContext context = SokarContext.real();
+
+    @Override
+    public void setContext(SokarContext context) {
+        this.context = context;
+    }
 
     @Override
     public Integer call() {
@@ -72,7 +79,17 @@ public class VaultUnlockCommand implements Callable<Integer> {
                 new ConsolePassphrase("Vault passphrase: "));
 
         try {
-            keyring.store(tiers.require());
+            final char[] passphrase = tiers.require();
+            // Caching an unverified passphrase moves the failure to the next command, where it
+            // reads as a possibly corrupt vault. Nothing to verify against on a first run.
+            final var vault = context.vault();
+            if (vault.exists() && !vault.accepts(passphrase)) {
+                err.println("sokar: that passphrase does not open " + vault.path()
+                        + " - nothing was cached");
+                err.flush();
+                return 70;
+            }
+            keyring.store(passphrase);
             out.println("cached in the kernel keyring for this session");
             out.flush();
             return 0;

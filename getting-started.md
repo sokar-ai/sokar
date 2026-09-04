@@ -131,6 +131,9 @@ Some details worth knowing:
   no separate init step.
 - `unlock` caches the passphrase in the kernel keyring for the rest of the
   session, so you type it once. `sokar vault unlock --forget` clears it.
+- When a vault already exists, `unlock` opens it before caching and refuses a
+  passphrase that does not fit, so a typo fails there rather than at the next
+  command.
 - For automation, `--passphrase-command 'pass show sokar'` or
   `--systemd-credential <file>` replace the prompt entirely.
 - The **name must be the agent's name** — `sokar agents` lists what is installed.
@@ -139,6 +142,24 @@ Some details worth knowing:
   of your key.
 - Never pass a credential as a command-line argument to anything. A command line
   is visible to every process on the machine. Standard input is not.
+
+**Lost the passphrase?** There is no recovery — that is the point of the vault.
+Start again:
+
+```
+sokar vault unlock --forget
+mv ~/.local/share/sokar/vault.bin ~/.local/share/sokar/vault.bin.old
+sokar vault unlock
+printf '%s' 'sk-ant-your-real-key' | sokar vault put claude
+```
+
+`--forget` first, or a cached passphrase keeps being used ahead of anything you
+type. Move the file rather than deleting it, in case the passphrase comes back to
+you; nothing else reads it, and you can delete it once the new vault works.
+
+The old file also tells you how much you are giving up without opening it: it is
+52 bytes of header plus a 16-byte tag, so a 106-byte vault holds 38 bytes of JSON,
+which is less than one API key. `ls -l ~/.local/share/sokar/vault.bin`.
 
 **Which credential?** An agent may accept more than one kind, and they are not
 interchangeable — an API key and a subscription token go in different headers, and
@@ -161,13 +182,21 @@ image:
   base_image: "ubuntu:24.04"
 ```
 
+**What the gate is**, since the classes are defined in terms of it: a bare mirror
+of your repository on your own machine, at
+`~/.local/share/sokar/mirrors/<project>.git`, served to the container over HTTP on
+a loopback address of the container network. Nothing else on your machine reaches
+it, and nothing on your LAN can. The container's `origin` points at that mirror
+rather than at your real remote, and a push lands in `refs/sokar/incoming/<task>`,
+where it waits for you.
+
 `security_class` is one of:
 
-| Class | The agent's remote | Review |
+| Class | The container's `origin` | How work reaches your real remote |
 |---|---|---|
-| `offline` | the gate, on this machine | nothing is ever forwarded upstream |
-| `guarded` | the gate, on this machine | you review, then `approve` forwards |
-| `online` | **the real upstream** | none — the agent pushes to it directly |
+| `offline` | the gate on your machine | it does not, ever |
+| `guarded` | the gate on your machine | you read the diff, then `sokar gate approve` pushes it |
+| `online` | **your real remote** | the agent pushes there itself, unreviewed |
 
 An `online` project must name its `upstream`, and Sokar refuses to load one that
 does not. That class takes the gate out of the path entirely, which is the whole
