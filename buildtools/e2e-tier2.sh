@@ -28,16 +28,11 @@
 # With none of them set every check is skipped and the script exits 0, so it is safe to run
 # in CI that has no accounts.
 #
-# THE VAULT IS BACKED UP AND RESTORED around the run. It has to be: the vault lives under
-# XDG_DATA_HOME, which cannot be redirected because podman keeps its container storage
-# there (see tier 1), and 'sokar vault' has put/list/agent/unlock but no remove - so a
-# credential written for a test could not otherwise be taken out again. The file is copied
-# aside before the run and put back afterwards, and if there was no vault at all the one
-# this script creates is deleted.
-#
-# The vault must be UNLOCKED first, or 'vault put' waits for a passphrase nobody will type:
-#
-#   sokar vault unlock
+# THE OPERATOR'S VAULT IS NEVER TOUCHED. This run makes its own, in its own temporary
+# directory, with its own passphrase. It used to copy the real one aside and put it back,
+# because the vault path could not be redirected and there was no way to remove an entry;
+# both of those are gone. Backing up and restoring a file holding somebody's credentials is
+# not something a test should be doing if it can avoid it, and it can.
 #
 # Requires podman and a native build:  JAVA_HOME=<graalvm> ./mvnw -Pnative package -DskipTests
 set -uo pipefail
@@ -105,27 +100,16 @@ mkdir -p "$AGENT_HOME"
 cp "$AGENT" "$AGENT_HOME/.sokar-agent-claude.tmp"
 mv -f "$AGENT_HOME/.sokar-agent-claude.tmp" "$AGENT_HOME/sokar-agent-claude"
 
-# Back up the operator's vault, and arrange for it to come back whatever happens below.
-VAULT="${XDG_DATA_HOME:-$HOME/.local/share}/sokar/vault.bin"
-VAULT_BACKUP="$WORK/vault.bin.backup"
-VAULT_EXISTED="no"
-if [ -f "$VAULT" ]; then
-    cp -p "$VAULT" "$VAULT_BACKUP"
-    VAULT_EXISTED="yes"
-fi
-
-restore_vault() {
-    if [ "$VAULT_EXISTED" = "yes" ]; then
-        cp -p "$VAULT_BACKUP" "$VAULT" 2>/dev/null
-    else
-        rm -f "$VAULT"
-    fi
-}
+# This run's own vault, in its own directory. Only the vault is redirected, not the whole
+# data directory: the container runtime keeps its image store there.
+export SOKAR_VAULT="$WORK/vault.bin"
+VAULT="$SOKAR_VAULT"
 
 cleanup() {
     [ -n "$CONTAINER" ] && podman rm -f "$CONTAINER" >/dev/null 2>&1
     podman rmi -f "sokar/$PROJECT" >/dev/null 2>&1
-    restore_vault
+    # This run's own cached passphrase, under a key derived from its own vault path.
+    "$SOKAR" vault unlock --forget >/dev/null 2>&1
     rm -rf "$WORK" "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT"
     # The gate mirror too: it outlives the container, and a mirror left from an earlier run
     # already holds the ref this run pushes, so the push fails as a non-fast-forward and
@@ -134,14 +118,13 @@ cleanup() {
     :
 }
 
-# The vault has to be unlocked already: put would otherwise block on a passphrase prompt.
 trap cleanup EXIT
 
-if ! "$SOKAR" vault list >/dev/null 2>&1; then
+# Its own passphrase, cached under its own key, so nothing the operator has unlocked is
+# read or replaced.
+if ! "$SOKAR" vault unlock --passphrase-command "printf e2e-tier2" >/dev/null 2>&1; then
     echo
-    echo "the vault is locked, so a credential cannot be stored"
-    info "run 'sokar vault unlock' first - it caches the passphrase in the kernel"
-    info "keyring for this session"
+    echo "could not create this run's own vault at $SOKAR_VAULT"
     exit 2
 fi
 
@@ -149,7 +132,8 @@ fi
 echo
 echo "-- vault --"
 
-if printf '%s' "$CREDENTIAL" | "$SOKAR" vault put claude >/dev/null 2>&1; then
+if printf '%s' "$CREDENTIAL" \
+        | "$SOKAR" vault put claude --type "$CREDENTIAL_TYPE" >/dev/null 2>&1; then
     pass "the vault stored the credential"
 else
     fail "the vault would not store the credential"
@@ -198,8 +182,11 @@ echo
 echo "-- authentication --"
 
 START_LOG="$WORK/start.log"
+# --clearance deny: an acceptance run must not raise a prompt on somebody's desktop and
+# then wait for it. The kind is not repeated here: it was stored with the credential, and
+# that it reaches the task without being restated is part of what this checks.
 (cd "$WORK" && timeout 600 "$SOKAR" task run \
-    --keep --no-attach --credential-type "$CREDENTIAL_TYPE" \
+    --keep --no-attach --clearance deny \
     > "$START_LOG" 2>&1)
 
 CONTAINER="$(grep '^container ' "$START_LOG" | awk '{print $2}')"
