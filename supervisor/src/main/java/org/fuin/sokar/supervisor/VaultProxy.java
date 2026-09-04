@@ -69,8 +69,6 @@ public class VaultProxy implements AutoCloseable, Runnable {
     /** Largest request body accepted, in bytes. */
     private static final int BODY_LIMIT = 32 * 1024 * 1024;
 
-    /** Path being served, or {@code null} when a port is served instead. */
-    @org.jspecify.annotations.Nullable
     private final Path socket;
 
     private final String upstream;
@@ -158,50 +156,10 @@ public class VaultProxy implements AutoCloseable, Runnable {
     /**
      * Returns the socket being served.
      *
-     * @return Socket path, or {@code null} when a port is served.
+     * @return Socket path.
      */
-    @org.jspecify.annotations.Nullable
     public Path socket() {
         return socket;
-    }
-
-    /**
-     * Constructor for an agent that can only be given a URL.
-     * <p>
-     * Bound rather than mounted, because some agents take an endpoint as an {@code http://}
-     * address and have nowhere to put a socket path. The address is expected to be a loopback one
-     * <em>inside a container's network namespace</em>: a host-side listener is either unreachable
-     * from a rootless container or bound to every interface, and neither is acceptable for
-     * something that answers with a credential.
-     *
-     * @param address Address to bind.
-     * @param upstream Real API endpoint.
-     * @param exchange Turns a presented token into a credential.
-     * @param authHeader Header the credential belongs in.
-     * @param authPrefix String placed before the credential.
-     * @param log Receives one line per request.
-     */
-    public VaultProxy(java.net.InetSocketAddress address, String upstream, TokenExchange exchange,
-            String authHeader, String authPrefix, java.util.function.Consumer<String> log) {
-
-        this.log = log;
-        this.socket = null;
-        this.upstream = upstream.endsWith("/")
-                ? upstream.substring(0, upstream.length() - 1) : upstream;
-        this.exchange = exchange;
-        this.authHeader = authHeader;
-        this.authPrefix = authPrefix;
-        this.http = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
-
-        try {
-            server = ServerSocketChannel.open();
-            server.bind(address);
-        } catch (IOException ex) {
-            throw new SupervisorException("Could not bind the vault proxy to " + address, ex);
-        }
     }
 
     /**
@@ -428,10 +386,6 @@ public class VaultProxy implements AutoCloseable, Runnable {
             // Nothing useful to do while shutting down.
         }
         http.close();
-        if (socket == null) {
-            // A bound port leaves nothing behind; it goes with the namespace it was bound in.
-            return;
-        }
         try {
             Files.deleteIfExists(socket);
         } catch (IOException ex) {
