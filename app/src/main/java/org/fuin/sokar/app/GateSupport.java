@@ -28,9 +28,23 @@ final class GateSupport {
     }
 
     static GitGate gate(Project project, @Nullable String upstream) {
+        return gate(project, upstream, null);
+    }
+
+    /**
+     * Builds a gate, resolving where it forwards to and what it is first seeded from.
+     *
+     * @param project The project.
+     * @param upstream Value of {@code --upstream}, or {@code null}.
+     * @param seed Repository to seed an empty mirror from, or {@code null}.
+     * @return Gate.
+     */
+    static GitGate gate(Project project, @Nullable String upstream, @Nullable String seed) {
+        final String forwardTo = upstream != null ? upstream : project.upstream();
         // The mode follows the project's security class, so an offline project cannot be talked
         // into forwarding by a command-line flag.
         return new GitGate(new ProcessCommandRunner(), mirror(project),
-                GateMode.of(project.securityClass()), upstream);
+                GateMode.of(project.securityClass()), forwardTo,
+                forwardTo != null ? forwardTo : seed);
     }
 }

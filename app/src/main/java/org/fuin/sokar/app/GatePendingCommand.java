@@ -53,9 +53,13 @@ public class GatePendingCommand implements Callable<Integer> {
             final GitGate gate = GateSupport.gate(project, upstream);
             gate.initialise();
 
+            final String seededFrom = gate.seededFrom();
+
             final List<PendingPush> pending = gate.pendingDetail();
             if (pending.isEmpty()) {
                 out.println("nothing pending in " + gate.mirror());
+                out.println("seeded from " + (seededFrom == null ? "nothing - the mirror was created empty"
+                        : seededFrom));
                 out.flush();
                 return 0;
             }
@@ -64,6 +68,7 @@ public class GatePendingCommand implements Callable<Integer> {
             final Duration stale = Duration.ofHours(staleAfterHours);
 
             out.println("mode      " + gate.mode().name().toLowerCase());
+            out.println("seeded    " + (seededFrom == null ? "nothing" : seededFrom));
             out.printf("%-20s %-10s %-10s %s%n", "NAME", "WAITING", "COMMIT", "SUBJECT");
             for (final PendingPush push : pending) {
                 out.printf("%-20s %-10s %-10s %s%s%n", push.name(), push.lagText(now),

@@ -380,4 +380,55 @@ class GitGateTest {
         return "http://" + InetAddress.getLoopbackAddress().getHostAddress()
                 + ":" + server.port() + "/mirror.git";
     }
+
+    @Test
+    void seedsFromOneRepositoryAndStillForwardsToAnother() {
+
+        // Why seed and upstream are separate fields: a mirror seeded from a checkout on this
+        // machine must never become the place an approved push is sent.
+        final Path seed = root.resolve("seed");
+        git(root, "init", "--initial-branch=main", seed.toString());
+        runner.runOrFail(new Command(List.of("git", "commit", "--allow-empty", "-m", "seeded"),
+                seed, Map.of("GIT_AUTHOR_NAME", "Test", "GIT_AUTHOR_EMAIL", "test@example.com",
+                        "GIT_COMMITTER_NAME", "Test", "GIT_COMMITTER_EMAIL", "test@example.com"),
+                null));
+
+        final Path upstream = root.resolve("upstream.git");
+        git(root, "init", "--bare", "--initial-branch=main", upstream.toString());
+
+        final GitGate gate = new GitGate(runner, mirror, GateMode.GATEKEEPING,
+                upstream.toString(), seed.toString());
+        gate.initialise();
+
+        assertThat(gate.resolves("refs/heads/main")).isTrue();
+        assertThat(runner.runOrFail(Command.of("git", "--git-dir", mirror.toString(),
+                "log", "--oneline", "main")).standardOutput()).contains("seeded");
+        // The seed is a working checkout, and nothing may be pushed into it.
+        assertThat(gate.seededFrom()).isEqualTo(seed.toString());
+    }
+
+    @Test
+    void reportsThatAnEmptyMirrorCameFromNowhere() {
+
+        // The negative case: a mirror created empty has no origin, and inventing one would make
+        // the report worse than absent.
+        final GitGate gate = new GitGate(runner, mirror, GateMode.GATEKEEPING, null);
+        gate.initialise();
+
+        assertThat(gate.seededFrom()).isNull();
+    }
+
+    @Test
+    void seedsFromTheUpstreamWhenNoSeparateSeedIsGiven() {
+
+        // The four-argument constructor has to keep behaving as it always did.
+        final Path upstream = root.resolve("upstream.git");
+        git(root, "init", "--bare", "--initial-branch=main", upstream.toString());
+
+        new GitGate(runner, mirror, GateMode.GATEKEEPING, upstream.toString()).initialise();
+
+        assertThat(runner.runOrFail(Command.of("git", "--git-dir", mirror.toString(),
+                "config", "--get", "remote.origin.url")).standardOutput().strip())
+                .isEqualTo(upstream.toString());
+    }
 }

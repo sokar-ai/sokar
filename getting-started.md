@@ -177,7 +177,7 @@ Code takes an API key by default, or a subscription OAuth token if you add
 project:
   name: "myproject"
   security_class: "guarded"
-  # upstream: "git@github.com:you/myproject.git"   # required when security_class is online
+  # upstream: "git@github.com:you/myproject.git"   # required by online; optional otherwise
 image:
   base_image: "ubuntu:24.04"
 ```
@@ -197,6 +197,43 @@ where it waits for you.
 | `offline` | the gate on your machine | it does not, ever |
 | `guarded` | the gate on your machine | you read the diff, then `sokar gate approve` pushes it |
 | `online` | **your real remote** | the agent pushes there itself, unreviewed |
+
+**How your code gets into the box.** The mirror is created the first time the gate
+is used, and seeded from the first of these that applies:
+
+| Sokar clones from | when |
+|---|---|
+| `--upstream <url>` | you passed it |
+| `upstream:` in `project.yml` | it is set |
+| the repository you are standing in | neither of the above and the current directory is a git work tree |
+| nothing, so the mirror starts empty | you are not in a repository |
+
+The third is the usual case and needs no flag — `sokar task run` prints
+`seed  <path>` when it uses it, so the choice is never silent. A local path works
+exactly like a URL; git does not care.
+
+Two things follow from it being a *bare clone*, and both surprise people:
+
+- **Only committed history is copied.** A bare repository has no working tree, so
+  uncommitted changes stay on your side. Commit before you run.
+- **Seeding happens once.** `initialise` returns early if the mirror is already
+  there, so later commits on the host do not flow in by themselves, and re-running
+  with a different `--upstream` changes nothing. To start over, delete
+  `~/.local/share/sokar/mirrors/<project>.git`.
+
+`sokar gate pending` says what a mirror was built from, so you never have to
+remember:
+
+```
+seeded from /home/you/git/myproject
+```
+
+That comes from the mirror itself — `git clone --bare` records it — not from
+configuration that may have changed since.
+
+`upstream:` is also where an approved push is forwarded, for `guarded` as well as
+`online` — set it there once rather than repeating `--upstream` on every
+`sokar gate approve`.
 
 An `online` project must name its `upstream`, and Sokar refuses to load one that
 does not. That class takes the gate out of the path entirely, which is the whole

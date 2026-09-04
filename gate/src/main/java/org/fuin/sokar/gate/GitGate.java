@@ -35,8 +35,11 @@ public class GitGate {
     @Nullable
     private final String upstreamUrl;
 
+    @Nullable
+    private final String seedUrl;
+
     /**
-     * Constructor.
+     * Constructor for a gate whose mirror is seeded from the upstream it forwards to.
      *
      * @param runner Runs git.
      * @param mirror Directory of the bare mirror.
@@ -44,10 +47,28 @@ public class GitGate {
      * @param upstreamUrl Upstream to forward to, or {@code null} if there is none.
      */
     public GitGate(CommandRunner runner, Path mirror, GateMode mode, @Nullable String upstreamUrl) {
+        this(runner, mirror, mode, upstreamUrl, upstreamUrl);
+    }
+
+    /**
+     * Constructor.
+     * <p>
+     * The two URLs are separate because a mirror may be seeded from a checkout on this machine,
+     * which is never where an approved push should be forwarded.
+     *
+     * @param runner Runs git.
+     * @param mirror Directory of the bare mirror.
+     * @param mode What the gate may do.
+     * @param upstreamUrl Upstream to forward to, or {@code null} if there is none.
+     * @param seedUrl Repository the mirror is first cloned from, or {@code null} to start empty.
+     */
+    public GitGate(CommandRunner runner, Path mirror, GateMode mode, @Nullable String upstreamUrl,
+            @Nullable String seedUrl) {
         this.runner = runner;
         this.mirror = mirror;
         this.mode = mode;
         this.upstreamUrl = upstreamUrl;
+        this.seedUrl = seedUrl;
     }
 
     /**
@@ -69,7 +90,7 @@ public class GitGate {
     }
 
     /**
-     * Creates the bare mirror if it is not there, cloning the upstream when one is configured.
+     * Creates the bare mirror if it is not there, cloning the seed when one is configured.
      *
      * @throws GateException If the mirror cannot be created.
      */
@@ -82,15 +103,34 @@ public class GitGate {
         } catch (java.io.IOException ex) {
             throw new GateException("Cannot create " + mirror, ex);
         }
-        if (upstreamUrl == null) {
+        if (seedUrl == null) {
             git("init", "--bare", "--initial-branch=main", mirror.toString());
         } else {
-            git("clone", "--bare", upstreamUrl, mirror.toString());
+            git("clone", "--bare", seedUrl, mirror.toString());
         }
         // The agent pushes over HTTP, and git refuses that on a bare repository unless told the
         // repository is meant to be served.
         gitIn("config", "http.receivepack", "true");
         gitIn("config", "receive.denyCurrentBranch", "ignore");
+    }
+
+    /**
+     * Returns where the mirror was cloned from.
+     * <p>
+     * Recorded by {@code git clone --bare} itself, so it is the mirror that answers rather than
+     * any configuration that might since have changed.
+     *
+     * @return The seed URL, or {@code null} for a mirror that was created empty.
+     */
+    @Nullable
+    public String seededFrom() {
+        final CommandResult result = runner.run(Command.of(List.of("git", "--git-dir",
+                mirror.toString(), "config", "--get", "remote.origin.url")));
+        if (!result.successful()) {
+            return null;
+        }
+        final String url = result.standardOutput().strip();
+        return url.isEmpty() ? null : url;
     }
 
     /**

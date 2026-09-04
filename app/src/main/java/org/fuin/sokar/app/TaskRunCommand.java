@@ -281,7 +281,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 return TaskWorkspace.direct(project.upstream());
             }
             return TaskWorkspace.gated(
-                    GateSupport.gate(project, upstream), TaskWorkspace.containerVisibleHost());
+                    GateSupport.gate(project, upstream, seed(project, out)),
+                    TaskWorkspace.containerVisibleHost());
         } catch (RuntimeException ex) {
             // A task with no workspace is still a useful task - a shell in a hardened box - so
             // this reports and continues rather than refusing to start.
@@ -289,6 +290,35 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.flush();
             return null;
         }
+    }
+
+    /**
+     * Returns the repository an empty mirror should be seeded from.
+     * <p>
+     * Only reached when neither {@code --upstream} nor the project names one. Standing in a
+     * checkout is taken as meaning that checkout, so the common case needs no flag. It is printed
+     * rather than assumed silently, and only committed history is copied - a bare clone has no
+     * working tree.
+     *
+     * @param project The project.
+     * @param out Where to report.
+     * @return Path of the work tree, or {@code null} when there is none.
+     */
+    @org.jspecify.annotations.Nullable
+    private String seed(Project project, PrintWriter out) {
+        if (upstream != null || project.upstream() != null
+                || java.nio.file.Files.isDirectory(GateSupport.mirror(project).resolve("objects"))) {
+            // A mirror that exists is never re-seeded, so saying it would be seeded is a lie.
+            return null;
+        }
+        final java.nio.file.Path local = org.fuin.sokar.gate.LocalRepository.topLevel(
+                new org.fuin.sokar.core.process.ProcessCommandRunner(),
+                java.nio.file.Path.of("."));
+        if (local == null) {
+            return null;
+        }
+        out.println("seed      " + local + " (committed history only)");
+        return local.toString();
     }
 
     /**
