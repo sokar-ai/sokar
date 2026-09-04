@@ -16,6 +16,7 @@ survives at all.
 | 41 | [Doctor Verifies Hook Installation](0041-Doctor-Verifies-Hook-Installation.md) | An installation whose hooks are not registered must be reported, not passed - without them a task runs with no firewall at all. | yes |
 | 42 | [SELinux Host Socket Access](0042-SELinux-Host-Socket-Access.md) | A task must be able to redeem its token on a machine with SELinux enforcing, without turning SELinux off. | yes |
 | 9 | [Task Lifecycle Control](0009-Task-Lifecycle-Control.md) | Tasks can be listed, stopped and resumed as first-class operations rather than by reaching for the container runtime. |  |
+| 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Unpushed work must survive removing the container, or removal must be understood as destroying it. | yes |
 | 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | 25 | [Oh My Pi Forge Subscription](0025-Oh-My-Pi-Forge-Subscription.md) | The second agent to build: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
 | 20 | [Narrow The Git Endpoint](0020-Narrow-The-Git-Endpoint.md) | The host endpoint a task clones from should not be reachable from the local network. | yes |

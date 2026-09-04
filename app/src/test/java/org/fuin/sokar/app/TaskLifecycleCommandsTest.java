@@ -194,6 +194,46 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void resumingSaysSoWhenTheImageHasBeenRebuilt(@TempDir Path dir) throws IOException {
+
+        // Told, not upgraded: everything installed in the container since it started would be lost
+        // if resuming swapped the image, which is the opposite of what resuming is for.
+        final SokarContext context = context(dir);
+        runner.answering("container inspect --format {{.Id}}", "abc123");
+        runner.answering("container inspect --format {{.ImageName}}", "sokar/uc\tsha256:old");
+        runner.answering("image inspect", "sha256:new");
+        runner.answering("container inspect --format {{.State.Pid}}", "4711");
+        final Path state = stateOf("sokar-uc-shell-1");
+        new TaskHelpers(java.util.List.of(new TaskHelpers.Helper("watcher",
+                java.util.List.of("true"), java.util.Map.of(), TaskHelpers.AFTER)))
+                .writeTo(state);
+
+        execute(context, "task", "resume", "sokar-uc-shell-1");
+
+        assertThat(out.toString()).contains("has been rebuilt since this task started");
+    }
+
+    @Test
+    void resumingSaysNothingWhenTheImageIsUnchanged(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        runner.answering("container inspect --format {{.Id}}", "abc123");
+        runner.answering("container inspect --format {{.ImageName}}", "sokar/uc\tsha256:same");
+        runner.answering("image inspect", "sha256:same");
+        runner.answering("container inspect --format {{.State.Pid}}", "4711");
+        final Path state = stateOf("sokar-uc-shell-1");
+        new TaskHelpers(java.util.List.of(new TaskHelpers.Helper("watcher",
+                java.util.List.of("true"), java.util.Map.of(), TaskHelpers.AFTER)))
+                .writeTo(state);
+
+        execute(context, "task", "resume", "sokar-uc-shell-1");
+
+        // Asserted positively as well: without this the test passes when resume fails early.
+        assertThat(out.toString()).contains("started   sokar-uc-shell-1");
+        assertThat(out.toString()).doesNotContain("rebuilt");
+    }
+
+    @Test
     void resumingSomethingThatIsNotThereFails(@TempDir Path dir) {
 
         runner.failing("container inspect", 125, "no such container");

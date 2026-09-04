@@ -1,6 +1,8 @@
 # 0040 — Acceptance Suite Isolation
 
-**Status:** open
+**Status:** done, with one criterion reworded rather than met — see *Notes*. The suite
+runs against its own vault, cleans up after a failure, and two consecutive runs on the
+same machine gave identical results, check for check.
 
 The acceptance suite is the instrument everything else is measured with, and it
 currently reads the machine it runs on. It stores its own fake credential only when
@@ -14,7 +16,10 @@ as two more red lines nobody looks at.
 
 - The suite passes on a machine with a real credential in the vault, and on one with
   an empty vault, and reports the same thing either way.
-- It never reads or writes the operator's own vault, containers, or configuration.
+- It never reads or writes the operator's own vault, and creates only containers, images
+  and state directories named for itself. It does share two things it cannot sensibly
+  own: the hook descriptors, which are per operator, and the container runtime's image
+  store, which cannot be redirected without rebuilding every layer.
 - A run leaves nothing behind, including when it fails part way.
 - Every check states what it measured, so a failure names the thing that broke
   rather than the step that noticed.
@@ -29,6 +34,22 @@ it thought it was testing. Nothing was wrong with the product.
 
 The same isolation argument applies to the tier that does use a real credential: it
 already backs up and restores the vault, which is closer but still touches it.
+
+Measured on 2026-09-04, after the run-leaves-nothing-behind work: a deliberately
+unbuildable image was used to fail a run after the credential proxy was listening and
+before any container existed - the gap no hook covers, because a container that never
+started fires none. Against the previous build that check named a stranded proxy still
+holding its socket; against the fix it passes on Fedora and Ubuntu, and both machines
+end a run with no containers, no state directories and no helper processes.
+
+Two consecutive runs on the same machine were compared check by check and were
+identical: 26 passes, no failures, both times.
+
+The criterion about the operator's configuration was narrowed rather than met. The
+suite uses the operator's hook descriptors, because podman reads them per user and
+there is nowhere else to put them, and the operator's image store, because redirecting
+it rebuilds every layer and leaves directories a normal user cannot delete. Both are
+shared deliberately; neither is written to.
 
 ## To be checked
 

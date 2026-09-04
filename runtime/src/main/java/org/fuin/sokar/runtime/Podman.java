@@ -201,6 +201,40 @@ public class Podman {
     }
 
     /**
+     * Returns the image a container was created from, as name and id.
+     * <p>
+     * Both are needed to tell an operator that a task is running something older than the project's
+     * current image: the name is what was asked for, and the id is what it actually resolved to
+     * when the container was made.
+     *
+     * @param container Container name or id.
+     * @return {@code name} and {@code id}, or empty if the container is unknown.
+     */
+    public Optional<String[]> imageOf(String container) {
+        final CommandResult result = runner.run(podman("container", "inspect",
+                "--format", "{{.ImageName}}\t{{.Image}}", container));
+        if (!result.successful()) {
+            return Optional.empty();
+        }
+        final String[] parts = result.trimmedOutput().split("\t", 2);
+        return parts.length == 2 && !parts[0].isBlank() ? Optional.of(parts) : Optional.empty();
+    }
+
+    /**
+     * Returns the id an image name resolves to now.
+     *
+     * @param image Image name or tag.
+     * @return Image id, or empty if there is no such image.
+     */
+    public Optional<String> imageId(String image) {
+        final CommandResult result = runner.run(podman("image", "inspect",
+                "--format", "{{.Id}}", image));
+        return result.successful() && !result.trimmedOutput().isBlank()
+                ? Optional.of(result.trimmedOutput())
+                : Optional.empty();
+    }
+
+    /**
      * Lists Sokar's containers with the state the runtime reports for each.
      *
      * @return Summaries, running or not, in the runtime's own order.

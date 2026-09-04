@@ -142,6 +142,29 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
         }
     }
 
+    /**
+     * Says so when the project's image has been rebuilt since this task was created.
+     * <p>
+     * The task deliberately keeps the image it has - everything installed in the container since
+     * it started would be lost otherwise, which is the opposite of what resuming is for. The
+     * operator is told rather than upgraded, because only they know whether the difference matters.
+     *
+     * @param out Where to report.
+     */
+    private void warnAboutImageDrift(PrintWriter out) {
+        context.podman().imageOf(container).ifPresent(image -> {
+            final String name = image[0];
+            final String was = image[1];
+            context.podman().imageId(name).ifPresent(now -> {
+                if (!now.equals(was)) {
+                    out.println("image     " + name + " has been rebuilt since this task started;");
+                    out.println("          the task keeps the one it has. Start a new task to use");
+                    out.println("          the new image.");
+                }
+            });
+        });
+    }
+
     @Override
     public Integer call() {
 
@@ -173,6 +196,8 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
             out.flush();
             return 0;
         }
+
+        warnAboutImageDrift(out);
 
         // The proxy's socket is mounted into the container, and a mount is bound to the file that
         // existed when the container started. Starting the container first therefore binds it to

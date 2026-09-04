@@ -1,6 +1,7 @@
 # 0042 — SELinux Host Socket Access
 
-**Status:** open
+**Status:** done — measured on Fedora 44 with SELinux enforcing, and on Ubuntu 26.04,
+which has none. The acceptance suite passes on both, with no `label=disable` anywhere.
 
 On a distribution with SELinux in enforcing mode, a task container cannot connect to
 the vault proxy's unix socket, and the credential swap - the mechanism the whole
