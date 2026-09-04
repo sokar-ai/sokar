@@ -26,9 +26,7 @@
     <description>Sokar agent for Claude Code</description>
 
     <properties>
-        <!-- The single place this version is written. It is filtered into claude.yaml and
-             carried in the package description, so bumping Claude Code is one line here plus
-             the new digest. -->
+        <!-- Filtered into claude.yaml and the package description; bump it with the digest. -->
         <agent.cli.version>2.1.236</agent.cli.version>
         <!-- This module is an agent, so it packages itself. -->
         <agent.package.skip>false</agent.package.skip>

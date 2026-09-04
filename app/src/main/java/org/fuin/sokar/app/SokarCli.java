@@ -40,6 +40,7 @@ public class SokarCli implements Callable<Integer> {
             System.exit(new CommandLine(new SokarCli(), new SokarFactory(SokarContext.real()))
                     .execute(args));
         } catch (final Error ex) {
+            // Anything else is rethrown untouched.
             if (!missingWorkingDirectory(ex)) {
                 throw ex;
             }
@@ -52,11 +53,7 @@ public class SokarCli implements Callable<Integer> {
     /**
      * Says whether a failure is the shell sitting in a deleted directory.
      * <p>
-     * It happens after a {@code clean} build removes a directory a shell is parked in, and it
-     * defeats every command, because the first file operation initialises {@code user.dir} and
-     * that is what fails. It cannot be checked for in advance: the check would be a file
-     * operation and would trigger it. So it is caught, identified by the message the JDK raises
-     * it with, and anything else is rethrown untouched.
+     * Caught rather than checked for: the check would itself be the file operation that fails.
      *
      * @param error The error that escaped.
      * @return {@code true} when the working directory is gone.

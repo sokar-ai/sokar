@@ -70,12 +70,8 @@ public class AgentDirectory {
     }
 
     /**
-     * Finds agent binaries that are installed and never used, because a location earlier in the
-     * order holds one of the same name.
-     * <p>
-     * Shadowing is deliberate - it is how an operator tries a build without uninstalling the
-     * package - but it is invisible, and an operator who has just installed a package has every
-     * reason to believe the package is what runs. {@code sokar doctor} reports this.
+     * Finds agent binaries that are installed and never used, because an earlier location holds
+     * one of the same name. Reported by {@code sokar doctor}.
      *
      * @return Executables that lose to an earlier location, possibly empty.
      */

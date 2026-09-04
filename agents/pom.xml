@@ -36,10 +36,7 @@
         <!-- Signing is off for local and CI builds and on for releases, where the key exists.
              §12 says the shipped packages are signed; this is the switch, not an exemption. -->
         <rpm.sign.skip>true</rpm.sign.skip>
-        <!-- Only an agent gets packaged. This aggregator and sokar-agent-api inherit the dist
-             profile but have no binary to put in a package, so packaging is off here and each
-             agent module turns it on. Without this, a full-reactor '-Pnative,dist verify' fails
-             on the aggregator; running with '-pl agents/claude' hides it. -->
+        <!-- Off here: the aggregator and the API jar inherit dist but have no binary to package. -->
         <agent.package.skip>true</agent.package.skip>
     </properties>
 

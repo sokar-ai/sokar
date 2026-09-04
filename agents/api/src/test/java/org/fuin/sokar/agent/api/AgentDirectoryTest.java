@@ -57,8 +57,7 @@ class AgentDirectoryTest {
     @Test
     void namesThePackagedCopyItHides() throws IOException {
 
-        // The point of the whole addition: shadowing is silent, so an operator who has just
-        // installed a package believes the package is what runs. This is what doctor prints.
+        // Shadowing is silent, so a just-installed package looks like the one that runs.
         agent(own, "alpha");
         final Path theirs = agent(packaged, "alpha");
 
@@ -69,8 +68,7 @@ class AgentDirectoryTest {
     @Test
     void reportsNothingShadowedWhenTheNamesDiffer() throws IOException {
 
-        // The negative case that matters: a doctor that always claims something is shadowed
-        // teaches an operator to ignore the line.
+        // A doctor that always claims something is shadowed teaches the operator to ignore it.
         agent(own, "alpha");
         agent(packaged, "beta");
 

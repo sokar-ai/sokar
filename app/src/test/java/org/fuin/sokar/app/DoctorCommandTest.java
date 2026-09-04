@@ -15,11 +15,10 @@ import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
 /**
- * Tests for {@link DoctorCommand}, mostly about what it says about which binaries actually run.
+ * Tests for {@link DoctorCommand}, mostly about which binaries it says are in use.
  * <p>
- * The packaged locations are injected rather than taken from the machine: read from
- * {@code /usr/libexec} these tests would pass or fail depending on whether Sokar happens to be
- * installed on the machine running them, which is how the first version of them behaved.
+ * The packaged locations are injected: read from the machine, these would pass or fail depending
+ * on whether Sokar happens to be installed on it.
  */
 class DoctorCommandTest {
 
@@ -73,8 +72,7 @@ class DoctorCommandTest {
     @Test
     void saysNothingAboutShadowingOnAPlainInstall(@TempDir Path dir) throws IOException {
 
-        // The negative case. A line that is always printed is a line nobody reads, and this one
-        // has to still mean something on the day it appears.
+        // A line that is always printed is a line nobody reads.
         final Path packaged = Files.createDirectory(dir.resolve("libexec-hooks"));
         Files.writeString(packaged.resolve("sokar-hook-nft"), "");
 
@@ -102,8 +100,7 @@ class DoctorCommandTest {
     @Test
     void namesThePackagedAgentALocalBuildHides(@TempDir Path dir) throws IOException {
 
-        // Reproduces what was found on a real machine: a package installs an agent, a build from
-        // the day before sits in the data directory, and nothing said which one ran.
+        // Found on a real machine: yesterday's build in the data directory, and nothing said so.
         agent(dir.resolve(".local/share/sokar/agents"));
         final Path packagedAgents = dir.resolve("libexec-agents");
         final Path theirs = agent(packagedAgents);

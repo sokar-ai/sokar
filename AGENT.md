@@ -76,6 +76,11 @@ See [build.md](build.md). Three things that will bite:
   everything and produces **no packages at all**, or silently leaves an older
   package beside a newer binary. `buildtools/check-packages.sh` fails on exactly
   that.
+- **The `dist` profile is inherited by modules that are not agents.** It lives in
+  `agents/pom.xml` so adding an agent needs no packaging config, so the aggregator
+  and `sokar-agent-api` inherit it with no binary to package. `agent.package.skip`
+  is on by default and each agent turns it off; `-pl agents/claude` hides the
+  failure that a full-reactor build hits.
 - **`${project.version}` inside a parent's `<dependencyManagement>` interpolates
   against the *inheriting* module**, not the parent. That is why the root POM
   uses a literal `<sokar.version>` property, and why an enforcer rule checks the
@@ -109,6 +114,13 @@ See [build.md](build.md). Three things that will bite:
   without the base-URL variable the agent falls back to its own compiled-in
   endpoint. Both must be set. Residual DNS lookups for the provider are *not*
   evidence of a bypass — check the proxy's request log, which exists for this.
+- **A local build shadows a packaged one and says nothing** - hooks and agents
+  alike, by design, so either can be tried without uninstalling. That is how an
+  install of today's package leaves yesterday's firewall hooks running.
+  `sokar doctor` names what is in use and what it hides.
+- **A shell in a directory a `clean` build removed defeats every command.** It
+  cannot be detected in advance: the check would be the file operation that
+  fails. `SokarCli` catches it and says so in one line.
 - **`dnsmasq --nftset` is load-bearing, and its absence is silent.** It is what
   makes a declared domain reachable rather than merely resolvable. A dnsmasq
   compiled without it accepts the config and opens nothing. `sokar doctor` probes

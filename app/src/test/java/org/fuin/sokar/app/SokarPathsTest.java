@@ -63,8 +63,7 @@ class SokarPathsTest {
     @Test
     void namesThePackagedHooksItHides(@TempDir Path dir) throws IOException {
 
-        // Silent shadowing is how an operator ends up running yesterday's firewall code after
-        // installing today's package. doctor prints this.
+        // Silent shadowing runs yesterday's firewall code after installing today's package.
         final Path own = Files.createDirectory(dir.resolve("local"));
         final Path packaged = Files.createDirectory(dir.resolve("libexec"));
         Files.writeString(own.resolve("sokar-hook-nft"), "");
@@ -76,8 +75,7 @@ class SokarPathsTest {
     @Test
     void reportsNothingShadowedOnAPlainPackagedInstall(@TempDir Path dir) throws IOException {
 
-        // The negative case: with no local build there is nothing to warn about, and a warning
-        // that is always printed is a warning nobody reads.
+        // A warning that is always printed is a warning nobody reads.
         final Path packaged = Files.createDirectory(dir.resolve("libexec"));
         Files.writeString(packaged.resolve("sokar-hook-nft"), "");
 

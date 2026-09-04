@@ -66,12 +66,7 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
     }
 
     /**
-     * Reports binaries that are installed and never run.
-     * <p>
-     * A local build shadows a packaged one by design, so that a hook or an agent can be tried
-     * without uninstalling anything. The cost is that installing a package appears to do nothing,
-     * and for the hooks that means running yesterday's firewall code believing it is today's.
-     * Printed only when something is actually shadowed, so a clean install stays quiet.
+     * Reports binaries that are installed and never run, and says nothing when none are.
      *
      * @param out Where to write.
      */

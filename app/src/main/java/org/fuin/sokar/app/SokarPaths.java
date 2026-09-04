@@ -65,10 +65,6 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
 
     /**
      * Returns the packaged hook directory when it is installed but not used.
-     * <p>
-     * The same shadowing {@code AgentDirectory} allows for agents, and just as invisible: an
-     * operator who installs the package still runs the hooks from their own build, and the hooks
-     * are what load the firewall. Reported by {@code sokar doctor}.
      *
      * @return The shadowed directory, or {@code null} when nothing is shadowed.
      */
