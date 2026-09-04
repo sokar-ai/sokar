@@ -158,9 +158,12 @@ See [build.md](build.md). Three things that will bite:
 - **The real credential never enters a task container.** The agent gets a
   phantom token; the vault proxy swaps it on the way out. If you find yourself
   passing the real key in, stop and reconsider the design.
-- **A proxy without a firewall rule is not containment.** Whenever a phantom
-  token is issued, the provider's own host is withheld from the ruleset, or an
-  agent with a compiled-in URL bypasses the proxy and leaks the token upstream.
+- **What must not leave the container is the credential, not the traffic.** The
+  provider's own host is reachable: withholding it stopped every agent that checks
+  the provider is up before starting, and measured on 2026-09-04 that check ignores
+  the base URL and the socket entirely. What the deny kept in was the phantom token
+  - random, task-scoped, worth nothing to the provider. The real credential never
+  enters the container, and that is the property to defend.
 - **Fail closed.** The nft hook refuses to let the container start if the ruleset
   will not load. Keep that property in anything new on the startup path.
 - **Log tokens abbreviated, never whole** — `PhantomToken.abbreviate`. A log that

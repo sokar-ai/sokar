@@ -277,13 +277,12 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             if (plumbing != null) {
                 environmentCache.putAll(plumbing.environment());
                 wiring = wiring.withVaultSocket(plumbing.socket());
-                // The other half of the containment. An agent that ignores the socket - Claude
-                // Code compiles in its own base URL - must not be able to reach the provider
-                // directly, or it sends the phantom token upstream and the leak is invisible.
-                if (domains.remove(plumbing.upstreamHost())) {
-                    out.println("denied    " + plumbing.upstreamHost()
-                            + " (reachable only through the credential proxy)");
-                }
+                // Left reachable. Withholding it stopped every agent that checks the provider is
+                // up before it starts, and what it kept in was the phantom token: random,
+                // task-scoped, and worth nothing to the provider. The real credential is what
+                // must not get out, and it never enters the container at all.
+                out.println("provider  " + plumbing.upstreamHost()
+                        + " reachable; the credential is not, only a task-scoped token");
             } else {
                 environmentCache.putAll(environment(agents, out, err));
             }

@@ -71,25 +71,27 @@ it with your real credential, and reissues the request to
 `https://api.anthropic.com`. Your key never enters the container, and the phantom
 token stops working when the task ends.
 
-> [!NOTE]
-> **If the CLI reports it cannot reach Anthropic, it is not your network.** The
-> provider's own host is withheld from the firewall while the proxy is in use, so
-> anything that contacts it directly instead of through the socket gets a name that
-> does not resolve. Measured on 2026-09-04: a headless run routes through the proxy
-> and works; an interactive run reported `ENOTFOUND api.anthropic.com`. The CLI
-> honours both `ANTHROPIC_BASE_URL` and `ANTHROPIC_UNIX_SOCKET` with either
-> credential kind - verified against a local listener, including with a phantom
-> token - so the cause is something in the interactive start-up path, not the
-> credential. Not yet identified.
-
 **Both variables are set on purpose.** `ANTHROPIC_UNIX_SOCKET` only selects the
 transport. Without `ANTHROPIC_BASE_URL`, Claude Code falls back to its own
 compiled-in endpoint — measured, it then resolved `api.anthropic.com` 184 times
 in a single run and never touched the socket.
 
-Which is why, while the proxy is in use, **`api.anthropic.com` is withheld from
-the firewall**. An agent that ignores the socket gets a dropped connection and an
-audit entry rather than quietly sending the phantom token to Anthropic.
+**`api.anthropic.com` stays reachable from the container, deliberately.** It was
+withheld from the firewall at first, and that broke the CLI outright: before it
+starts interactively it opens a connection to that host, ignoring both the base URL
+and the socket. Measured on 2026-09-04, same container and environment, only the
+reachability of that one name differing:
+
+| `api.anthropic.com` | interactive `claude` |
+|---|---|
+| not resolvable | `ENOTFOUND`, quits |
+| resolvable, nothing listening | `ConnectionRefused`, quits |
+| reachable | starts normally |
+
+What the deny kept inside was the phantom token, which is random, expires with the
+task, and is worth nothing to Anthropic. The real credential is what must not get
+out, and it never enters the container at all — that is the property the design
+defends, and `buildtools/e2e-tier1.sh` checks it directly.
 
 ## What it is allowed to reach
 

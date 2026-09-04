@@ -90,11 +90,9 @@ public class AgentsCommand implements Callable<Integer> {
                         out.println("             domains: "
                                 + String.join(", ", agent.definition().allowedDomains()));
                         if (agent.definition().route() != null) {
-                            // Withheld from the firewall whenever a token is brokered, so an
-                            // operator seeing it dropped knows it was meant to be.
                             out.println("             proxied: "
                                     + agent.definition().route().upstreamHost()
-                                    + " (reachable only through the credential proxy)");
+                                    + " (the credential is swapped in on the way out)");
                         }
                         if (!agent.definition().refusedDomains().isEmpty()) {
                             // Shown so that a blocked connection is something the operator was

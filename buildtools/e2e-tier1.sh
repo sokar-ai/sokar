@@ -260,16 +260,14 @@ else
             info "$(echo "$REPLY" | head -c 200)"
         fi
 
-        # Half the containment is the proxy; the other half is that the direct route is shut.
-        # Claude Code compiles in its own base URL and would otherwise ignore the socket.
-        if podman exec "$CONTAINER" sh -c \
-                'curl -s -o /dev/null --max-time 15 https://api.anthropic.com/v1/messages' \
-                2>/dev/null; then
-            fail "the container can still reach the provider directly"
-            info "an agent that ignores the socket would send the phantom token upstream,"
-            info "and the leak would be invisible"
+        # The provider is reachable on purpose: agents check it is up before they start, and
+        # withholding it stopped them dead. What must never be in the container is the real
+        # credential, so that is what this checks - the direct route carries the phantom token
+        # or nothing, and the phantom token is worth nothing outside this task.
+        if podman exec "$CONTAINER" sh -c 'env' 2>/dev/null | grep -q "sk-ant-e2e-not-a-real-key"; then
+            fail "the real credential is in the container's environment"
         else
-            pass "the provider is unreachable except through the proxy"
+            pass "the container holds no credential, only a task-scoped token"
         fi
     fi
 fi

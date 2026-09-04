@@ -330,7 +330,7 @@ base image     ubuntu:24.04
 agent     claude 2.1.236
 vault     /run/user/1000/sokar/sokar-myproject-shell-1669652/vault.sock -> https://api.anthropic.com
 token     ANTHROPIC_API_KEY=sokar_pt_lYyo...
-denied    api.anthropic.com (reachable only through the credential proxy)
+provider  api.anthropic.com reachable; the credential is not, only a task-scoped token
 policy    .../ruleset.nft
 resolver  .../dns.conf (2 domains)
 container sokar-myproject-shell-1669652
