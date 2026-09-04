@@ -199,8 +199,11 @@ if [ -z "$CONTAINER" ]; then
 fi
 pass "the task started (container $CONTAINER)"
 
+# The cheapest model answers this: what is measured is that the credential was swapped in
+# and accepted, not what the model can do. Override with SOKAR_E2E_MODEL.
+MODEL="${SOKAR_E2E_MODEL:-claude-haiku-4-5-20251001}"
 ANSWER="$(podman exec "$CONTAINER" sh -c \
-    'timeout 180 ~/.local/bin/claude -p "Reply with exactly the word SOKARLIVE and nothing else." 2>&1' \
+    "timeout 180 ~/.local/bin/claude --model $MODEL -p 'Reply with exactly the word SOKARLIVE and nothing else.' 2>&1" \
     2>/dev/null)"
 
 if echo "$ANSWER" | grep -q "SOKARLIVE"; then
