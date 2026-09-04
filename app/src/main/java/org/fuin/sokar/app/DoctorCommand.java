@@ -20,10 +20,17 @@ import picocli.CommandLine.Spec;
 @Command(name = "doctor",
         mixinStandardHelpOptions = true,
         description = "Reports paths and process hardening state.")
-public class DoctorCommand implements Callable<Integer> {
+public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
     @Spec
     private CommandSpec spec;
+
+    private SokarContext context = SokarContext.real();
+
+    @Override
+    public void setContext(SokarContext context) {
+        this.context = context;
+    }
 
     /**
      * Reports whether the installed dnsmasq can populate the firewall's allow set.
@@ -49,15 +56,59 @@ public class DoctorCommand implements Callable<Integer> {
         }
     }
 
+    /**
+     * Returns the directories agents are scanned in, in order.
+     *
+     * @return Locations.
+     */
+    private java.util.List<java.nio.file.Path> agentLocations() {
+        return context.paths().agentDirectory().locations();
+    }
+
+    /**
+     * Reports binaries that are installed and never run.
+     * <p>
+     * A local build shadows a packaged one by design, so that a hook or an agent can be tried
+     * without uninstalling anything. The cost is that installing a package appears to do nothing,
+     * and for the hooks that means running yesterday's firewall code believing it is today's.
+     * Printed only when something is actually shadowed, so a clean install stays quiet.
+     *
+     * @param out Where to write.
+     */
+    private void printShadowed(PrintWriter out) {
+
+        final java.util.List<java.nio.file.Path> shadowed = new java.util.ArrayList<>();
+        final java.nio.file.Path hooks = context.paths().shadowedHookBinaries();
+        if (hooks != null) {
+            shadowed.add(hooks);
+        }
+        shadowed.addAll(context.paths().agentDirectory().shadowed());
+        if (shadowed.isEmpty()) {
+            return;
+        }
+        out.println();
+        for (int i = 0; i < shadowed.size(); i++) {
+            out.println((i == 0 ? "not used " : "         ") + shadowed.get(i));
+        }
+        out.println("         installed, but a copy of your own is used instead");
+    }
+
     @Override
     public Integer call() {
 
         final PrintWriter out = spec.commandLine().getOut();
-        final XdgPaths paths = XdgPaths.current();
+        final XdgPaths paths = context.paths().xdg();
         out.println("config   " + paths.config());
         out.println("data     " + paths.data());
         out.println("state    " + paths.state());
         out.println("runtime  " + paths.runtime());
+
+        out.println();
+        out.println("hooks    " + context.paths().binaryDirectory());
+        for (final java.nio.file.Path location : agentLocations()) {
+            out.println("agents   " + location);
+        }
+        printShadowed(out);
 
         out.println();
         out.println("dnsmasq nftset      " + nftSetSupport());

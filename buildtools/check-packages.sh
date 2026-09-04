@@ -10,6 +10,10 @@
 #   2. jdeb and the rpm plugin bind to 'verify', not 'package'. Running "-Pnative,dist
 #      package" rebuilds the binaries and leaves the packages untouched, so a package can
 #      quietly contain a binary from an earlier build.
+#   3. The dist profile lives in agents/pom.xml so that adding an agent needs no packaging
+#      config. It is therefore inherited by the aggregator and by sokar-agent-api, neither
+#      of which has a binary to package. A full-reactor build then fails on the aggregator
+#      while "-pl agents/claude" passes, which is how it went unnoticed.
 #
 # Needs podman, and pulls ubuntu:24.04 and fedora:41.
 #
@@ -57,6 +61,20 @@ for pair in "$DEB:$ROOT/app/target/sokar" "$RPM:$ROOT/app/target/sokar" \
     fi
 done
 [ "$STALE" -eq 0 ] && pass "every package is newer than the binary it carries"
+
+# ------------------------------------------------------------ agents only
+#
+# Only a real agent module packages itself. See failure mode 3 above.
+echo
+echo "-- only agents are packaged --"
+STRAY="$(ls "$ROOT"/agents/target/*.deb "$ROOT"/agents/target/*.rpm \
+            "$ROOT"/agents/api/target/*.deb "$ROOT"/agents/api/target/*.rpm 2>/dev/null)"
+if [ -n "$STRAY" ]; then
+    fail "a non-agent module produced a package"
+    for f in $STRAY; do info "$(basename "$f")"; done
+else
+    pass "the aggregator and sokar-agent-api produce no package"
+fi
 
 # ----------------------------------------------------------- content parity
 echo

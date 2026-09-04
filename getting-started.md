@@ -49,6 +49,24 @@ It is a notice, not an error — apt falls back to reading the file as root and 
 install goes through. But the sandbox it drops is worth keeping, and `/tmp` costs
 nothing. dnf has no such sandbox; the copy is there so both routes read alike.
 
+**Installing again after a rebuild.** A snapshot keeps the same version string, so
+neither tool sees anything to do — apt says `sokar is already the newest version
+(0.1.0~SNAPSHOT)`, dnf says `Nothing to do`, and you keep running the old binary
+while believing you replaced it. On Debian one flag covers both the already-installed
+and the not-yet-installed package:
+
+```
+sudo apt install --reinstall /tmp/sokar-pkgs/*.deb
+```
+
+On Fedora, remove first — `dnf reinstall` exits 0 but silently skips any package
+that is not installed yet, which is how you end up with a fresh `sokar` and no agent:
+
+```
+sudo dnf remove -y sokar sokar-agent-claude
+sudo dnf install /tmp/sokar-pkgs/*.rpm
+```
+
 **Two packages, and that is the point.** `sokar` is the tool; an agent is a
 separate package that Sokar discovers at runtime. Installing an agent needs no new
 release of Sokar, and Sokar contains no reference to any agent. To build both, see

@@ -1,0 +1,98 @@
+package org.fuin.sokar.agent.api;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * Tests for {@link AgentDirectory}, and in particular for which copy of an agent runs.
+ */
+class AgentDirectoryTest {
+
+    @TempDir
+    private Path own;
+
+    @TempDir
+    private Path packaged;
+
+    /**
+     * Writes an executable agent binary.
+     *
+     * @param directory Where to write it.
+     * @param name Agent name.
+     * @return The file.
+     * @throws IOException If it cannot be written.
+     */
+    private static Path agent(Path directory, String name) throws IOException {
+        final Path file = Files.createFile(directory.resolve(AgentDirectory.PREFIX + name));
+        assertThat(file.toFile().setExecutable(true)).isTrue();
+        return file;
+    }
+
+    @Test
+    void findsAnAgentInEitherLocation() throws IOException {
+
+        final Path mine = agent(own, "alpha");
+        final Path theirs = agent(packaged, "beta");
+
+        assertThat(new AgentDirectory(List.of(own, packaged)).executables())
+                .containsExactly(mine, theirs);
+    }
+
+    @Test
+    void prefersTheOperatorsOwnCopy() throws IOException {
+
+        final Path mine = agent(own, "alpha");
+        agent(packaged, "alpha");
+
+        assertThat(new AgentDirectory(List.of(own, packaged)).executables())
+                .containsExactly(mine);
+    }
+
+    @Test
+    void namesThePackagedCopyItHides() throws IOException {
+
+        // The point of the whole addition: shadowing is silent, so an operator who has just
+        // installed a package believes the package is what runs. This is what doctor prints.
+        agent(own, "alpha");
+        final Path theirs = agent(packaged, "alpha");
+
+        assertThat(new AgentDirectory(List.of(own, packaged)).shadowed())
+                .containsExactly(theirs);
+    }
+
+    @Test
+    void reportsNothingShadowedWhenTheNamesDiffer() throws IOException {
+
+        // The negative case that matters: a doctor that always claims something is shadowed
+        // teaches an operator to ignore the line.
+        agent(own, "alpha");
+        agent(packaged, "beta");
+
+        assertThat(new AgentDirectory(List.of(own, packaged)).shadowed()).isEmpty();
+    }
+
+    @Test
+    void ignoresAFileThatIsNotExecutable() throws IOException {
+
+        // A directory the operator can write to is not a place to run whatever is lying in it.
+        Files.createFile(own.resolve(AgentDirectory.PREFIX + "alpha"));
+
+        assertThat(new AgentDirectory(List.of(own)).executables()).isEmpty();
+        assertThat(new AgentDirectory(List.of(own)).shadowed()).isEmpty();
+    }
+
+    @Test
+    void survivesALocationThatDoesNotExist() throws IOException {
+
+        final Path mine = agent(own, "alpha");
+
+        assertThat(new AgentDirectory(List.of(own.resolve("absent"), own)).executables())
+                .containsExactly(mine);
+    }
+}

@@ -59,4 +59,28 @@ class SokarPathsTest {
 
         assertThat(SokarPaths.hookBinaries(own, packaged)).isEqualTo(packaged);
     }
+
+    @Test
+    void namesThePackagedHooksItHides(@TempDir Path dir) throws IOException {
+
+        // Silent shadowing is how an operator ends up running yesterday's firewall code after
+        // installing today's package. doctor prints this.
+        final Path own = Files.createDirectory(dir.resolve("local"));
+        final Path packaged = Files.createDirectory(dir.resolve("libexec"));
+        Files.writeString(own.resolve("sokar-hook-nft"), "");
+        Files.writeString(packaged.resolve("sokar-hook-nft"), "");
+
+        assertThat(SokarPaths.shadowedHooks(own, packaged)).isEqualTo(packaged);
+    }
+
+    @Test
+    void reportsNothingShadowedOnAPlainPackagedInstall(@TempDir Path dir) throws IOException {
+
+        // The negative case: with no local build there is nothing to warn about, and a warning
+        // that is always printed is a warning nobody reads.
+        final Path packaged = Files.createDirectory(dir.resolve("libexec"));
+        Files.writeString(packaged.resolve("sokar-hook-nft"), "");
+
+        assertThat(SokarPaths.shadowedHooks(packaged, packaged)).isNull();
+    }
 }

@@ -99,8 +99,7 @@ public record SokarContext(CommandRunner runner, SokarPaths paths, Consumer<List
      */
     public org.fuin.sokar.agent.api.InstalledAgents agents() {
         return new org.fuin.sokar.agent.api.InstalledAgents(
-                org.fuin.sokar.agent.api.AgentDirectory.standard(paths.xdg().data()),
-                paths.xdg().runtime());
+                paths.agentDirectory(), paths.xdg().runtime());
     }
 
     /**

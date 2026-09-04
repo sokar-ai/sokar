@@ -23,6 +23,9 @@ public class AgentDirectory {
     /** Prefix an agent binary must carry to be considered. */
     public static final String PREFIX = "sokar-agent-";
 
+    /** Where the agent packages install their binaries. */
+    public static final Path PACKAGED = Path.of("/usr/libexec/sokar/agents");
+
     private final List<Path> locations;
 
     /**
@@ -41,9 +44,7 @@ public class AgentDirectory {
      * @return Directories, the operator's own first.
      */
     public static AgentDirectory standard(Path dataHome) {
-        return new AgentDirectory(List.of(
-                dataHome.resolve("agents"),
-                Path.of("/usr/libexec/sokar/agents")));
+        return new AgentDirectory(List.of(dataHome.resolve("agents"), PACKAGED));
     }
 
     /**
@@ -65,30 +66,70 @@ public class AgentDirectory {
      * @return Executables, one per agent name, the earliest location winning.
      */
     public List<Path> executables() {
+        return select(true);
+    }
+
+    /**
+     * Finds agent binaries that are installed and never used, because a location earlier in the
+     * order holds one of the same name.
+     * <p>
+     * Shadowing is deliberate - it is how an operator tries a build without uninstalling the
+     * package - but it is invisible, and an operator who has just installed a package has every
+     * reason to believe the package is what runs. {@code sokar doctor} reports this.
+     *
+     * @return Executables that lose to an earlier location, possibly empty.
+     */
+    public List<Path> shadowed() {
+        return select(false);
+    }
+
+    /**
+     * Scans every location once and keeps either the winners or the losers.
+     *
+     * @param winners {@code true} for the binary that runs, {@code false} for the ones it hides.
+     * @return Executables, in scan order.
+     */
+    private List<Path> select(boolean winners) {
 
         final List<Path> found = new ArrayList<>();
         final List<String> seen = new ArrayList<>();
 
         for (final Path location : locations) {
-            if (!Files.isDirectory(location)) {
-                continue;
-            }
-            try (Stream<Path> entries = Files.list(location)) {
-                entries.filter(path -> path.getFileName().toString().startsWith(PREFIX))
-                        .filter(Files::isRegularFile)
-                        .filter(Files::isExecutable)
-                        .sorted()
-                        .forEach(path -> {
-                            final String name = path.getFileName().toString();
-                            if (!seen.contains(name)) {
-                                seen.add(name);
-                                found.add(path);
-                            }
-                        });
-            } catch (IOException ex) {
-                throw new AgentException("Cannot list " + location, ex);
+            for (final Path path : candidates(location)) {
+                final String name = path.getFileName().toString();
+                if (seen.contains(name)) {
+                    if (!winners) {
+                        found.add(path);
+                    }
+                } else {
+                    seen.add(name);
+                    if (winners) {
+                        found.add(path);
+                    }
+                }
             }
         }
         return List.copyOf(found);
+    }
+
+    /**
+     * Returns the agent binaries in one directory.
+     *
+     * @param location Directory to scan.
+     * @return Executables, sorted by name, empty when the directory does not exist.
+     */
+    private List<Path> candidates(Path location) {
+        if (!Files.isDirectory(location)) {
+            return List.of();
+        }
+        try (Stream<Path> entries = Files.list(location)) {
+            return entries.filter(path -> path.getFileName().toString().startsWith(PREFIX))
+                    .filter(Files::isRegularFile)
+                    .filter(Files::isExecutable)
+                    .sorted()
+                    .toList();
+        } catch (IOException ex) {
+            throw new AgentException("Cannot list " + location, ex);
+        }
     }
 }

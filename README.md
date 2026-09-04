@@ -7,8 +7,8 @@ vault that keeps real keys on the host, a git checkpoint for every run, and a de
 decisions.
 
 Use the agent as you want:
-- Work locally: interactive in a shell, or headless and unattended with `--clearance=allow|deny|off`
-- Supervise agents from a Flutter client — desktop, then phone over an SSH tunnel — wherever they run **TODO**
+- Work locally: interactive in a shell, or headless and unattended
+- Supervise agents from a Flutter client — wherever they run :construction:
 
 <img align="left" height="500" width="295" src="doc/sokar-500.png" alt="Sokar with AI agent in podman">
 
@@ -57,3 +57,9 @@ See [Onboarding a new agent](agents/README.md#onboarding-a-new-agent)
 ## Building the project
 See [build](build.md).
 
+-----
+
+> [!NOTE]  
+> <img src="doc/ai-powered.svg" alt="A little robot peeking out of its sandbox" align="left" height="62">
+> This project is fundamentally powered by AI.
+> <br clear="left"/>
