@@ -18,6 +18,12 @@ Supervise agents from a Flutter client — wherever they run :construction:
 
 <br clear="left"/>
 
+> [!NOTE]  
+> **Sokar runs on Linux only.** The containment is kernel machinery — an nftables
+> ruleset loaded into the container's network namespace, OCI hooks, user namespaces,
+> the kernel keyring — none of which exists on macOS or Windows, where a container
+> runtime would put all of it on the far side of a virtual machine.
+
 ### Hardening
 
 - **Fail-closed egress** — a default-deny nftables ruleset is loaded into the container's network namespace before

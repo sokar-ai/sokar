@@ -56,6 +56,7 @@ public abstract class Hook {
     public int execute(String[] arguments, java.io.InputStream in, PrintStream err) {
 
         final String stage = arguments.length > 0 ? arguments[0] : "unknown";
+        Sidecar failed = null;
 
         try {
 
@@ -69,6 +70,7 @@ public abstract class Hook {
             }
 
             final Sidecar sidecar = Sidecar.readFrom(Path.of(sidecarPath));
+            failed = sidecar;
             log(sidecar, stage, "start");
             run(stage, state, sidecar);
             log(sidecar, stage, "ok");
@@ -77,6 +79,11 @@ public abstract class Hook {
         } catch (Exception ex) {
             final String message = ex.getMessage() == null ? ex.toString() : ex.getMessage();
             err.println("sokar " + name + " (" + stage + "): " + message);
+            // Also into the log: the runtime reports only an exit code, so without this a refused
+            // container leaves no record of why anywhere the operator can read.
+            if (failed != null) {
+                log(failed, stage, "failed: " + message);
+            }
             // A soft-fail hook reports and gets out of the way. Losing the audit reader is bad;
             // refusing to start the container because of it is worse.
             return failClosed ? 1 : 0;

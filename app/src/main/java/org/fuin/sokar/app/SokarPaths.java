@@ -29,8 +29,20 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     /** Where the sokar package puts the hook binaries. */
     static final Path PACKAGED_HOOKS = Path.of("/usr/libexec/sokar/hooks");
 
+    /** Where the sokar package puts the SELinux policy source and its installer. */
+    static final Path PACKAGED_SELINUX = Path.of("/usr/share/sokar/selinux");
+
     /** Name of a hook binary, used to tell an install apart from an empty directory. */
     private static final String MARKER = "sokar-hook-nft";
+
+    /**
+     * Returns the command that installs the SELinux policy module.
+     *
+     * @return Command an operator can paste.
+     */
+    public String selinuxInstaller() {
+        return "sudo " + PACKAGED_SELINUX.resolve("install-selinux-policy.sh");
+    }
 
     /**
      * Returns the paths for the current user.

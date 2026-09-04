@@ -2,7 +2,6 @@ package org.fuin.sokar.vault;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.StandardProtocolFamily;
 import java.net.UnixDomainSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
@@ -12,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
+import org.fuin.sokar.core.hardening.SocketContext;
 
 /**
  * An ssh-agent that signs with keys the container can never read.
@@ -74,7 +74,8 @@ public class SshAgentServer implements AutoCloseable, Runnable {
             // can see it at all. Same reasoning as the vault proxy's socket.
             Files.setPosixFilePermissions(socketPath.toAbsolutePath().getParent(),
                     PosixFilePermissions.fromString("rwx------"));
-            channel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
+            // Labelled as it is created: SELinux checks connectto against the socket, not the file.
+            channel = SocketContext.openUnixSocket();
             channel.bind(UnixDomainSocketAddress.of(socketPath));
             Files.setPosixFilePermissions(socketPath,
                     PosixFilePermissions.fromString("rw-rw-rw-"));

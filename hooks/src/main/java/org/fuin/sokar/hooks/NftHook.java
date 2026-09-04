@@ -46,12 +46,20 @@ public class NftHook extends Hook {
         // nsenter is used rather than a Java thread entering the namespace: setns() is per-thread
         // and the JVM offers no control over which thread anything runs on. A child process is the
         // only way to be sure the ruleset lands in the container's namespace and not the host's.
+        //
+        // The ruleset goes in on stdin rather than as a path. Under SELinux, running nft transitions
+        // into a confined domain that cannot open the operator's runtime files, and the denial is
+        // dontaudit'ed - so a path fails as "Permission denied" with nothing in the audit log.
         final List<String> command = List.of("nsenter", "--target", String.valueOf(state.pid()),
-                "--net", "nft", "--file", ruleset.toString());
+                "--net", "nft", "--file", "-");
 
         final Process process = new ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start();
+
+        try (java.io.OutputStream in = process.getOutputStream()) {
+            in.write(Files.readAllBytes(ruleset));
+        }
 
         final String output = new String(process.getInputStream().readAllBytes());
 

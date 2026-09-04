@@ -116,6 +116,17 @@ class HookTest {
     }
 
     @Test
+    void writesWhyItRefusedTheContainer(@TempDir Path dir) throws IOException {
+
+        // The runtime reports only an exit code, so a container refused by a hook would otherwise
+        // leave no readable record of the reason.
+        execute(new Failing(true), state(sidecarFile(dir).toString()));
+
+        assertThat(Files.readString(dir.resolve("hooks.log")))
+                .contains("test createRuntime failed: deliberate");
+    }
+
+    @Test
     void anUnwritableLogDoesNotStopTheHook(@TempDir Path dir) throws IOException {
 
         final Path file = dir.resolve("sidecar.json");

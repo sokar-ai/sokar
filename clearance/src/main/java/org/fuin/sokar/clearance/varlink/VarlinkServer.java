@@ -1,7 +1,6 @@
 package org.fuin.sokar.clearance.varlink;
 
 import java.io.IOException;
-import java.net.StandardProtocolFamily;
 import java.net.UnixDomainSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -12,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.fuin.sokar.core.hardening.SocketContext;
 
 /**
  * Serves varlink methods over a unix socket.
@@ -90,7 +90,8 @@ public class VarlinkServer implements AutoCloseable, Runnable {
         try {
             Files.createDirectories(socket.toAbsolutePath().getParent());
             Files.deleteIfExists(socket);
-            channel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
+            // Labelled as it is created: SELinux checks connectto against the socket, not the file.
+            channel = SocketContext.openUnixSocket();
             channel.bind(UnixDomainSocketAddress.of(socket));
             Files.setPosixFilePermissions(socket, PosixFilePermissions.fromString("rwx------"));
         } catch (IOException ex) {

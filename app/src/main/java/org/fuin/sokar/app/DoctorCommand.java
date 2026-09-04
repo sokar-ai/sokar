@@ -4,6 +4,7 @@ import java.io.PrintWriter;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.core.config.XdgPaths;
 import org.fuin.sokar.core.hardening.ProcessHardening;
+import org.fuin.sokar.core.hardening.SocketContext;
 import org.fuin.sokar.core.process.CommandResult;
 import org.fuin.sokar.core.process.ProcessCommandRunner;
 import org.fuin.sokar.shield.DnsmasqProbe;
@@ -57,6 +58,25 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
     }
 
     /**
+     * Reports whether a task container will be able to reach Sokar's sockets.
+     * <p>
+     * Without the policy the container's connection is refused and the agent reports an
+     * authentication failure, so the cause is asked about here rather than left to be guessed.
+     *
+     * @return A line describing the state.
+     */
+    private String socketPolicy() {
+        if (!SocketContext.selinuxPresent()) {
+            return "not needed - this machine does not run SELinux";
+        }
+        if (SocketContext.available()) {
+            return "installed";
+        }
+        return "MISSING - a task cannot reach the vault proxy; install it with "
+                + context.paths().selinuxInstaller();
+    }
+
+    /**
      * Returns the directories agents are scanned in, in order.
      *
      * @return Locations.
@@ -107,6 +127,7 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
 
         out.println();
         out.println("dnsmasq nftset      " + nftSetSupport());
+        out.println("selinux policy      " + socketPolicy());
 
         out.println();
         out.println("dumpable            " + ProcessHardening.dumpable());

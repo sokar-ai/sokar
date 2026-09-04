@@ -20,6 +20,7 @@
         <build-helper.version>3.6.1</build-helper.version>
         <package.name>sokar</package.name>
         <hook.install.dir>/usr/libexec/sokar/hooks</hook.install.dir>
+        <selinux.install.dir>/usr/share/sokar/selinux</selinux.install.dir>
         <!-- Signing is off for local and CI builds and on for releases, where the key exists. -->
         <rpm.sign.skip>true</rpm.sign.skip>
     </properties>
@@ -93,7 +94,9 @@
 
 Installs the sokar and sokard binaries and the three OCI hooks. The hooks are NOT registered by this package: podman reads hook descriptors per user, so each operator runs "sokar setup" once. Nothing here touches a system-wide podman configuration.
 
-This package contains no agent. Agents ship separately as sokar-agent-* packages, which sokar discovers by scanning /usr/libexec/sokar/agents.</description>
+This package contains no agent. Agents ship separately as sokar-agent-* packages, which sokar discovers by scanning /usr/libexec/sokar/agents.
+
+Where SELinux is enforcing, a task container cannot reach sokar's sockets until the policy module in /usr/share/sokar/selinux is installed. "sokar doctor" reports whether it is.</description>
                             <!-- Without this the plugin substitutes a timestamp release for any
                                  snapshot build, and the rpm and the deb then disagree about what
                                  version they are. -->
@@ -144,6 +147,21 @@ This package contains no agent. Agents ship separately as sokar-agent-* packages
                                 <entry>
                                     <name>${hook.install.dir}/sokar-hook-reader</name>
                                     <file>${project.basedir}/../hooks/target/sokar-hook-reader</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <!-- Source, not a compiled module: a .pp is tied to the policy version of the machine that built it. -->
+                                <entry>
+                                    <name>${selinux.install.dir}/sokar_socket.te</name>
+                                    <file>${project.basedir}/../selinux/sokar_socket.te</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${selinux.install.dir}/install-selinux-policy.sh</name>
+                                    <file>${project.basedir}/../selinux/install-selinux-policy.sh</file>
                                     <mode>0755</mode>
                                     <user>root</user>
                                     <group>root</group>

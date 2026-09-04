@@ -142,8 +142,32 @@ See [build.md](build.md). Three things that will bite:
   compiled without it accepts the config and opens nothing. `sokar doctor` probes
   for it; note that `no-nftset` contains `nftset`, so a substring check reports
   the opposite of the truth.
+- **SELinux silently stops `nft` from reading a file, with nothing in the audit
+  log.** `/usr/sbin/nft` is labelled `iptables_exec_t`, so running it transitions
+  into a confined domain that cannot open the operator's runtime files; the denial
+  is `dontaudit`ed, so `ausearch` reports no matches and only `setenforce 0` tells
+  you. Measured on Fedora 44: `nft --file <path>` fails with "Permission denied"
+  while `head` reads the same file in the same context. `NftHook` feeds the
+  ruleset on **stdin** instead. Ubuntu has no such transition, so this cannot be
+  reproduced on the development machine.
+- **SELinux refuses a container's connection to a host process, whatever the socket
+  is labelled.** podman relabels a mounted socket `container_file_t` with the
+  container's MCS categories, and it is still denied: `connectto` is checked against
+  the *server process* context, and any host program a person starts is
+  `unconfined_t`. Measured on Fedora 44 - the request never reaches the proxy and
+  `vault.log` stays empty, so it reads as an authentication failure. The socket is
+  labelled at creation instead, by writing the context to
+  `/proc/thread-self/attr/sockcreate` **before the socket is opened** - the kernel
+  assigns the label at `socket()`, not at `bind()`, so wrapping the bind leaves it
+  unlabelled while everything else looks right. `SocketContext.openUnixSocket()`
+  exists so that cannot be got wrong at a call site. Clearing needs a NUL byte, since
+  an empty write is no write at all. Also note `ausearch -m AVC -ts recent` reported
+  no matches while `/var/log/audit/audit.log` held the denials; grep the file.
+- **A hook failure reaches the operator only if the hook writes it down.** The
+  runtime reports an exit code and discards the hook's stderr, so `Hook.execute`
+  logs the reason to `hooks.log` as well.
 - **Terok is the reference when something is unclear.** Sibling checkouts live in
-  `../terok-ai/`: `terok`, `terok-sandbox`, `terok-executor`, `terok-shield`,
+  `../../terok-ai/`: `terok`, `terok-sandbox`, `terok-executor`, `terok-shield`,
   `terok-clearance`, `terok-util`. It has already hit most of these problems.
   Read it for *what* to do, never for prose or code to copy — Sokar is a
   ground-up rewrite, and Apache-2.0 attribution is taken seriously here. Note

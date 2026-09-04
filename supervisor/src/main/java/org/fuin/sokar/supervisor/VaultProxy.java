@@ -14,12 +14,12 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.net.StandardProtocolFamily;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.fuin.sokar.core.hardening.SocketContext;
 
 /**
  * Turns a phantom token into a real credential, on the way out.
@@ -139,7 +139,8 @@ public class VaultProxy implements AutoCloseable, Runnable {
             Files.setPosixFilePermissions(socket.getParent(),
                     Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE,
                             PosixFilePermission.OWNER_EXECUTE));
-            server = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
+            // Labelled as it is created: SELinux checks connectto against the socket, not the file.
+            server = SocketContext.openUnixSocket();
             server.bind(UnixDomainSocketAddress.of(socket));
             // Deliberately permissive; see the class comment. The container's agent user is a
             // subordinate uid and cannot open an owner-only socket.
