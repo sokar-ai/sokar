@@ -49,6 +49,7 @@ what the requirement says, or whether it survives at all.
 | 36 | [Provider GitHub Copilot](0036-Provider-GitHub-Copilot.md) | One provider: how it authenticates and whether it can be brokered. | yes |
 | 37 | [Provider xAI](0037-Provider-xAI.md) | One provider: how it authenticates and whether it can be brokered. | yes |
 | 38 | [Provider Zhipu](0038-Provider-Zhipu.md) | One provider: how it authenticates and whether it can be brokered. | yes |
+| 39 | [Providers As Packages](0039-Providers-As-Packages.md) | A provider is declared once and reused, rather than restated inside every agent that reaches it. | yes |
 ## To be checked
 
 Ten of these carry a **To be checked** section at the end: an open question whose
