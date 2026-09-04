@@ -1141,6 +1141,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     + (agent.definition().version() == null ? "" : agent.definition().version()));
             layers = layers.and(agent.definition().installAsRoot(),
                     org.fuin.sokar.agent.api.InstallScript.render(agent.definition().artifacts()));
+            layers = layers.and(stage(agent, project, out), java.util.List.of());
             layers = layers.and(java.util.List.of(), agent.definition().installAsAgent());
         }
 
@@ -1149,6 +1150,75 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             layers = layers.and(project.imageSnippetLines(), java.util.List.of());
         }
         return layers;
+    }
+
+    /**
+     * Copies what the agent ships into the build context and returns the lines that install it.
+     * <p>
+     * A tool that is a tree of files rather than one binary has no URL to pin, so its own package
+     * carries it and the image build fetches nothing at all. That is why the copy happens here:
+     * the container runtime can only see what is inside the build context.
+     *
+     * @param agent The agent.
+     * @param project The project being built.
+     * @param out Where progress is reported.
+     * @return Build lines, empty when the agent ships nothing.
+     */
+    private java.util.List<String> stage(org.fuin.sokar.agent.api.InstalledAgent agent,
+            Project project, PrintWriter out) {
+
+        final java.util.List<String> lines = new java.util.ArrayList<>();
+        for (final var tree : agent.definition().packaged()) {
+            final java.nio.file.Path source = java.nio.file.Path.of(tree.source());
+            if (!java.nio.file.Files.isDirectory(source)) {
+                out.println("missing   " + source + ", which " + agent.name() + " says it ships");
+                continue;
+            }
+            final java.nio.file.Path staged = context.paths().buildContext(project.name())
+                    .resolve(tree.stagingName());
+            try {
+                copyTree(source, staged);
+            } catch (java.io.IOException ex) {
+                out.println("missing   could not stage " + source + ": " + ex.getMessage());
+                continue;
+            }
+            lines.add("COPY " + tree.stagingName() + " " + tree.target());
+            out.println("packaged  " + tree.target() + " from this agent's own package");
+        }
+        return java.util.List.copyOf(lines);
+    }
+
+    /**
+     * Copies a directory, replacing whatever was there.
+     *
+     * @param source Directory to copy.
+     * @param target Where to put it.
+     * @throws IOException If it cannot be copied.
+     */
+    private static void copyTree(java.nio.file.Path source, java.nio.file.Path target)
+            throws java.io.IOException {
+
+        if (java.nio.file.Files.exists(target)) {
+            try (var walk = java.nio.file.Files.walk(target)) {
+                for (final java.nio.file.Path path
+                        : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                    java.nio.file.Files.deleteIfExists(path);
+                }
+            }
+        }
+        try (var walk = java.nio.file.Files.walk(source)) {
+            for (final java.nio.file.Path path : walk.toList()) {
+                final java.nio.file.Path destination = target.resolve(source.relativize(path));
+                if (java.nio.file.Files.isDirectory(path)) {
+                    java.nio.file.Files.createDirectories(destination);
+                } else {
+                    java.nio.file.Files.createDirectories(destination.getParent());
+                    java.nio.file.Files.copy(path, destination,
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                            java.nio.file.StandardCopyOption.COPY_ATTRIBUTES);
+                }
+            }
+        }
     }
 
     private org.fuin.sokar.agent.api.InstalledAgent select(

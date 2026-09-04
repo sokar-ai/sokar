@@ -234,6 +234,39 @@ class AgentDefinitionReaderTest {
     }
 
     @Test
+    void readsWhatAnAgentShipsInItsOwnPackage() {
+
+        // The alternative to a pinned URL, for a tool that is a tree of files rather than one
+        // binary: the package carries it and the image build fetches nothing.
+        final AgentDefinition definition = read(MINIMAL + """
+                install:
+                  packaged:
+                    - source: /usr/share/sokar/agents/uc
+                      target: /opt/uc
+                """);
+
+        assertThat(definition.packaged()).hasSize(1);
+        assertThat(definition.packaged().getFirst().source())
+                .isEqualTo("/usr/share/sokar/agents/uc");
+        assertThat(definition.packaged().getFirst().target()).isEqualTo("/opt/uc");
+    }
+
+    @Test
+    void refusesAPackagedPathThatIsNotAbsolute() {
+
+        // A relative path would be resolved against whatever directory the build happened to run
+        // in, which is not something an agent definition can know.
+        assertThatThrownBy(() -> read(MINIMAL + """
+                install:
+                  packaged:
+                    - source: ./uc
+                      target: /opt/uc
+                """))
+                .isInstanceOf(AgentException.class)
+                .hasMessageContaining("must be an absolute path");
+    }
+
+    @Test
     void defaultsToASocketEndpoint() {
 
         // The safer one, and what every agent gets unless it says it cannot use a socket.

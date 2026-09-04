@@ -48,6 +48,13 @@ public final class AgentDefinitionJson {
         putIfPresent(out, "resumeFlag", definition.resumeFlag());
         out.put("tokenEnvironment", definition.tokenEnvironment());
         putIfPresent(out, "baseUrlEnvironment", definition.baseUrlEnvironment());
+        if (!definition.packaged().isEmpty()) {
+            final java.util.List<Object> trees = new java.util.ArrayList<>();
+            for (final PackagedTree tree : definition.packaged()) {
+                trees.add(Map.of("source", tree.source(), "target", tree.target()));
+            }
+            out.put("packaged", trees);
+        }
         if (definition.route() != null) {
             final Map<String, Object> route = new java.util.LinkedHashMap<>();
             route.put("upstream", definition.route().upstream());
@@ -104,6 +111,7 @@ public final class AgentDefinitionJson {
                 readArtifacts(source.get("artifacts")),
                 strings(source.get("installAsRoot")),
                 strings(source.get("installAsAgent")),
+                packaged(source.get("packaged")),
                 source.get("configDirectory") == null ? null
                         : String.valueOf(source.get("configDirectory")));
     }
@@ -194,6 +202,19 @@ public final class AgentDefinitionJson {
                 map(source.get("unbrokerable")),
                 ProviderRoute.Endpoint.of(source.get("endpoint") == null ? null
                         : String.valueOf(source.get("endpoint")), "the agent's own description"));
+    }
+
+    private static java.util.List<PackagedTree> packaged(@Nullable Object value) {
+        final java.util.List<PackagedTree> trees = new java.util.ArrayList<>();
+        if (value instanceof java.util.List<?> list) {
+            for (final Object element : list) {
+                if (element instanceof Map<?, ?> entry) {
+                    trees.add(new PackagedTree(String.valueOf(entry.get("source")),
+                            String.valueOf(entry.get("target"))));
+                }
+            }
+        }
+        return java.util.List.copyOf(trees);
     }
 
     private static Map<String, String> map(@Nullable Object value) {

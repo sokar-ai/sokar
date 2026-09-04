@@ -100,6 +100,7 @@ public final class AgentDefinitionReader {
                 artifacts(install.get("artifacts"), origin),
                 strings(install.get("as_root")),
                 strings(install.get("as_agent")),
+                packaged(install.get("packaged"), origin),
                 optional(root, "config_dir"));
     }
 
@@ -124,6 +125,24 @@ public final class AgentDefinitionReader {
                 map(proxy.get("auth_header")), map(proxy.get("auth_prefix")),
                 map(proxy.get("unbrokerable")),
                 ProviderRoute.Endpoint.of(optional(proxy, "endpoint"), origin));
+    }
+
+    private static List<PackagedTree> packaged(@Nullable Object value, String origin) {
+        if (value == null) {
+            return List.of();
+        }
+        if (!(value instanceof List<?> list)) {
+            throw new AgentException(origin + ": 'install.packaged' must be a list");
+        }
+        final List<PackagedTree> result = new ArrayList<>();
+        for (final Object element : list) {
+            if (!(element instanceof Map<?, ?> entry)) {
+                throw new AgentException(origin + ": each 'install.packaged' entry must be a map");
+            }
+            result.add(new PackagedTree(required(entry, "source", origin),
+                    required(entry, "target", origin)));
+        }
+        return List.copyOf(result);
     }
 
     private static List<InstallArtifact> artifacts(@Nullable Object value, String origin) {

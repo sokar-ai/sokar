@@ -32,6 +32,7 @@ import org.jspecify.annotations.Nullable;
  * @param artifacts Files the image build fetches, each pinned and verified.
  * @param installAsRoot Container build fragments run as root, possibly empty.
  * @param installAsAgent Container build fragments run as the agent user, possibly empty.
+ * @param packaged Directories shipped in the agent's own package, copied into the image.
  */
 public record AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
         HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
@@ -39,7 +40,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         @Nullable ProviderRoute route, List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
         List<InstallArtifact> artifacts,
         List<String> installAsRoot, List<String> installAsAgent,
-        @Nullable String configDirectory) {
+        List<PackagedTree> packaged, @Nullable String configDirectory) {
 
     /**
      * Constructor for an agent that keeps no credential of its own on the host.
@@ -70,7 +71,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
             List<String> installAsAgent) {
         this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag,
                 tokenEnvironment, baseUrlEnvironment, route, allowedDomains, refusedDomains,
-                version, artifacts, installAsRoot, installAsAgent, null);
+                version, artifacts, installAsRoot, installAsAgent, List.of(), null);
     }
 
     /** Key in {@code tokenEnvironment} used when no credential type matches. */
