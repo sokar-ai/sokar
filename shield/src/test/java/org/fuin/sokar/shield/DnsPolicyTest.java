@@ -105,4 +105,17 @@ class DnsPolicyTest {
                 .isEqualTo("podman unshare nsenter --target 4711 --net"
                         + " dnsmasq --keep-in-foreground --conf-file=/tmp/dns.conf");
     }
+
+    @Test
+    void allowsBothAddressFamiliesForADeclaredDomain() {
+
+        // Found in the wild: a declared name answered AAAA, only the v4 set was populated, and
+        // the operator got a clearance prompt for a bare IPv6 address they had no way to place.
+        // The ruleset has always had an allowed_v6 set; nothing filled it.
+        final String rendered = new DnsPolicy(SecurityClass.GUARDED)
+                .upstream("1.1.1.1").autoAllow("example.test").render();
+
+        assertThat(rendered).contains("inet#sokar#allowed_v4");
+        assertThat(rendered).contains("inet#sokar#allowed_v6");
+    }
 }

@@ -159,8 +159,12 @@ public class DnsPolicy {
                     lines.add("# Every address answered for these is added to the firewall's allow");
                     lines.add("# set as it is answered, so what the container was told and what it");
                     lines.add("# may reach cannot drift apart. Note dnsmasq matches subdomains here.");
+                    lines.add("# Both families: a declared name that answers AAAA was reachable by");
+                    lines.add("# name and blocked by address, which reached the operator as a");
+                    lines.add("# clearance prompt for a bare IPv6 address they could not place.");
                     for (final String domain : autoAllowed) {
-                        lines.add("nftset=/" + domain + "/inet#sokar#allowed_v4");
+                        lines.add("nftset=/" + domain
+                                + "/inet#sokar#allowed_v4,inet#sokar#allowed_v6");
                     }
                 }
             }

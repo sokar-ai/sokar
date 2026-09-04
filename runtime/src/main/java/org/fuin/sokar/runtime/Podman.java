@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -276,12 +277,37 @@ public class Podman {
      * @return Arguments.
      */
     public List<String> attachArguments(String container, String shell, String command) {
+        return attachArguments(container, shell, command, null);
+    }
+
+    /**
+     * Returns the arguments that run a command, then leave a shell whose prompt names the task.
+     *
+     * @param container Container name.
+     * @param shell Shell to leave behind.
+     * @param command Command to run first, or {@code null} to go straight to the shell.
+     * @param label Text for the prompt, or {@code null} to leave the shell's own.
+     * @return Arguments.
+     */
+    public List<String> attachArguments(String container, String shell,
+            @Nullable String command, @Nullable String label) {
+
+        final StringBuilder script = new StringBuilder();
+        if (command != null) {
+            script.append(command).append("; ");
+            // The agent draws a full-screen interface. When it ends, the terminal is still in raw
+            // mode and possibly on the alternate screen, so the shell that follows inherits a
+            // scrambled display. Leave it, show the cursor, restore line discipline.
+            script.append("printf '\\033[?1049l\\033[?25h\\033[0m'; stty sane; ");
+        }
+        if (label != null) {
+            // A container hostname says nothing about which task it is, and an operator with
+            // several open shells has no other way to tell them apart.
+            script.append("export SOKAR_PROMPT='").append(label).append("'; ");
+            script.append("export PROMPT_COMMAND=\"PS1='sokar[\\$SOKAR_PROMPT] \\w\\$ '\"; ");
+        }
+        script.append("exec ").append(shell).append(" -l");
         return List.of(executable, "exec", "--interactive", "--tty", container, shell, "-lc",
-                // The agent draws a full-screen interface. When it ends, the terminal is still
-                // in raw mode and possibly on the alternate screen, so the shell that follows
-                // inherits a scrambled display. Leave the alternate screen, show the cursor, and
-                // restore line discipline before handing over.
-                command + "; printf '\\033[?1049l\\033[?25h\\033[0m'; stty sane; exec "
-                        + shell + " -l");
+                script.toString());
     }
 }

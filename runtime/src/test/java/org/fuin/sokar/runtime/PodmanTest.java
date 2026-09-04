@@ -174,4 +174,40 @@ class PodmanTest {
                 .containsExactly("podman", "exec", "--interactive", "--tty", "sokar-uc-shell-1", "/bin/bash");
         assertThat(runner.invocations()).isEmpty();
     }
+
+    @Test
+    void namesTheTaskInTheShellPrompt() {
+
+        // A container hostname says nothing about which task it is, and an operator with several
+        // shells open has no other way to tell them apart.
+        final String line = String.join(" ",
+                podman.attachArguments("box", "/bin/bash", "agent-cli", "myproject/shell"));
+
+        assertThat(line).contains("myproject/shell");
+        assertThat(line).contains("PS1=");
+    }
+
+    @Test
+    void restoresTheTerminalBeforeHandingOver() {
+
+        // The agent draws a full-screen interface; without this the shell that follows inherits
+        // raw mode and the alternate screen, and the operator's display is scrambled.
+        final String line = String.join(" ",
+                podman.attachArguments("box", "/bin/bash", "agent-cli", "p/t"));
+
+        assertThat(line).contains("1049l");
+        assertThat(line).contains("stty sane");
+    }
+
+    @Test
+    void leavesTheTerminalAloneWhenNoAgentRuns() {
+
+        // The negative case: with no full-screen program there is nothing to restore, and
+        // emitting escape sequences into a fresh shell is noise.
+        final String line = String.join(" ",
+                podman.attachArguments("box", "/bin/bash", null, "p/t"));
+
+        assertThat(line).doesNotContain("stty sane");
+        assertThat(line).contains("PS1=");
+    }
 }

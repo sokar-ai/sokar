@@ -356,9 +356,9 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
             // Waits rather than replacing this process, so there is still something here to remove
             // the container when the shell ends.
-            return cleanUp(runner, container, context.exec().applyAsInt(startWith == null
-                    ? runner.attachCommand(container, shell)
-                    : runner.attachCommand(container, shell, startWith)));
+            return cleanUp(runner, container, context.exec().applyAsInt(
+                    runner.attachCommand(container, shell, startWith,
+                            project.name() + "/" + task)));
 
         } catch (CommandException ex) {
             err.println("sokar: " + ex.getMessage());

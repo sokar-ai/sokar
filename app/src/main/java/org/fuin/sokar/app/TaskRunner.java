@@ -390,6 +390,20 @@ public class TaskRunner {
     }
 
     /**
+     * Returns the command that runs something, then leaves a shell whose prompt names the task.
+     *
+     * @param container Container name.
+     * @param shell Shell to leave behind.
+     * @param command What to run first, or {@code null} for the shell alone.
+     * @param label Text for the prompt.
+     * @return Command and arguments.
+     */
+    public List<String> attachCommand(String container, String shell,
+            @org.jspecify.annotations.Nullable String command, String label) {
+        return podman.attachArguments(container, shell, command, label);
+    }
+
+    /**
      * Stops and removes a container.
      *
      * @param container Container name.

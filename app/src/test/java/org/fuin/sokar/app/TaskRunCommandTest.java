@@ -136,8 +136,9 @@ class TaskRunCommandTest {
                 "-p", projectFile(dir, MINIMAL).toString(), "--shell", "/bin/sh");
 
         assertThat(execCalls).hasSize(1);
-        assertThat(execCalls.getFirst())
-                .containsExactly("podman", "exec", "--interactive", "--tty", containerName(), "/bin/sh");
+        assertThat(execCalls.getFirst()).startsWith("podman", "exec", "--interactive", "--tty",
+                containerName(), "/bin/sh");
+        assertThat(String.join(" ", execCalls.getFirst())).contains("exec /bin/sh -l");
     }
 
     @Test
@@ -241,7 +242,8 @@ class TaskRunCommandTest {
         execute(context(dir, true), "task", "run", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
-        assertThat(String.join(" ", execCalls.getLast())).doesNotContain("-lc");
+        // No agent runs, so there is no full-screen interface to clean up after.
+        assertThat(String.join(" ", execCalls.getLast())).doesNotContain("stty sane");
     }
 
     @Test
