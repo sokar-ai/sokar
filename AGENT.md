@@ -97,6 +97,14 @@ See [build.md](build.md). Three things that will bite:
   in a static image. This is why `sokar` and `sokard` are dynamically linked and
   the three hooks — which make no FFM calls by design — are static musl.
   `wire/src/test/java/.../NoForeignFunctionMemoryTest.java` keeps them that way.
+- **`java.net.http.HttpClient` negotiates HTTP/2 and exposes its pseudo-headers.**
+  `response.headers().map()` contains `:status` beside the real ones, so relaying
+  "every header that is not hop-by-hop" into an HTTP/1.1 response emits an illegal
+  name and the client discards the whole reply. It surfaces as a connection error,
+  not a header error: the agent said `Unable to connect to API` after 21 responses
+  that were all HTTP 200. `VaultProxy.forwardable` drops anything starting with a
+  colon. A relay built on an HTTP/1.1-only client cannot hit this, which is why it
+  is specific to this rewrite.
 - **A rootless container's agent user is a subordinate uid on the host.** It
   cannot open a `0600` socket the host user owns; the connection simply fails.
   Sokar does not pass `--userns=keep-id` (that would mean pinning the agent's uid,
