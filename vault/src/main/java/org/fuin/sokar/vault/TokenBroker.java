@@ -106,6 +106,20 @@ public class TokenBroker {
     }
 
     /**
+     * Returns a token this broker issued, whether or not it is still valid.
+     * <p>
+     * So that a caller can tell a token that ran out from one that was never issued here. Both
+     * are refused; only one of them means the operator did anything wrong.
+     *
+     * @param presented What the client sent.
+     * @return The token, or empty if this broker never issued it.
+     */
+    public Optional<PhantomToken> issued(String presented) {
+        final PhantomToken token = issued.get(presented);
+        return token != null && token.matches(presented) ? Optional.of(token) : Optional.empty();
+    }
+
+    /**
      * Revokes a token.
      *
      * @param value The token value.

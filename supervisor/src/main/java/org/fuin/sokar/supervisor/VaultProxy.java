@@ -211,6 +211,19 @@ public class VaultProxy implements AutoCloseable, Runnable {
             out.flush();
             return;
         }
+        if (result instanceof TokenExchange.Expired expired) {
+            log.accept(head.method() + " " + head.target()
+                    + " -> 401 this task's token expired at " + expired.when());
+            // Says what happened rather than leaving the agent to report a wrong credential: the
+            // token was right, the task simply outlived it.
+            out.write(HttpHead.response(401, "Unauthorized",
+                    "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\","
+                    + "\"message\":\"sokar: this task's token expired at " + expired.when()
+                    + "; resume the task to issue it again, or start tasks with a longer"
+                    + " --token-hours\"}}"));
+            out.flush();
+            return;
+        }
         if (result instanceof TokenExchange.Unavailable unavailable) {
             log.accept(head.method() + " " + head.target() + " -> 503 " + unavailable.reason());
             out.write(HttpHead.response(503, "Service Unavailable",

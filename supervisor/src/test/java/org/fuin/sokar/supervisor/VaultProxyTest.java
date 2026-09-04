@@ -81,6 +81,31 @@ class VaultProxyTest {
         });
     }
 
+    @Test
+    void anExpiredTokenSaysSoRatherThanLookingLikeAWrongCredential(@TempDir Path dir)
+            throws IOException {
+
+        // The agent's own report is identical either way, so the difference has to be in the
+        // message: the token was this task's, the task simply outlived it.
+        final java.time.Instant when = java.time.Instant.parse("2026-09-04T18:00:00Z");
+        final Path socket = dir.resolve("vault.sock");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "",
+                presented -> new TokenExchange.Expired(when))) {
+
+            final String response = send(socket, "POST /v1/messages HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\ncontent-length: 0\r\n\r\n");
+
+            assertThat(response).startsWith("HTTP/1.1 401");
+            assertThat(response)
+                    .contains("expired at " + when)
+                    .contains("resume the task")
+                    .contains("--token-hours");
+            assertThat(response).as("it is not the same case as a token from another task")
+                    .doesNotContain("not this task's token");
+            assertThat(received).as("nothing left the machine").isEmpty();
+        }
+    }
+
     private VaultProxy proxy(Path socket, String header, String prefix, TokenExchange exchange) {
         final VaultProxy proxy = new VaultProxy(socket,
                 "http://127.0.0.1:" + upstream.getAddress().getPort(), exchange, header, prefix);

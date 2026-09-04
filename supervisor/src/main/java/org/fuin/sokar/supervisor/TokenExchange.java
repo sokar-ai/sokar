@@ -4,7 +4,7 @@ package org.fuin.sokar.supervisor;
  * Turns the token an agent presented into the credential to send upstream.
  * <p>
  * An interface rather than a {@link org.fuin.sokar.vault.TokenBroker} parameter so the proxy can
- * be tested without a vault, and so the three outcomes are named. They are not
+ * be tested without a vault, and so the outcomes are named. They are not
  * interchangeable: the operator's fix differs for each, and collapsing them into "empty" is what
  * makes a credential problem hard to diagnose.
  */
@@ -25,10 +25,22 @@ public interface TokenExchange {
     }
 
     /**
-     * The token was not this task's, or has expired or been revoked. Answered as {@code 401} so
-     * the agent treats it as a credential rejection rather than a transport fault.
+     * The token was not this task's, or has been revoked. Answered as {@code 401} so the agent
+     * treats it as a credential rejection rather than a transport fault.
      */
     record Rejected() implements Result {
+    }
+
+    /**
+     * The token was this task's own and its lifetime ran out.
+     * <p>
+     * Kept apart from {@link Rejected} because the fix is different and the agent's report is
+     * otherwise indistinguishable from a wrong credential: the task simply outlived
+     * {@code --token-hours}, and resuming it issues the same token again with a fresh lifetime.
+     *
+     * @param when The moment it stopped being accepted.
+     */
+    record Expired(java.time.Instant when) implements Result {
     }
 
     /**

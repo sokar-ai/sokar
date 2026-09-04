@@ -1,6 +1,9 @@
 # 0024 — Refreshable Task Tokens
 
-**Status:** open
+**Status:** partly built. The expiry that provably exists today - Sokar's own
+`--token-hours` - now names itself instead of reading as a wrong credential. Provider-side
+renewal is untouched and still a question, because answering it needs a credential kind
+that expires, and there is none to test with.
 
 An agent given a credential it believes will expire tries to renew it. The token a
 task holds is minted for that task and is not renewable by anyone but the broker
@@ -57,6 +60,30 @@ Two things follow, and the second was not obvious:
   authentication error into an instruction, and nothing more.
 
 For this credential kind, "import once" is therefore not a working model.
+
+## Built, 2026-09-04
+
+The first expiry to handle turned out not to be a provider's at all. An API key does not
+expire; the token every task holds does, after `--token-hours`, whatever kind of credential
+is behind it. Until now that failed as
+`the presented token is not this task's token` - which was false, and sent an operator
+looking for a credential problem that did not exist.
+
+The exchange now separates a token this broker issued and that ran out from one it never
+issued, because the fixes differ:
+
+```
+401  sokar: this task's token expired at 2026-09-04T17:25:04Z;
+     resume the task to issue it again, or start tasks with a longer --token-hours
+```
+
+The advice is real rather than decorative: resuming a task adopts the same token with a
+fresh lifetime, which is exactly what a container whose environment cannot be changed
+needs. Measured on Fedora and Ubuntu by minting a token with `--token-hours 0`, so it was
+already out of time when the container started.
+
+This does nothing for a credential that decays on the host while no task is running, which
+is the case recorded above and still the harder half.
 
 ## To be checked
 

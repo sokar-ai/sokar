@@ -164,11 +164,19 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
 
         return presented -> broker.exchange(presented, Instant.now())
                 .<TokenExchange.Result>map(TokenExchange.Granted::new)
-                .orElseGet(() -> token.matches(presented)
-                        && !credentials.containsKey(token.scope())
-                                ? new TokenExchange.Unavailable(
-                                        "the vault no longer holds a credential for this task")
-                                : new TokenExchange.Rejected());
+                .orElseGet(() -> {
+                    if (token.matches(presented) && !credentials.containsKey(token.scope())) {
+                        return new TokenExchange.Unavailable(
+                                "the vault no longer holds a credential for this task");
+                    }
+                    // A token this broker issued that is no longer valid ran out of time; anything
+                    // else was never ours. The agent cannot tell those apart, so the proxy does.
+                    return broker.issued(presented)
+                            .filter(issued -> !issued.validAt(Instant.now()))
+                            .<TokenExchange.Result>map(issued ->
+                                    new TokenExchange.Expired(issued.expiresAt()))
+                            .orElseGet(TokenExchange.Rejected::new);
+                });
     }
 
     private static void writeOwnerOnly(Path file, String content, PrintWriter err) {
