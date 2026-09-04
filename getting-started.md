@@ -19,15 +19,35 @@ yourself.
 
 ## 1. Install
 
+A build leaves the two packages in two different modules — Sokar's own under
+`dist-deb/target`, the agent's under `agents/claude/target`. Collect them
+somewhere readable first, then install them together, from the project root:
+
 ```
-sudo apt install ./sokar_0.1.0~SNAPSHOT_amd64.deb ./sokar-agent-claude_1.0.0~SNAPSHOT_amd64.deb
+mkdir -p /tmp/sokar-pkgs
+cp dist-deb/target/sokar_*.deb agents/claude/target/sokar-agent-claude_*.deb /tmp/sokar-pkgs/
+sudo apt install /tmp/sokar-pkgs/*.deb
 ```
 
 or, on Fedora:
 
 ```
-sudo dnf install ./sokar-0.1.0~SNAPSHOT-1.x86_64.rpm ./sokar-agent-claude-1.0.0~SNAPSHOT-1.x86_64.rpm
+mkdir -p /tmp/sokar-pkgs
+cp dist-rpm/target/sokar-*.rpm agents/claude/target/sokar-agent-claude-*.rpm /tmp/sokar-pkgs/
+sudo dnf install /tmp/sokar-pkgs/*.rpm
 ```
+
+**Why the copy.** apt fetches even a local file as `_apt` — uid 42, group
+`nogroup` — and that user cannot traverse a `0750` home directory. Point it
+straight at `target/` and it says so:
+
+```
+N: Download is performed unsandboxed as root as file '/home/you/git/sokar/dist-deb/target/sokar_0.1.0~SNAPSHOT_amd64.deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
+```
+
+It is a notice, not an error — apt falls back to reading the file as root and the
+install goes through. But the sandbox it drops is worth keeping, and `/tmp` costs
+nothing. dnf has no such sandbox; the copy is there so both routes read alike.
 
 **Two packages, and that is the point.** `sokar` is the tool; an agent is a
 separate package that Sokar discovers at runtime. Installing an agent needs no new
