@@ -303,13 +303,27 @@ public class VaultProxy implements AutoCloseable, Runnable {
      * a response that stays open: buffering it would hold the whole answer and deliver it at the
      * end, which reads to a user as the agent having hung.
      */
+    /**
+     * Says whether a response header may be repeated to an HTTP/1.1 client.
+     * <p>
+     * The upstream connection may be HTTP/2, whose pseudo-headers begin with a colon. Such a name
+     * is illegal in HTTP/1.1, and a client that reads one rejects the whole response - which
+     * surfaces as a connection error saying nothing about headers.
+     *
+     * @param name Header name from the upstream response.
+     * @return {@code true} when it belongs in the response.
+     */
+    static boolean forwardable(String name) {
+        return !name.startsWith(":") && !HOP_BY_HOP.contains(name.toLowerCase(Locale.ROOT));
+    }
+
     private void writeResponse(OutputStream out, HttpResponse<InputStream> response)
             throws IOException {
 
         final StringBuilder head = new StringBuilder("HTTP/1.1 ")
                 .append(response.statusCode()).append(" \r\n");
         response.headers().map().forEach((name, values) -> {
-            if (HOP_BY_HOP.contains(name.toLowerCase(Locale.ROOT))) {
+            if (!forwardable(name)) {
                 return;
             }
             for (final String value : values) {
