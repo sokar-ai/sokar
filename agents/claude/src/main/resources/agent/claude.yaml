@@ -65,6 +65,9 @@ provider:
 
 allowed_domains:
   - api.anthropic.com
+  # Contacted before an interactive session starts. Without it the CLI reports it cannot
+  # reach Anthropic and quits, whatever the credential is.
+  - platform.claude.com
   - claude.ai
   - statsig.anthropic.com
 
@@ -77,9 +80,12 @@ allowed_domains:
 # drop log.
 #
 # Found by measurement, not from documentation: 2.1.236 resolves the Datadog intake below
-# during a normal run. The CLI works without it.
+# during a normal run. The CLI works without it. It also asks for raw.githubusercontent.com,
+# which is not granted either: allowing it opens every file on that host to the agent, and
+# nothing needed to start a session comes from there.
 refused_domains:
   - http-intake.logs.us5.datadoghq.com
+  - raw.githubusercontent.com
 
 install:
   # Pinned, not "latest". Anthropic publishes a per-version manifest.json carrying a
