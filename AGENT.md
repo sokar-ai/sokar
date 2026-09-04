@@ -24,12 +24,19 @@ nothing else of Sokar's.
 
 - **Java 25.** Records for data, sealed interfaces where the set of cases is
   closed and the compiler should check exhaustiveness.
-- **Javadoc on every public type and method**, with `@param` and `@return`. The
-  `org.fuin:pom` parent enforces a good deal of this.
+- **Javadoc on every public type and method**, with `@param` and `@return` -
+  brief, and only the most important facts. The `org.fuin:pom` parent enforces a
+  good deal of this. A method whose Javadoc needs paragraphs is either doing too
+  much or carrying an explanation that belongs in this file.
 - **Comments say why, not what.** The useful ones name a constraint, a
   measurement, or a bug that already happened. `// Increment the counter` is
   noise; `// Before anything can connect: a window in which the directory is
   traversable is the whole hole` is not.
+- **An inline comment is one line.** Not one sentence spread over three - one
+  line. The reasoning that does not fit is a finding, and findings go in
+  `.sokar.md` or here, where they can be found without reading the code.
+- **A comment in `pom.xml` is one line too**, same rule and same reason. Build
+  files attract essays about traps; name the trap and stop.
 - **British-leaning spelling** in prose and comments: behaviour, recognise,
   serialise.
 - Prefer a small named method over a comment explaining a block.
