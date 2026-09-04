@@ -98,8 +98,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final String type = credentialType(agent.name());
         final String reason = agent.definition().route().unbrokerableReason(type);
         return reason == null ? null
-                : "'" + agent.name() + "' cannot use a '" + type + "' credential through the"
-                        + " proxy - " + reason;
+                : "the '" + type + "' credential stored for '" + agent.name()
+                        + "' cannot be used. " + reason + ".";
     }
 
     /**
@@ -242,8 +242,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 // Before the image, the container and the token: a task that cannot authenticate
                 // fails inside the box with a message about the operator's network.
                 err.println("sokar: " + refusal);
-                err.println("sokar: store a credential of another kind, or override with"
-                        + " --credential-type");
+                err.println("sokar: import or store a usable one, then run again;"
+                        + " --credential-type overrides the stored kind for one run");
                 err.flush();
                 return 69;
             }

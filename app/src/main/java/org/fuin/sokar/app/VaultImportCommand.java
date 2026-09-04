@@ -105,7 +105,9 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
             final var route = agent.definition().route();
             final String reason = route == null ? null : route.unbrokerableReason(value.type());
             if (reason != null) {
-                err.println("sokar: this kind cannot be used through the proxy - " + reason);
+                err.println("sokar: stored, but a task will refuse it. " + reason + ".");
+                err.println("sokar: store a usable one with: sokar vault put " + agent.name()
+                        + " --type <kind>");
                 err.flush();
             }
             return 0;
