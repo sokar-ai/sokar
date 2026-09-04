@@ -247,4 +247,17 @@ class AgentDefinitionReaderTest {
                 .isEqualTo("it contacts the provider directly");
         assertThat(definition.route().unbrokerableReason("api-key")).isNull();
     }
+
+    @Test
+    void readsWhereTheAgentKeepsItsOwnCredentials() {
+        assertThat(read(MINIMAL + "config_dir: \"~/.example\"\n").configDirectory())
+                .isEqualTo("~/.example");
+    }
+
+    @Test
+    void leavesTheConfigDirectoryUnsetWhenNoneIsDeclared() {
+
+        // An agent that manages no credential of its own must not get a guessed directory.
+        assertThat(read(MINIMAL).configDirectory()).isNull();
+    }
 }

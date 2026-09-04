@@ -8,6 +8,9 @@ name: claude
 label: Claude Code
 binary: claude
 
+# Where this agent keeps its own credentials on the host, for 'sokar vault import'.
+config_dir: "~/.claude"
+
 git_identity:
   name: Claude
   email: noreply@anthropic.com

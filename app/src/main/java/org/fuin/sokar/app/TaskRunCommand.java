@@ -42,6 +42,48 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     private static final String DEFAULT_CREDENTIAL_TYPE = "api-key";
 
     /**
+     * Says whether the vault's copy has fallen behind the agent's own credential.
+     * <p>
+     * Only when both are the same kind: an operator who stored a different kind on purpose has
+     * not gone stale, and warning them every run would teach them to ignore the line.
+     *
+     * @param stored What the vault holds, or {@code null}.
+     * @param host What the agent holds on this machine, or {@code null}.
+     * @return {@code true} when the vault should be refreshed.
+     */
+    static boolean staleCredential(org.fuin.sokar.vault.@org.jspecify.annotations.Nullable
+            VaultEntry stored, org.fuin.sokar.agent.api.@org.jspecify.annotations.Nullable
+            Credential host) {
+        return stored != null && host != null
+                && java.util.Objects.equals(stored.type(), host.type())
+                && !stored.value().equals(host.secret());
+    }
+
+    /**
+     * Reports a vault copy that has fallen behind, without stopping anything.
+     *
+     * @param agent The selected agent, or {@code null}.
+     * @param out Where to report.
+     */
+    private void reportStaleCredential(org.fuin.sokar.agent.api.@org.jspecify.annotations.Nullable
+            InstalledAgent agent, PrintWriter out) {
+        if (agent == null || agent.definition().configDirectory() == null) {
+            return;
+        }
+        try {
+            if (staleCredential(context.credentials().get(agent.name()),
+                    agent.extractCredential(VaultImportCommand
+                            .expand(agent.definition().configDirectory())).orElse(null))) {
+                out.println("credential the vault's copy is older than the one '" + agent.name()
+                        + "' holds here; 'sokar vault import " + agent.name() + "' refreshes it");
+            }
+        } catch (RuntimeException ex) {
+            // A freshness check must never be the reason a task does not run.
+            return;
+        }
+    }
+
+    /**
      * Says why this task cannot authenticate, before anything is built.
      *
      * @param agent The selected agent, or {@code null}.
@@ -192,6 +234,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final TaskWorkspace workspace = openWorkspace(project, out, err);
 
         try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
+
+            reportStaleCredential(select(agents), out);
 
             final String refusal = unbrokerable(select(agents));
             if (refusal != null) {

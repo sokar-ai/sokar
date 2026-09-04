@@ -99,7 +99,8 @@ public final class AgentDefinitionReader {
                 optional(install, "version"),
                 artifacts(install.get("artifacts"), origin),
                 strings(install.get("as_root")),
-                strings(install.get("as_agent")));
+                strings(install.get("as_agent")),
+                optional(root, "config_dir"));
     }
 
     /**

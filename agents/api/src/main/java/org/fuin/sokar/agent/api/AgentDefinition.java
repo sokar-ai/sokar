@@ -38,7 +38,40 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         Map<String, String> tokenEnvironment, @Nullable String baseUrlEnvironment,
         @Nullable ProviderRoute route, List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
         List<InstallArtifact> artifacts,
-        List<String> installAsRoot, List<String> installAsAgent) {
+        List<String> installAsRoot, List<String> installAsAgent,
+        @Nullable String configDirectory) {
+
+    /**
+     * Constructor for an agent that keeps no credential of its own on the host.
+     *
+     * @param name Short name.
+     * @param label Human-readable label.
+     * @param binary Executable inside the container.
+     * @param gitIdentity Identity commits are made with.
+     * @param headless Flags for an unattended run.
+     * @param supportsResume Whether it can continue a session.
+     * @param resumeFlag Flag that resumes, or {@code null}.
+     * @param tokenEnvironment Token variable by credential kind.
+     * @param baseUrlEnvironment Variable naming the endpoint, or {@code null}.
+     * @param route How its credential is brokered, or {@code null}.
+     * @param allowedDomains Domains it needs.
+     * @param refusedDomains Domains it asks for and is denied.
+     * @param version Version of the tool it installs, or {@code null}.
+     * @param artifacts What the image build fetches.
+     * @param installAsRoot Image lines run as root.
+     * @param installAsAgent Image lines run as the agent user.
+     */
+    public AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
+            HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
+            Map<String, String> tokenEnvironment, @Nullable String baseUrlEnvironment,
+            @Nullable ProviderRoute route, List<String> allowedDomains,
+            List<String> refusedDomains, @Nullable String version,
+            List<InstallArtifact> artifacts, List<String> installAsRoot,
+            List<String> installAsAgent) {
+        this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag,
+                tokenEnvironment, baseUrlEnvironment, route, allowedDomains, refusedDomains,
+                version, artifacts, installAsRoot, installAsAgent, null);
+    }
 
     /** Key in {@code tokenEnvironment} used when no credential type matches. */
     public static final String DEFAULT_TOKEN_KEY = "_default";

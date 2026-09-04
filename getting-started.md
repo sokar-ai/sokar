@@ -135,7 +135,20 @@ below — see [the Claude Code guide](agents/claude/README.md). This is also why
 logging in inside the container is both blocked and pointless: the value has to end
 up in the vault, on the host, where the box cannot reach it.
 
-**Then unlock and store, in that order.**
+**If the agent is already logged in here, import instead of typing.** An agent that
+keeps its own credentials on this host can hand them over:
+
+```
+sokar vault unlock
+sokar vault import claude
+```
+
+That reads what the agent already has, records the kind for you, and never puts the
+value through your shell — which is where the placeholder above tends to end up
+verbatim. `sokar task run` also says so when the agent's own credential has moved on
+and the vault's copy is behind.
+
+**Otherwise unlock and store, in that order.**
 
 ```
 sokar vault unlock
