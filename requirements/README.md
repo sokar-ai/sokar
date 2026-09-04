@@ -30,7 +30,7 @@ what the requirement says, or whether it survives at all.
 | 18 | [Mobile Client](0018-Mobile-Client.md) | A phone can monitor tasks, answer decisions and stop a run, sharing the codebase with the desktop interface. | yes |
 | 19 | [Task Templates](0019-Task-Templates.md) | Common jobs are startable as named templates carrying their own prompt and settings, rather than retyped each time. |  |
 | 20 | [Narrow The Git Endpoint](0020-Narrow-The-Git-Endpoint.md) | The host endpoint a task clones from should not be reachable from the local network. | yes |
-| 21 | [Second Agent](0021-Second-Agent.md) | A second agent is packaged and installed alongside the first, proving that adding one needs no change to anything else. |  |
+| 21 | [Second Agent](0021-Second-Agent.md) | A second agent is packaged and installed alongside the first, proving that adding one needs no change to anything else; carries the candidate matrix. | yes |
 | 22 | [Recovery And Panic](0022-Recovery-And-Panic.md) | A task that has gone wrong can be isolated for inspection, and everything can be stopped at once. |  |
 | 23 | [McSokar Apple Containers](0023-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
 
