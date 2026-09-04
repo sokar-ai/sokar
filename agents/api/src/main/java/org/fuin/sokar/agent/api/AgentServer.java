@@ -56,6 +56,21 @@ public class AgentServer implements AutoCloseable {
             replies.last(answer);
         });
 
+        server.method("ContainerSetup", (parameters, replies) -> {
+            final List<Map<String, Object>> files = new java.util.ArrayList<>();
+            for (final ContainerFile file : agent.containerSetup().files(
+                    String.valueOf(parameters.get("token")),
+                    String.valueOf(parameters.get("credentialType")),
+                    String.valueOf(parameters.get("workspace")))) {
+                final Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("path", file.path());
+                entry.put("content", file.content());
+                entry.put("ownerOnly", Boolean.valueOf(file.ownerOnly()));
+                files.add(entry);
+            }
+            replies.last(Map.of("files", files));
+        });
+
         server.method("BuildCommand", (parameters, replies) -> {
             final Object prompt = parameters.get("prompt");
             if (!(prompt instanceof String text)) {

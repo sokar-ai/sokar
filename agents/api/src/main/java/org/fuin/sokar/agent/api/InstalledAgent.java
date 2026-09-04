@@ -185,6 +185,33 @@ public class InstalledAgent implements AutoCloseable {
     }
 
     /**
+     * Asks the agent what it needs placed in a container before it starts.
+     *
+     * @param token Token the agent should present instead of the real credential.
+     * @param credentialType Kind of credential it stands in for.
+     * @param workspace Working directory inside the container.
+     * @return Files to write, possibly empty.
+     */
+    public List<ContainerFile> containerSetup(String token, String credentialType,
+            String workspace) {
+
+        final Map<String, Object> answer = client.call(AgentProtocol.CONTAINER_SETUP,
+                Map.of("token", token, "credentialType", credentialType, "workspace", workspace));
+
+        final List<ContainerFile> files = new java.util.ArrayList<>();
+        if (answer.get("files") instanceof List<?> list) {
+            for (final Object element : list) {
+                if (element instanceof Map<?, ?> entry) {
+                    files.add(new ContainerFile(String.valueOf(entry.get("path")),
+                            String.valueOf(entry.get("content")),
+                            Boolean.TRUE.equals(entry.get("ownerOnly"))));
+                }
+            }
+        }
+        return List.copyOf(files);
+    }
+
+    /**
      * Asks the agent to build a command line.
      *
      * @param request What to run.

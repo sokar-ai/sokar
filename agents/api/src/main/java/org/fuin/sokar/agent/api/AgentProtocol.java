@@ -27,6 +27,9 @@ public final class AgentProtocol {
     /** Reads the agent's credential out of a config directory. */
     public static final String EXTRACT_CREDENTIAL = INTERFACE + ".ExtractCredential";
 
+    /** Returns the files an agent needs placed in a container before it starts. */
+    public static final String CONTAINER_SETUP = INTERFACE + ".ContainerSetup";
+
     /** Builds the command line for a non-interactive run. */
     public static final String BUILD_COMMAND = INTERFACE + ".BuildCommand";
 

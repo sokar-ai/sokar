@@ -310,6 +310,38 @@ public class TaskRunner {
     }
 
     /**
+     * Writes a file inside the container, with its content on standard input.
+     *
+     * @param container Container name.
+     * @param file What to write.
+     * @throws IOException If the content cannot be handed over.
+     */
+    public void place(String container, org.fuin.sokar.agent.api.ContainerFile file)
+            throws IOException {
+
+        final Path temporary = Files.createTempFile("sokar-place", "",
+                java.nio.file.attribute.PosixFilePermissions.asFileAttribute(
+                        java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
+        try {
+            Files.writeString(temporary, file.content(), StandardCharsets.UTF_8);
+            final ProcessBuilder builder = new ProcessBuilder(podman.writeFileArguments(
+                    container, file.path(), file.ownerOnly() ? "600" : "644"));
+            builder.redirectInput(temporary.toFile());
+            builder.redirectErrorStream(true);
+            builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            final Process process = builder.start();
+            if (process.waitFor() != 0) {
+                throw new IOException("Could not write " + file.path() + " in " + container);
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted writing " + file.path(), ex);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    /**
      * Runs a command inside a running container.
      *
      * @param container Container name.

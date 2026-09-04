@@ -241,6 +241,24 @@ public class Podman {
      * @param shell Shell to run.
      * @return Full argument list, starting with the podman executable.
      */
+    /**
+     * Returns the arguments that write a file inside a container, reading it from standard input.
+     * <p>
+     * Over standard input rather than as an argument: one of these files carries the task's token,
+     * and a command line is readable by every process on the host.
+     *
+     * @param container Container name.
+     * @param path Absolute path inside the container.
+     * @param mode Octal permissions to set.
+     * @return Arguments.
+     */
+    public List<String> writeFileArguments(String container, String path, String mode) {
+        final String directory = path.substring(0, path.lastIndexOf('/'));
+        return List.of(executable, "exec", "--interactive", container, "sh", "-c",
+                "mkdir -p '" + directory + "' && cat > '" + path + "' && chmod " + mode
+                        + " '" + path + "'");
+    }
+
     public List<String> attachArguments(String container, String shell) {
         return List.of(executable, "exec", "--interactive", "--tty", container, shell);
     }
@@ -259,6 +277,11 @@ public class Podman {
      */
     public List<String> attachArguments(String container, String shell, String command) {
         return List.of(executable, "exec", "--interactive", "--tty", container, shell, "-lc",
-                command + "; exec " + shell + " -l");
+                // The agent draws a full-screen interface. When it ends, the terminal is still
+                // in raw mode and possibly on the alternate screen, so the shell that follows
+                // inherits a scrambled display. Leave the alternate screen, show the cursor, and
+                // restore line discipline before handing over.
+                command + "; printf '\\033[?1049l\\033[?25h\\033[0m'; stty sane; exec "
+                        + shell + " -l");
     }
 }

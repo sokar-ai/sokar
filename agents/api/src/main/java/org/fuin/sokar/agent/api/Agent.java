@@ -42,6 +42,15 @@ public interface Agent {
     }
 
     /**
+     * Returns what this agent needs placed in a container before it will run.
+     *
+     * @return Setup. The default places nothing, which is right for an agent that starts clean.
+     */
+    default ContainerSetup containerSetup() {
+        return ContainerSetup.none();
+    }
+
+    /**
      * Returns how this agent's output is presented.
      *
      * @return Formatter, plain by default.

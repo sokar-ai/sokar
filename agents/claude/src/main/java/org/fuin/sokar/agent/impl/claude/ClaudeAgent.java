@@ -30,6 +30,11 @@ public final class ClaudeAgent extends YamlAgent {
     }
 
     @Override
+    public org.fuin.sokar.agent.api.ContainerSetup containerSetup() {
+        return new ClaudeContainerSetup();
+    }
+
+    @Override
     public LogFormatter logFormatter() {
         return new ClaudeStreamJsonFormatter();
     }

@@ -325,6 +325,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 }
                 prepareWorkspace(runner, workspace, container, out, err);
             }
+
+            placeAgentFiles(runner, selected, container, environmentCache, out, err);
             out.println();
 
             startClearance(runner, container, out, err);
@@ -424,6 +426,54 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         }
         out.println("seed      " + local + " (committed history only)");
         return local.toString();
+    }
+
+    /**
+     * Writes whatever the agent needs before it will run in a container it has never seen.
+     * <p>
+     * A vendor's tool expects to have been used once already - a wizard answered, a folder
+     * trusted, a credential where its own login would have put it. None of that exists in a fresh
+     * container, so the tool stops and asks a person. The agent says what to write; this writes
+     * it, understanding none of it.
+     *
+     * @param runner Runs the container.
+     * @param agent The selected agent, or {@code null}.
+     * @param container Container name.
+     * @param environment Variables already prepared for the task.
+     * @param out Where progress is reported.
+     * @param err Where problems are reported.
+     */
+    private void placeAgentFiles(TaskRunner runner,
+            org.fuin.sokar.agent.api.@org.jspecify.annotations.Nullable InstalledAgent agent,
+            String container, java.util.Map<String, String> environment, PrintWriter out,
+            PrintWriter err) {
+
+        if (agent == null) {
+            return;
+        }
+        final String variable = agent.definition().tokenVariable(credentialType(agent.name()));
+        final String token = variable == null ? null : environment.get(variable);
+        if (token == null) {
+            // Nothing to stand in for, so nothing to place: the agent will ask for a login, which
+            // is the honest outcome when no credential was brokered.
+            return;
+        }
+        try {
+            final var files = agent.containerSetup(token, credentialType(agent.name()),
+                    TaskWorkspace.MOUNT);
+            for (final var file : files) {
+                runner.place(container, file);
+            }
+            if (!files.isEmpty()) {
+                out.println("prepared  " + files.size() + " file(s) the agent needs to start"
+                        + " without being asked");
+            }
+        } catch (java.io.IOException | RuntimeException ex) {
+            // Not fatal: the agent still runs, it just asks the questions this would have
+            // answered. Saying so beats a task that looks wired up and then stops for input.
+            err.println("sokar: could not prepare the agent's files: " + ex.getMessage());
+            err.flush();
+        }
     }
 
     /**
