@@ -35,8 +35,29 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     private String agentName;
 
     @Option(names = "--credential-type", paramLabel = "<type>",
-            description = "Which credential shape the agent gets. Default: ${DEFAULT-VALUE}")
-    private String credentialType = "api-key";
+            description = "Overrides the kind recorded with the credential when it was stored.")
+    private String credentialType;
+
+    /** Used when neither the flag nor the stored entry says which kind this is. */
+    private static final String DEFAULT_CREDENTIAL_TYPE = "api-key";
+
+    /**
+     * Returns which credential kind this task uses.
+     * <p>
+     * The kind belongs to the secret, so the stored entry decides it and the flag only overrides.
+     * Before it was stored the flag was the only source, and forgetting it failed looking exactly
+     * like a wrong key.
+     *
+     * @param agentName Name the credential is stored under.
+     * @return The kind.
+     */
+    private String credentialType(String agentName) {
+        if (credentialType != null) {
+            return credentialType;
+        }
+        final var entry = context.credentials().get(agentName);
+        return entry == null || entry.type() == null ? DEFAULT_CREDENTIAL_TYPE : entry.type();
+    }
 
     @Option(names = "--token-hours", paramLabel = "<n>",
             description = "How long the phantom token is accepted. Default: ${DEFAULT-VALUE}")
@@ -367,7 +388,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return null;
         }
         final org.fuin.sokar.agent.api.ProviderRoute route = agent.definition().route();
-        final String variable = agent.definition().tokenVariable(credentialType);
+        final String type = credentialType(agent.name());
+        final String variable = agent.definition().tokenVariable(type);
         if (route == null || variable == null) {
             // Nothing to proxy through. Not an error - an agent may take no credential at all -
             // but if it takes one and cannot be redirected, say so rather than issue a token
@@ -395,8 +417,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 "--agent", agent.name(),
                 "--task", task,
                 "--upstream", route.upstream(),
-                "--auth-header", route.authHeaderFor(credentialType),
-                "--auth-prefix", route.authPrefixFor(credentialType),
+                "--auth-header", route.authHeaderFor(type),
+                "--auth-prefix", route.authPrefixFor(type),
                 "--token-file", tokenFile.toString(),
                 "--pid-file", state.resolve("vault.pid").toString(),
                 "--hours", String.valueOf(tokenHours)));
@@ -805,19 +827,21 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return java.util.Map.of();
         }
 
-        final String variable = agent.definition().tokenVariable(credentialType);
+        final String variable = agent.definition().tokenVariable(credentialType(agent.name()));
         if (variable == null) {
             return java.util.Map.of();
         }
 
-        final java.util.Map<String, String> credentials = context.credentials();
+        final var credentials = context.credentials();
         if (!credentials.containsKey(agent.name())) {
             out.println("token     none - the vault holds no credential for '" + agent.name() + "'");
             return java.util.Map.of();
         }
 
+        final java.util.Map<String, String> secrets = new java.util.LinkedHashMap<>();
+        credentials.forEach((key, entry) -> secrets.put(key, entry.value()));
         final org.fuin.sokar.vault.TokenBroker broker =
-                new org.fuin.sokar.vault.TokenBroker(() -> credentials);
+                new org.fuin.sokar.vault.TokenBroker(() -> secrets);
         final org.fuin.sokar.vault.PhantomToken token =
                 broker.mint(agent.name(), task, java.time.Duration.ofHours(tokenHours));
 

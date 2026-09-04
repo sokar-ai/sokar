@@ -27,8 +27,9 @@ class VaultFileTest {
     /** Offset of the salt: iteration count, memory and parallelism follow the version. */
     private static final int HEADER_SALT_OFFSET = 24;
 
-    private static final Map<String, String> ENTRIES =
-            Map.of("github.token", "ghp_example", "gitlab.token", "glpat_example");
+    private static final Map<String, VaultEntry> ENTRIES = Map.of(
+            "github.token", VaultEntry.of("ghp_example"),
+            "gitlab.token", new VaultEntry("glpat_example", "oauth"));
 
     @Test
     void survivesARoundTrip(@TempDir Path dir) {
@@ -184,15 +185,15 @@ class VaultFileTest {
 
         final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
         vault.update(PASSPHRASE, entries -> {
-            entries.put("first", "1");
+            entries.put("first", VaultEntry.of("1"));
             return entries;
         });
         vault.update(PASSPHRASE, entries -> {
-            entries.put("second", "2");
+            entries.put("second", VaultEntry.of("2"));
             return entries;
         });
 
-        assertThat(vault.read(PASSPHRASE)).containsEntry("first", "1").containsEntry("second", "2");
+        assertThat(vault.read(PASSPHRASE)).containsEntry("first", VaultEntry.of("1")).containsEntry("second", VaultEntry.of("2"));
     }
 
     @Test
@@ -207,7 +208,7 @@ class VaultFileTest {
         for (int i = 0; i < 12; i++) {
             final String name = "key" + i;
             pool.submit(() -> vault.update(PASSPHRASE, entries -> {
-                entries.put(name, name);
+                entries.put(name, VaultEntry.of(name));
                 return entries;
             }));
         }
@@ -236,7 +237,7 @@ class VaultFileTest {
         // What "vault unlock" checks before caching: it used to cache anything typed, so a typo
         // surfaced later as a message about a possibly altered file.
         final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
-        vault.write(Map.of("example", "a-secret"), PASSPHRASE);
+        vault.write(Map.of("example", VaultEntry.of("a-secret")), PASSPHRASE);
 
         assertThat(vault.accepts(PASSPHRASE)).isTrue();
         assertThat(vault.accepts("wrong".toCharArray())).isFalse();
@@ -248,5 +249,33 @@ class VaultFileTest {
         // The negative case: a missing file must not read as "this passphrase is fine", or the
         // check would pass for every passphrase on a machine with no vault.
         assertThat(new VaultFile(dir.resolve("absent.bin")).accepts(PASSPHRASE)).isFalse();
+    }
+
+    @Test
+    void remembersWhatKindOfCredentialAnEntryIs(@TempDir Path dir) {
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("one", new VaultEntry("a-long-enough-secret", "oauth")), PASSPHRASE);
+
+        assertThat(vault.read(PASSPHRASE).get("one").type()).isEqualTo("oauth");
+    }
+
+    @Test
+    void readsAVaultWrittenBeforeEntriesHadAKind(@TempDir Path dir) {
+
+        // The compatibility case: an existing vault holds bare strings, and must keep opening.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("one", VaultEntry.of("plain")), PASSPHRASE);
+
+        final VaultEntry entry = vault.read(PASSPHRASE).get("one");
+        assertThat(entry.value()).isEqualTo("plain");
+        assertThat(entry.type()).isNull();
+    }
+
+    @Test
+    void spotsAValueTooShortToBeACredential() {
+
+        // The 8-character placeholder that reached a real vault and failed as an auth error.
+        assertThat(VaultEntry.of("testtest").implausiblyShort()).isTrue();
+        assertThat(VaultEntry.of("sk-ant-" + "x".repeat(40)).implausiblyShort()).isFalse();
     }
 }

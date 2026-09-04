@@ -123,7 +123,7 @@ public class VaultFile {
      * @return The entries, in the order they were written.
      * @throws VaultException If the file is unreadable, malformed, or the passphrase is wrong.
      */
-    public Map<String, String> read(char[] passphrase) {
+    public Map<String, VaultEntry> read(char[] passphrase) {
 
         final byte[] content;
         try {
@@ -198,7 +198,7 @@ public class VaultFile {
      * @param passphrase The passphrase.
      * @throws VaultException If the file cannot be written.
      */
-    public void write(Map<String, String> entries, char[] passphrase) {
+    public void write(Map<String, VaultEntry> entries, char[] passphrase) {
 
         final byte[] salt = new byte[SALT_LENGTH];
         random.nextBytes(salt);
@@ -221,7 +221,7 @@ public class VaultFile {
             cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
                     new GCMParameterSpec(TAG_BITS, nonce));
             cipher.updateAAD(header.array());
-            cipherText = cipher.doFinal(Json.write(entries).getBytes(StandardCharsets.UTF_8));
+            cipherText = cipher.doFinal(Json.write(document(entries)).getBytes(StandardCharsets.UTF_8));
         } catch (GeneralSecurityException ex) {
             throw new VaultException("Cannot encrypt the vault", ex);
         } finally {
@@ -287,7 +287,8 @@ public class VaultFile {
      * @param change Receives the current entries and returns what should be stored.
      * @throws VaultException If the vault cannot be locked, read or written.
      */
-    public void update(char[] passphrase, java.util.function.UnaryOperator<Map<String, String>> change) {
+    public void update(char[] passphrase,
+            java.util.function.UnaryOperator<Map<String, VaultEntry>> change) {
 
         final Path absolute = file.toAbsolutePath();
         final Path lockFile = absolute.resolveSibling(absolute.getFileName() + ".lock");
@@ -300,7 +301,7 @@ public class VaultFile {
             Files.createDirectories(lockFile.getParent());
             try (RandomAccessFile raf = new RandomAccessFile(lockFile.toFile(), "rw");
                     FileLock lock = raf.getChannel().lock()) {
-                final Map<String, String> current =
+                final Map<String, VaultEntry> current =
                         exists() ? new LinkedHashMap<>(read(passphrase)) : new LinkedHashMap<>();
                 write(change.apply(current), passphrase);
             }
@@ -329,12 +330,39 @@ public class VaultFile {
         return key;
     }
 
-    private static Map<String, String> parse(String json) {
+    /**
+     * Reads the stored document.
+     * <p>
+     * A value is either the secret itself, which is how vaults were written before credentials
+     * carried a kind, or an object holding the secret and its kind. Both are accepted so an
+     * existing vault keeps working.
+     *
+     * @param json Decrypted document.
+     * @return Entries in the order they were written.
+     */
+    private static Map<String, VaultEntry> parse(String json) {
         if (!(Json.parse(json) instanceof Map<?, ?> map)) {
             throw new VaultException("The vault does not contain a JSON object");
         }
-        final Map<String, String> entries = new LinkedHashMap<>();
-        map.forEach((key, value) -> entries.put(String.valueOf(key), String.valueOf(value)));
+        final Map<String, VaultEntry> entries = new LinkedHashMap<>();
+        map.forEach((key, value) -> entries.put(String.valueOf(key),
+                value instanceof Map<?, ?> object
+                        ? new VaultEntry(String.valueOf(object.get("value")),
+                                object.get("type") == null ? null : String.valueOf(object.get("type")))
+                        : VaultEntry.of(String.valueOf(value))));
         return entries;
+    }
+
+    /**
+     * Renders the entries for storage, keeping the short form where no kind is known.
+     *
+     * @param entries What to store.
+     * @return A document of plain values and objects.
+     */
+    private static Map<String, Object> document(Map<String, VaultEntry> entries) {
+        final Map<String, Object> document = new LinkedHashMap<>();
+        entries.forEach((name, entry) -> document.put(name, entry.type() == null ? entry.value()
+                : Map.of("value", entry.value(), "type", entry.type())));
+        return document;
     }
 }

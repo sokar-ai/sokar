@@ -29,6 +29,11 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
             description = "Name to store it under, normally the agent's name.")
     private String name;
 
+    @picocli.CommandLine.Option(names = "--type", paramLabel = "<kind>",
+            description = "Kind of credential, as the agent names it, for example 'oauth'."
+                    + " Stored with the entry, so no task has to repeat it.")
+    private String type;
+
     @Spec
     private CommandSpec spec;
 
@@ -60,7 +65,7 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
 
         try {
             context.vault().update(context.requirePassphrase(), entries -> {
-                entries.put(name, value);
+                entries.put(name, new org.fuin.sokar.vault.VaultEntry(value, type));
                 return entries;
             });
         } catch (VaultException ex) {
@@ -70,7 +75,13 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         }
 
         // The value is never echoed, not even truncated: a terminal scrollback is a file.
-        out.println("stored    " + name + " (" + value.length() + " characters)");
+        out.println("stored    " + name + " (" + (type == null ? "kind not stated" : type) + ", "
+                + value.length() + " characters)");
+        if (new org.fuin.sokar.vault.VaultEntry(value, type).implausiblyShort()) {
+            err.println("sokar: that is only " + value.length() + " characters, which is shorter"
+                    + " than any real credential - check it is not a placeholder");
+            err.flush();
+        }
         out.flush();
         return 0;
     }

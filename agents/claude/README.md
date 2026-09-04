@@ -20,10 +20,12 @@ Claude Code accepts two kinds, and they are **not interchangeable**. They go in
 different headers, and sending one as the other fails as an authentication error
 that looks exactly like a wrong key.
 
-| You have                              | Store it as | Run with                  | Sokar sends               |
-|---------------------------------------|-------------|---------------------------|---------------------------|
-| an API key from the Anthropic Console | `claude`    | *(nothing extra)*         | `x-api-key: sk-ant-…`     |
-| a Claude subscription                 | `claude`    | `--credential-type oauth` | `Authorization: Bearer …` |
+| You have                              | Store it as                    | Sokar sends               |
+|---------------------------------------|--------------------------------|---------------------------|
+| an API key from the Anthropic Console | `vault put claude --type api-key` | `x-api-key: sk-ant-…`  |
+| a Claude subscription                 | `vault put claude --type oauth`   | `Authorization: Bearer …` |
+
+The kind is stored with the credential, so no task has to repeat it.
 
 **An API key** comes from the Anthropic Console, as `sk-ant-…`. Usage is billed
 to that key.
@@ -37,7 +39,7 @@ rather than for API usage.
 
 ```
 sokar vault unlock
-printf '%s' 'sk-ant-…' | sokar vault put claude
+printf '%s' 'sk-ant-…' | sokar vault put claude --type api-key
 ```
 
 Unlock **first**: `vault put` reads the credential from standard input, so it has
@@ -48,9 +50,11 @@ becomes part of your key.
 Then:
 
 ```
-sokar task run                              # an API key
-sokar task run --credential-type oauth      # a subscription token
+sokar task run
 ```
+
+Both kinds run the same way: the vault already knows which it holds, and
+`sokar vault list` shows it. `--credential-type` on a task overrides it.
 
 ## What the container actually gets
 
@@ -125,8 +129,7 @@ request   POST /v1/messages -> 401 from the provider
 
 - **`401 from the provider`** — the request got all the way to Anthropic and it
   rejected the credential. The plumbing works; the key is wrong, expired, or of
-  the wrong kind. If you have a subscription token, did you pass
-  `--credential-type oauth`?
+  the wrong kind. `sokar vault list` shows which kind is stored.
 - **`401 token not accepted`** — the proxy rejected the phantom token. It is from
   another task, or the task has outlived `--token-hours`.
 - **`503`** — the vault was locked or the entry removed while the task ran.

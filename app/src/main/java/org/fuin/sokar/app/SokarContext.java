@@ -72,7 +72,7 @@ public record SokarContext(CommandRunner runner, SokarPaths paths, Consumer<List
      *
      * @return Credentials, possibly empty.
      */
-    public java.util.Map<String, String> credentials() {
+    public java.util.Map<String, org.fuin.sokar.vault.VaultEntry> credentials() {
         final org.fuin.sokar.vault.VaultFile vault = vault();
         if (!vault.exists()) {
             return java.util.Map.of();

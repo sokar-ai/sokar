@@ -41,8 +41,8 @@ public class VaultListCommand implements Callable<Integer>, SokarFactory.Context
             if (entries.isEmpty()) {
                 out.println("the vault is empty");
             } else {
-                entries.forEach((name, value) ->
-                        out.printf("%-20s %d characters%n", name, value.length()));
+                entries.forEach((name, entry) -> out.printf("%-20s %-10s %d characters%n",
+                        name, entry.type() == null ? "-" : entry.type(), entry.value().length()));
             }
             out.flush();
             return 0;

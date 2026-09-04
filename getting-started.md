@@ -108,11 +108,19 @@ before going further.
 
 ## 3. Put a credential in the vault
 
+> [!WARNING]
+> **Never log in from inside the box.** If an agent offers you a login prompt or a
+> sign-in URL, something is wrong here, not there — the container has no browser,
+> and the sign-in endpoints are firewalled off on purpose. Completing such a flow
+> would also mint a fresh key *inside* the container, which is the one thing this
+> whole design exists to prevent. Authenticate on the host, once, and store the
+> result below.
+
 **Unlock first, then store. In that order.**
 
 ```
 sokar vault unlock
-printf '%s' 'sk-ant-your-real-key' | sokar vault put claude
+printf '%s' 'sk-ant-your-real-key' | sokar vault put claude --type api-key
 ```
 
 The order is not a style preference. `vault put` reads the credential from
@@ -136,6 +144,10 @@ Some details worth knowing:
   command.
 - For automation, `--passphrase-command 'pass show sokar'` or
   `--systemd-credential <file>` replace the prompt entirely.
+- **`--type` belongs to the credential, not to the run.** A provider that accepts
+  more than one kind puts them in different headers, so the kind is recorded once
+  here and every task uses it without being told. `sokar task run
+  --credential-type` overrides it; nothing else needs to.
 - The **name must be the agent's name** — `sokar agents` lists what is installed.
   Sokar looks the credential up by that name and by nothing else.
 - Use `printf`, not `echo`: `echo` appends a newline, and the newline becomes part
@@ -164,8 +176,8 @@ which is less than one API key. `ls -l ~/.local/share/sokar/vault.bin`.
 **Which credential?** An agent may accept more than one kind, and they are not
 interchangeable — an API key and a subscription token go in different headers, and
 sending one as the other fails in a way that looks exactly like a wrong key. Claude
-Code takes an API key by default, or a subscription OAuth token if you add
-`--credential-type oauth` to `sokar task run` — see
+Code takes an API key or a subscription OAuth token; say which when you store it
+(`--type api-key` or `--type oauth`) and no task has to repeat it — see
 [the Claude Code guide](agents/claude/README.md) for where to get each.
 `sokar agents --verbose` shows what each installed agent needs to reach.
 

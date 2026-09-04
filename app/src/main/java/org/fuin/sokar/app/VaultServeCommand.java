@@ -86,11 +86,11 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        final Map<String, String> credentials;
+        final Map<String, String> credentials = new java.util.LinkedHashMap<>();
         final PhantomToken token;
         final TokenBroker broker;
         try {
-            credentials = context.credentials();
+            context.credentials().forEach((key, entry) -> credentials.put(key, entry.value()));
             broker = new TokenBroker(() -> credentials);
             token = broker.mint(agent, task, Duration.ofHours(hours));
         } catch (VaultException ex) {

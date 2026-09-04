@@ -107,11 +107,11 @@ public class VaultAgentCommand implements Callable<Integer> {
     private SigningKey fromVault() {
         final VaultFile vault = new VaultFile(
                 new SokarPaths(XdgPaths.current(), Path.of("")).xdg().data().resolve("vault.bin"));
-        final String seed = vault.read(passphrase()).get(keyName);
-        if (seed == null) {
+        final var entry = vault.read(passphrase()).get(keyName);
+        if (entry == null) {
             throw new VaultException("The vault has no entry named '" + keyName + "'");
         }
-        return new SigningKey(java.util.Base64.getDecoder().decode(seed), keyName);
+        return new SigningKey(java.util.Base64.getDecoder().decode(entry.value()), keyName);
     }
 
     private char[] passphrase() {

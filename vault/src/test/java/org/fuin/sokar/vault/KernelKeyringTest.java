@@ -109,11 +109,11 @@ class KernelKeyringTest {
 
         // The point of the tier: unlock once per login rather than once per command.
         final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
-        vault.write(java.util.Map.of("k", "v"), "typed once".toCharArray());
+        vault.write(java.util.Map.of("k", VaultEntry.of("v")), "typed once".toCharArray());
         keyring.store("typed once".toCharArray());
 
         final PassphraseTiers tiers = new PassphraseTiers(KernelKeyring.source(description));
 
-        assertThat(vault.read(tiers.require())).containsEntry("k", "v");
+        assertThat(vault.read(tiers.require())).containsEntry("k", VaultEntry.of("v"));
     }
 }
