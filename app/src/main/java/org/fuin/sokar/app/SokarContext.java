@@ -16,9 +16,31 @@ import org.fuin.sokar.runtime.HookInstaller;
  *
  * @param runner Runs external programs.
  * @param paths Where files go.
- * @param exec Replaces the current process; the real one never returns.
+ * @param exec Runs a command on this process's terminal and waits for it.
  */
-public record SokarContext(CommandRunner runner, SokarPaths paths, Consumer<List<String>> exec) {
+public record SokarContext(CommandRunner runner, SokarPaths paths,
+        java.util.function.ToIntFunction<List<String>> exec) {
+
+    /**
+     * Runs a command with this process's terminal and returns its exit code.
+     * <p>
+     * Waits rather than replacing this process. Replacing it left nothing behind to remove the
+     * container afterwards, so every interactive task leaked one while promising the opposite.
+     *
+     * @param arguments Command and arguments.
+     * @return Exit code, or 130 when interrupted.
+     */
+    private static int runInTerminal(List<String> arguments) {
+        try {
+            return new ProcessBuilder(arguments).inheritIO().start().waitFor();
+        } catch (java.io.IOException ex) {
+            throw new org.fuin.sokar.core.process.CommandException(
+                    org.fuin.sokar.core.process.Command.of(arguments), ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return 130;
+        }
+    }
 
     /**
      * Returns the context used by the shipped binary.
@@ -27,7 +49,7 @@ public record SokarContext(CommandRunner runner, SokarPaths paths, Consumer<List
      */
     public static SokarContext real() {
         return new SokarContext(new ProcessCommandRunner(), SokarPaths.current(),
-                Exec::replaceCurrentProcess);
+                SokarContext::runInTerminal);
     }
 
     /**

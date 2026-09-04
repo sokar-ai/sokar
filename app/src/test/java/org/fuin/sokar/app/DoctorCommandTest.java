@@ -30,7 +30,7 @@ class DoctorCommandTest {
     private SokarContext context(Path dir, Path hooks, Path packagedHooks, Path packagedAgents) {
         final XdgPaths xdg = XdgPaths.of(name -> null, dir);
         return new SokarContext(new FakeCommandRunner(),
-                new SokarPaths(xdg, hooks, packagedHooks, packagedAgents), arguments -> { });
+                new SokarPaths(xdg, hooks, packagedHooks, packagedAgents), arguments -> 0);
     }
 
     private String doctor(SokarContext context) {

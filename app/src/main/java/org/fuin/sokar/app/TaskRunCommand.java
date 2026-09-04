@@ -294,15 +294,16 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 return 0;
             }
 
-            if (!keep) {
-                out.println("Attaching. The container is removed when the shell exits.");
-            }
+            out.println(keep
+                    ? "Attaching. The container is left in place; remove it with"
+                            + " 'podman rm -f " + container + "'."
+                    : "Attaching. The container is removed when the shell exits.");
             out.flush();
 
-            // Nothing after this line runs in the shipped binary: the process image is replaced by
-            // the shell.
-            context.exec().accept(runner.attachCommand(container, shell));
-            return 0;
+            // Waits rather than replacing this process, so there is still something here to remove
+            // the container when the shell ends.
+            return cleanUp(runner, container,
+                    context.exec().applyAsInt(runner.attachCommand(container, shell)));
 
         } catch (CommandException ex) {
             err.println("sokar: " + ex.getMessage());

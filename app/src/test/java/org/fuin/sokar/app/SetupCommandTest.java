@@ -35,7 +35,7 @@ class SetupCommandTest {
                 binary.toFile().setExecutable(true);
             }
         }
-        return new SokarContext(new FakeCommandRunner(), paths, arguments -> { });
+        return new SokarContext(new FakeCommandRunner(), paths, arguments -> 0);
     }
 
     private int execute(SokarContext context, String... args) {

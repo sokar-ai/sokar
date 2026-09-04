@@ -27,7 +27,7 @@ class VaultRemoveCommandTest {
     private SokarContext context(Path dir) {
         final XdgPaths xdg = XdgPaths.of(name -> null, dir);
         return new SokarContext(new FakeCommandRunner(), new SokarPaths(xdg, dir.resolve("bin")),
-                arguments -> { });
+                arguments -> 0);
     }
 
     private int execute(SokarContext context, String... args) {

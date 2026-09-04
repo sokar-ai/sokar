@@ -60,7 +60,10 @@ class TaskRunCommandTest {
                 binary.toFile().setExecutable(true);
             }
         }
-        return new SokarContext(runner, paths, execCalls::add);
+        return new SokarContext(runner, paths, arguments -> {
+            execCalls.add(arguments);
+            return 0;
+        });
     }
 
     private int execute(SokarContext context, String... args) {
@@ -196,5 +199,27 @@ class TaskRunCommandTest {
 
     private String containerName() {
         return "sokar-uc-shell-" + ProcessHandle.current().pid();
+    }
+
+    @Test
+    void removesTheContainerWhenTheShellExits(@TempDir Path dir) throws IOException {
+
+        // The bug this exists for: attaching used to replace this process, so nothing was left to
+        // remove the container. Every interactive task leaked one while printing the opposite.
+        execute(context(dir, true), "task", "run", "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(runner.invocations()).anySatisfy(command ->
+                assertThat(command.describe()).contains("rm"));
+    }
+
+    @Test
+    void leavesTheContainerAloneWithKeep(@TempDir Path dir) throws IOException {
+
+        // The negative case: --keep has to mean something, and today it did not.
+        execute(context(dir, true), "task", "run", "--keep",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(runner.invocations()).noneSatisfy(command ->
+                assertThat(command.describe()).contains("rm "));
     }
 }
