@@ -86,6 +86,10 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Shell to attach. Default: ${DEFAULT-VALUE}")
     private String shell = "/bin/bash";
 
+    @Option(names = "--attach", paramLabel = "<what>",
+            description = "What to start on attach: agent or shell. Default: ${DEFAULT-VALUE}")
+    private String attach = "agent";
+
     @Option(names = "--keep",
             description = "Leaves the container in place after the shell exits.")
     private boolean keep;
@@ -294,16 +298,22 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 return 0;
             }
 
+            final String startWith = "agent".equals(attach) && selected != null
+                    ? selected.definition().binary() : null;
             out.println(keep
                     ? "Attaching. The container is left in place; remove it with"
                             + " 'podman rm -f " + container + "'."
                     : "Attaching. The container is removed when the shell exits.");
+            if (startWith != null) {
+                out.println("Starting " + startWith + " first; you get a shell when it exits.");
+            }
             out.flush();
 
             // Waits rather than replacing this process, so there is still something here to remove
             // the container when the shell ends.
-            return cleanUp(runner, container,
-                    context.exec().applyAsInt(runner.attachCommand(container, shell)));
+            return cleanUp(runner, container, context.exec().applyAsInt(startWith == null
+                    ? runner.attachCommand(container, shell)
+                    : runner.attachCommand(container, shell, startWith)));
 
         } catch (CommandException ex) {
             err.println("sokar: " + ex.getMessage());

@@ -132,7 +132,7 @@ class TaskRunCommandTest {
     @Test
     void handsTheTerminalToTheShell(@TempDir Path dir) throws IOException {
 
-        execute(context(dir, true), "task", "run",
+        execute(context(dir, true), "task", "run", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString(), "--shell", "/bin/sh");
 
         assertThat(execCalls).hasSize(1);
@@ -221,5 +221,26 @@ class TaskRunCommandTest {
 
         assertThat(runner.invocations()).noneSatisfy(command ->
                 assertThat(command.describe()).contains("rm "));
+    }
+
+    @Test
+    void startsTheAgentAndLeavesAShellBehind(@TempDir Path dir) throws IOException {
+
+        // The shell has to outlive the agent: when the agent ends the workspace is still there to
+        // look at, and its work can still be pushed by hand.
+        execute(context(dir, true), "task", "run", "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(execCalls).isNotEmpty();
+        assertThat(String.join(" ", execCalls.getLast())).contains("exec /bin/bash -l");
+    }
+
+    @Test
+    void attachesAPlainShellWhenAsked(@TempDir Path dir) throws IOException {
+
+        // The negative case: --attach shell must not wrap anything around the shell.
+        execute(context(dir, true), "task", "run", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(String.join(" ", execCalls.getLast())).doesNotContain("-lc");
     }
 }

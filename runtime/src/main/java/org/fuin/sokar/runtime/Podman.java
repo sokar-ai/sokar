@@ -244,4 +244,21 @@ public class Podman {
     public List<String> attachArguments(String container, String shell) {
         return List.of(executable, "exec", "--interactive", "--tty", container, shell);
     }
+
+    /**
+     * Returns the arguments that run a command first and leave a shell behind afterwards.
+     * <p>
+     * The shell outlives the command on purpose: when the command ends - finished, failed, or
+     * refused a credential - the workspace is still there to look at and its work can still be
+     * pushed by hand. Attaching to the command alone would take the container down with it.
+     *
+     * @param container Container name.
+     * @param shell Shell to leave behind.
+     * @param command Command to run first.
+     * @return Arguments.
+     */
+    public List<String> attachArguments(String container, String shell, String command) {
+        return List.of(executable, "exec", "--interactive", "--tty", container, shell, "-lc",
+                command + "; exec " + shell + " -l");
+    }
 }

@@ -346,6 +346,18 @@ public class TaskRunner {
     }
 
     /**
+     * Returns the command that runs something and then leaves a shell.
+     *
+     * @param container Container name.
+     * @param shell Shell to leave behind.
+     * @param command What to run first.
+     * @return Command and arguments.
+     */
+    public List<String> attachCommand(String container, String shell, String command) {
+        return podman.attachArguments(container, shell, command);
+    }
+
+    /**
      * Stops and removes a container.
      *
      * @param container Container name.

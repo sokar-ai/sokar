@@ -303,6 +303,10 @@ To add your own tooling to the image, see [your tooling](your-tooling.md).
 sokar task run
 ```
 
+By default it starts the agent for you and leaves a shell behind when the agent
+exits, so the workspace is still there to look at and its work can still be pushed
+by hand. `--attach shell` skips the agent and gives you the shell straight away.
+
 It builds the image, starts the container, and reports what it wired up:
 
 ```
