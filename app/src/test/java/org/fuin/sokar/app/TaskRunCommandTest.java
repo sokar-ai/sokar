@@ -59,6 +59,10 @@ class TaskRunCommandTest {
                 Files.writeString(binary, "#!/bin/sh\n");
                 binary.toFile().setExecutable(true);
             }
+            // Binaries alone are not an installation: podman has to be told to run them, which is
+            // what 'sokar setup' writes and what a task run now insists on.
+            new org.fuin.sokar.runtime.HookInstaller(paths.hooksDirectory(),
+                    paths.binaryDirectory()).install();
         }
         return new SokarContext(runner, paths, arguments -> {
             execCalls.add(arguments);

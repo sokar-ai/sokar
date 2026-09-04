@@ -122,6 +122,107 @@ public class HookInstaller {
     }
 
     /**
+     * What an operator's podman will actually do with Sokar's hooks.
+     * <p>
+     * Distinguished rather than collapsed into a boolean, because the repairs differ: a machine
+     * that never ran {@code sokar setup} needs it run, while descriptors pointing at binaries that
+     * are gone is what a package upgrade leaves behind.
+     */
+    public enum Registration {
+
+        /** Every descriptor is in place, in a directory podman reads, naming binaries that exist. */
+        ACTIVE,
+
+        /** No descriptors, or no drop-in: {@code sokar setup} has not been run for this user. */
+        MISSING,
+
+        /** Descriptors are installed but name binaries that are not there any more. */
+        DANGLING,
+
+        /** Installed, but another drop-in sorts later and points {@code hooks_dir} elsewhere. */
+        SHADOWED
+    }
+
+    /**
+     * Returns what podman will do with Sokar's hooks on this machine.
+     * <p>
+     * The question is what the runtime reads, not what Sokar would write: a descriptor in a
+     * directory no {@code hooks_dir} names is not installed, however correct its contents.
+     *
+     * @return The state, worst first: a machine can be several of these at once and the most
+     *         damaging is the one worth reporting.
+     */
+    public Registration registration() {
+
+        if (!Files.isRegularFile(dropInFile())) {
+            return Registration.MISSING;
+        }
+        for (final String name : descriptors().keySet()) {
+            if (!Files.isRegularFile(hooksDirectory.resolve(name))) {
+                return Registration.MISSING;
+            }
+        }
+        if (!effectiveHooksDirectories().contains(hooksDirectory.toString())) {
+            return Registration.SHADOWED;
+        }
+        return binariesPresent() ? Registration.ACTIVE : Registration.DANGLING;
+    }
+
+    /**
+     * Returns the hook directories podman ends up with, after every drop-in has had its say.
+     * <p>
+     * Drop-ins are read in name order and each {@code hooks_dir} replaces the last, so a file
+     * sorting after Sokar's own silently switches the hooks off. That is invisible in every other
+     * way: the descriptors are still there and still correct.
+     *
+     * @return Directories named by the winning drop-in, empty if none names any.
+     */
+    public List<String> effectiveHooksDirectories() {
+
+        final Path directory = dropInFile().getParent();
+        if (!Files.isDirectory(directory)) {
+            return List.of();
+        }
+        List<String> winner = List.of();
+        try (java.util.stream.Stream<Path> files = Files.list(directory)) {
+            for (final Path file : files.filter(path -> path.toString().endsWith(".conf"))
+                    .sorted(java.util.Comparator.comparing(path -> path.getFileName().toString()))
+                    .toList()) {
+                final List<String> named = hooksDirectoriesIn(file);
+                if (!named.isEmpty()) {
+                    winner = named;
+                }
+            }
+        } catch (IOException ex) {
+            return List.of();
+        }
+        return winner;
+    }
+
+    private static List<String> hooksDirectoriesIn(Path file) {
+        try {
+            for (final String line : Files.readAllLines(file)) {
+                final String text = line.strip();
+                if (text.startsWith("#") || !text.startsWith("hooks_dir")) {
+                    continue;
+                }
+                final int bracket = text.indexOf('[');
+                if (bracket < 0) {
+                    continue;
+                }
+                return java.util.Arrays.stream(
+                                text.substring(bracket + 1).replace("]", "").split(","))
+                        .map(entry -> entry.strip().replace("\"", ""))
+                        .filter(entry -> !entry.isEmpty())
+                        .toList();
+            }
+        } catch (IOException ex) {
+            return List.of();
+        }
+        return List.of();
+    }
+
+    /**
      * Writes the descriptors, replacing any that are already there.
      *
      * @return Paths of the written files.

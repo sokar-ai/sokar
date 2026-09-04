@@ -58,6 +58,25 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
     }
 
     /**
+     * Reports whether podman will actually run Sokar's hooks.
+     * <p>
+     * The hooks are what load the firewall. Without them a container starts with no egress policy
+     * at all and looks entirely normal, so this is the one line here that decides the exit code.
+     *
+     * @return A line describing the state.
+     */
+    private String hookRegistration() {
+        return switch (context.hooks().registration()) {
+            case ACTIVE -> "registered";
+            case MISSING -> "NOT REGISTERED - a task would run with no firewall; run 'sokar setup'";
+            case DANGLING -> "BROKEN - the descriptors name hook binaries that are not installed;"
+                    + " run 'sokar setup' again";
+            case SHADOWED -> "IGNORED - another containers.conf.d drop-in sorts after Sokar's and"
+                    + " points hooks_dir at " + context.hooks().effectiveHooksDirectories();
+        };
+    }
+
+    /**
      * Reports whether a task container will be able to reach Sokar's sockets.
      * <p>
      * Without the policy the container's connection is refused and the agent reports an
@@ -126,6 +145,7 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         printShadowed(out);
 
         out.println();
+        out.println("hooks registered    " + hookRegistration());
         out.println("dnsmasq nftset      " + nftSetSupport());
         out.println("selinux policy      " + socketPolicy());
 
@@ -136,6 +156,13 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
                 + (ProcessHardening.appliesToWholeProcess() ? "the whole process" : "this thread only"));
 
         out.flush();
+
+        // Hooks that will not run are the one thing here that makes a machine unsafe rather than
+        // merely odd: a container starts without its firewall and nothing else says so.
+        if (context.hooks().registration()
+                != org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE) {
+            return 69;
+        }
 
         // On a JVM this is a warning, in the shipped binary it must never appear.
         return ProcessHardening.appliesToWholeProcess() ? 0 : 1;

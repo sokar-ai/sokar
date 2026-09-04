@@ -163,6 +163,13 @@ See [build.md](build.md). Three things that will bite:
   exists so that cannot be got wrong at a call site. Clearing needs a NUL byte, since
   an empty write is no write at all. Also note `ausearch -m AVC -ts recent` reported
   no matches while `/var/log/audit/audit.log` held the denials; grep the file.
+- **Hook binaries on disk are not a registration.** podman reads hook descriptors from
+  the directories its `containers.conf.d` drop-ins name, in file-name order, and each
+  `hooks_dir` replaces the last - so a drop-in sorting after Sokar's own switches the
+  hooks off while every descriptor stays present and correct. `HookInstaller.registration`
+  reports the four states apart (registered, never installed, naming binaries that are
+  gone, shadowed by a later drop-in); `doctor` exits 69 for any but the first, and a task
+  refuses to start.
 - **No hook fires for a container that never started.** The poststop hook reaps every
   helper the state directory records a pid for, which covers a container that ran. A
   refused ruleset or an image that will not build leaves the credential proxy, gate and

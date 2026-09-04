@@ -219,10 +219,23 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return 0;
         }
 
-        if (!context.hooks().binariesPresent()) {
+        final org.fuin.sokar.runtime.HookInstaller.Registration hooks =
+                context.hooks().registration();
+        if (hooks != org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE) {
             // Without the hooks the container comes up with no firewall at all. Saying so is the
-            // only safe outcome: starting it anyway is the failure Sokar exists to prevent.
-            err.println("sokar: the hook binaries are not installed, run 'sokar setup' first");
+            // only safe outcome: starting it anyway is the failure Sokar exists to prevent. The
+            // binaries being present is not enough - podman has to be told to run them, and a
+            // later drop-in can point it somewhere else.
+            err.println(switch (hooks) {
+                case MISSING -> "sokar: the hooks are not registered with podman,"
+                        + " run 'sokar setup' first";
+                case DANGLING -> "sokar: the hook descriptors name binaries that are not"
+                        + " installed, run 'sokar setup' again";
+                case SHADOWED -> "sokar: another containers.conf.d drop-in points hooks_dir at "
+                        + context.hooks().effectiveHooksDirectories()
+                        + ", so Sokar's hooks would not run";
+                case ACTIVE -> "";
+            });
             err.flush();
             return 69;
         }
