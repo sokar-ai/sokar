@@ -53,6 +53,9 @@ provider:
   # trail rather than as an authentication error nobody can explain.
   proxy:
     upstream: https://api.anthropic.com
+    # A socket: a file the container mounts, invisible to anything that cannot open it. An agent
+    # that can only be given a URL declares 'endpoint: url' instead, and is served differently.
+    endpoint: socket
     socket_env: ANTHROPIC_UNIX_SOCKET
     # An OAuth token is a bearer token; an API key is not, and Anthropic reads it from its
     # own header. Sending either as the other fails exactly like a bad credential.

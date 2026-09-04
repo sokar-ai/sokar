@@ -1,6 +1,9 @@
 # 0039 — Providers As Packages
 
-**Status:** open
+**Status:** open, but no longer ahead of the evidence. The trigger this was waiting for -
+a second agent reaching a provider the first does not - is [0025](0025-Oh-My-Pi-Forge-Subscription.md),
+now being built. The extraction should follow it rather than precede it, from two real
+implementations rather than one.
 
 An agent declares its provider inline today: one upstream, one auth header, one
 prefix per credential kind, all inside the agent's own definition. With one agent
@@ -51,6 +54,45 @@ There is already one place where the two are mixed: what the first agent writes 
 a fresh container is partly its own first-run state and partly the shape its
 provider expects a stored credential to have. Those are two different things in one
 file.
+
+## What is actually data, measured 2026-09-04
+
+The first agent's hand-written Java is 303 lines, and it does not divide evenly:
+
+| file | lines | shape |
+|---|---|---|
+| `ClaudeStreamJsonFormatter` | 87 | real logic - parsing a stream format |
+| `ClaudeCredentialExtractor` | 86 | a path and a field name in the host's file |
+| `ClaudeContainerSetup` | 73 | two file templates with a token substituted |
+| `ClaudeAgent` | 50 | wiring |
+
+Around 160 of those lines say "put this value in this field of this file". `credentials()`
+is `{"apiKey": token}` or `{"claudeAiOauth": {"accessToken": token, ...}}` chosen by
+credential kind - data wearing a method. Only the formatter is genuinely code, and it
+belongs to the agent rather than the provider in any case.
+
+So a declarative form is plausible: a provider names the variable it wants, and the file it
+expects a credential in, with its path, format and placeholder. That is the candidate shape
+to test - **against the second agent, not the first**. Designing it now would encode one
+agent's assumptions: JSON, a single token, two files, a fabricated far-future expiry. Pi
+already breaks two of those - its endpoint is redirected by a TypeScript extension it
+auto-discovers, not by a variable or a credential file.
+
+## The mixing, named
+
+`ClaudeContainerSetup` writes two files for two different owners: `.claude.json` is the
+agent's own first-run state - onboarding answered, workspace trusted - while
+`.credentials.json` is the shape *the provider* expects a stored credential to have. One
+class, two owners. Splitting those is worth doing on its own, before any package boundary
+exists, because it makes the eventual boundary obvious rather than arbitrary.
+
+## The endpoint belongs to the pair, and now there is proof
+
+The table above says redirection is a property of both sides. [0025](0025-Oh-My-Pi-Forge-Subscription.md)
+shows what that costs in practice: one agent takes a socket path in a variable, the other can
+only address a URL and needs a listener bound inside its container's namespace. The provider
+is the same in both cases. So a provider declaration cannot carry "how to reach it" alone -
+the agent has to declare what shape of endpoint it can use, and Sokar satisfies it.
 
 ## To be checked
 

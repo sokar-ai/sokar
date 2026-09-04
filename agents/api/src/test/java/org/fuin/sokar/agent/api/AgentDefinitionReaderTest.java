@@ -234,6 +234,48 @@ class AgentDefinitionReaderTest {
     }
 
     @Test
+    void defaultsToASocketEndpoint() {
+
+        // The safer one, and what every agent gets unless it says it cannot use a socket.
+        final AgentDefinition definition = read(MINIMAL + """
+                provider:
+                  proxy:
+                    upstream: https://api.example.com
+                    socket_env: UC_SOCKET
+                """);
+
+        assertThat(definition.route().endpoint()).isEqualTo(ProviderRoute.Endpoint.SOCKET);
+    }
+
+    @Test
+    void readsAnAgentThatCanOnlyBeGivenAUrl() {
+
+        final AgentDefinition definition = read(MINIMAL + """
+                provider:
+                  proxy:
+                    upstream: https://api.example.com
+                    endpoint: url
+                """);
+
+        assertThat(definition.route().endpoint()).isEqualTo(ProviderRoute.Endpoint.URL);
+    }
+
+    @Test
+    void refusesAnEndpointItCannotServe() {
+
+        // Named rather than ignored: an unknown endpoint would otherwise fall back to a socket
+        // and the agent would be pointed at something it cannot address.
+        assertThatThrownBy(() -> read(MINIMAL + """
+                provider:
+                  proxy:
+                    upstream: https://api.example.com
+                    endpoint: carrier-pigeon
+                """))
+                .isInstanceOf(AgentException.class)
+                .hasMessageContaining("must be 'socket' or 'url'");
+    }
+
+    @Test
     void readsTheCredentialKindsTheProxyCannotCarry() {
         final AgentDefinition definition = read(MINIMAL + """
                 provider:

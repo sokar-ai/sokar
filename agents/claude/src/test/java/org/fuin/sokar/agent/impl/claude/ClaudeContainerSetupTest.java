@@ -32,7 +32,7 @@ class ClaudeContainerSetupTest {
 
         // Measured: without these the CLI runs its first-run wizard, and the login menu it offers
         // there is part of the wizard rather than any check of the credential.
-        final Map<?, ?> config = parse(named(ClaudeContainerSetup.CONFIG, "oauth"));
+        final Map<?, ?> config = parse(named(ClaudeFirstRun.FILE, "oauth"));
 
         assertThat(config.get("hasCompletedOnboarding")).isEqualTo(Boolean.TRUE);
         assertThat(((Map<?, ?>) ((Map<?, ?>) config.get("projects")).get("/workspace"))
@@ -41,7 +41,7 @@ class ClaudeContainerSetupTest {
 
     @Test
     void storesAnOauthTokenWhereItsOwnLoginWould() {
-        final Map<?, ?> credentials = parse(named(ClaudeContainerSetup.CREDENTIALS, "oauth"));
+        final Map<?, ?> credentials = parse(named(AnthropicCredentialFile.FILE, "oauth"));
 
         assertThat(((Map<?, ?>) credentials.get("claudeAiOauth")).get("accessToken"))
                 .isEqualTo(TOKEN);
@@ -52,7 +52,7 @@ class ClaudeContainerSetupTest {
 
         // The two kinds live in different places in that file; writing one as the other fails
         // looking exactly like a wrong key.
-        final Map<?, ?> credentials = parse(named(ClaudeContainerSetup.CREDENTIALS, "api-key"));
+        final Map<?, ?> credentials = parse(named(AnthropicCredentialFile.FILE, "api-key"));
 
         assertThat(credentials.get("apiKey")).isEqualTo(TOKEN);
         assertThat(credentials.get("claudeAiOauth")).isNull();
@@ -62,8 +62,8 @@ class ClaudeContainerSetupTest {
     void keepsTheCredentialFileToItsOwner() {
 
         // It holds the task's token. The other file holds no secret and must stay readable.
-        assertThat(named(ClaudeContainerSetup.CREDENTIALS, "oauth").ownerOnly()).isTrue();
-        assertThat(named(ClaudeContainerSetup.CONFIG, "oauth").ownerOnly()).isFalse();
+        assertThat(named(AnthropicCredentialFile.FILE, "oauth").ownerOnly()).isTrue();
+        assertThat(named(ClaudeFirstRun.FILE, "oauth").ownerOnly()).isFalse();
     }
 
     @Test
@@ -71,7 +71,7 @@ class ClaudeContainerSetupTest {
 
         // What is written must be what the extractor reads: the two are the same knowledge,
         // and nothing else in Sokar can catch them drifting apart.
-        assertThat(parse(named(ClaudeContainerSetup.CREDENTIALS, "oauth")).get("claudeAiOauth"))
+        assertThat(parse(named(AnthropicCredentialFile.FILE, "oauth")).get("claudeAiOauth"))
                 .isNotNull();
     }
 }

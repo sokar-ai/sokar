@@ -52,6 +52,8 @@ public final class AgentDefinitionJson {
             final Map<String, Object> route = new java.util.LinkedHashMap<>();
             route.put("upstream", definition.route().upstream());
             putIfPresent(route, "socketEnvironment", definition.route().socketEnvironment());
+            route.put("endpoint", definition.route().endpoint().name().toLowerCase(
+                    java.util.Locale.ROOT));
             route.put("authHeader", definition.route().authHeader());
             route.put("authPrefix", definition.route().authPrefix());
             route.put("unbrokerable", definition.route().unbrokerable());
@@ -189,7 +191,9 @@ public final class AgentDefinitionJson {
                 source.get("socketEnvironment") == null ? null
                         : String.valueOf(source.get("socketEnvironment")),
                 map(source.get("authHeader")), map(source.get("authPrefix")),
-                map(source.get("unbrokerable")));
+                map(source.get("unbrokerable")),
+                ProviderRoute.Endpoint.of(source.get("endpoint") == null ? null
+                        : String.valueOf(source.get("endpoint")), "the agent's own description"));
     }
 
     private static Map<String, String> map(@Nullable Object value) {

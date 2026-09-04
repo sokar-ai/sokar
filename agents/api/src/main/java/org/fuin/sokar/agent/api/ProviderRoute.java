@@ -22,10 +22,49 @@ import org.jspecify.annotations.Nullable;
  *        if the agent cannot be pointed at one.
  * @param authHeader Credential type to header name.
  * @param authPrefix Credential type to the string placed before the credential.
+ * @param endpoint What the agent is able to address the proxy as.
  */
 public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
         Map<String, String> authHeader, Map<String, String> authPrefix,
-        Map<String, String> unbrokerable) {
+        Map<String, String> unbrokerable, Endpoint endpoint) {
+
+    /**
+     * What an agent can be pointed at.
+     * <p>
+     * Declared by the agent because it is a property of the agent, not of the provider: the same
+     * provider is reached over a socket by one agent and only as a URL by another. Sokar decides
+     * how to satisfy it, and the two are satisfied very differently - a socket is a file the
+     * container mounts, while a URL needs something listening in the container's own network
+     * namespace, because a host-side listener is either unreachable from a rootless container or
+     * bound to every interface.
+     */
+    public enum Endpoint {
+
+        /** A unix socket path in an environment variable. The default, and the safer one. */
+        SOCKET,
+
+        /** An {@code http://} address, for an agent that can only be given a URL. */
+        URL;
+
+        /**
+         * Returns the endpoint a definition names.
+         *
+         * @param declared Value from the definition, or {@code null} for the default.
+         * @param origin Where the definition came from, for the error message.
+         * @return The endpoint.
+         */
+        public static Endpoint of(@Nullable String declared, String origin) {
+            if (declared == null || declared.isBlank()) {
+                return SOCKET;
+            }
+            return switch (declared.toLowerCase(java.util.Locale.ROOT)) {
+                case "socket" -> SOCKET;
+                case "url" -> URL;
+                default -> throw new AgentException(origin + ": 'proxy.endpoint' must be 'socket'"
+                        + " or 'url', not '" + declared + "'");
+            };
+        }
+    }
 
     /**
      * Constructor for a route that can carry every credential kind.
@@ -37,7 +76,22 @@ public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
      */
     public ProviderRoute(String upstream, @Nullable String socketEnvironment,
             Map<String, String> authHeader, Map<String, String> authPrefix) {
-        this(upstream, socketEnvironment, authHeader, authPrefix, Map.of());
+        this(upstream, socketEnvironment, authHeader, authPrefix, Map.of(), Endpoint.SOCKET);
+    }
+
+    /**
+     * Constructor for a route with no endpoint of its own declared.
+     *
+     * @param upstream Real API endpoint.
+     * @param socketEnvironment Variable naming the proxy socket, or {@code null}.
+     * @param authHeader Header to use, by credential kind.
+     * @param authPrefix Value prefix, by credential kind.
+     * @param unbrokerable Why a credential kind cannot be brokered.
+     */
+    public ProviderRoute(String upstream, @Nullable String socketEnvironment,
+            Map<String, String> authHeader, Map<String, String> authPrefix,
+            Map<String, String> unbrokerable) {
+        this(upstream, socketEnvironment, authHeader, authPrefix, unbrokerable, Endpoint.SOCKET);
     }
 
     /**
@@ -76,6 +130,7 @@ public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
         }
         authHeader = Map.copyOf(authHeader);
         authPrefix = Map.copyOf(authPrefix);
+        unbrokerable = Map.copyOf(unbrokerable);
     }
 
     /**
