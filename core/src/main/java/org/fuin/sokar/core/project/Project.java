@@ -15,7 +15,24 @@ package org.fuin.sokar.core.project;
  */
 public record Project(String name, String description, SecurityClass securityClass, String baseImage,
         @org.jspecify.annotations.Nullable String imageSnippet,
-        @org.jspecify.annotations.Nullable String upstream) {
+        @org.jspecify.annotations.Nullable String upstream, Limits limits) {
+
+    /**
+     * Constructor with the default limits.
+     *
+     * @param name Short name.
+     * @param description Human-readable description.
+     * @param securityClass How much the agent is trusted.
+     * @param baseImage Image the task image is built from.
+     * @param imageSnippet Extra container-build lines, or {@code null}.
+     * @param upstream Repository the work belongs to, or {@code null}.
+     */
+    public Project(String name, String description, SecurityClass securityClass, String baseImage,
+            @org.jspecify.annotations.Nullable String imageSnippet,
+            @org.jspecify.annotations.Nullable String upstream) {
+        this(name, description, securityClass, baseImage, imageSnippet, upstream,
+                Limits.defaults());
+    }
 
     /**
      * Constructor for a project with no upstream.

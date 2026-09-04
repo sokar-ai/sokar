@@ -152,4 +152,55 @@ class ProjectReaderTest {
                 .isInstanceOf(ProjectException.class)
                 .hasMessageContaining("/etc/sokar/project.yml");
     }
+
+    @Test
+    void readsDeclaredLimits() {
+        final Project project = ProjectReader.read(new java.io.StringReader("""
+                project:
+                  name: "demo"
+                  security_class: "guarded"
+                limits:
+                  memory: "2g"
+                  cpus: "1.5"
+                  pids: 512
+                image:
+                  base_image: "ubuntu:24.04"
+                """), "test");
+
+        assertThat(project.limits().memory()).isEqualTo("2g");
+        assertThat(project.limits().cpus()).isEqualTo("1.5");
+        assertThat(project.limits().pids()).isEqualTo(512);
+    }
+
+    @Test
+    void fallsBackToTheDefaultLimits() {
+
+        // The case that matters: a project file written before limits existed must still be
+        // limited, not silently unlimited.
+        final Project project = ProjectReader.read(new java.io.StringReader("""
+                project:
+                  name: "demo"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                """), "test");
+
+        assertThat(project.limits()).isEqualTo(Limits.defaults());
+    }
+
+    @Test
+    void letsAProjectOptOutOfTheMemoryCapOnPurpose() {
+        final Project project = ProjectReader.read(new java.io.StringReader("""
+                project:
+                  name: "demo"
+                  security_class: "guarded"
+                limits:
+                  memory: "none"
+                image:
+                  base_image: "ubuntu:24.04"
+                """), "test");
+
+        assertThat(project.limits().memory()).isNull();
+        assertThat(project.limits().pids()).isEqualTo(2048);
+    }
 }

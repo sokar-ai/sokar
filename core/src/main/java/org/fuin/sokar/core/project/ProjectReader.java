@@ -77,7 +77,8 @@ public final class ProjectReader {
                 SecurityClass.parse(required(project, "security_class", origin, "project")),
                 required(image, "base_image", origin, "image"),
                 snippet(image, origin),
-                text(project.get("upstream")).isEmpty() ? null : text(project.get("upstream")));
+                text(project.get("upstream")).isEmpty() ? null : text(project.get("upstream")),
+                limits(root, origin));
     }
 
     private static Map<?, ?> section(Map<?, ?> root, String name, String origin) {
@@ -89,6 +90,33 @@ public final class ProjectReader {
             throw new ProjectException(origin + ": '" + name + "' must be a mapping");
         }
         return map;
+    }
+
+    /**
+     * Reads the optional {@code limits} section.
+     *
+     * @param root The whole document.
+     * @param origin Name used in error messages.
+     * @return Declared limits, falling back to the defaults key by key.
+     */
+    private static Limits limits(Map<?, ?> root, String origin) {
+        if (!(root.get("limits") instanceof Map<?, ?> limits)) {
+            return Limits.defaults();
+        }
+        final String memory = text(limits.get("memory"));
+        final String cpus = text(limits.get("cpus"));
+        final Object pids = limits.get("pids");
+        try {
+            return new Limits(
+                    // 'none' is how a project opts out on purpose, which reads differently from
+                    // having forgotten to set one.
+                    memory.isEmpty() ? Limits.DEFAULT_MEMORY : "none".equals(memory) ? null : memory,
+                    cpus.isEmpty() || "none".equals(cpus) ? null : cpus,
+                    pids == null ? Limits.DEFAULT_PIDS : Integer.parseInt(String.valueOf(pids)));
+        } catch (NumberFormatException ex) {
+            throw new ProjectException(origin + ": 'limits.pids' must be a number, not '"
+                    + pids + "'");
+        }
     }
 
     private static String required(Map<?, ?> section, String key, String origin, String sectionName) {

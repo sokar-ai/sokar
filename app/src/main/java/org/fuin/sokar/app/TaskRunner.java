@@ -165,8 +165,13 @@ public class TaskRunner {
 
         final ContainerSpec specification = new ContainerSpec(container, image)
                 .command("sleep", "infinity")
+                .limits(project.limits())
                 .resolver(org.fuin.sokar.shield.DnsPolicy.LISTEN_ADDRESS)
                 .annotation(Sidecar.ANNOTATION, sidecarFile.toString());
+        out.println("limits    " + (project.limits().memory() == null ? "no memory cap"
+                : project.limits().memory() + " memory")
+                + (project.limits().cpus() == null ? "" : ", " + project.limits().cpus() + " cpus")
+                + ", " + project.limits().pids() + " processes");
         environment.forEach(specification::environment);
         if (wiring.vaultSocket() != null) {
             // The credential proxy. Mounted rather than reached over the network on purpose: it

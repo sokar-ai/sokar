@@ -1,0 +1,5 @@
+project:
+  name: "sokar"
+  security_class: "guarded"
+image:
+  base_image: "ubuntu:24.04"

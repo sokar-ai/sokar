@@ -28,6 +28,14 @@ public class ContainerSpec {
 
     private final Map<String, String> environment = new LinkedHashMap<>();
 
+    @org.jspecify.annotations.Nullable
+    private String memory = org.fuin.sokar.core.project.Limits.DEFAULT_MEMORY;
+
+    @org.jspecify.annotations.Nullable
+    private String cpus;
+
+    private int pids = org.fuin.sokar.core.project.Limits.DEFAULT_PIDS;
+
     /**
      * Constructor with the required data.
      *
@@ -115,6 +123,19 @@ public class ContainerSpec {
     }
 
     /**
+     * Sets what the container may consume.
+     *
+     * @param limits The limits.
+     * @return This instance.
+     */
+    public ContainerSpec limits(org.fuin.sokar.core.project.Limits limits) {
+        this.memory = limits.memory();
+        this.cpus = limits.cpus();
+        this.pids = limits.pids();
+        return this;
+    }
+
+    /**
      * Renders the podman arguments, without the {@code create} verb.
      *
      * @return Arguments.
@@ -133,6 +154,21 @@ public class ContainerSpec {
 
         arguments.add("--cap-drop");
         arguments.add("ALL");
+
+        // PID 1 is 'sleep infinity' and never reaps, so without this every process the agent
+        // orphans stays a zombie holding a PID until the container dies.
+        arguments.add("--init");
+
+        if (memory != null) {
+            arguments.add("--memory");
+            arguments.add(memory);
+        }
+        if (cpus != null) {
+            arguments.add("--cpus");
+            arguments.add(cpus);
+        }
+        arguments.add("--pids-limit");
+        arguments.add(String.valueOf(pids));
 
         // A private network namespace is what makes a per-container firewall possible at all: the
         // nft hook installs the ruleset inside this namespace.

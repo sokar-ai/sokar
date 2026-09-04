@@ -180,7 +180,23 @@ project:
   # upstream: "git@github.com:you/myproject.git"   # required by online; optional otherwise
 image:
   base_image: "ubuntu:24.04"
+limits:                     # optional; these are the defaults
+  memory: "8g"              # "none" to opt out on purpose
+  pids: 2048
+  # cpus: "2.0"             # unset means no CPU limit
 ```
+
+**Why the limits are there.** An agent in YOLO mode runs commands nobody reviewed,
+so a runaway build is a normal outcome rather than an attack. `--pids-limit` also
+contains a fork bomb; podman defaults it to 2048, and Sokar pins it so the
+protection does not depend on a distribution default. Memory is the one that takes
+the host down, so it is capped by default and a project raises it when it needs to.
+CPU is left alone: starving a task only makes it slow.
+
+Sokar also passes `--init`. The container's main process is `sleep infinity`, which
+never calls `wait()`, so without an init every process the agent orphans would stay
+a zombie holding a PID until the container died — and those count against the
+process limit.
 
 **What the gate is**, since the classes are defined in terms of it: a bare mirror
 of your repository on your own machine, at
