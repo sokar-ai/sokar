@@ -40,6 +40,24 @@ renewal to a separate tool on the machine - a cloud vendor's own CLI, say - whic
 never passes through the agent's endpoint at all and would have to be either present
 in the container or answered another way.
 
+## Measured
+
+2026-09-04, on a machine where the same agent was in daily use on the host. A
+subscription credential was imported into the vault in the morning; by the afternoon
+a task using it failed with the provider reporting the token revoked. The host agent
+had renewed its own credential in between, and the stored copy decayed with it.
+
+Two things follow, and the second was not obvious:
+
+- **The copy decays on the host's schedule, not the task's.** This is not only about
+  an agent inside the box trying to renew. A credential can go stale while nothing
+  is running at all, and the next task inherits a dead one.
+- **The staleness warning added the same day caught it**, and said what to do,
+  before the failure appeared. That is a detector, not a fix: it turns a confusing
+  authentication error into an instruction, and nothing more.
+
+For this credential kind, "import once" is therefore not a working model.
+
 ## To be checked
 
 - **Which credential kinds actually expire in practice**, and over what period. A
@@ -52,6 +70,12 @@ in the container or answered another way.
   provider directly, ignoring the endpoint it was given.
 - Whether an agent can be told its credential does not expire, and whether that is
   honoured or merely recorded.
+- **Whether the broker should read the host's credential at task start** rather than
+  serve a copy stored earlier. It would end the decay for every credential an agent
+  already holds on this machine, and would make the vault the place for credentials
+  with no host agent - a service key, a signing key, a machine with no login - rather
+  than the primary store. It also moves a live read into the path of every task,
+  which is a cost and a new failure mode.
 - Whether an agent that accepts a credential **by reference to an environment
   variable** sidesteps this entirely. If the stored value is a pointer rather than a
   token, there may be nothing for the agent to consider expired.
