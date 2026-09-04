@@ -37,7 +37,7 @@ be given the real credential or not supported.
 | Gemini CLI | Google | yes | account sign-in or API key | likely, unverified |
 | GitHub Copilot CLI | GitHub Copilot, which fronts several models | yes | forge account, device flow | unlikely, unverified |
 | OpenCode | many, chosen per session | **no** | per-provider API keys | by construction, unverified |
-| Oh My Pi | many, 40+ | **no** | per-provider API keys | by construction, unverified |
+| Oh My Pi | many, 40+ | **no** | per provider: env var, stored key, or sign-in with refresh | yes for common API dialects, by design |
 
 Ordered by reported usage among professional developers, except the last, which is
 included because it is provider-agnostic and small enough to be a fair test of the
@@ -46,6 +46,33 @@ onboarding path.
 Only the first row is established: everything in it was measured while building the
 first agent. Every "unverified" is a claim to check before committing to that agent,
 not a plan.
+
+## What a provider-agnostic agent already models
+
+The agents in the lower half of the table treat the provider as a first-class thing
+of its own, separate from the agent, and that shape is worth adopting rather than
+rediscovering:
+
+- **A provider carries its own identity, default model, and credential lookup** -
+  typically an ordered list of environment variables to fall back through.
+- **Authentication is per provider and comes in three shapes**: an environment
+  variable, a stored static key, and an interactive sign-in that yields a token
+  **plus a refresh flow**.
+- **The endpoint is overridable per provider**, at least for the ones speaking a
+  common API dialect. That is the property brokering depends on, and it exists by
+  design there rather than by accident.
+- **Adding one is a declaration plus a registry entry**, not a change to the agent.
+
+Two of those land directly on Sokar's own design:
+
+- The vault is keyed by **agent** name. An agent that talks to several providers
+  needs one credential per provider, so the key has to become agent *and* provider.
+  Every agent supported so far has hidden this by having exactly one.
+- A **refresh flow is a problem for a task-scoped token**. An agent holding what it
+  believes is an expiring credential will try to renew it, and a phantom token
+  cannot be renewed by anyone but the broker that minted it. Either the proxy
+  answers refresh as well as use, or the token must be presented in a form the agent
+  will not try to refresh.
 
 ## To be checked
 
@@ -56,5 +83,6 @@ not a plan.
 - An agent that authenticates by account sign-in rather than by a key may verify the
   session with its vendor before use. That check does not go through a redirected
   endpoint, so it has to be reachable, which widens what the box may contact.
-- A provider-agnostic agent needs one credential per provider rather than one per
-  agent. The vault is keyed by agent name today, which does not express that.
+- Whether the proxy can answer a **token refresh**, or whether a task-scoped token
+  can be shaped so that no agent attempts one. Unanswered, this limits Sokar to
+  agents authenticating with a static key.
