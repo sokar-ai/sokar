@@ -59,11 +59,6 @@ provider:
     auth_header:
       oauth: Authorization
       _default: x-api-key
-    # Measured 2026-09-04: with a subscription token the CLI ignores base_url_env and
-    # goes to its own endpoint, which is firewalled off, so no request reaches the proxy.
-    unbrokerable:
-      oauth: "Claude Code sends a subscription token straight to Anthropic instead of to Sokar's credential proxy, and Sokar blocks that route so your token cannot leave the box. Use an API key from the Anthropic Console instead"
-
     auth_prefix:
       oauth: "Bearer "
       _default: ""

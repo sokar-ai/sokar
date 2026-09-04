@@ -71,24 +71,16 @@ it with your real credential, and reissues the request to
 `https://api.anthropic.com`. Your key never enters the container, and the phantom
 token stops working when the task ends.
 
-> [!WARNING]
-> **A subscription token does not work through the proxy. Use an API key.**
-> Measured on 2026-09-04, same machine and build, credential kind the only variable:
->
-> | stored as | requests reaching the proxy | result |
-> |---|---|---|
-> | `--type oauth` | **0** | `ENOTFOUND api.anthropic.com` |
-> | `--type api-key` | **19** | `401 from the provider` |
->
-> With `oauth` the token variable, the base URL and the socket were all set and the
-> proxy was running; the CLI ignored the base URL and went to its own endpoint, which
-> is firewalled off exactly as intended. Opening `api.anthropic.com` would fix it and
-> is not an option: the real token would then leave the container, which is the one
-> thing this design exists to prevent.
->
-> The limitation is declared in `claude.yaml` as `provider.proxy.unbrokerable`, so
-> `sokar vault put --type oauth` and `sokar task run` both say so rather than letting
-> you discover it as a network error.
+> [!NOTE]
+> **If the CLI reports it cannot reach Anthropic, it is not your network.** The
+> provider's own host is withheld from the firewall while the proxy is in use, so
+> anything that contacts it directly instead of through the socket gets a name that
+> does not resolve. Measured on 2026-09-04: a headless run routes through the proxy
+> and works; an interactive run reported `ENOTFOUND api.anthropic.com`. The CLI
+> honours both `ANTHROPIC_BASE_URL` and `ANTHROPIC_UNIX_SOCKET` with either
+> credential kind - verified against a local listener, including with a phantom
+> token - so the cause is something in the interactive start-up path, not the
+> credential. Not yet identified.
 
 **Both variables are set on purpose.** `ANTHROPIC_UNIX_SOCKET` only selects the
 transport. Without `ANTHROPIC_BASE_URL`, Claude Code falls back to its own
