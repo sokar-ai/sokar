@@ -2,76 +2,60 @@
 
 **Status:** open
 
-The architecture claims an agent is a package rather than a patch. One agent does
-not demonstrate that; two do.
+Which agents and providers exist, how each authenticates, and whether each can be
+brokered at all. An index rather than a piece of work: every row is its own file,
+and this is where they are compared, because the comparison is what a single file
+cannot hold.
+
+Two axes that are easy to conflate. The **agent** is the harness that runs in the
+box and is what Sokar packages. The **provider** serves the model and is something
+an agent talks to. Some agents are tied to one provider, some deliberately are not,
+and a provider with no agent of its own is reached through somebody else's.
+
+The column that decides everything is the last one. Brokering only works if the
+agent can be pointed at a different endpoint - that is what lets a task hold a
+task-scoped token while the real credential stays on the host. An agent that can
+only reach its vendor's endpoint cannot be brokered, and would have to be given the
+real credential or go unsupported.
 
 ## Acceptance
 
-- The second agent ships as its own binary and its own package.
-- Nothing outside the agent directory names it, enforced by the build.
-- Installing it makes it usable without rebuilding or reinstalling anything else.
-- Its credential kinds and destinations are declared, not coded.
+- Every agent and provider named here has a file saying how it authenticates and
+  whether it can be brokered.
+- Each claim is marked as measured or unverified, and no unverified claim is written
+  as though it were settled.
+- A candidate that turns out to be unsupportable is recorded as such rather than
+  removed, so the question is not asked twice.
+- The next agent to build is named, with the reason.
 
-## Notes
-
-The enforcement already exists and already fails the build when violated. This
-requirement is about exercising it.
-
-The one chosen to be built next is [0025](0025-Oh-My-Pi-Forge-Subscription.md).
-
-## Candidates
-
-Two axes that are easy to conflate: the **agent** is the harness that runs in the
-box, the **provider** is who serves the model. Some agents are tied to one
-provider, some are deliberately not, and the difference decides how much of the
-credential machinery can be reused.
-
-The last column is the one that matters most here. Brokering only works if the
-agent can be pointed at a different endpoint - that is what lets a task hold a
-task-scoped token while the real credential stays on the host. An agent that can
-only talk to its vendor's own endpoint cannot be brokered at all, and would have to
-be given the real credential or not supported.
+## Agents
 
 | Agent | Provider(s) | Tied to one? | Authentication | Redirectable endpoint? |
 |---|---|---|---|---|
-| Claude Code | Anthropic; also Bedrock, Vertex, Foundry | model yes, endpoint no | subscription token or API key | **yes** - base URL and a unix socket, both verified |
-| Codex CLI | OpenAI | yes | account sign-in or API key | likely, unverified |
-| Gemini CLI | Google | yes | account sign-in or API key | likely, unverified |
-| GitHub Copilot CLI | GitHub Copilot, which fronts several models | yes | forge account, device flow | unlikely, unverified |
-| Grok Build | xAI | yes | subscription account; the model is also on the vendor's API | unverified |
-| OpenCode | many, chosen per session | **no** | per provider: pasted key in one store, browser sign-in, or env var | **documented** - a base URL per provider |
-| Oh My Pi | many, 40+ | **no** | per provider: env var, stored key, or sign-in with refresh | yes for common API dialects, by design |
+| [Claude Code](0026-Agent-Claude-Code.md) | Anthropic; also three cloud vendors | model yes, endpoint no | subscription token or API key | **yes**, verified |
+| [Codex CLI](0027-Agent-Codex-CLI.md) | OpenAI | yes | account sign-in or API key | unverified |
+| [Gemini CLI](0028-Agent-Gemini-CLI.md) | Google | yes | account sign-in or API key | unverified |
+| [GitHub Copilot CLI](0029-Agent-Copilot-CLI.md) | GitHub Copilot | yes | forge account, device flow | unlikely, unverified |
+| [Grok Build](0030-Agent-Grok-Build.md) | xAI | yes | subscription account | unverified |
+| [OpenCode](0031-Agent-OpenCode.md) | many, per session | **no** | key, sign-in, or variable | **documented** |
+| [Oh My Pi](0032-Agent-Oh-My-Pi.md) | many, 40+ | **no** | key, variable, or sign-in with refresh | yes for the common dialect |
 
-Ordered by reported usage among professional developers, with two exceptions. Grok
-Build is too recent for usage to mean anything - it reached 1.0 in August 2026 - and
-is here because it is the only agent tied to that provider. Oh My Pi is here because
-it is provider-agnostic and small enough to be a fair test of the onboarding path.
+Ordered by reported usage among professional developers, except the last two: Grok
+Build is too recent for usage to mean anything, and Oh My Pi is here because it is
+provider-agnostic and small enough to be a fair test of the onboarding path.
 
-A provider with no agent of its own is not absent from this table: it is one of the
-"many" the last two rows reach. An agent is what Sokar packages; a provider is
-something an agent talks to.
+## Providers
 
-Some providers are reachable through an agent built for someone else, by serving a
-compatible API dialect. That is worth its own list, because it changes what Sokar
-has to make configurable:
-
-| Provider | Reached how | Credential | Consequence for Sokar |
+| Provider | Reached how | Credential | Consequence |
 |---|---|---|---|
-| Anthropic | its own agent, natively | subscription token or API key | the case already built |
-| OpenAI, Google, xAI | their own agents, natively | account or API key | one agent each |
-| Zhipu | **an Anthropic-compatible endpoint**, driving an agent built for Anthropic | API key, in a third variable of its own | **the proxy's upstream cannot be a constant** |
-| OpenRouter and similar | an OpenAI-compatible endpoint, through a provider-agnostic agent | API key | per-provider credentials, see above |
+| [Anthropic](0033-Provider-Anthropic.md) | its own agent, natively | subscription token or API key | the case already built |
+| [OpenAI](0034-Provider-OpenAI.md) | its own agent, or any speaking its dialect | account or API key | the most imitated dialect |
+| [Google](0035-Provider-Google.md) | its own agent, or a provider-agnostic one | account or API key | one agent each |
+| [GitHub Copilot](0036-Provider-GitHub-Copilot.md) | its own agent, or as a provider inside others | forge account, short-lived token | may need refresh first |
+| [xAI](0037-Provider-xAI.md) | its own agent, or its public API | subscription or API key | one agent each |
+| [Zhipu](0038-Provider-Zhipu.md) | an endpoint compatible with another vendor's dialect | API key, in a variable of its own | **the broker's upstream cannot be a constant** |
 
-The third row is the one that costs something. An agent's route names one upstream
-today, fixed in the agent's own definition, and the endpoint variable is set by
-Sokar to point at the broker. Pointing the same agent at a different provider means
-the upstream the broker forwards to has to be chosen per project or per credential,
-and the variable carrying the token may not be the one the agent's definition names.
-None of that is hard; all of it is currently assumed away.
-
-Only the first row is established: everything in it was measured while building the
-first agent. Every "unverified" is a claim to check before committing to that agent,
-not a plan.
+The one chosen to be built next is [0025](0025-Oh-My-Pi-Forge-Subscription.md).
 
 ## What a provider-agnostic agent already models
 

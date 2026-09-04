@@ -36,6 +36,19 @@ what the requirement says, or whether it survives at all.
 | 22 | [Recovery And Panic](0022-Recovery-And-Panic.md) | A task that has gone wrong can be isolated for inspection, and everything can be stopped at once. |  |
 | 23 | [McSokar Apple Containers](0023-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
 
+| 26 | [Agent Claude Code](0026-Agent-Claude-Code.md) | One agent: how it authenticates and whether it can be brokered. | yes |
+| 27 | [Agent Codex CLI](0027-Agent-Codex-CLI.md) | One agent: how it authenticates and whether it can be brokered. | yes |
+| 28 | [Agent Gemini CLI](0028-Agent-Gemini-CLI.md) | One agent: how it authenticates and whether it can be brokered. | yes |
+| 29 | [Agent Copilot CLI](0029-Agent-Copilot-CLI.md) | One agent: how it authenticates and whether it can be brokered. | yes |
+| 30 | [Agent Grok Build](0030-Agent-Grok-Build.md) | One agent: how it authenticates and whether it can be brokered. | yes |
+| 31 | [Agent OpenCode](0031-Agent-OpenCode.md) | One agent: how it authenticates and whether it can be brokered. | yes |
+| 32 | [Agent Oh My Pi](0032-Agent-Oh-My-Pi.md) | One agent: how it authenticates and whether it can be brokered. | yes |
+| 33 | [Provider Anthropic](0033-Provider-Anthropic.md) | One provider: how it authenticates and whether it can be brokered. | yes |
+| 34 | [Provider OpenAI](0034-Provider-OpenAI.md) | One provider: how it authenticates and whether it can be brokered. | yes |
+| 35 | [Provider Google](0035-Provider-Google.md) | One provider: how it authenticates and whether it can be brokered. | yes |
+| 36 | [Provider GitHub Copilot](0036-Provider-GitHub-Copilot.md) | One provider: how it authenticates and whether it can be brokered. | yes |
+| 37 | [Provider xAI](0037-Provider-xAI.md) | One provider: how it authenticates and whether it can be brokered. | yes |
+| 38 | [Provider Zhipu](0038-Provider-Zhipu.md) | One provider: how it authenticates and whether it can be brokered. | yes |
 ## To be checked
 
 Ten of these carry a **To be checked** section at the end: an open question whose
