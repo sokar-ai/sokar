@@ -49,6 +49,24 @@ A provider with no agent of its own is not absent from this table: it is one of 
 "many" the last two rows reach. An agent is what Sokar packages; a provider is
 something an agent talks to.
 
+Some providers are reachable through an agent built for someone else, by serving a
+compatible API dialect. That is worth its own list, because it changes what Sokar
+has to make configurable:
+
+| Provider | Reached how | Credential | Consequence for Sokar |
+|---|---|---|---|
+| Anthropic | its own agent, natively | subscription token or API key | the case already built |
+| OpenAI, Google, xAI | their own agents, natively | account or API key | one agent each |
+| Zhipu | **an Anthropic-compatible endpoint**, driving an agent built for Anthropic | API key, in a third variable of its own | **the proxy's upstream cannot be a constant** |
+| OpenRouter and similar | an OpenAI-compatible endpoint, through a provider-agnostic agent | API key | per-provider credentials, see above |
+
+The third row is the one that costs something. An agent's route names one upstream
+today, fixed in the agent's own definition, and the endpoint variable is set by
+Sokar to point at the broker. Pointing the same agent at a different provider means
+the upstream the broker forwards to has to be chosen per project or per credential,
+and the variable carrying the token may not be the one the agent's definition names.
+None of that is hard; all of it is currently assumed away.
+
 Only the first row is established: everything in it was measured while building the
 first agent. Every "unverified" is a claim to check before committing to that agent,
 not a plan.
