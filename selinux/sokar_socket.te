@@ -12,14 +12,22 @@ module sokar_socket 1.0;
 # socket of this type, so a compromised container cannot stand up a listener wearing the
 # label and collect another task's token.
 #
-# Two domains rather than three: every Sokar socket is bound by a host process the operator
-# started, so the container runtime needs no permission here.
+# Three domains, for three different reasons:
+#
+#   unconfined_t       binds the sockets and connects to them as a host-side client.
+#   container_t        the task itself, which may only connect.
+#   container_runtime_t the relay that gives an agent a URL inside its own network namespace. It
+#                      enters that namespace through the container runtime's own unshare helper,
+#                      which puts it in this domain - measured, and refused before this rule
+#                      existed. It may only connect: it cannot create a socket of this type, so a
+#                      compromised container still cannot stand up a listener wearing the label.
 #
 # Install:  sudo ./install-selinux-policy.sh
 # Remove:   sudo semodule -r sokar_socket
 
 require {
     type container_t;
+    type container_runtime_t;
     type unconfined_t;
     class process setsockcreate;
     class unix_stream_socket {
@@ -42,3 +50,5 @@ allow unconfined_t sokar_socket_t:unix_stream_socket {
 };
 
 allow container_t sokar_socket_t:unix_stream_socket connectto;
+
+allow container_runtime_t sokar_socket_t:unix_stream_socket connectto;

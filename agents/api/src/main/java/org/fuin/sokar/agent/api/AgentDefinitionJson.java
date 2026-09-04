@@ -95,7 +95,8 @@ public final class AgentDefinitionJson {
                 string(source, "binary"),
                 new GitIdentity(string(git, "name"), string(git, "email")),
                 new HeadlessFlags(
-                        string(headless, "promptFlag"),
+                        headless.get("promptFlag") == null ? ""
+                                : String.valueOf(headless.get("promptFlag")),
                         optional(headless, "modelFlag"),
                         optional(headless, "maxTurnsFlag"),
                         optional(headless, "verboseFlag"),

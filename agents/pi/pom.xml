@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar-agents</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-agent-pi</artifactId>
+
+    <!-- Its own version, like every agent: see the note in the claude module. -->
+    <version>1.0.0-SNAPSHOT</version>
+    <description>Sokar agent for Pi</description>
+
+    <properties>
+        <!-- Filtered into pi.yaml. Bumping it means regenerating the lockfile beside it. -->
+        <agent.cli.version>0.85.0</agent.cli.version>
+        <!-- This module is an agent, so it packages itself. -->
+        <agent.package.skip>false</agent.package.skip>
+    </properties>
+
+    <dependencies>
+
+        <!-- compile: the SPI, and nothing else. Never another agent. -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-agent-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-wire</artifactId>
+        </dependency>
+
+        <!-- test -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-core</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <profiles>
+
+        <!-- Requires GraalVM as JAVA_HOME, like every agent adapter. -->
+
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>build-sokar-agent-pi</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>sokar-agent-pi</imageName>
+                                    <mainClass>org.fuin.sokar.agent.impl.pi.PiAgent</mainClass>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Builds what this package ships: Pi with its dependencies, and the Node runtime. Runs
+             in a container, so no Node toolchain is needed on the build machine; the script says
+             so and does nothing when there is no container runtime. -->
+
+        <profile>
+            <id>dist</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.5.0</version>
+                        <executions>
+                            <execution>
+                                <id>build-pi-tree</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${project.basedir}/../../buildtools/build-pi-tree.sh</executable>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- The tree rides along in this package, so both packagers carry one extra
+                         file. combine.children appends to what the parent already declares
+                         rather than replacing it. -->
+
+                    <plugin>
+                        <groupId>org.vafer</groupId>
+                        <artifactId>jdeb</artifactId>
+                        <configuration>
+                            <dataSet combine.children="append">
+                                <data>
+                                    <src>${project.build.directory}/pi-tree.tar.gz</src>
+                                    <type>file</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/sokar/agents/pi</prefix>
+                                        <filemode>644</filemode>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                            </dataSet>
+                        </configuration>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>de.dentrassi.maven</groupId>
+                        <artifactId>rpm</artifactId>
+                        <configuration>
+                            <entries combine.children="append">
+                                <entry>
+                                    <name>/usr/share/sokar/agents/pi/pi-tree.tar.gz</name>
+                                    <file>${project.build.directory}/pi-tree.tar.gz</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                            </entries>
+                        </configuration>
+                    </plugin>
+
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
+</project>

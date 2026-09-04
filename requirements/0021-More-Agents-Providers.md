@@ -38,7 +38,7 @@ real credential or go unsupported.
 | [GitHub Copilot CLI](0029-Agent-Copilot-CLI.md) | GitHub Copilot | yes | forge account, device flow | unlikely, unverified |
 | [Grok Build](0030-Agent-Grok-Build.md) | xAI | yes | subscription account | unverified |
 | [OpenCode](0031-Agent-OpenCode.md) | many, per session | **no** | key, sign-in, or variable | **documented** |
-| [Oh My Pi](0032-Agent-Oh-My-Pi.md) | many, 40+ | **no** | key, variable, or sign-in with refresh | yes for the common dialect |
+| [Oh My Pi](0032-Agent-Oh-My-Pi.md) | many, 40+ | **no** | key, variable, or sign-in with refresh | **yes**, verified - by an extension, not a variable |
 
 Ordered by reported usage among professional developers, except the last two: Grok
 Build is too recent for usage to mean anything, and Oh My Pi is here because it is
@@ -49,6 +49,7 @@ provider-agnostic and small enough to be a fair test of the onboarding path.
 | Provider | Reached how | Credential | Consequence |
 |---|---|---|---|
 | [Anthropic](0033-Provider-Anthropic.md) | its own agent, natively | subscription token or API key | the case already built |
+| [OpenRouter](0045-Provider-OpenRouter.md) | any agent speaking the OpenAI dialect | API key, as a bearer token | the second case built, and the first with an agent not its own |
 | [OpenAI](0034-Provider-OpenAI.md) | its own agent, or any speaking its dialect | account or API key | the most imitated dialect |
 | [Google](0035-Provider-Google.md) | its own agent, or a provider-agnostic one | account or API key | one agent each |
 | [GitHub Copilot](0036-Provider-GitHub-Copilot.md) | its own agent, or as a provider inside others | forge account, short-lived token | may need refresh first |

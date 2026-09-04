@@ -10,23 +10,31 @@ First, an ambiguity worth clearing up, because two different things get called
 - **`claude`** is the CLI itself, and it goes **inside the task image**, because
   that is where it has to run. It is about 320 MB.
 
-The package does not contain the CLI. It carries the *instructions* for installing
-one: a pinned URL and a SHA-256. Sokar asks the installed adapter for those over
-varlink and folds them into the generated `Containerfile`. That keeps the package
-small and lets podman's layer cache download the CLI once per pinned version
-rather than once per build.
+**How the CLI gets there is the agent's choice, and there are two.** Claude Code's
+package does not contain the CLI: it carries the *instructions* for installing one, a
+pinned URL and a SHA-256, which Sokar folds into the generated `Containerfile`. That
+keeps the package small and lets podman's layer cache download the CLI once per pinned
+version rather than once per build.
+
+Pi's package carries the tool itself - 162 npm packages and a Node runtime, which have
+no single URL to pin. Verification happens once where the package is built, against a
+lockfile pinning every dependency by integrity hash, and the image build then downloads
+nothing at all. That is a stronger guarantee than a pinned URL rather than a weaker one:
+the same package cannot install different bytes on different days. It costs size - about
+70 MB against 6 MB.
 
 So a task image is built in three layers, in this order:
 
 1. **base** — the distro image the project names, plus an unprivileged `agent`
    user, a `/workspace`, and `curl` + CA certificates;
-2. **agent** — the pinned, digest-verified download the installed agent adapter
-   asked for;
+2. **agent** — the pinned, digest-verified download the installed agent adapter asked
+   for, or a copy of what its package already carries;
 3. **project** — your own lines.
 
-Note that layer 2 needs network access **at image build time**, to the vendor's
-download host. The egress firewall governs the running task container, not the
-build, so an air-gapped machine needs a mirror for that URL.
+Note that layer 2 needs network access **at image build time** for an agent that
+downloads its CLI, to the vendor's download host. The egress firewall governs the running
+task container, not the build, so an air-gapped machine needs a mirror for that URL - or
+an agent whose package carries the tool, which needs no network for that layer at all.
 
 Your tooling goes in the third layer. Either inline in `project.yml`:
 

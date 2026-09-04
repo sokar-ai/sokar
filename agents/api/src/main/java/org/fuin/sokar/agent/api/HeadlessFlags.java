@@ -11,7 +11,9 @@ import org.jspecify.annotations.Nullable;
  * is a {@code build_headless_command} that dispatches on the agent's name and quietly gives a new
  * agent the wrong shape.
  *
- * @param promptFlag Flag introducing the prompt, for example {@code -p}.
+ * @param promptFlag Flag introducing the prompt, for example {@code -p}. Empty when the agent
+ *        takes the prompt positionally, which is a real shape rather than a missing value: an
+ *        agent invoked as {@code tool "do the thing"} has no flag to name.
  * @param modelFlag Flag selecting a model, or {@code null} if the agent has none.
  * @param maxTurnsFlag Flag limiting turns, or {@code null}.
  * @param verboseFlag Flag enabling verbose output, or {@code null}.

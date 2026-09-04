@@ -45,9 +45,6 @@ AGENT="$ROOT/agents/claude/target/sokar-agent-claude"
 WORK="$(mktemp -d)"
 # Replaced by the full cleanup once the vault has been backed up. Armed now so that an
 # early exit - no credential, no binary, a locked vault - does not leave a temp directory.
-    # Its own state directories too. They outlive the container - the poststop hook reaps
-    # what is running, nothing removes the files - and they hold this run's dead token.
-    rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar/sokar-$PROJECT-"*
 trap 'rm -rf "$WORK"' EXIT
 PROJECT="e2e-tier2"
 CONTAINER=""
@@ -118,6 +115,9 @@ cleanup() {
     # already holds the ref this run pushes, so the push fails as a non-fast-forward and
     # reads as a broken gate.
     rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/mirrors/$PROJECT.git"
+    # Its own state directories too. They outlive the container - the poststop hook reaps
+    # what is running, nothing removes the files - and they hold this run's dead token.
+    rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar/sokar-$PROJECT-"*
     :
 }
 
@@ -188,7 +188,8 @@ START_LOG="$WORK/start.log"
 # --clearance deny: an acceptance run must not raise a prompt on somebody's desktop and
 # then wait for it. The kind is not repeated here: it was stored with the credential, and
 # that it reaches the task without being restated is part of what this checks.
-(cd "$WORK" && timeout 600 "$SOKAR" task run \
+# Named for the same reason as in tier 1: the suite decides what it measures, not the machine.
+(cd "$WORK" && timeout 600 "$SOKAR" task run --agent claude \
     --keep --no-attach --clearance deny \
     > "$START_LOG" 2>&1)
 

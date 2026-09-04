@@ -13,6 +13,10 @@ package org.fuin.sokar.agent.api;
  * image build with nothing to fetch at all - which is a stronger guarantee than a pinned URL, not
  * a weaker one: the same package cannot install different bytes on different days.
  *
+ * The source may be a directory or a {@code .tar.gz} of one. A tarball is usually the better
+ * choice: it is one file for the packagers to carry and one file for an operator to check, and
+ * unpacking it once beats copying tens of thousands of files for every task.
+ *
  * @param source Absolute path on the host, installed there by the agent's own package.
  * @param target Absolute path inside the image.
  */
@@ -40,5 +44,14 @@ public record PackagedTree(String source, String target) {
      */
     public String stagingName() {
         return "sokar-packaged" + target.replace('/', '-');
+    }
+
+    /**
+     * Tells whether the source is an archive to unpack rather than a directory to copy.
+     *
+     * @return {@code true} for a gzipped tarball.
+     */
+    public boolean archive() {
+        return source.endsWith(".tar.gz") || source.endsWith(".tgz");
     }
 }

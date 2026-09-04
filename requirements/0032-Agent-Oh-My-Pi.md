@@ -1,6 +1,7 @@
 # 0032 — Agent Oh My Pi
 
-**Status:** chosen, see [0025](0025-Oh-My-Pi-Forge-Subscription.md)
+**Status:** built and verified against [OpenRouter](0045-Provider-OpenRouter.md); the forge
+subscription it was chosen for is still open, see [0025](0025-Oh-My-Pi-Forge-Subscription.md).
 
 Support Oh My Pi as a packaged agent.
 
@@ -8,7 +9,9 @@ Support Oh My Pi as a packaged agent.
 
 **Authentication.** Per provider: an environment variable, a stored key, or a sign-in that yields a token and a refresh flow.
 
-**Can it be brokered?** Yes for the common API dialect, by design.
+**Can it be brokered?** **Verified** for the common API dialect - but not with a variable:
+its endpoint is set by an extension it auto-discovers, which is why an agent now declares what
+shape of endpoint it can address.
 
 ## Acceptance
 
@@ -19,6 +22,7 @@ Support Oh My Pi as a packaged agent.
 
 ## To be checked
 
-- Whether redirection holds for a provider that does not speak that dialect.
+- Whether redirection holds for a provider that does not speak that dialect. Verified for
+  OpenRouter; a forge subscription may differ.
 - Its sign-in flows refresh automatically, which is
   [0024](0024-Refreshable-Task-Tokens.md).

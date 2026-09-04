@@ -163,6 +163,20 @@ See [build.md](build.md). Three things that will bite:
   exists so that cannot be got wrong at a call site. Clearing needs a NUL byte, since
   an empty write is no write at all. Also note `ausearch -m AVC -ts recent` reported
   no matches while `/var/log/audit/audit.log` held the denials; grep the file.
+- **An agent that can only be given a URL needs a relay, not a relocated broker.** A
+  host-side listener is unreachable from a rootless container (measured: refused via
+  `169.254.1.2` and on the container's own loopback), and binding the broker inside the
+  task's network namespace fails differently: it keeps the host's *mount* namespace, so it
+  reads the host's `/etc/resolv.conf` and resolves nothing. `sokar vault relay` binds
+  `127.0.0.1` in the namespace and forwards to the broker's socket, so the broker keeps the
+  host's DNS, egress and credential.
+- **Give a container a literal loopback address, never `localhost`.** Node resolves it to
+  `::1` first, so an IPv4-only listener answers `ECONNREFUSED` while everything else looks
+  correct. The container's resolver answers NXDOMAIN for undeclared names anyway, so
+  depending on resolution there is a mistake in itself.
+- **`podman unshare` runs as `container_runtime_t`, not `unconfined_t`.** Anything entering
+  a task's namespace that way needs its own SELinux grant; a policy written only for the
+  operator's own processes refuses it.
 - **Hook binaries on disk are not a registration.** podman reads hook descriptors from
   the directories its `containers.conf.d` drop-ins name, in file-name order, and each
   `hooks_dir` replaces the last - so a drop-in sorting after Sokar's own switches the

@@ -84,7 +84,9 @@ public final class AgentDefinitionReader {
                 required(root, "binary", origin),
                 new GitIdentity(required(git, "name", origin), required(git, "email", origin)),
                 new HeadlessFlags(
-                        required(headless, "prompt_flag", origin),
+                        // Optional: an empty flag is how a definition says the prompt is
+                        // positional, which several agents are.
+                        text(optional(headless, "prompt_flag")),
                         optional(headless, "model_flag"),
                         optional(headless, "max_turns_flag"),
                         optional(headless, "verbose_flag"),
@@ -125,6 +127,10 @@ public final class AgentDefinitionReader {
                 map(proxy.get("auth_header")), map(proxy.get("auth_prefix")),
                 map(proxy.get("unbrokerable")),
                 ProviderRoute.Endpoint.of(optional(proxy, "endpoint"), origin));
+    }
+
+    private static String text(@Nullable String value) {
+        return value == null ? "" : value;
     }
 
     private static List<PackagedTree> packaged(@Nullable Object value, String origin) {

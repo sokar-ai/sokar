@@ -16,6 +16,7 @@ survives at all.
 | 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Removing a task must not silently destroy work the agent never pushed. | yes |
 | 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | 25 | [Oh My Pi Forge Subscription](0025-Oh-My-Pi-Forge-Subscription.md) | The second agent to build: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
+| 44 | [Automated Agent Updates](0044-Automated-Agent-Updates.md) | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
 | 20 | [Narrow The Git Endpoint](0020-Narrow-The-Git-Endpoint.md) | The host endpoint a task clones from should not be reachable from the local network. | yes |
 | 1 | [Local Daemon API](0001-Local-Daemon-API.md) | Everything the interface can do is exposed by a local daemon over a private socket, so no feature depends on shelling out to the CLI. | yes |
 | 2 | [Fleet Overview](0002-Fleet-Overview.md) | One screen lists every task on the machine with its project, agent, state and age, so a person with several running tasks can see all of them at once. |  |
@@ -62,6 +63,7 @@ be brokered. Compared side by side in
 | 36 | [Provider GitHub Copilot](0036-Provider-GitHub-Copilot.md) | One provider: how it authenticates and whether it can be brokered. | yes |
 | 37 | [Provider xAI](0037-Provider-xAI.md) | One provider: how it authenticates and whether it can be brokered. | yes |
 | 38 | [Provider Zhipu](0038-Provider-Zhipu.md) | One provider: how it authenticates and whether it can be brokered. | yes |
+| 45 | [Provider OpenRouter](0045-Provider-OpenRouter.md) | One provider: how it authenticates and whether it can be brokered. Verified with a second agent. |  |
 
 ## To be checked
 

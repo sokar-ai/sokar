@@ -161,7 +161,7 @@
                             <snapshotVersion>${agent.package.version}</snapshotVersion>
                             <release>1</release>
                             <summary>${project.description}</summary>
-                            <description>Sokar agent for Claude Code ${agent.cli.version}. Installs into /usr/libexec/sokar/agents, where the sokar binary scans for agents.</description>
+                            <description>${project.description} ${agent.cli.version}. Installs into /usr/libexec/sokar/agents, where the sokar binary scans for agents.</description>
                             <!-- Without this the plugin substitutes a timestamp release for any
                                  snapshot build, and the rpm and the deb then disagree about what
                                  version they are - which is worse than either scheme alone. -->
@@ -197,6 +197,7 @@
     <modules>
         <module>api</module>
         <module>claude</module>
+        <module>pi</module>
     </modules>
 
 </project>

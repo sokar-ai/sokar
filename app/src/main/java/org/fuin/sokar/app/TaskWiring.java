@@ -33,11 +33,16 @@ public record TaskWiring(@Nullable String gateAddress, int gatePort, @Nullable P
      * Loopback rather than a real name so that an agent which ignores the socket variable fails
      * closed against nothing listening, instead of reaching the provider.
      * <p>
+     * A literal address rather than {@code localhost}: measured, a Node agent resolves that name
+     * to {@code ::1} first and gets a connection refused, because the listener is on the IPv4
+     * loopback. Depending on name resolution here is wrong anyway - the container's resolver
+     * answers NXDOMAIN for everything that is not explicitly allowed.
+     * <p>
      * The same address is where the proxy actually listens for an agent that declared it can only
      * address a URL - bound inside that container's own network namespace. One convention for
      * both: for a socket agent nothing answers here, and for a URL agent the broker does.
      */
-    public static final String VAULT_URL = "http://localhost:9419";
+    public static final String VAULT_URL = "http://127.0.0.1:9419";
 
     /** Port in {@link #VAULT_URL}, bound in the container's namespace for a URL agent. */
     public static final int VAULT_PORT = 9419;

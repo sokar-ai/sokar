@@ -286,15 +286,15 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             final java.util.List<String> domains = new java.util.ArrayList<>(selected == null
                     ? java.util.List.of() : selected.definition().allowedDomains());
 
-            // An agent that can only address a URL is served inside its own container's namespace,
-            // which does not exist yet - so that one is started after the container, below.
-            final boolean brokerAfterStart = selected != null
+            // An agent that can only address a URL still gets the broker on its socket: only the
+            // listening end moves into the container's namespace, and that is a relay started
+            // after the container exists.
+            final boolean needsRelay = selected != null
                     && selected.definition().route() != null
                     && selected.definition().route().endpoint()
                             == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL;
 
-            CredentialPlumbing plumbing =
-                    brokerAfterStart ? null : startVault(selected, container, 0, out, err);
+            final CredentialPlumbing plumbing = startVault(selected, container, out, err);
             if (plumbing != null) {
                 environmentCache.putAll(plumbing.environment());
                 wiring = wiring.withVaultSocket(plumbing.socket());
@@ -340,19 +340,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // creates. Starting it first silently failed to spawn at all.
             runner.start(project, container, layers, environmentCache, domains, wiring, out);
 
-            if (brokerAfterStart) {
-                final java.util.Optional<Long> pid = runner.containerPid(container);
-                if (pid.isEmpty()) {
-                    err.println("sokar: the container reports no process, so the credential proxy"
-                            + " has no namespace to listen in");
-                    err.flush();
-                } else {
-                    plumbing = startVault(selected, container, pid.get(), out, err);
-                    if (plumbing != null) {
-                        out.println("provider  " + plumbing.upstreamHost()
-                                + " reachable; the credential is not, only a task-scoped token");
-                    }
-                }
+            if (needsRelay && plumbing != null) {
+                startRelay(runner, container, plumbing.socket(), out, err);
             }
 
             if (workspace != null) {
@@ -362,11 +351,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 prepareWorkspace(runner, workspace, container, out, err);
             }
 
-            placeAgentFiles(runner, selected, container,
-                    brokerAfterStart && plumbing != null
-                            ? withToken(environmentCache, selected, plumbing)
-                            : environmentCache,
-                    out, err);
+            placeAgentFiles(runner, selected, container, environmentCache, out, err);
             out.println();
 
             startClearance(runner, project, container, out, err);
@@ -518,26 +503,48 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     }
 
     /**
-     * Returns the container's variables plus the token, for an agent whose broker started late.
+     * Starts the relay that gives a URL agent something to dial inside its own namespace.
      * <p>
-     * The container's own environment cannot carry it - the container already existed when the
-     * token was minted - so it reaches the agent in the files it asked for, and this is how the
-     * setup call is told what to write.
+     * Only the listening end moves: the broker keeps the host's resolver, the host's egress and
+     * the credential. Binding the broker itself in the namespace was tried and fails - it reads
+     * the host's {@code /etc/resolv.conf} and then cannot resolve anything at all.
      *
-     * @param environment What the container was given.
-     * @param agent The agent.
-     * @param plumbing What the proxy reported.
-     * @return Variables including the token.
+     * @param runner Runs containers.
+     * @param container Container name.
+     * @param socket Broker socket to forward to.
+     * @param out Where progress is reported.
+     * @param err Where failures are reported.
      */
-    private java.util.Map<String, String> withToken(java.util.Map<String, String> environment,
-            org.fuin.sokar.agent.api.InstalledAgent agent, CredentialPlumbing plumbing) {
-        final java.util.Map<String, String> all = new java.util.LinkedHashMap<>(environment);
-        all.putAll(plumbing.environment());
-        final String variable = agent.definition().tokenVariable(credentialType(agent.name()));
-        if (variable != null && plumbing.token() != null) {
-            all.put(variable, plumbing.token());
+    private void startRelay(TaskRunner runner, String container, java.nio.file.Path socket,
+            PrintWriter out, PrintWriter err) {
+
+        final java.util.Optional<Long> pid = runner.containerPid(container);
+        if (pid.isEmpty()) {
+            err.println("sokar: the container reports no process, so nothing can listen in its"
+                    + " namespace and the agent has no endpoint");
+            err.flush();
+            return;
         }
-        return all;
+        final java.nio.file.Path state = context.paths().containerState(container);
+        final java.util.List<String> command = org.fuin.sokar.shield.EgressPolicy.inNamespace(
+                pid.get(), java.util.List.of(
+                        ProcessHandle.current().info().command().orElse("sokar"),
+                        "vault", "relay",
+                        "--listen", String.valueOf(TaskWiring.VAULT_PORT),
+                        "--socket", socket.toString(),
+                        "--pid-file", state.resolve("relay.pid").toString()));
+        try {
+            new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .redirectOutput(state.resolve("relay.log").toFile())
+                    .start();
+            recordHelper("relay", command, java.util.Map.of(), TaskHelpers.AFTER);
+            out.println("endpoint  " + TaskWiring.VAULT_URL + " in the task's namespace");
+            out.flush();
+        } catch (java.io.IOException ex) {
+            err.println("sokar: could not start the endpoint relay: " + ex.getMessage());
+            err.flush();
+        }
     }
 
     /**
@@ -583,8 +590,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * @param environment Variables the container needs to use the proxy.
      */
     private record CredentialPlumbing(java.nio.file.Path socket, String upstreamHost,
-            java.util.Map<String, String> environment,
-            @org.jspecify.annotations.Nullable String token) {
+            java.util.Map<String, String> environment) {
     }
 
     /**
@@ -622,7 +628,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     }
 
     private CredentialPlumbing startVault(org.fuin.sokar.agent.api.InstalledAgent agent,
-            String container, long namespacePid, PrintWriter out, PrintWriter err) {
+            String container, PrintWriter out, PrintWriter err) {
 
         if (agent == null) {
             return null;
@@ -647,8 +653,6 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return null;
         }
 
-        final boolean asUrl =
-                route.endpoint() == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL;
         final java.nio.file.Path state = context.paths().containerState(container);
         final java.nio.file.Path socket = state.resolve("vault.sock");
         final java.nio.file.Path tokenFile = state.resolve("vault.token");
@@ -657,12 +661,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         // either unreachable from a rootless container or bound to every interface, and neither is
         // acceptable for something that answers with a credential. Entering the namespace is how
         // the ruleset and the resolver already get there.
-        final java.util.List<String> command = new java.util.ArrayList<>(asUrl
-                ? org.fuin.sokar.shield.EgressPolicy.inNamespace(namespacePid,
-                        java.util.List.of(ProcessHandle.current().info().command().orElse("sokar"),
-                                "vault", "serve",
-                                "--listen", String.valueOf(TaskWiring.VAULT_PORT)))
-                : java.util.List.of(
+        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
                 ProcessHandle.current().info().command().orElse("sokar"),
                 "vault", "serve",
                 "--socket", socket.toString()));
@@ -683,14 +682,14 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     .redirectOutput(state.resolve("vault.log").toFile())
                     .start();
             recordHelper("vault", command, java.util.Map.of(),
-                    asUrl ? TaskHelpers.AFTER : TaskHelpers.BEFORE);
+                    TaskHelpers.BEFORE);
         } catch (java.io.IOException ex) {
             err.println("sokar: could not start the credential proxy: " + ex.getMessage());
             err.flush();
             return null;
         }
 
-        final String token = awaitToken(asUrl ? null : socket, tokenFile);
+        final String token = awaitToken(socket, tokenFile);
         if (token == null) {
             err.println("sokar: the credential proxy did not come up, see "
                     + state.resolve("vault.log"));
@@ -699,12 +698,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         }
 
         final java.util.Map<String, String> environment = new java.util.LinkedHashMap<>();
-        if (!asUrl) {
-            // A URL agent's container already exists by now, so its environment cannot be changed:
-            // the token reaches it in the files the agent asks for instead.
-            environment.put(variable, token);
-        }
-        if (route.socketEnvironment() != null && !asUrl) {
+        environment.put(variable, token);
+        if (route.socketEnvironment() != null) {
             environment.put(route.socketEnvironment(), TaskWiring.VAULT_MOUNT);
         }
         if (agent.definition().baseUrlEnvironment() != null) {
@@ -715,7 +710,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         out.println("vault     " + socket + " -> " + route.upstream());
         out.println("token     " + variable + "=" + org.fuin.sokar.vault.PhantomToken.abbreviate(token));
         out.flush();
-        return new CredentialPlumbing(socket, route.upstreamHost(), environment, token);
+        return new CredentialPlumbing(socket, route.upstreamHost(), environment);
     }
 
     /**
@@ -1170,15 +1165,25 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final java.util.List<String> lines = new java.util.ArrayList<>();
         for (final var tree : agent.definition().packaged()) {
             final java.nio.file.Path source = java.nio.file.Path.of(tree.source());
-            if (!java.nio.file.Files.isDirectory(source)) {
+            if (!java.nio.file.Files.exists(source)) {
                 out.println("missing   " + source + ", which " + agent.name() + " says it ships");
                 continue;
             }
             final java.nio.file.Path staged = context.paths().buildContext(project.name())
                     .resolve(tree.stagingName());
             try {
-                copyTree(source, staged);
-            } catch (java.io.IOException ex) {
+                if (upToDate(source, staged)) {
+                    // Staged by an earlier run of the same package. Unpacking hundreds of
+                    // megabytes again on every task would be the slowest thing a task run does.
+                    out.println("packaged  " + tree.target() + ", already staged");
+                } else if (tree.archive()) {
+                    unpack(source, staged);
+                    markStaged(source, staged);
+                } else {
+                    copyTree(source, staged);
+                    markStaged(source, staged);
+                }
+            } catch (java.io.IOException | RuntimeException ex) {
                 out.println("missing   could not stage " + source + ": " + ex.getMessage());
                 continue;
             }
@@ -1186,6 +1191,62 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             out.println("packaged  " + tree.target() + " from this agent's own package");
         }
         return java.util.List.copyOf(lines);
+    }
+
+    /** Records which source a staged directory came from, so it is not unpacked twice. */
+    private static java.nio.file.Path marker(java.nio.file.Path staged) {
+        return staged.resolveSibling(staged.getFileName() + ".from");
+    }
+
+    private static String stamp(java.nio.file.Path source) throws java.io.IOException {
+        return source + " " + java.nio.file.Files.size(source) + " "
+                + java.nio.file.Files.getLastModifiedTime(source).toMillis();
+    }
+
+    private static boolean upToDate(java.nio.file.Path source, java.nio.file.Path staged) {
+        try {
+            return java.nio.file.Files.isDirectory(staged)
+                    && java.nio.file.Files.exists(marker(staged))
+                    && java.nio.file.Files.readString(marker(staged)).equals(stamp(source));
+        } catch (java.io.IOException ex) {
+            return false;
+        }
+    }
+
+    private static void markStaged(java.nio.file.Path source, java.nio.file.Path staged)
+            throws java.io.IOException {
+        java.nio.file.Files.writeString(marker(staged), stamp(source));
+    }
+
+    /**
+     * Unpacks an archive into the build context.
+     *
+     * @param source Archive to unpack.
+     * @param target Directory to unpack into, replacing whatever was there.
+     * @throws IOException If it cannot be unpacked.
+     */
+    private void unpack(java.nio.file.Path source, java.nio.file.Path target)
+            throws java.io.IOException {
+
+        deleteTree(target);
+        java.nio.file.Files.createDirectories(target);
+        final var result = context.runner().run(org.fuin.sokar.core.process.Command.of(
+                java.util.List.of("tar", "-xzf", source.toString(), "-C", target.toString())));
+        if (!result.successful()) {
+            throw new java.io.IOException("tar failed: " + result.standardError().strip());
+        }
+    }
+
+    private static void deleteTree(java.nio.file.Path directory) throws java.io.IOException {
+        if (!java.nio.file.Files.exists(directory)) {
+            return;
+        }
+        try (var walk = java.nio.file.Files.walk(directory)) {
+            for (final java.nio.file.Path path
+                    : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                java.nio.file.Files.deleteIfExists(path);
+            }
+        }
     }
 
     /**
@@ -1198,14 +1259,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     private static void copyTree(java.nio.file.Path source, java.nio.file.Path target)
             throws java.io.IOException {
 
-        if (java.nio.file.Files.exists(target)) {
-            try (var walk = java.nio.file.Files.walk(target)) {
-                for (final java.nio.file.Path path
-                        : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                    java.nio.file.Files.deleteIfExists(path);
-                }
-            }
-        }
+        deleteTree(target);
         try (var walk = java.nio.file.Files.walk(source)) {
             for (final java.nio.file.Path path : walk.toList()) {
                 final java.nio.file.Path destination = target.resolve(source.relativize(path));

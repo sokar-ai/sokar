@@ -1,0 +1,57 @@
+# Pi, a provider-agnostic coding agent.
+#
+# The second agent, and deliberately the awkward one: it is not tied to a provider, it cannot be
+# pointed at a broker with an environment variable, and it is a tree of files rather than one
+# binary. Each of those exercises something the first agent never touched.
+
+name: pi
+label: Pi
+binary: pi
+
+git_identity:
+  name: Pi
+  email: noreply@pi.dev
+
+headless:
+  # 'pi --print --mode json "<prompt>"'. The prompt is positional, so no flag names it - an empty
+  # prompt flag is how a definition says that.
+  prompt_flag: ""
+  model_flag: "--model"
+  output_format_flags: ["--print", "--mode", "json"]
+
+session:
+  supports_resume: true
+  resume_flag: "--session"
+
+provider:
+  # OpenRouter serves the OpenAI dialect and takes a bearer token. Pi knows it natively and reads
+  # the key from this variable.
+  token_env:
+    _default: OPENROUTER_API_KEY
+
+  proxy:
+    upstream: https://openrouter.ai
+    # A URL, not a socket: Pi registers a provider with a baseUrl, and has nowhere to put a socket
+    # path. Sokar answers that by binding the broker inside this task's own network namespace.
+    endpoint: url
+    auth_header:
+      _default: Authorization
+    auth_prefix:
+      _default: "Bearer "
+
+allowed_domains:
+  - openrouter.ai
+
+install:
+  version: "${agent.cli.version}"
+  # Shipped in this package rather than fetched: Pi is 162 npm packages and a Node runtime, with
+  # no single URL to pin. Verification happens once where the package is built, against a lockfile
+  # that pins every dependency by integrity hash, and the image build then downloads nothing.
+  packaged:
+    - source: /usr/share/sokar/agents/pi/pi-tree.tar.gz
+      target: /opt
+  as_root:
+    - "# Pi runs from the tree copied in above; this is the only thing that has to be on PATH."
+    - "RUN ln -sf /opt/node/bin/node /usr/local/bin/node \\"
+    - "    && printf '#!/bin/sh\\nexec /opt/node/bin/node /opt/pi/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js \"$@\"\\n' > /usr/local/bin/pi \\"
+    - "    && chmod 0755 /usr/local/bin/pi"

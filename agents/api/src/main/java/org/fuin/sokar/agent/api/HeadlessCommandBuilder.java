@@ -56,8 +56,11 @@ final class HeadlessCommandBuilder {
         }
 
         // The prompt goes last: an agent that takes it positionally needs it after the flags, and
-        // one that takes it behind a flag does not care.
-        command.add(flags.promptFlag());
+        // one that takes it behind a flag does not care. An empty flag is the positional case, and
+        // adding it anyway would pass an empty argument the agent has to interpret.
+        if (!flags.promptFlag().isBlank()) {
+            command.add(flags.promptFlag());
+        }
         command.add(request.prompt());
 
         return List.copyOf(command);

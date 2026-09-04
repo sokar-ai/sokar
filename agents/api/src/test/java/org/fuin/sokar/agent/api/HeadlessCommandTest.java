@@ -44,6 +44,28 @@ class HeadlessCommandTest {
     }
 
     @Test
+    void takesThePromptPositionallyWhenThereIsNoFlagForIt() {
+
+        // 'pi --print --mode json "<prompt>"'. An empty flag is a real shape, not a missing value:
+        // adding it anyway would pass an empty argument the agent then has to interpret.
+        final var command = agent("""
+                name: pi
+                binary: pi
+
+                git_identity:
+                  name: Pi
+                  email: noreply@pi.dev
+
+                headless:
+                  prompt_flag: ""
+                  output_format_flags: ["--print", "--mode", "json"]
+                """).headlessCommand(new RunRequest("go", null, null, null, false, true));
+
+        assertThat(command).containsExactly("pi", "--print", "--mode", "json", "go");
+        assertThat(command).doesNotContain("");
+    }
+
+    @Test
     void putsThePromptLast() {
 
         // An agent taking the prompt positionally needs it after the flags; one taking it behind a

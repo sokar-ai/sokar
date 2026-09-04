@@ -1,9 +1,8 @@
 # 0025 — Oh My Pi Forge Subscription
 
-**Status:** open, and split in two. The agent is built first against an API-key provider
-that can be tested today ([OpenRouter](0021-More-Agents-Providers.md)); the forge
-subscription with its browser sign-in follows. An agent that only works with the awkward
-credential proves nothing about the agent.
+**Status:** the first half is **built and verified**. Pi runs as a packaged agent against
+OpenRouter, answers a real prompt, and the credential never enters the container. The forge
+subscription with its browser sign-in is the remaining half.
 
 The second agent to build, chosen deliberately rather than by convenience. It is a
 provider-agnostic agent authenticating against a forge's own subscription over a
@@ -66,26 +65,53 @@ A host-side listener is therefore either unreachable or bound to every interface
 the unsolved problem in [0020](0020-Narrow-The-Git-Endpoint.md) and not one to repeat. The
 endpoint has to be served **inside the container's network namespace**.
 
-## Design
+## Design, as built
 
-- **The agent declares what shape of endpoint it needs**, socket or URL. Claude keeps the
-  socket it already uses; an agent that can only address a URL says so in its own
-  definition, where the difference is visible rather than buried in Sokar.
-- **A URL endpoint is bound into the container's namespace from the host**, the way the
-  ruleset and the resolver already are. The proxy process stays on the host with the vault;
-  only its listening socket lives in the container. Nothing is exposed on the host or the
-  network, and no forwarder has to exist inside the image.
-- Such a proxy needs the container to exist first, so it starts after it - which the helper
-  phases added for resume already express.
-- **Consequence to accept:** a proxy listening in that namespace also sends from it, so its
-  call to the provider is subject to the task's own firewall rather than the host's. The
-  provider's domain is allowed anyway, but that moves where the broker's egress is
-  governed, and it should be moved deliberately rather than noticed later.
+- **The agent declares what shape of endpoint it can address**, socket or URL. Claude keeps
+  the socket; Pi says `url`, and the difference is visible in the definition rather than
+  buried in Sokar.
+- **Only the listening end moves into the task's namespace.** A relay
+  (`sokar vault relay`) binds `127.0.0.1:9419` inside the container's network namespace and
+  forwards to the broker's socket on the host. It resolves nothing and connects to nothing
+  but a local file.
+- **The broker stays on the host**, with the host's resolver, the host's egress and the
+  credential.
+- **The tool is shipped in the agent's own package** rather than downloaded: 162 npm
+  packages and a Node runtime have no single URL to pin, so verification happens once where
+  the package is built - against a lockfile pinning every dependency by integrity hash - and
+  the image build fetches nothing.
+- **Pi is redirected by a file, not a variable.** An extension in
+  `~/.pi/agent/extensions` calls `registerProvider` with the base URL and the task token;
+  Sokar passes the endpoint to the agent and the agent decides the shape.
+
+### What was tried first and does not work
+
+**Binding the broker itself inside the task's namespace.** It keeps the host's *mount*
+namespace, so it reads the host's `/etc/resolv.conf` and tries a resolver that does not
+exist there; every request failed as "could not reach the provider". Its egress would also
+have been governed by the task's own firewall rather than the host's. The relay has neither
+problem, and is the reason the earlier version of this section was wrong.
+
+## Measured, 2026-09-04 (second pass)
+
+Four failures found by running it, none of them visible to unit tests:
+
+| what failed | why |
+|---|---|
+| the broker could not reach the provider | it was in the task's network namespace with the host's `resolv.conf` |
+| the container held a token nothing could redeem | two brokers minted two tokens; the environment got the dead one |
+| Pi got a connection refused | `localhost` resolves to `::1` first for Node; the relay binds IPv4. The endpoint is now a literal address |
+| the relay could not reach the broker's socket | `podman unshare` runs as `container_runtime_t`, which the policy did not grant `connectto` |
+
+The last one corrects a claim made when the policy was written: that Sokar needed only two
+domains because every socket is bound by a host process the operator started. True of
+binding, false of connecting.
 
 ## To be checked
 
-- **Whether this agent's endpoint can be redirected for this provider.** It is
-  documented for the common API dialect; a forge subscription may not use it.
+- ~~Whether this agent's endpoint can be redirected for this provider.~~ **Answered for
+  OpenRouter:** yes, by an extension rather than a variable. Still open for a forge
+  subscription, which may not use the same dialect.
 - Whether the sign-in yields something storable at all, or only a session belonging
   to a browser profile.
 - How long the token lasts. If it is shorter than a task, [0024](0024-Refreshable-Task-Tokens.md)

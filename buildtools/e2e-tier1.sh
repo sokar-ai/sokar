@@ -129,7 +129,9 @@ echo "-- image build --"
 START_LOG="$WORK/start.log"
 # --clearance deny: an acceptance run must not raise a prompt on somebody's desktop and
 # then wait for it. A blocked destination is data here, not a question.
-if (cd "$WORK" && "$SOKAR" task run --keep --no-attach --clearance deny \
+# --agent, not "whatever is installed": another agent on the machine would otherwise decide
+# what this run measures, or refuse it outright for being ambiguous.
+if (cd "$WORK" && "$SOKAR" task run --agent claude --keep --no-attach --clearance deny \
         > "$START_LOG" 2>&1); then
     pass "task run built the image and started the container"
 else
@@ -428,7 +430,7 @@ image:
   base_image: "sokar-no-such-base-image:0"
 EOF
 
-if (cd "$FAIL_DIR" && "$SOKAR" task run --keep --no-attach --clearance deny \
+if (cd "$FAIL_DIR" && "$SOKAR" task run --agent claude --keep --no-attach --clearance deny \
         > "$FAIL_DIR/start.log" 2>&1); then
     fail "a task with an unbuildable image reported success"
 else
