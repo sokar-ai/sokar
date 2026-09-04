@@ -33,6 +33,9 @@ cleanup() {
     # operator's stays where it was, which is the point of keying it that way.
     [ -n "${SOKAR_VAULT:-}" ] && "$SOKAR" vault unlock --forget >/dev/null 2>&1
     podman rmi -f "sokar/$PROJECT" >/dev/null 2>&1
+    # Its own state directories too. They outlive the container - the poststop hook reaps
+    # what is running, nothing removes the files - and they hold this run's dead token.
+    rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar/sokar-$PROJECT-"*
     rm -rf "$WORK" "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT"
     rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT-fail"
     rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar/sokar-$PROJECT-fail-"*

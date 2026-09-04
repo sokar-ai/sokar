@@ -45,6 +45,9 @@ AGENT="$ROOT/agents/claude/target/sokar-agent-claude"
 WORK="$(mktemp -d)"
 # Replaced by the full cleanup once the vault has been backed up. Armed now so that an
 # early exit - no credential, no binary, a locked vault - does not leave a temp directory.
+    # Its own state directories too. They outlive the container - the poststop hook reaps
+    # what is running, nothing removes the files - and they hold this run's dead token.
+    rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar/sokar-$PROJECT-"*
 trap 'rm -rf "$WORK"' EXIT
 PROJECT="e2e-tier2"
 CONTAINER=""

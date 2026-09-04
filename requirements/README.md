@@ -12,9 +12,7 @@ survives at all.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
-| 40 | [Acceptance Suite Isolation](0040-Acceptance-Suite-Isolation.md) | The suite must measure the product, not the machine it happens to run on. | yes |
 | 41 | [Doctor Verifies Hook Installation](0041-Doctor-Verifies-Hook-Installation.md) | An installation whose hooks are not registered must be reported, not passed - without them a task runs with no firewall at all. | yes |
-| 42 | [SELinux Host Socket Access](0042-SELinux-Host-Socket-Access.md) | A task must be able to redeem its token on a machine with SELinux enforcing, without turning SELinux off. | yes |
 | 9 | [Task Lifecycle Control](0009-Task-Lifecycle-Control.md) | Tasks can be listed, stopped and resumed as first-class operations rather than by reaching for the container runtime. |  |
 | 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Removing a task must not silently destroy work the agent never pushed. | yes |
 | 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |

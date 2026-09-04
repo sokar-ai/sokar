@@ -163,6 +163,16 @@ See [build.md](build.md). Three things that will bite:
   exists so that cannot be got wrong at a call site. Clearing needs a NUL byte, since
   an empty write is no write at all. Also note `ausearch -m AVC -ts recent` reported
   no matches while `/var/log/audit/audit.log` held the denials; grep the file.
+- **No hook fires for a container that never started.** The poststop hook reaps every
+  helper the state directory records a pid for, which covers a container that ran. A
+  refused ruleset or an image that will not build leaves the credential proxy, gate and
+  watcher running with nobody to stop them, holding their sockets until the next run
+  trips over them. `TaskRunner.reapOrphans` covers that gap, guarded by the container's
+  pid so a running task keeps its helpers.
+- **`/run/user/<uid>` is cleared when the user's last session ends.** Task state does
+  not survive a logout, and over SSH it does not survive the gap between two commands
+  unless the account has lingering (`loginctl enable-linger`). A "state directory
+  vanished" is far more often this than a bug.
 - **A hook failure reaches the operator only if the hook writes it down.** The
   runtime reports an exit code and discards the hook's stderr, so `Hook.execute`
   logs the reason to `hooks.log` as well.
@@ -199,6 +209,10 @@ One brief line. The reasoning behind a change is a finding, and a finding goes i
 `.sokar.md` or in this file, where it can be found later without `git log`.
 
 ## Documentation
+
+**A requirement that is done is deleted**, file and index row together, once whatever
+is worth keeping has moved into this file. They describe work to do, not work that was
+done; git history is where finished work lives.
 
 **Requirements are not referenced from code.** No class, comment, commit message or
 test may cite a requirement number. Requirements move, merge and are dropped; code
