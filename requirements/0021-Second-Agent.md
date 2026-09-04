@@ -83,6 +83,6 @@ Two of those land directly on Sokar's own design:
 - An agent that authenticates by account sign-in rather than by a key may verify the
   session with its vendor before use. That check does not go through a redirected
   endpoint, so it has to be reachable, which widens what the box may contact.
-- Whether the proxy can answer a **token refresh**, or whether a task-scoped token
-  can be shaped so that no agent attempts one. Unanswered, this limits Sokar to
-  agents authenticating with a static key.
+- Token refresh, which is its own requirement now:
+  [0024](0024-Refreshable-Task-Tokens.md). Unanswered, it limits the candidates to
+  those authenticating with a static key.
