@@ -138,6 +138,11 @@ See [build.md](build.md). Three things that will bite:
 - **Log tokens abbreviated, never whole** — `PhantomToken.abbreviate`. A log that
   contains a working credential is a credential store with no lock on it.
 
+## Commits
+
+One brief line. The reasoning behind a change is a finding, and a finding goes in
+`.sokar.md` or in this file, where it can be found later without `git log`.
+
 ## Documentation
 
 `README.md` is an index; the substance lives in `getting-started.md`, `why.md`,
