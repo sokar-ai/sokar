@@ -8,7 +8,8 @@ import picocli.CommandLine.Command;
 @Command(name = "task",
         mixinStandardHelpOptions = true,
         description = "Runs and inspects agent tasks.",
-        subcommands = { TaskRunCommand.class })
+        subcommands = { TaskRunCommand.class, TaskListCommand.class, TaskStopCommand.class,
+                TaskResumeCommand.class })
 public class TaskCommand {
 
 }

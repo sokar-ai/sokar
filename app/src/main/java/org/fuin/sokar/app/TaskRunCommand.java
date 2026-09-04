@@ -330,6 +330,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             out.println();
 
             startClearance(runner, project, container, out, err);
+            writeResumeRecord(container, err);
 
             if (prompt != null) {
                 return runAgent(runner, agents, container, out, err);
@@ -515,6 +516,23 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * @param err Where problems are reported.
      * @return The plumbing, or {@code null} when this task brokers no credential.
      */
+    /** What this run started on the host, written out so 'task resume' can start it again. */
+    private final java.util.List<TaskHelpers.Helper> startedHelpers = new java.util.ArrayList<>();
+
+    /**
+     * Records a helper, so a resumed task can start the same thing rather than guess at it.
+     *
+     * @param name Helper name, matching its pid file.
+     * @param command How it was started.
+     * @param environment Extra variables it was given.
+     * @param phase Whether it has to be up before the container, or needs the running container.
+     */
+    private void recordHelper(String name, java.util.List<String> command,
+            java.util.Map<String, String> environment, String phase) {
+        startedHelpers.add(new TaskHelpers.Helper(name, java.util.List.copyOf(command),
+                java.util.Map.copyOf(environment), phase));
+    }
+
     private CredentialPlumbing startVault(org.fuin.sokar.agent.api.InstalledAgent agent,
             String container, PrintWriter out, PrintWriter err) {
 
@@ -563,6 +581,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("vault.log").toFile())
                     .start();
+            recordHelper("vault", command, java.util.Map.of(), TaskHelpers.BEFORE);
         } catch (java.io.IOException ex) {
             err.println("sokar: could not start the credential proxy: " + ex.getMessage());
             err.flush();
@@ -650,6 +669,12 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 builder.environment().put("SOKAR_GATE_UPSTREAM", upstream);
             }
             builder.start();
+            recordHelper("gate", command, java.util.Map.copyOf(builder.environment().entrySet()
+                    .stream()
+                    .filter(entry -> entry.getKey().startsWith("SOKAR_GATE_"))
+                    .collect(java.util.stream.Collectors.toMap(
+                            java.util.Map.Entry::getKey, java.util.Map.Entry::getValue))),
+                    TaskHelpers.AFTER);
             out.println("gate      " + workspace.url(project(out, err)));
             final String mismatch = gateReachability(runner, container);
             if (mismatch != null) {
@@ -858,6 +883,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("clearance.log").toFile())
                     .start();
+            // The container pid in here belongs to this run; a resume replaces it with the new one.
+            recordHelper("watcher", command, java.util.Map.of(), TaskHelpers.AFTER);
             out.println("clearance " + clearance + ", log at " + state.resolve("clearance.log"));
             out.flush();
         } catch (java.io.IOException ex) {
@@ -1029,6 +1056,26 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         throw new org.fuin.sokar.agent.api.AgentException(
                 "Several agents are installed (" + String.join(", ", agents.names())
                         + "), so --agent is required");
+    }
+
+    /**
+     * Writes down what this run started, so the task can be resumed after it is stopped.
+     *
+     * @param container Container name.
+     * @param err Where a failure is reported.
+     */
+    private void writeResumeRecord(String container, PrintWriter err) {
+        if (startedHelpers.isEmpty()) {
+            return;
+        }
+        try {
+            new TaskHelpers(java.util.List.copyOf(startedHelpers))
+                    .writeTo(context.paths().containerState(container));
+        } catch (java.io.IOException ex) {
+            // The task runs regardless; only resuming it later is lost.
+            err.println("sokar: could not record how to resume this task: " + ex.getMessage());
+            err.flush();
+        }
     }
 
     private int cleanUp(TaskRunner runner, String container, int code) {

@@ -429,22 +429,6 @@ public class TaskRunner {
             // Still running, with or without an attached shell. Its helpers belong to it.
             return;
         }
-        final Path state = paths.containerState(container);
-        if (!Files.isDirectory(state)) {
-            return;
-        }
-        try (java.util.stream.Stream<Path> files = Files.list(state)) {
-            files.filter(file -> file.getFileName().toString().endsWith(".pid")).forEach(file -> {
-                try {
-                    ProcessHandle.of(Long.parseLong(Files.readString(file).strip()))
-                            .ifPresent(ProcessHandle::destroy);
-                    Files.deleteIfExists(file);
-                } catch (IOException | RuntimeException ex) {
-                    // A pid file naming something already gone is the normal case, not a problem.
-                }
-            });
-        } catch (IOException ex) {
-            // Nothing useful can be done while already handling a failure.
-        }
+        TaskLifecycle.stopHelpers(paths.containerState(container));
     }
 }

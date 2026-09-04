@@ -57,6 +57,35 @@ public class TokenBroker {
     }
 
     /**
+     * Takes over a token that was issued to a task before, so a resumed task keeps working.
+     * <p>
+     * A container's environment is fixed when it is created, so the token it holds cannot be
+     * changed afterwards. Minting a new one for a resumed task would leave the agent presenting a
+     * value this broker has never seen, which reads as a rejected credential rather than as what
+     * it is. The lifetime starts again: the task is continuing, not being extended past a
+     * decision anyone made about it.
+     *
+     * @param value The token the task already holds.
+     * @param scope Agent the token is for.
+     * @param subject Task the token is for.
+     * @param lifetime How long it is accepted from now.
+     * @return The adopted token.
+     * @throws VaultException If no real credential exists for the scope.
+     */
+    public PhantomToken adopt(String value, String scope, String subject, Duration lifetime) {
+        if (!credentials.get().containsKey(scope)) {
+            throw new VaultException("The vault has no credential for scope '" + scope + "'");
+        }
+        if (!value.startsWith(PhantomToken.PREFIX)) {
+            throw new VaultException("Not a phantom token");
+        }
+        final PhantomToken token =
+                new PhantomToken(value, scope, subject, Instant.now().plus(lifetime));
+        issued.put(token.value(), token);
+        return token;
+    }
+
+    /**
      * Exchanges a phantom token for the real credential.
      *
      * @param presented What the client sent.

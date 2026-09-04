@@ -164,6 +164,18 @@ public class Podman {
     }
 
     /**
+     * Stops a container without removing it.
+     * <p>
+     * A stopped container keeps its filesystem, so the task's workspace and everything the agent
+     * did in it survive and can be resumed. Removing it is a separate decision.
+     *
+     * @param container Container name or id.
+     */
+    public void stop(String container) {
+        runner.run(podman("stop", "--time", "5", container));
+    }
+
+    /**
      * Stops a container, then removes it. Neither step fails the caller: this runs on the way out,
      * where a container that is already gone is the desired state, not a problem.
      *
@@ -185,6 +197,24 @@ public class Podman {
                 .map(String::strip)
                 .filter(name -> !name.isEmpty())
                 .filter(ContainerName::isSokar)
+                .toList();
+    }
+
+    /**
+     * Lists Sokar's containers with the state the runtime reports for each.
+     *
+     * @return Summaries, running or not, in the runtime's own order.
+     */
+    public List<ContainerSummary> sokarTasks() {
+        // A tab rather than a space: the state is a phrase ("Up 4 minutes"), so anything the
+        // state itself can contain cannot be the separator.
+        return runner.runOrFail(podman("ps", "--all", "--format", "{{.Names}}\t{{.Status}}"))
+                .standardOutput().lines()
+                .map(String::strip)
+                .filter(line -> !line.isEmpty())
+                .map(line -> line.split("\t", 2))
+                .filter(parts -> ContainerName.isSokar(parts[0]))
+                .map(parts -> new ContainerSummary(parts[0], parts.length > 1 ? parts[1] : ""))
                 .toList();
     }
 

@@ -125,7 +125,16 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
     }
 
     /**
-     * Returns a task runner for these settings.
+     * Returns a handle on the container runtime.
+     *
+     * @return Podman.
+     */
+    public org.fuin.sokar.runtime.Podman podman() {
+        return new org.fuin.sokar.runtime.Podman(runner);
+    }
+
+    /**
+     * Returns the task runner.
      *
      * @return Runner.
      */

@@ -61,6 +61,11 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             description = "Writes the minted phantom token here, owner-only.")
     private Path tokenFile;
 
+    @Option(names = "--reuse-token",
+            description = "Adopts the token already in --token-file instead of minting a new one,"
+                    + " for a task being resumed.")
+    private boolean reuseToken;
+
     @Option(names = "--pid-file", paramLabel = "<file>",
             description = "Writes this process's id here, so the poststop hook can reap it.")
     private Path pidFile;
@@ -80,6 +85,20 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
         this.context = context;
     }
 
+    /**
+     * Reads the token a previous run left, or {@code null} when there is none to reuse.
+     *
+     * @return Token value.
+     */
+    private String readToken() {
+        try {
+            final String value = java.nio.file.Files.readString(tokenFile).strip();
+            return value.isEmpty() ? null : value;
+        } catch (java.io.IOException ex) {
+            return null;
+        }
+    }
+
     @Override
     public Integer call() throws Exception {
 
@@ -92,7 +111,12 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
         try {
             context.credentials().forEach((key, entry) -> credentials.put(key, entry.value()));
             broker = new TokenBroker(() -> credentials);
-            token = broker.mint(agent, task, Duration.ofHours(hours));
+            // A resumed task holds a token from before, in a container environment that cannot be
+            // changed. Minting a new one would look to the agent exactly like a bad credential.
+            final String existing = reuseToken ? readToken() : null;
+            token = existing == null
+                    ? broker.mint(agent, task, Duration.ofHours(hours))
+                    : broker.adopt(existing, agent, task, Duration.ofHours(hours));
         } catch (VaultException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();

@@ -1,0 +1,237 @@
+package org.fuin.sokar.app;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+import org.fuin.sokar.core.config.XdgPaths;
+import org.fuin.sokar.core.process.FakeCommandRunner;
+import org.fuin.sokar.wire.Sidecar;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import picocli.CommandLine;
+
+/**
+ * Tests for {@link TaskListCommand} and {@link TaskStopCommand}.
+ */
+class TaskLifecycleCommandsTest {
+
+    private final StringWriter out = new StringWriter();
+
+    private final StringWriter err = new StringWriter();
+
+    private final FakeCommandRunner runner = new FakeCommandRunner();
+
+    private Path root;
+
+    private SokarContext context(Path dir) {
+        root = dir;
+        final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
+            case "XDG_CONFIG_HOME" -> dir.resolve("config").toString();
+            case "XDG_DATA_HOME" -> dir.resolve("data").toString();
+            case "XDG_STATE_HOME" -> dir.resolve("state").toString();
+            case "XDG_RUNTIME_DIR" -> dir.resolve("run").toString();
+            default -> null;
+        }, dir);
+        return new SokarContext(runner, new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0);
+    }
+
+    private int execute(SokarContext context, String... args) {
+        final CommandLine cmd = new CommandLine(new SokarCli(), new SokarFactory(context));
+        cmd.setOut(new PrintWriter(out));
+        cmd.setErr(new PrintWriter(err));
+        return cmd.execute(args);
+    }
+
+    private Path stateOf(String container) throws IOException {
+        final Path state = root.resolve("run/sokar").resolve(container);
+        Files.createDirectories(state);
+        new Sidecar(Sidecar.VERSION, "uc", "guarded", state.resolve("r.nft").toString(),
+                state.resolve("dns.conf").toString(), "/usr/bin/sokar", state.toString())
+                .writeTo(state.resolve("sidecar.json"));
+        return state;
+    }
+
+    @Test
+    void listsTasksWithTheProjectTheyBelongTo(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\nnot-sokar-at-all\tUp 2 hours\n");
+        stateOf("sokar-uc-shell-1");
+
+        assertThat(execute(context, "task", "list")).isZero();
+        assertThat(out.toString())
+                .contains("sokar-uc-shell-1")
+                .contains("uc")
+                .contains("guarded")
+                .contains("Up 4 minutes");
+        assertThat(out.toString()).as("another user's container is not Sokar's business")
+                .doesNotContain("not-sokar-at-all");
+    }
+
+    @Test
+    void saysSoWhenThereAreNoTasks(@TempDir Path dir) {
+
+        runner.answering("ps", "");
+
+        assertThat(execute(context(dir), "task", "list")).isZero();
+        assertThat(out.toString()).contains("No tasks.");
+    }
+
+    @Test
+    void stoppingReapsTheHelpersAndSaysHowMany(@TempDir Path dir) throws Exception {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        final Path state = stateOf("sokar-uc-shell-1");
+        final Process helper = new ProcessBuilder("sleep", "120").start();
+        Files.writeString(state.resolve("vault.pid"), String.valueOf(helper.pid()));
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1")).isZero();
+
+        assertThat(helper.waitFor(10, TimeUnit.SECONDS)).isTrue();
+        assertThat(out.toString()).contains("helpers   1 of 1 stopped");
+        assertThat(state).as("the logs are what an operator reads afterwards").exists();
+    }
+
+    @Test
+    void stoppingKeepsTheContainerSoTheTaskCanBeResumed(@TempDir Path dir) throws IOException {
+
+        // Measured: removing it instead threw away the workspace and made resume impossible,
+        // while reporting that the task had been stopped.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        stateOf("sokar-uc-shell-1");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1")).isZero();
+
+        assertThat(runner.lines())
+                .anyMatch(line -> line.startsWith("podman stop") && line.endsWith("sokar-uc-shell-1"));
+        assertThat(runner.lines()).as("removing it would destroy the workspace")
+                .noneMatch(line -> line.startsWith("podman rm"));
+        assertThat(out.toString()).contains("sokar task resume sokar-uc-shell-1");
+    }
+
+    @Test
+    void purgeRemovesTheContainerAsWell(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        stateOf("sokar-uc-shell-1");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+
+        assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
+    void stoppingATaskThatHasAlreadyGoneIsNotAnError(@TempDir Path dir) {
+
+        runner.answering("ps", "");
+
+        assertThat(execute(context(dir), "task", "stop", "sokar-uc-shell-404")).isZero();
+        assertThat(out.toString()).contains("nothing to stop");
+    }
+
+    @Test
+    void refusesAContainerSokarDidNotCreate(@TempDir Path dir) {
+
+        // This command removes containers and kills processes; a foreign name is not guessed at.
+        assertThat(execute(context(dir), "task", "stop", "somebody-elses-database")).isEqualTo(64);
+        assertThat(err.toString()).contains("is not a task Sokar created");
+        assertThat(runner.invocations()).isEmpty();
+    }
+
+    @Test
+    void resumingStartsTheContainerAndItsRecordedHelpers(@TempDir Path dir) throws Exception {
+
+        final SokarContext context = context(dir);
+        runner.answering("container inspect", "4711");
+        final Path state = stateOf("sokar-uc-shell-1");
+        new TaskHelpers(java.util.List.of(
+                new TaskHelpers.Helper("vault",
+                        java.util.List.of("true", "--token-file", "x"), java.util.Map.of(),
+                        TaskHelpers.BEFORE),
+                new TaskHelpers.Helper("watcher",
+                        java.util.List.of("true", "--pid", "1"), java.util.Map.of(),
+                        TaskHelpers.AFTER)))
+                .writeTo(state);
+
+        assertThat(execute(context, "task", "resume", "sokar-uc-shell-1")).isZero();
+        assertThat(out.toString())
+                .contains("started   sokar-uc-shell-1")
+                .contains("helpers   2 of 2 started");
+        assertThat(runner.lines()).anyMatch(line -> line.contains("start sokar-uc-shell-1"));
+    }
+
+    @Test
+    void aSocketHelperStartsBeforeTheContainer(@TempDir Path dir) throws Exception {
+
+        // A bind mount is bound to the file that exists when the container starts. Measured: with
+        // the container first, it held the previous run's deleted socket and every request through
+        // it went nowhere, while the same request from the host was answered.
+        final SokarContext context = context(dir);
+        runner.answering("container inspect", "4711");
+        final Path state = stateOf("sokar-uc-shell-1");
+        final Path order = dir.resolve("order.txt");
+        new TaskHelpers(java.util.List.of(new TaskHelpers.Helper("vault",
+                java.util.List.of("/bin/sh", "-c", "echo vault >> " + order),
+                java.util.Map.of(), TaskHelpers.BEFORE))).writeTo(state);
+
+        execute(context, "task", "resume", "sokar-uc-shell-1");
+
+        final int podmanStart = runner.lines().indexOf(runner.lines().stream()
+                .filter(line -> line.startsWith("podman start")).findFirst().orElseThrow());
+        assertThat(podmanStart).isNotNegative();
+        for (int i = 0; i < 50 && !Files.exists(order); i++) {
+            Thread.sleep(100);
+        }
+        assertThat(Files.readString(order)).contains("vault");
+    }
+
+    @Test
+    void resumingSomethingThatIsNotThereFails(@TempDir Path dir) {
+
+        runner.failing("container inspect", 125, "no such container");
+
+        assertThat(execute(context(dir), "task", "resume", "sokar-uc-shell-404")).isEqualTo(69);
+        assertThat(err.toString()).contains("no container");
+    }
+
+    @Test
+    void aResumedProxyKeepsTheTokenTheContainerAlreadyHolds(@TempDir Path dir) throws Exception {
+
+        // The container's environment is fixed when it is created: a freshly minted token would
+        // be rejected by the proxy and would read as a bad credential.
+        final SokarContext context = context(dir);
+        runner.answering("container inspect", "4711");
+        final Path state = stateOf("sokar-uc-shell-1");
+        final Path marker = dir.resolve("argv.txt");
+        new TaskHelpers(java.util.List.of(new TaskHelpers.Helper("vault",
+                java.util.List.of("/bin/sh", "-c", "echo \"$@\" > " + marker + "", "sh"),
+                java.util.Map.of(), TaskHelpers.BEFORE))).writeTo(state);
+
+        execute(context, "task", "resume", "sokar-uc-shell-1");
+
+        // The process is started detached, so wait for the file it writes.
+        for (int i = 0; i < 50 && !Files.exists(marker); i++) {
+            Thread.sleep(100);
+        }
+        assertThat(Files.readString(marker)).contains("--reuse-token");
+    }
+
+    @Test
+    void purgeRemovesTheStateDirectory(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        final Path state = stateOf("sokar-uc-shell-1");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+        assertThat(state).doesNotExist();
+    }
+}
