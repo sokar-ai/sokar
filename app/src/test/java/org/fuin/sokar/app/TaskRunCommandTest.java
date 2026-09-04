@@ -203,6 +203,46 @@ class TaskRunCommandTest {
     }
 
     @Test
+    void stopsTheHelpersWhenTheContainerNeverStarts(@TempDir Path dir) throws Exception {
+
+        // A container that ran is reaped by the poststop hook. One that never started fires no
+        // hook, and the vault proxy, gate and watcher launched before it then outlive the run:
+        // measured on both test machines, where each failed run stranded three processes holding
+        // their sockets, and the next run failed for a reason unrelated to what changed.
+        final SokarContext context = context(dir, true);
+        runner.failing("start", 125, "OCI runtime error");
+
+        final Path state = dir.resolve("run/sokar").resolve(containerName());
+        Files.createDirectories(state);
+        final Process helper = new ProcessBuilder("sleep", "120").start();
+        Files.writeString(state.resolve("vault.pid"), String.valueOf(helper.pid()));
+
+        execute(context, "task", "run", "-p", projectFile(dir, MINIMAL).toString(), "--no-attach");
+
+        assertThat(helper.waitFor(10, java.util.concurrent.TimeUnit.SECONDS))
+                .as("the helper must be stopped, not left holding its socket").isTrue();
+        assertThat(state.resolve("vault.pid")).doesNotExist();
+    }
+
+    @Test
+    void leavesTheHelpersAloneWhileTheContainerRuns(@TempDir Path dir) throws Exception {
+
+        // The mirror of the above: a running container owns its helpers, and reaping them here
+        // would break every task that is working normally.
+        final SokarContext context = context(dir, true);
+        runner.answering("container inspect", "4711");
+
+        final Path state = dir.resolve("run/sokar").resolve(containerName());
+        Files.createDirectories(state);
+        Files.writeString(state.resolve("vault.pid"), "4711");
+
+        execute(context, "task", "run", "-p", projectFile(dir, MINIMAL).toString(),
+                "--no-attach", "--keep");
+
+        assertThat(state.resolve("vault.pid")).exists();
+    }
+
+    @Test
     void removesTheContainerWhenTheShellExits(@TempDir Path dir) throws IOException {
 
         // The bug this exists for: attaching used to replace this process, so nothing was left to

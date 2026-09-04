@@ -411,4 +411,40 @@ public class TaskRunner {
     public void remove(String container) {
         podman.remove(container);
     }
+
+    /**
+     * Stops the helpers of a task whose container is not running.
+     * <p>
+     * A container that ran is reaped by the poststop hook, which stops everything the state
+     * directory records a pid for. A container that never <em>started</em> - a refused ruleset,
+     * a failed image build - fires no hook at all, and the vault proxy, gate and watcher started
+     * before it then outlive the run with nobody to stop them. Measured: they hold their sockets,
+     * and the next run fails for a reason that has nothing to do with what changed.
+     *
+     * @param container Container name.
+     */
+    public void reapOrphans(String container) {
+
+        if (podman.pidOf(container).orElse(0L) > 0) {
+            // Still running, with or without an attached shell. Its helpers belong to it.
+            return;
+        }
+        final Path state = paths.containerState(container);
+        if (!Files.isDirectory(state)) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> files = Files.list(state)) {
+            files.filter(file -> file.getFileName().toString().endsWith(".pid")).forEach(file -> {
+                try {
+                    ProcessHandle.of(Long.parseLong(Files.readString(file).strip()))
+                            .ifPresent(ProcessHandle::destroy);
+                    Files.deleteIfExists(file);
+                } catch (IOException | RuntimeException ex) {
+                    // A pid file naming something already gone is the normal case, not a problem.
+                }
+            });
+        } catch (IOException ex) {
+            // Nothing useful can be done while already handling a failure.
+        }
+    }
 }

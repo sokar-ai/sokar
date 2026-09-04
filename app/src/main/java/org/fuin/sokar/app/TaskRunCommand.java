@@ -1037,6 +1037,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // container behind is worse than an extra command.
             runner.remove(container);
         }
+        // Only reaps when no container is running: a start that failed fires no poststop hook.
+        runner.reapOrphans(container);
         return code;
     }
 }

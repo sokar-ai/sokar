@@ -34,6 +34,8 @@ cleanup() {
     [ -n "${SOKAR_VAULT:-}" ] && "$SOKAR" vault unlock --forget >/dev/null 2>&1
     podman rmi -f "sokar/$PROJECT" >/dev/null 2>&1
     rm -rf "$WORK" "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT"
+    rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT-fail"
+    rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar/sokar-$PROJECT-fail-"*
     # The gate mirror too: it outlives the container, and a mirror left from an earlier run
     # already holds the ref this run pushes, so the push fails as a non-fast-forward and
     # reads as a broken gate.
@@ -401,6 +403,49 @@ if podman exec "$CONTAINER" sh -c 'test -d /workspace/.git' 2>/dev/null; then
     fi
 else
     fail "no workspace in the container, so the agent has nothing to work on"
+fi
+
+# ------------------------------------------------- what a failed run leaves behind
+echo
+echo "-- a failed run --"
+
+# Deliberately broken, so the failure happens AFTER the credential proxy is listening and
+# before any container exists. That is the gap the poststop hook cannot cover: it only fires
+# for a container that ran, so nothing else stops what was started before it. Measured before
+# this check existed: every failed run stranded a proxy holding its socket, and the next run
+# then failed for a reason that had nothing to do with what changed.
+FAIL_PROJECT="$PROJECT-fail"
+FAIL_DIR="$WORK/failing"
+mkdir -p "$FAIL_DIR"
+cat > "$FAIL_DIR/project.yml" <<EOF
+project:
+  name: "$FAIL_PROJECT"
+  security_class: "guarded"
+image:
+  base_image: "sokar-no-such-base-image:0"
+EOF
+
+if (cd "$FAIL_DIR" && "$SOKAR" task run --keep --no-attach --clearance deny \
+        > "$FAIL_DIR/start.log" 2>&1); then
+    fail "a task with an unbuildable image reported success"
+else
+    pass "a task that cannot build its image fails rather than starting"
+fi
+
+LEFTOVERS="$(pgrep -f "$FAIL_PROJECT" 2>/dev/null | grep -v "^$$\$" | wc -l)"
+if [ "$LEFTOVERS" -eq 0 ]; then
+    pass "the failed run left no helper processes behind"
+else
+    fail "the failed run left $LEFTOVERS process(es) running"
+    pgrep -af "$FAIL_PROJECT" 2>/dev/null | head -3 | while read -r line; do info "$line"; done
+fi
+
+FAIL_STATE="$(find "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar" -maxdepth 1 \
+    -name "sokar-$FAIL_PROJECT-*" 2>/dev/null | head -1)"
+if [ -z "$FAIL_STATE" ] || [ -z "$(find "$FAIL_STATE" -name '*.pid' 2>/dev/null)" ]; then
+    pass "the failed run left no pid files claiming live helpers"
+else
+    fail "the failed run left pid files in $FAIL_STATE"
 fi
 
 echo
