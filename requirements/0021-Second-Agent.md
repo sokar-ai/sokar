@@ -36,12 +36,18 @@ be given the real credential or not supported.
 | Codex CLI | OpenAI | yes | account sign-in or API key | likely, unverified |
 | Gemini CLI | Google | yes | account sign-in or API key | likely, unverified |
 | GitHub Copilot CLI | GitHub Copilot, which fronts several models | yes | forge account, device flow | unlikely, unverified |
+| Grok Build | xAI | yes | subscription account; the model is also on the vendor's API | unverified |
 | OpenCode | many, chosen per session | **no** | per provider: pasted key in one store, browser sign-in, or env var | **documented** - a base URL per provider |
 | Oh My Pi | many, 40+ | **no** | per provider: env var, stored key, or sign-in with refresh | yes for common API dialects, by design |
 
-Ordered by reported usage among professional developers, except the last, which is
-included because it is provider-agnostic and small enough to be a fair test of the
-onboarding path.
+Ordered by reported usage among professional developers, with two exceptions. Grok
+Build is too recent for usage to mean anything - it reached 1.0 in August 2026 - and
+is here because it is the only agent tied to that provider. Oh My Pi is here because
+it is provider-agnostic and small enough to be a fair test of the onboarding path.
+
+A provider with no agent of its own is not absent from this table: it is one of the
+"many" the last two rows reach. An agent is what Sokar packages; a provider is
+something an agent talks to.
 
 Only the first row is established: everything in it was measured while building the
 first agent. Every "unverified" is a claim to check before committing to that agent,
@@ -84,6 +90,10 @@ Two of those land directly on Sokar's own design:
   decides whether an agent can be brokered, and it is not reliably documented -
   for the one agent already supported it took a local listener and a raw socket to
   establish, and two wrong conclusions before that.
+- **Subscription-gated agents are the risky shape.** Two rows require a paid account
+  rather than a key, and that is the shape that already cost the most: a session
+  verified with the vendor before anything runs, over a path that ignores whatever
+  endpoint the agent was given.
 - An agent that authenticates by account sign-in rather than by a key may verify the
   session with its vendor before use. That check does not go through a redirected
   endpoint, so it has to be reachable, which widens what the box may contact.
