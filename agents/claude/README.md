@@ -66,10 +66,26 @@ ANTHROPIC_UNIX_SOCKET=/run/sokar/vault.sock
 ANTHROPIC_BASE_URL=http://localhost:9419
 ```
 
+For a subscription the variable is `CLAUDE_CODE_OAUTH_TOKEN` instead; the kind
+stored in the vault decides which.
+
 Claude Code talks to the socket; Sokar's proxy checks the phantom token, replaces
 it with your real credential, and reissues the request to
 `https://api.anthropic.com`. Your key never enters the container, and the phantom
 token stops working when the task ends.
+
+**Two files are placed as well**, because a container has never been logged in and
+the CLI would otherwise run its first-run wizard and stop for input:
+
+```
+/home/agent/.claude.json              onboarding answered, /workspace trusted
+/home/agent/.claude/.credentials.json the phantom token, where a login would put it
+```
+
+The login menu that appears without them belongs to that wizard, not to any check
+of the credential — with the wizard marked done, the phantom token is used without
+question. The agent decides what those files contain; Sokar writes bytes it does
+not parse, over standard input so the token never reaches a command line.
 
 **Both variables are set on purpose.** `ANTHROPIC_UNIX_SOCKET` only selects the
 transport. Without `ANTHROPIC_BASE_URL`, Claude Code falls back to its own
@@ -97,12 +113,16 @@ defends, and `buildtools/e2e-tier1.sh` checks it directly.
 
 ```
 $ sokar agents --verbose
-claude       claude           Claude Code
-             domains: api.anthropic.com, claude.ai, statsig.anthropic.com
-             proxied: api.anthropic.com (reachable only through the credential proxy)
-             refused: http-intake.logs.us5.datadoghq.com
+NAME         BINARY           LABEL                  FROM
+claude       claude           Claude Code            /usr/libexec/sokar/agents/sokar-agent-claude
+             domains: api.anthropic.com, platform.claude.com, claude.ai, statsig.anthropic.com
+             proxied: api.anthropic.com (the credential is swapped in on the way out)
+             refused: http-intake.logs.us5.datadoghq.com, raw.githubusercontent.com
              resume:  yes
 ```
+
+`platform.claude.com` is contacted before an interactive session starts, and the
+CLI quits if it cannot reach it - whatever the credential is.
 
 `refused` is a deliberate denial, not an oversight: 2.1.236 resolves a Datadog
 log intake during a normal run, and Sokar does not give it one. The CLI works

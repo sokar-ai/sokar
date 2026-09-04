@@ -182,8 +182,18 @@ public class ShieldWatchCommand implements Callable<Integer> {
             final String destination = String.valueOf(event.get("destination"));
             final String protocol = String.valueOf(event.get("protocol"));
             final int port = event.get("port") instanceof Number number ? number.intValue() : 0;
-            final String shown = port == 0 ? destination : destination + ":" + port;
-            return hub.handle(protocol + "/" + destination + "/" + port, destination, shown, protocol);
+            // A bare address is not something an operator can judge. The resolver logged what
+            // it answered, which is the only place to turn the number back into the name the
+            // agent asked for; the address stays visible because the decision is about it.
+            final String name = events == null ? null
+                    : org.fuin.sokar.shield.ResolvedNames
+                            .lookup(events.resolveSibling("dnsmasq.log"), destination)
+                            .orElse(null);
+            final String shownAddress = port == 0 ? destination : destination + ":" + port;
+            final String shown = name == null ? shownAddress
+                    : name + (port == 0 ? "" : ":" + port) + " (" + destination + ")";
+            return hub.handle(protocol + "/" + destination + "/" + port, destination, shown,
+                    protocol);
         } catch (RuntimeException ex) {
             // A line the reader could not have produced is not worth stopping for; a partially
             // written last line is normal when following a file that is still being appended to.

@@ -32,7 +32,7 @@ what the requirement says, or whether it survives at all.
 | 20 | [Narrow The Git Endpoint](0020-Narrow-The-Git-Endpoint.md) | The host endpoint a task clones from should not be reachable from the local network. | yes |
 | 21 | [Second Agent](0021-Second-Agent.md) | A second agent is packaged and installed alongside the first, proving that adding one needs no change to anything else. |  |
 | 22 | [Recovery And Panic](0022-Recovery-And-Panic.md) | A task that has gone wrong can be isolated for inspection, and everything can be stopped at once. |  |
-| 23 | [SokarMc Apple Containers](0023-SokarMc-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
+| 23 | [McSokar Apple Containers](0023-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
 
 ## To be checked
 
@@ -50,6 +50,6 @@ are worth knowing about before any of this is planned into an order:
   last attempt reported success while silently disabling outbound filtering, so this
   one is verified by the acceptance suite or not at all.
 - Whether the guarantees can be re-derived at all on the second platform in
-  [0023](0023-SokarMc-Apple-Containers.md). It decides whether that project offers
+  [0023](0023-McSokar-Apple-Containers.md). It decides whether that project offers
   the same product or a weaker one wearing the same name, and it also constrains how
   [0001](0001-Local-Daemon-API.md) may be written.
