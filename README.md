@@ -58,6 +58,9 @@ See [your tooling](your-tooling.md).
 ## Adding a new agent
 See [Onboarding a new agent](agents/README.md#onboarding-a-new-agent)
 
+## What is planned
+See [requirements](requirements/README.md).
+
 ## Building the project
 See [build](build.md).
 

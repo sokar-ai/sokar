@@ -121,6 +121,14 @@ See [build.md](build.md). Three things that will bite:
 - **A shell in a directory a `clean` build removed defeats every command.** It
   cannot be detected in advance: the check would be the file operation that
   fails. `SokarCli` catches it and says so in one line.
+- **The git gate binds every interface, and that is not yet fixable.** A loopback
+  bind is unreachable from a rootless container (measured: connection refused).
+  pasta's `--map-host-loopback` makes `127.0.0.1` reachable at `169.254.1.2` and
+  works - but passing it as `--network pasta:<options>` replaces podman's own
+  pasta defaults, and `e2e-tier1` then reports **open egress** with the ruleset
+  still loaded. The per-task token is what keeps the gate shut. The next thing to
+  try is `pasta_options` in the `containers.conf` drop-in `sokar setup` already
+  writes, which adds to podman's defaults instead of replacing them.
 - **`dnsmasq --nftset` is load-bearing, and its absence is silent.** It is what
   makes a declared domain reachable rather than merely resolvable. A dnsmasq
   compiled without it accepts the config and opens nothing. `sokar doctor` probes
@@ -156,6 +164,11 @@ One brief line. The reasoning behind a change is a finding, and a finding goes i
 `.sokar.md` or in this file, where it can be found later without `git log`.
 
 ## Documentation
+
+**Requirements are not referenced from code.** No class, comment, commit message or
+test may cite a requirement number. Requirements move, merge and are dropped; code
+that names one goes stale silently and starts to look like a contract. A comment
+should name the constraint itself, which is what makes it worth reading anyway.
 
 `README.md` is an index; the substance lives in `getting-started.md`, `why.md`,
 `your-tooling.md`, `build.md` and `agents/README.md`. `.sokar.md` is the planning

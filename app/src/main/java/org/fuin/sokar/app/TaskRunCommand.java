@@ -477,6 +477,10 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 ProcessHandle.current().info().command().orElse("sokar"),
                 "gate", "serve",
                 "--project", projectFile.toAbsolutePath().toString(),
+                // Reachable from the LAN, which is not what anyone would want, but a loopback
+                // bind is measurably unreachable from the container here. Narrowing it needs
+                // pasta's --map-host-loopback, which cannot be passed this way. Every request
+                // carries a per-task token, which is what actually keeps this shut.
                 "--address", "0.0.0.0",
                 "--port", String.valueOf(workspace.port()),
                 "--pid-file", state.resolve("gate.pid").toString());

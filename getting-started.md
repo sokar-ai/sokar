@@ -200,9 +200,10 @@ process limit.
 
 **What the gate is**, since the classes are defined in terms of it: a bare mirror
 of your repository on your own machine, at
-`~/.local/share/sokar/mirrors/<project>.git`, served to the container over HTTP on
-a loopback address of the container network. Nothing else on your machine reaches
-it, and nothing on your LAN can. The container's `origin` points at that mirror
+`~/.local/share/sokar/mirrors/<project>.git`, served to the container over HTTP.
+Every request must carry a per-task token, which is what keeps it shut: while a
+task runs the port is bound on all interfaces, so it is reachable from your local
+network. Narrowing that is an open problem — see [AGENT.md](AGENT.md). The container's `origin` points at that mirror
 rather than at your real remote, and a push lands in `refs/sokar/incoming/<task>`,
 where it waits for you.
 

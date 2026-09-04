@@ -5,10 +5,10 @@ The Sokar adapter for [Claude Code](https://github.com/anthropics/claude-code).
 Two different things get called "the agent", and the difference matters when
 something goes wrong:
 
-| | Where it lives | What it is |
-|---|---|---|
-| `sokar-agent-claude` | on the **host**, in `/usr/libexec/sokar/agents` | this adapter, about 6 MB, one file |
-| `claude` | inside the **task image**, at `/home/agent/.local/bin/claude` | the CLI itself, about 320 MB |
+|                      | Where it lives                                                | What it is                         |
+|----------------------|---------------------------------------------------------------|------------------------------------|
+| `sokar-agent-claude` | on the **host**, in `/usr/libexec/sokar/agents`               | this adapter, about 6 MB, one file |
+| `claude`             | inside the **task image**, at `/home/agent/.local/bin/claude` | the CLI itself, about 320 MB       |
 
 The package does not contain the CLI. It carries a pinned URL and a SHA-256, and
 the image build fetches and verifies it — see
@@ -20,10 +20,10 @@ Claude Code accepts two kinds, and they are **not interchangeable**. They go in
 different headers, and sending one as the other fails as an authentication error
 that looks exactly like a wrong key.
 
-| You have | Store it as | Run with | Sokar sends |
-|---|---|---|---|
-| an API key from the Anthropic Console | `claude` | *(nothing extra)* | `x-api-key: sk-ant-…` |
-| a Claude subscription | `claude` | `--credential-type oauth` | `Authorization: Bearer …` |
+| You have                              | Store it as | Run with                  | Sokar sends               |
+|---------------------------------------|-------------|---------------------------|---------------------------|
+| an API key from the Anthropic Console | `claude`    | *(nothing extra)*         | `x-api-key: sk-ant-…`     |
+| a Claude subscription                 | `claude`    | `--credential-type oauth` | `Authorization: Bearer …` |
 
 **An API key** comes from the Anthropic Console, as `sk-ant-…`. Usage is billed
 to that key.

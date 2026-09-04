@@ -31,7 +31,7 @@ public class TaskWorkspace {
      * Address a rootless container reaches the host on, as podman maps
      * {@link #containerVisibleHost()} in the container's {@code /etc/hosts}.
      */
-    private static final String GATE_ADDRESS = "169.254.1.2";
+    private static final String GATE_ADDRESS = org.fuin.sokar.runtime.ContainerSpec.HOST_LOOPBACK;
 
     /** The gate, or {@code null} for an online project that pushes to its upstream directly. */
     private final @Nullable GitGate gate;

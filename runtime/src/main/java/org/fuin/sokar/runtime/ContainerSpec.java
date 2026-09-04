@@ -14,6 +14,9 @@ import java.util.Map;
  */
 public class ContainerSpec {
 
+    /** Address inside a task container that reaches the host's loopback. */
+    public static final String HOST_LOOPBACK = "169.254.1.2";
+
     private final String name;
 
     private final String image;
@@ -171,7 +174,9 @@ public class ContainerSpec {
         arguments.add(String.valueOf(pids));
 
         // A private network namespace is what makes a per-container firewall possible at all: the
-        // nft hook installs the ruleset inside this namespace.
+        // nft hook installs the ruleset inside this namespace. Do NOT spell this as
+        // 'pasta:<options>': that replaces podman's own pasta defaults instead of adding to them,
+        // and the measured result was open egress with the ruleset still loaded.
         arguments.add("--network");
         arguments.add("private");
 

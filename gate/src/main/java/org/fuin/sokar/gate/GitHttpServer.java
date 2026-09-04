@@ -21,9 +21,11 @@ import java.util.Set;
  * a great deal of code with a great deal of room to be subtly wrong; the git binaries are already
  * on the host and are the reference implementation.
  * <p>
- * <strong>Bound to the loopback address of the host side of the container network.</strong> The
- * agent reaches it because the shield allows that one address; nothing else on the network can,
- * and neither can anything on the operator's LAN.
+ * <strong>Reachable from the operator's LAN while a task runs.</strong> It binds every interface,
+ * because a loopback bind is unreachable from a rootless container here - measured. What keeps it
+ * shut is the per-task token every request must carry, not the bind. Narrowing this needs pasta's
+ * {@code --map-host-loopback}, which podman only accepts in a way that discards its own pasta
+ * defaults and silently opens egress.
  */
 public class GitHttpServer implements AutoCloseable {
 

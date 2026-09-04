@@ -74,6 +74,9 @@ class PodmanTest {
         assertThat(line)
                 .contains("--security-opt no-new-privileges")
                 .contains("--cap-drop ALL")
+                .contains("--init")
+                // Not 'pasta:<options>': that discards podman's own pasta defaults, and the
+                // measured result was open egress with the ruleset still loaded.
                 .contains("--network private");
     }
 
