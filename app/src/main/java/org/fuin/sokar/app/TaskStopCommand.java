@@ -37,6 +37,15 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
                     + " workspace and the logs are gone and the task cannot be resumed.")
     private boolean purge;
 
+    @Option(names = "--rescue",
+            description = "Pushes work the agent never handed back to the gate first, under its"
+                    + " own ref, so removing the task does not destroy it.")
+    private boolean rescue;
+
+    @Option(names = "--force",
+            description = "Removes the task even though work would be lost with it.")
+    private boolean force;
+
     @Spec
     private CommandSpec spec;
 
@@ -64,6 +73,25 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
         final Path state = context.paths().containerState(container);
         final boolean known = context.podman().sokarTasks().stream()
                 .anyMatch(task -> task.name().equals(container)) || Files.isDirectory(state);
+
+        // Asked while the container and the gate are both still up: afterwards there is nothing
+        // to ask, and nowhere to push what the answer finds.
+        final String work = unhandedWork(container);
+        if (work != null) {
+            out.println("work      " + work + " that never reached the gate");
+        }
+        if (work != null && purge && !rescue && !force) {
+            err.println("sokar: refusing to remove " + container + ": it holds " + work);
+            err.println("       it exists nowhere else. Use --rescue to push it to the gate"
+                    + " first, or --force to discard it.");
+            err.flush();
+            return 65;
+        }
+        if (work != null && rescue && !rescueWork(container, out, err)) {
+            err.println("sokar: nothing was removed, because the work could not be rescued");
+            err.flush();
+            return 70;
+        }
 
         // Counted first: stopping the container fires the poststop hook, which reaps the helpers
         // and deletes their pid files, leaving nothing to count afterwards.
@@ -118,6 +146,91 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
         }
         out.flush();
         return surviving.isEmpty() ? 0 : 70;
+    }
+
+    /**
+     * Describes what the agent has done and not handed back, or {@code null} when there is none.
+     * <p>
+     * Only answerable while the container runs, which is why it is asked before anything is
+     * stopped. A task with no workspace, or one already stopped, simply reports nothing rather
+     * than guessing.
+     *
+     * @param container Container name.
+     * @return A phrase naming what would be lost, or {@code null}.
+     */
+    private String unhandedWork(String container) {
+
+        final org.fuin.sokar.core.process.CommandResult result =
+                context.podman().ask(container, java.util.Map.of(), java.util.List.of("sh", "-c",
+                        "cd " + TaskWorkspace.MOUNT + " 2>/dev/null || exit 0;"
+                        + " printf '%s %s' \"$(git status --porcelain 2>/dev/null | wc -l)\""
+                        + " \"$(git log --oneline --branches --not --remotes 2>/dev/null"
+                        + " | wc -l)\""));
+        if (!result.successful()) {
+            return null;
+        }
+        try {
+            final String[] counts = result.trimmedOutput().split("\\s+");
+            if (counts.length != 2) {
+                return null;
+            }
+            final int changed = Integer.parseInt(counts[0]);
+            final int commits = Integer.parseInt(counts[1]);
+            if (changed == 0 && commits == 0) {
+                return null;
+            }
+            final StringBuilder text = new StringBuilder();
+            if (commits > 0) {
+                text.append(commits).append(commits == 1 ? " commit" : " commits");
+            }
+            if (changed > 0) {
+                text.append(text.isEmpty() ? "" : " and ")
+                        .append(changed).append(changed == 1 ? " changed file" : " changed files");
+            }
+            return text.toString();
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Pushes what the agent never handed back, under a ref of its own.
+     * <p>
+     * Rescued work is not work an agent offered up, so it lands beside the reviewed ref rather
+     * than in it, and a reviewer can tell the two apart. Only a gated task can be rescued: a task
+     * that pushes straight to a real upstream has no place to put unreviewed work.
+     *
+     * @param container Container name.
+     * @param out Where progress is reported.
+     * @param err Where failures are reported.
+     * @return {@code true} if the work is now on the gate.
+     */
+    private boolean rescueWork(String container, PrintWriter out, PrintWriter err) {
+
+        final org.fuin.sokar.core.process.CommandResult reference = context.podman().ask(container,
+                java.util.Map.of(),
+                java.util.List.of("sh", "-c", "printf '%s' \"$SOKAR_TASK_REF\""));
+        if (!reference.successful()) {
+            err.println("sokar: the task has no gate ref, so there is nowhere to rescue it to");
+            return false;
+        }
+        final String taskRef = reference.trimmedOutput();
+        if (!taskRef.startsWith("refs/sokar/incoming/")) {
+            err.println("sokar: this task pushes straight to its upstream, so unreviewed work"
+                    + " cannot be rescued without publishing it");
+            return false;
+        }
+
+        final String rescueRef = taskRef + "-rescued";
+        final org.fuin.sokar.core.process.CommandResult pushed = context.podman().ask(container,
+                java.util.Map.of("SOKAR_TASK_REF", rescueRef), TaskWorkspace.pushCommand());
+        if (!pushed.successful()) {
+            err.println("sokar: could not push the work: " + pushed.standardError().strip());
+            return false;
+        }
+        out.println("rescued   " + rescueRef);
+        out.println("          review it with 'sokar gate pending'");
+        return true;
     }
 
     private void deleteTree(Path directory) {

@@ -201,6 +201,30 @@ public class Podman {
     }
 
     /**
+     * Runs a short command in a container and returns what it printed.
+     * <p>
+     * For the small questions - what does the workspace look like, what is this variable set to -
+     * where the answer is the point and it fits in memory. {@link #execute} is for an agent run,
+     * whose output is measured in megabytes and belongs in a file.
+     *
+     * @param container Container name or id.
+     * @param environment Extra variables for this command only.
+     * @param command Program and arguments.
+     * @return The result, successful or not.
+     */
+    public CommandResult ask(String container, Map<String, String> environment,
+            List<String> command) {
+        final List<String> arguments = new ArrayList<>(List.of("exec"));
+        environment.forEach((name, value) -> {
+            arguments.add("--env");
+            arguments.add(name + "=" + value);
+        });
+        arguments.add(container);
+        arguments.addAll(command);
+        return runner.run(podman(arguments.toArray(new String[0])));
+    }
+
+    /**
      * Returns the image a container was created from, as name and id.
      * <p>
      * Both are needed to tell an operator that a task is running something older than the project's

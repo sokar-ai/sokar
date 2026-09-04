@@ -197,11 +197,15 @@ public class TaskWorkspace {
     }
 
     /**
-     * Returns the shell that pushes whatever the agent committed.
+     * Returns the shell that pushes whatever the agent committed, committing what it left
+     * uncommitted so that nothing is left behind.
+     * <p>
+     * Static because it depends on nothing but the mount point and the environment already in the
+     * container: a task being rescued has no workspace object left to ask.
      *
      * @return Command and arguments.
      */
-    public java.util.List<String> pushCommand() {
+    public static java.util.List<String> pushCommand() {
         return java.util.List.of("sh", "-c",
                 "set -e; cd " + MOUNT + "; "
                         + "if [ -z \"$(git status --porcelain)\" ] && git rev-parse HEAD >/dev/null 2>&1; then "

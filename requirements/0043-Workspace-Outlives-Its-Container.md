@@ -1,6 +1,9 @@
 # 0043 — Workspace Outlives Its Container
 
-**Status:** open
+**Status:** the refusal and the rescue are built - `sokar task stop --purge` refuses when
+the workspace holds work that never reached the gate, `--rescue` pushes it to a ref of its
+own first, and `--force` discards it deliberately. Whether the workspace should live on the
+host at all is still open, and the answer below is still no.
 
 A task's workspace lives inside its container: the clone runs in the container and
 `/workspace` is part of the container's filesystem, not a mount. Removing the container

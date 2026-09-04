@@ -47,6 +47,16 @@ class TaskLifecycleCommandsTest {
         return cmd.execute(args);
     }
 
+    /**
+     * Makes the fake answer the workspace census the stop command runs in the container.
+     *
+     * @param dir Test directory.
+     * @param counts What the census prints: changed files, then unpushed commits.
+     */
+    private void workspaceReports(Path dir, String counts) {
+        runner.answering("git status --porcelain", counts);
+    }
+
     private Path stateOf(String container) throws IOException {
         final Path state = root.resolve("run/sokar").resolve(container);
         Files.createDirectories(state);
@@ -262,6 +272,86 @@ class TaskLifecycleCommandsTest {
             Thread.sleep(100);
         }
         assertThat(Files.readString(marker)).contains("--reuse-token");
+    }
+
+    @Test
+    void purgeRefusesWhenWorkWouldBeLost(@TempDir Path dir) throws IOException {
+
+        // The harm this exists for: removal is a cleanup command, and it used to destroy work
+        // that existed nowhere else without saying anything.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        stateOf("sokar-uc-shell-1");
+        workspaceReports(dir, "3 2");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isEqualTo(65);
+        assertThat(err.toString())
+                .contains("2 commits and 3 changed files")
+                .contains("--rescue")
+                .contains("--force");
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
+    void forceRemovesItAnyway(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        stateOf("sokar-uc-shell-1");
+        workspaceReports(dir, "3 2");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--force"))
+                .isZero();
+        assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
+    void aCleanWorkspaceIsNotInTheWay(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        stateOf("sokar-uc-shell-1");
+        workspaceReports(dir, "0 0");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+        assertThat(out.toString()).doesNotContain("work      ");
+    }
+
+    @Test
+    void rescuePushesTheWorkUnderItsOwnRef(@TempDir Path dir) throws IOException {
+
+        // Rescued work is not work an agent offered up, so it lands beside the reviewed ref
+        // rather than in it.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("SOKAR_TASK_REF", "refs/sokar/incoming/shell");
+        stateOf("sokar-uc-shell-1");
+        workspaceReports(dir, "3 2");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--rescue"))
+                .isZero();
+
+        assertThat(out.toString()).contains("rescued   refs/sokar/incoming/shell-rescued");
+        assertThat(runner.lines())
+                .anyMatch(line -> line.contains("SOKAR_TASK_REF=refs/sokar/incoming/shell-rescued"));
+        assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
+    void aTaskThatPushesStraightToItsUpstreamCannotBeRescued(@TempDir Path dir) throws IOException {
+
+        // Rescuing it would publish unreviewed work, which is the one thing the gate exists
+        // to prevent.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("SOKAR_TASK_REF", "refs/heads/shell");
+        stateOf("sokar-uc-shell-1");
+        workspaceReports(dir, "0 2");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--rescue"))
+                .isEqualTo(70);
+        assertThat(err.toString()).contains("without publishing it");
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
     }
 
     @Test
