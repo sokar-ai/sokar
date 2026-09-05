@@ -55,6 +55,42 @@ project a great deal: the architecture, and a lot of hard-won knowledge about ho
 behave. Big kudos to its developers. If you are more at home in Python, use it. It's a cool project!
 Why build this if Terok is so cool? See [why](why.md)
 
+## Supported providers and agents
+
+<table>
+<tr>
+<td valign="top">
+
+<table>
+<tr><th>Provider</th><th>State</th></tr>
+<tr><td><a href="https://docs.anthropic.com">Anthropic</a></td><td>:white_check_mark:</td></tr>
+<tr><td><a href="https://openrouter.ai">OpenRouter</a></td><td>:white_check_mark:</td></tr>
+<tr><td><a href="https://platform.openai.com">OpenAI</a></td><td>:construction:</td></tr>
+<tr><td><a href="https://ai.google.dev">Google</a></td><td>:construction:</td></tr>
+<tr><td><a href="https://github.com/features/copilot">GitHub Copilot</a></td><td>:construction:</td></tr>
+<tr><td><a href="https://docs.x.ai">xAI</a></td><td>:construction:</td></tr>
+<tr><td><a href="https://z.ai">Zhipu</a></td><td>:construction:</td></tr>
+</table>
+
+</td>
+<td valign="top">
+
+<table>
+<tr><th>Agent</th><th>State</th></tr>
+<tr><td><a href="https://github.com/anthropics/claude-code">Claude Code</a></td><td>:white_check_mark:</td></tr>
+<tr><td><a href="https://github.com/earendil-works/pi">Pi</a></td><td>:white_check_mark:</td></tr>
+<tr><td><a href="https://github.com/openai/codex">Codex CLI</a></td><td>:construction:</td></tr>
+<tr><td><a href="https://github.com/google-gemini/gemini-cli">Gemini CLI</a></td><td>:construction:</td></tr>
+<tr><td><a href="https://github.com/github/copilot-cli">GitHub Copilot CLI</a></td><td>:construction:</td></tr>
+<tr><td><a href="https://github.com/xai-org/grok-build">Grok Build</a></td><td>:construction:</td></tr>
+<tr><td><a href="https://github.com/sst/opencode">OpenCode</a></td><td>:construction:</td></tr>
+<tr><td><a href="https://github.com/can1357/oh-my-pi">Oh My Pi</a></td><td>:construction:</td></tr>
+</table>
+
+</td>
+</tr>
+</table>
+
 ## Getting started
 See [getting started](getting-started.md).
 
