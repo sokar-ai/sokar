@@ -20,6 +20,21 @@ public record SetupContext(String token, String credentialType, String workspace
         String endpoint, String provider) {
 
     /**
+     * Returns this context as the parameters of a {@code ContainerSetup} call.
+     * <p>
+     * Here rather than at the call site so that adding a field to this record and forgetting to
+     * send it is a test failure rather than an agent that is quietly told nothing. That is not
+     * hypothetical: the provider was added, the agent read it, the client never sent it, and a
+     * task got an empty provider name and failed to authenticate.
+     *
+     * @return Parameters, one per component of this record.
+     */
+    public java.util.Map<String, Object> parameters() {
+        return java.util.Map.of("token", token, "credentialType", credentialType,
+                "workspace", workspace, "endpoint", endpoint, "provider", provider);
+    }
+
+    /**
      * Returns whether this task is brokered at all.
      *
      * @return {@code true} when there is an endpoint to point the agent at.

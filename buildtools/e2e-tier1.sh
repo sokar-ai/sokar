@@ -85,9 +85,11 @@ fi
 
 DESCRIBE="$("$AGENT" describe 2>/dev/null)"
 CLI_VERSION="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["definition"]["version"])')"
-TOKEN_ENV="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["definition"]["tokenEnvironment"]["_default"])')"
+# Which variable carries the token is the PROVIDER's fact now, not the agent's, so it is read
+# back from the run rather than from the agent's own description - where it no longer appears.
+TOKEN_ENV=""
 DOMAINS="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print("\n".join(json.load(sys.stdin)["definition"]["allowedDomains"]))')"
-info "CLI version $CLI_VERSION, token variable $TOKEN_ENV"
+info "CLI version $CLI_VERSION"
 
 # ------------------------------------------------------------------ the vault
 # A vault of this run's own, never the operator's. Reading theirs made the result depend on
@@ -208,7 +210,8 @@ echo "-- credential injection --"
 if grep -q '^token .*none' "$START_LOG"; then
     info "the vault holds no credential, so no token was injected"
     info "(the wiring is covered by TaskRunCommandTest; this checks the live path)"
-elif grep -q "^token  *$TOKEN_ENV=" "$START_LOG"; then
+elif grep -qE "^token  +[A-Z0-9_]+=" "$START_LOG"; then
+    TOKEN_ENV="$(grep -E "^token  +" "$START_LOG" | head -1 | awk "{print \$2}" | cut -d= -f1)"
     pass "a phantom token was injected as $TOKEN_ENV"
     if podman exec "$CONTAINER" sh -c "printenv $TOKEN_ENV" 2>/dev/null | grep -q '^sokar_pt_'; then
         pass "the container sees a phantom token, not a real credential"

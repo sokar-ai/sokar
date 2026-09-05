@@ -129,6 +129,61 @@ class AgentProtocolTest {
     }
 
     @Test
+    void theClientSendsEveryFieldOfTheSetupContext() {
+
+        // The failure this guards against is silent on both sides: a field added to the record,
+        // read by the agent, never sent by the client. Comparing against the record's own
+        // components means a new field breaks this test rather than a task.
+        final SetupContext context = new SetupContext("sokar_pt_x", "api-key", "/workspace",
+                "http://127.0.0.1:9419/api/v1", "openrouter");
+
+        assertThat(context.parameters().keySet())
+                .containsExactlyInAnyOrderElementsOf(
+                        java.util.Arrays.stream(SetupContext.class.getRecordComponents())
+                                .map(java.lang.reflect.RecordComponent::getName).toList());
+        assertThat(context.parameters().values()).doesNotContainNull();
+    }
+
+    @Test
+    void everyPartOfTheSetupContextSurvivesTheWire(@TempDir Path dir) throws Exception {
+
+        // A regression test with a cause: the provider name was added to the context, the agent
+        // read it, and the client never sent it - so a task got registerProvider("") and failed
+        // to authenticate. Nothing below the wire could see that, because both sides compiled.
+        final Agent echoing = new Agent() {
+            @Override
+            public AgentDefinition definition() {
+                return AgentDefinitionReader.read(new StringReader(DEFINITION), "test.yaml");
+            }
+
+            @Override
+            public ContainerSetup containerSetup() {
+                return context -> List.of(new ContainerFile("/echo",
+                        String.join("|", context.token(), context.credentialType(),
+                                context.workspace(), context.endpoint(), context.provider()),
+                        false));
+            }
+        };
+
+        try (AgentServer server = new AgentServer(echoing, dir.resolve("a.sock"))) {
+            Thread.ofVirtual().start(server::serve);
+
+            try (var client = new org.fuin.sokar.clearance.varlink.VarlinkClient(
+                    server.socketPath())) {
+                final Object files = client.call(AgentProtocol.CONTAINER_SETUP,
+                        Map.of("token", "sokar_pt_x", "credentialType", "api-key",
+                                "workspace", "/workspace", "endpoint", "http://127.0.0.1:9419/api/v1",
+                                "provider", "openrouter")).get("files");
+
+                assertThat((List<?>) files).singleElement()
+                        .extracting(f -> ((Map<?, ?>) f).get("content"))
+                        .isEqualTo("sokar_pt_x|api-key|/workspace|"
+                                + "http://127.0.0.1:9419/api/v1|openrouter");
+            }
+        }
+    }
+
+    @Test
     void extractsACredentialAcrossTheWire(@TempDir Path dir) throws Exception {
 
         java.nio.file.Files.writeString(dir.resolve(".env"), "EXAMPLE_KEY=\"sk-example\"\n");

@@ -48,6 +48,24 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     private boolean providerResolved;
 
     /**
+     * Returns the variable this task's credential belongs in.
+     * <p>
+     * The agent's own answer if it gives one, otherwise the provider's. Most agents no longer
+     * give one: which variable an Anthropic key goes in is Anthropic's fact, and an agent that
+     * restated it could disagree with the agent beside it.
+     *
+     * @param agent The agent.
+     * @return Variable name, or {@code null} when neither names one.
+     */
+    @org.jspecify.annotations.Nullable
+    private String tokenVariable(org.fuin.sokar.agent.api.InstalledAgent agent) {
+        final String type = credentialType(agent.name());
+        final SelectedProvider selection = provider(agent);
+        return selection == null ? agent.definition().tokenVariable(type)
+                : agent.definition().tokenVariable(type, selection.definition());
+    }
+
+    /**
      * Returns the provider this task uses, resolving it the first time it is asked for.
      *
      * @param agent The agent, or {@code null}.
@@ -322,6 +340,16 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // listening end moves into the container's namespace, and that is a relay started
             // after the container exists.
             final SelectedProvider serving = provider(selected);
+            // The provider's own host, which the agent no longer restates. It has to be here or
+            // the firewall denies it: measured, Claude Code contacts the provider before it
+            // starts and quits when it cannot, whatever the credential is.
+            if (serving != null) {
+                for (final String host : serving.definition().domains()) {
+                    if (!domains.contains(host)) {
+                        domains.add(host);
+                    }
+                }
+            }
             final boolean needsRelay = serving != null
                     && serving.route().endpoint()
                             == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL;
@@ -509,7 +537,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         if (agent == null) {
             return;
         }
-        final String variable = agent.definition().tokenVariable(credentialType(agent.name()));
+        final String variable = tokenVariable(agent);
         final String token = variable == null ? null : environment.get(variable);
         if (token == null) {
             // Nothing to stand in for, so nothing to place: the agent will ask for a login, which
@@ -517,8 +545,12 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return;
         }
         try {
-            final var files = agent.containerSetup(token, credentialType(agent.name()),
-                    TaskWorkspace.MOUNT, endpointFor(agent, environment));
+            final SelectedProvider selection = provider(agent);
+            final var files = agent.containerSetup(
+                    new org.fuin.sokar.agent.api.SetupContext(token,
+                            credentialType(agent.name()), TaskWorkspace.MOUNT,
+                            endpointFor(agent, environment),
+                            selection == null ? "" : selection.name()));
             for (final var file : files) {
                 runner.place(container, file);
             }
@@ -673,8 +705,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final org.fuin.sokar.agent.api.ProviderRoute route =
                 selection == null ? null : selection.route();
         final String type = credentialType(agent.name());
-        final String variable = selection == null ? agent.definition().tokenVariable(type)
-                : agent.definition().tokenVariable(type, selection.definition());
+        final String variable = tokenVariable(agent);
         if (route == null || variable == null) {
             // Nothing to proxy through. Not an error - an agent may take no credential at all -
             // but if it takes one and cannot be redirected, say so rather than issue a token
@@ -1137,7 +1168,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return java.util.Map.of();
         }
 
-        final String variable = agent.definition().tokenVariable(credentialType(agent.name()));
+        final String variable = tokenVariable(agent);
         if (variable == null) {
             return java.util.Map.of();
         }
