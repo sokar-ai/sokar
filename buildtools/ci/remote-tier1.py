@@ -74,6 +74,16 @@ def main() -> int:
 
         hetzner.await_ssh(address)
 
+        # Hetzner injects the key a server is created with into root, and only root. The build
+        # user's authorized_keys comes from the snapshot, so it holds whoever built the image -
+        # which is not whoever is running now. Copying it across makes the snapshot neutral about
+        # which key reaches it, which it should have been in the first place.
+        print("\n-- giving this run's key access to the build user --")
+        hetzner.ssh(address, environment,
+                    f"install -d -m 0700 -o {BUILD_USER} -g {BUILD_USER} /home/{BUILD_USER}/.ssh"
+                    f" && install -m 0600 -o {BUILD_USER} -g {BUILD_USER}"
+                    f" /root/.ssh/authorized_keys /home/{BUILD_USER}/.ssh/authorized_keys")
+
         print("\n-- sending the working tree --")
         upload(address, environment)
 
