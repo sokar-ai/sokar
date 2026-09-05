@@ -139,8 +139,20 @@ jobs:
       # reactor also produced sokard and sokar-agent-pi, which this test never touches - 5m49s
       # of a 22-minute run on a two-core runner. A real workflow that must prove the whole
       # reactor builds should do that as a separate job rather than inside the test's path.
+      # -Ob on every branch except main. It roughly halves native-image time on a two-core
+      # runner, at the cost of a less optimised binary - fine for tier 1, which measures
+      # behaviour, and not fine for anything that ships. main therefore builds fully, so the
+      # release path is never the one that took the shortcut.
+      #
+      # Passed explicitly either way rather than omitted, so the log says which mode produced
+      # the binary instead of leaving it to be inferred from the branch.
       - name: Build the native binaries
-        run: ./mvnw -B -Pnative -DskipTests package -pl app,hooks,agents/claude -am
+        env:
+          QUICK_BUILD: ${{ github.ref == 'refs/heads/main' && 'false' || 'true' }}
+        run: |
+          echo "quickBuild=$QUICK_BUILD  (full optimisation on main only)"
+          ./mvnw -B -Pnative -DskipTests package -pl app,hooks,agents/claude -am \
+              -DquickBuild="$QUICK_BUILD"
 
       - name: Install as a package would
         run: |
