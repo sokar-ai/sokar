@@ -135,8 +135,12 @@ jobs:
       - name: Install the musl toolchain
         run: bash buildtools/install-musl.sh
 
+      # Only what tier 1 loads: the CLI, the three hooks and one agent. Building the whole
+      # reactor also produced sokard and sokar-agent-pi, which this test never touches - 5m49s
+      # of a 22-minute run on a two-core runner. A real workflow that must prove the whole
+      # reactor builds should do that as a separate job rather than inside the test's path.
       - name: Build the native binaries
-        run: ./mvnw -B -Pnative -DskipTests package
+        run: ./mvnw -B -Pnative -DskipTests package -pl app,hooks,agents/claude -am
 
       - name: Install as a package would
         run: |
