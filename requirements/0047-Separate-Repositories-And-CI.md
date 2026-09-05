@@ -3,7 +3,7 @@
 **Status:** **both legs are green.** Tier 1 passes 26 of 26 on a hosted Ubuntu runner and 26 of
 26 on a Fedora server with SELinux enforcing, provisioned on demand and destroyed afterwards. The
 gap this document said could never be closed on a hosted runner is closed by
-[0048](0048-Fedora-Test-Server-Snapshot.md). The repository split has not started.
+a prepared snapshot per leg. The repository split has not started.
 
 Two changes that only make sense together: the agents move into repositories of their own,
 and a push starts building and testing what is today built and tested by hand on two VMs.
@@ -16,9 +16,13 @@ agents out without CI first would multiply the hand work by the number of agents
 ## Acceptance
 
 - A push to any of the repositories builds it and runs its unit suite.
-- A push runs the **tier 1** acceptance suite on a real machine with podman, nftables and
-  dnsmasq - not a mock, and not a stub.
-- **Tier 2** runs where a credential exists, and never for a pull request from a fork.
+- A push runs the **tier 1** acceptance suite on a real machine with real podman, nftables and
+  dnsmasq - the containment is never mocked. (The *agent* inside it may be the stub below; the
+  machinery around it may not.)
+- **Tier 2** runs where a credential exists, and never for a pull request from a fork. It is
+  switchable from the build settings, and a leg switched off says so rather than passing quietly.
+- The core keeps an acceptance suite **after every agent has left**: a stub agent, built here,
+  that exercises the SPI, the firewall and the clearance path without downloading a vendor CLI.
 - An agent builds in its own repository against a **published** SPI, with no checkout of this
   one, and the package it produces installs against a `sokar` binary it was never built with.
 - Jars are published to Sonatype; `.deb` and `.rpm` to Artifactory.
@@ -51,7 +55,7 @@ real suite" or a different plan.
 |---|---|---|---|
 | build + unit tests | GitHub-hosted | every push and pull request | free, no secrets, so a fork's pull request gets it |
 | **acceptance suite** | **two rented machines, in parallel** | merged to `main`, and manual dispatch | needs SELinux enforcing and podman 4, which no hosted runner has |
-| tier 2 | not wired up | | needs a provider credential and spends money per run |
+| tier 2 | **belongs to the agent**, not here | | it tests an agent against a provider, and the agents are leaving |
 | **release build and publish** | GitHub-hosted | on a tag | an artifact that is published must not come from a machine rented for ten minutes |
 
 **The rented legs are gated to `main` on purpose.** Each one rents a machine, so running them on
@@ -278,17 +282,23 @@ version line, so depending on a released API is the shape the design already wan
 
 ## 5. The order
 
-1. **Spike** - tier 1 on a hosted runner, in this repository, nothing else moved.
-2. **CI for this repository**, whatever the spike allows.
+1. ~~**Spike** - tier 1 on a hosted runner, in this repository, nothing else moved.~~ **Done.**
+2. ~~**CI for this repository**, whatever the spike allows.~~ **Done** - both legs rented, in
+   parallel, gated to `main`; hosted runners keep the build and will carry the release.
 3. **Shrink the published surface** - drop the unused `sokar-core` dependency, move `varlink`
    into `sokar-wire`, delete the unused test-jar dependency, extract the shared fixtures, add
    `<name>`, add `flatten-maven-plugin`.
 4. **Publish the SPI and its closure** at a real version.
-5. **Split one agent** - Claude Code, alone - and prove it builds and packages against the
+5. **Write the stub agent** and move tier 1 onto it. This has to happen *before* an agent
+   leaves, not after: the moment `agents/claude` is a different repository, the core's own
+   acceptance suite has nothing to run, and a suite that cannot run is a suite that quietly
+   stops being maintained. It is also the switch tier 2 needs - with the stub as the default,
+   turning every real provider off leaves a suite that still proves something.
+6. **Split one agent** - Claude Code, alone - and prove it builds and packages against the
    published SPI with no checkout of this repository.
-6. **Split Pi.** Second on purpose: it ships a 70 MB npm tree built by `npm ci` inside a pinned
+7. **Split Pi.** Second on purpose: it ships a 70 MB npm tree built by `npm ci` inside a pinned
    container, so its CI needs podman and a much longer build. One hard problem at a time.
-7. **Then [0044](0044-Automated-Agent-Updates.md)**, which gets easier: one repository per agent
+8. **Then [0044](0044-Automated-Agent-Updates.md)**, which gets easier: one repository per agent
    is a natural unit for an update workflow.
 
 ## What CI proves, and what only a VM can
@@ -315,7 +325,7 @@ That is the containment story, and it is most of what matters.
 
 | gap | why | fixable in CI? |
 |---|---|---|
-| ~~**SELinux enforcing**~~ | ~~hosted runners are Ubuntu/AppArmor~~ | **covered** by an on-demand Fedora server - [0048](0048-Fedora-Test-Server-Snapshot.md) |
+| ~~**SELinux enforcing**~~ | ~~hosted runners are Ubuntu/AppArmor~~ | **covered** by an on-demand Fedora server booted from a prepared snapshot |
 | **the git gate** | the push hung on the runner and the cause is not yet known | unknown |
 | **package installation** | CI copies binaries into `~/.local/bin`; no `.deb` or `.rpm` is built, and nothing runs `dpkg -i` or `rpm -i` against a `sokar` it was not built with | yes, not wired up |
 | **tier 2** | needs a real credential and spends provider credits per run | yes, with a secret, on `main` and dispatch only |
@@ -342,10 +352,17 @@ pre-release gate rather than a formality. This reduces the manual work; it does 
 
 ## What the two legs proved, 2026-09-05
 
-| | |
-|---|---|
-| hosted Ubuntu runner | **26 of 26** |
-| on-demand Fedora, SELinux enforcing | **26 of 26** |
+Run `92061482762`, both legs on rented machines, in parallel:
+
+| leg | podman | security module | result |
+|---|---|---|---|
+| Ubuntu 24.04 | **4.9.3** | AppArmor | **26 of 26** |
+| Fedora 44 | **5.8.4** | SELinux, enforcing, policy loaded | **26 of 26** |
+
+The podman column is the point. The two development VMs both ran podman 5, so the split
+the legs exist to cover was, until this run, asserted rather than observed. It is now in a
+build log: the leg that reproduces what Ubuntu 24.04 LTS users actually have is the one on
+podman 4, and it is green on a binary that no longer assumes pasta's address.
 
 **And they were not redundant.** Bringing CI up found two defects that had nothing to do with CI:
 
@@ -380,6 +397,71 @@ having run on it - the suite runs *after* the merge, not before. That is a real 
 to the old rule when the old rule was followed, and it is the price of the rule being followed at
 all. If it starts to bite, the answer is a pull request gate rather than a habit: run the rented
 legs on a pull request from this repository, which costs about two cents per revision.
+
+## What the split does to the tests
+
+**Tier 2 goes with the agent.** It asks whether *this agent* can authenticate against *this
+provider* - which is the agent's question, not the core's. Wiring it into this repository now
+would mean moving it almost immediately, so it stays unwired here and becomes part of whatever
+each agent repository runs.
+
+**Tier 1 has a harder problem, and it is not yet answered.** It needs an agent binary and a real
+vendor CLI to run at all:
+
+```
+AGENT="$ROOT/agents/claude/target/sokar-agent-claude"
+PASS  the installed CLI is the pinned version (2.1.236 (Claude Code))
+```
+
+Once `agents/` leaves, the core has nothing to test with. Three ways out, and they are not
+exclusive:
+
+| | what it buys | what it loses |
+|---|---|---|
+| a **stub agent** kept in the core | fast, no vendor download, tests exactly what the core owns, no dependency on any agent's release | never notices a real CLI reaching for an undeclared host - which is how the Datadog intake was found |
+| the core's CI **pulls a published agent package** | tests the real thing, and proves an agent installs against a core it was not built with | the core's tests then break when an agent's release breaks, which is the coupling the split exists to remove |
+| the core keeps **one agent** as a test fixture | simplest | the split is then not a split |
+
+**Decided: a stub agent lives in the core**, and a published agent is used on a release. The stub
+is the piece to write before anything moves, because without it the core is untestable the moment
+`agents/` leaves.
+
+### The stub is better than a vendor CLI for most of what tier 1 checks
+
+Not merely a cheaper substitute. Today the domain-coverage check depends on **Claude Code
+happening to resolve a Datadog intake** - a real finding, but an accident of one vendor's
+telemetry in one version, and it will change under us. A stub can reach for a declared host and an
+undeclared one *on purpose*, which turns that check from an observation into an assertion.
+
+It also removes a 320 MB download from every run, and it tests exactly what the core owns: the
+SPI, the image build, the firewall, the phantom token, the gate.
+
+**What it must not become** is a stub that passes because it asks nothing of the core. It has to
+install a binary, resolve names, present a credential and push through the gate - otherwise the
+suite goes green while proving less than it used to, which is worse than deleting it.
+
+**What the stub cannot cover**, and so belongs in an agent's own repository: that a real CLI is
+installed at the pinned version, honours a socket or a base URL, and reaches only the hosts its
+definition declares.
+
+## Tier 2, and turning it off
+
+Tier 2 belongs to the agent repositories, but wherever it runs the shape is the same: a real
+credential, the cheapest model, one trivial prompt, and the checks that the credential never
+enters the container or the logs.
+
+**It has to be switchable without editing a workflow.** A provider outage, an expired card or a
+rate limit should be a setting, not a commit.
+
+- a repository **variable** - not a secret - lists which providers to exercise, for example
+  `TIER2_PROVIDERS=anthropic,openrouter`. Empty or absent means the job does not run.
+- each provider's credential is a **secret**, named for the provider, and a provider named in the
+  variable whose secret is missing is an error rather than a silent skip - "switched off" and
+  "misconfigured" must not look the same.
+- the matrix is built from that variable, so adding a provider is a settings change.
+
+Cost is not the reason for the switch: one prompt against the cheapest model measured **0.0023
+USD**. The reason is that a red build should mean the code is wrong.
 
 ## To be checked
 

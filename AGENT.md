@@ -220,6 +220,50 @@ See [build.md](build.md). Three things that will bite:
   as an empty string. `SetupContext.parameters()` is compared against the record's own components
   by a test for that reason.
 
+## The rented test machines
+
+Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in
+a `finally`. `buildtools/ci/` holds the driver (`remote-tier1.py`), the API helpers
+(`hetzner.py`) and the leak sweeper (`sweep.py`). **The snapshot *builder* is not in the
+repository** - it lives beside it, so the image cannot currently be rebuilt by anyone else. That
+is a gap, not a decision.
+
+What the images contain: GraalVM 25.0.2 pinned by its published digest, the musl cross-toolchain
+and a musl-built zlib, `gcc`/`glibc-devel`/`zlib-devel`, podman with `ubuntu:24.04` and
+`alpine:3.20` pre-pulled, Sokar's SELinux policy loaded on the Fedora leg, and a warm `~/.m2`
+from building the project once. The checkout itself is deleted - it goes stale immediately, the
+dependency cache does not. 1.48 GB, about EUR 0.018 a month; a run boots one in about a minute.
+
+Provisioning a machine that can build Sokar took nine attempts, four of which failed on the
+provisioning rather than on the suite:
+
+- **Hetzner's Fedora image ships SELinux `permissive`.** The targeted policy is installed and
+  `/sys/fs/selinux` is present; only the mode is wrong. It needs the config changed,
+  `/.autorelabel`, and a reboot - and since everything is installed while permissive, the
+  relabel is not optional.
+- **Sokar's own policy module is on no fresh machine.** Without `sokar_socket` a task container
+  is denied `connectto` on its own vault socket, the denial is `dontaudit`'ed, and it presents as
+  an agent that cannot authenticate with **nothing in the audit log**. Compile and load it while
+  the checkout is still there, and check `semodule -l` afterwards.
+- **`install -d -o build` sets ownership on the last component only**, so `/home/build/.local`
+  stayed root-owned and rootless podman would not start. A single root-owned directory in a
+  user's home reads as a Sokar permissions bug.
+- **An ordinary user has no `sudo`**, which is correct - so nothing in a run may assume it.
+  Install into the operator's own directories, which is the shape a task runs in anyway.
+- **Verify by compiling, not by inspecting.** "`gcc` is present" is not "native-image works": a
+  missing compiler surfaces twenty minutes into a build as *"Default native-compiler executable
+  'gcc' not found"*. The check builds a real probe twice, once ordinarily and once
+  `--static --libc=musl` as the hooks need. An earlier version reported a compiler missing that
+  was there, because its scratch directory came from `mktemp -d` as root while `javac` ran as
+  the build user - a check that fails for its own reasons is worse than no check.
+- **Do not rebuild the image to test a change to the provisioning.** Provision once with
+  `--keep` and iterate against the live server over SSH. Every defect above was found at the end
+  of a fifteen-minute cycle and would have been found in under a minute that way.
+- **`eu-central` is a network zone, not a location.** `servers.create()` takes a location;
+  `fsn1`, `nbg1` and `hel1` all sit in that zone. Passing the zone fails.
+- **Name a run's servers after the run *and the leg*.** Both matrix legs share `GITHUB_RUN_ID`,
+  so a cleanup keyed on it alone deletes the other leg's machine mid-suite.
+
 ## Security rules that are not negotiable
 
 - **Never put a secret in a command line.** A process list is world-readable.

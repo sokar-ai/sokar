@@ -229,8 +229,8 @@ def newest_snapshot(hcloud_client: Client, operating_system: str) -> Image:
             for i in hcloud_client.images.get_all(type="snapshot", label_selector=LABEL_SELECTOR)
         )
         sys.exit(
-            f"No snapshot for '{operating_system}'. Built: {available or 'none'} - see "
-            "requirements/0048-Fedora-Test-Server-Snapshot.md"
+            f"No snapshot for '{operating_system}'. Built: {available or 'none'}. "
+            "Build one with the snapshot provisioner before running a leg."
         )
     newest = max(snapshots, key=lambda i: i.created)
     print(f"snapshot {newest.id}: {newest.description} ({newest.created.isoformat()})")

@@ -65,6 +65,10 @@ publishes without anyone being asked.
   attach them, a repository is a larger piece of work.
 - Whether "latest" is the right thing to follow at all, or whether a release has to be
   a certain age before it is picked up.
+- **How the CI snapshots are refreshed when GraalVM or the base image moves.** The same
+  question one layer down: the test machines pin GraalVM by digest and pre-pull the base
+  images, so following an upstream release means rebuilding an image, not editing a version.
+  The builder is not in the repository yet, which has to be fixed before a bot could run it.
 
 ## Prerequisites
 
