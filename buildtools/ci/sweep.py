@@ -30,9 +30,17 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--now", action="store_true",
                         help="delete, rather than saying what would be deleted")
+    parser.add_argument("--mine", action="store_true",
+                        help="delete only what this run created, regardless of age. What a job "
+                             "should use to clean up after itself - deleting by age catches "
+                             "another run's server when that run is slow")
     parser.add_argument("--older-than", type=int, default=60, metavar="MINUTES",
                         help="age at which a server counts as forgotten (default: %(default)s)")
     args = parser.parse_args()
+
+    if args.mine:
+        hetzner.delete_mine(hetzner.client())
+        return 0
 
     deleted = hetzner.sweep(hetzner.client(),
                             older_than=timedelta(minutes=args.older_than),

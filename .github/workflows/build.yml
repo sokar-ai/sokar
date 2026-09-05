@@ -33,10 +33,6 @@ jobs:
   ubuntu:
     name: Ubuntu - build and tier 1
     runs-on: ubuntu-latest
-    # TEMPORARY: off while the Fedora leg is being brought up, so a fifteen-minute run is not
-    # spent re-proving something that already passes 26 of 26. Turn this back on - it is the
-    # only leg that runs on every push, and the one that guards the containment story.
-    if: false
 
     steps:
       - name: Checkout
@@ -153,14 +149,12 @@ jobs:
           SSH: ${{ secrets.SSH }}
         run: python3 buildtools/ci/remote-tier1.py
 
-      # Belt and braces for the one case the script cannot cover: this job being cancelled
-      # between two statements, so its own finally never runs.
-      #
-      # Thirty minutes, not zero. A zero-age sweep would delete a server another run had just
-      # created - the script's own cleanup already handles the normal path, and the worst this
-      # delay costs is about six cents.
-      - name: Delete anything left behind
+      # Only what this run made. Deleting by age would catch another run's server whenever that
+      # run is slower than the window, and the symptom - ssh dying part way through a build - is
+      # close to undebuggable. A cancelled job is covered by the scheduled sweep instead, which
+      # is the one case a job genuinely cannot handle itself.
+      - name: Delete what this run created
         if: always()
         env:
           REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
-        run: python3 buildtools/ci/sweep.py --older-than 30 --now
+        run: python3 buildtools/ci/sweep.py --mine

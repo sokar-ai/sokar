@@ -65,8 +65,10 @@ def main() -> int:
     image = (client.images.get_by_id(args.snapshot) if args.snapshot
              else hetzner.newest_snapshot(client))
 
+    # The run id as well as the time: two runs starting in the same second would otherwise ask
+    # for the same name, and Hetzner rejects the second.
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    with hetzner.provisioned(client, name=f"sokar-ci-tier1-{stamp}",
+    with hetzner.provisioned(client, name=f"sokar-ci-tier1-{stamp}-{hetzner.run_id()[-8:]}",
                              server_type=args.server_type, image_name=image.name or str(image.id),
                              location=args.location, ssh_key_name=args.ssh_key,
                              environment=environment,

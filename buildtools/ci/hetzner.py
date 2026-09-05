@@ -32,6 +32,19 @@ from hcloud.server_types import ServerType
 LABEL = {"sokar": "ci"}
 LABEL_SELECTOR = "sokar=ci"
 
+# Identifies the run that made a server, so a run can delete its own rather than deleting by age
+# and catching somebody else's. GITHUB_RUN_ID in CI; a timestamp locally, which is enough to tell
+# two developers apart and does not pretend to be more.
+RUN_LABEL = "run"
+
+
+def run_id() -> str:
+    """Returns a label value identifying this run."""
+    from_ci = os.environ.get("GITHUB_RUN_ID", "").strip()
+    if from_ci:
+        return from_ci
+    return "local-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+
 # CI puts the token here; the library's own examples use HCLOUD_TOKEN, so that is the fallback and
 # the one a reader will expect locally.
 TOKEN_VARIABLES = ("REMOTE_BUILD", "HCLOUD_TOKEN")
@@ -238,7 +251,7 @@ def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_nam
         image=found,
         location=Location(name=location),
         ssh_keys=[key],
-        labels=LABEL,
+        labels={**LABEL, RUN_LABEL: run_id()},
     )
     server = response.server
     response.action.wait_until_finished()
@@ -307,12 +320,37 @@ def ssh(address: str, environment: dict[str, str], command: str, *, check: bool 
     return (result.stdout + result.stderr).strip()
 
 
+def delete_mine(hcloud_client: Client) -> int:
+    """
+    Deletes the servers this run created, and nothing else.
+
+    Separate from {@link sweep} on purpose. Deleting by age catches another run's server when that
+    run is slow, and the symptom - ssh dying part way through a build - is close to undebuggable.
+    A run should only ever remove what it made; everything else belongs to the scheduled sweep.
+
+    :return: How many were deleted.
+    """
+    selector = f"{LABEL_SELECTOR},{RUN_LABEL}={run_id()}"
+    deleted = 0
+    for server in hcloud_client.servers.get_all(label_selector=selector):
+        print(f"deleting {server.name}, made by this run")
+        hcloud_client.servers.delete(server).wait_until_finished()
+        deleted += 1
+    if deleted == 0:
+        print("this run left nothing behind")
+    return deleted
+
+
 def sweep(hcloud_client: Client, *, older_than: timedelta, dry_run: bool = True) -> int:
     """
     Deletes servers left behind by a run that could not clean up after itself.
 
     Age rather than state: a server doing useful work is younger than an hour, and one older than
     that is either forgotten or a run so slow it should be looked at anyway.
+
+    This is for the scheduled sweep, not for a job cleaning up after itself - use
+    {@link delete_mine} for that. Running this at the end of a job deletes whatever another job
+    happens to have running.
 
     :return: How many were deleted, or would have been.
     """
