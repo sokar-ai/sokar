@@ -1,0 +1,18 @@
+# OpenRouter. Serves many vendors' models behind two dialects, which is why a dialect needs a
+# path of its own: a base URL missing it answers "model not found" rather than 404, and that
+# reads as a bad model name.
+name: openrouter
+label: OpenRouter
+upstream: https://openrouter.ai
+
+dialects:
+  openai: "/api/v1"
+  anthropic-messages: "/api"
+
+auth_header:
+  _default: Authorization
+auth_prefix:
+  _default: "Bearer "
+
+token_env:
+  _default: OPENROUTER_API_KEY

@@ -10,12 +10,17 @@ Serve models from GitHub Copilot to a task, without the credential entering the 
 
 **Reached how.** Its own agent, and as a provider inside provider-agnostic agents.
 
-**Authentication.** A forge account over a device flow, yielding a short-lived token.
+**Authentication.** A forge account over a **loopback-redirect OAuth flow with PKCE** - not a
+device flow, which is what this said until it was measured. It yields a long-lived `gho_` token
+stored in plaintext in `~/.copilot/config.json`; see [0025](0025-Pi-Forge-Subscription.md) for
+the full measurement.
 
-**Can it be brokered?** Unverified, and the open question the device flow has to answer:
-whether the sign-in yields something storable and replayable at all, what host and header
-carry it, and how long it lasts. If it is shorter than a task,
-[0024](0024-Refreshable-Task-Tokens.md) is a prerequisite rather than a follow-up.
+**Can it be brokered?** **Half answered.** The credential is storable, portable and does not
+expire, so the vault side is solved. What is not settled is where the proxy stands: the model
+API is `api.individual.githubcopilot.com`, but the client also calls `api.github.com` four
+times per session, which looks like the long-lived token being exchanged for a short-lived one
+the client then uses directly. If so, brokering the model API alone leaves a real credential
+inside the container.
 
 ## Acceptance
 

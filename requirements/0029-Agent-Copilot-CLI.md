@@ -8,7 +8,12 @@ Support GitHub Copilot CLI as a packaged agent.
 
 **Providers.** One subscription, which itself fronts several models from different vendors.
 
-**Authentication.** A forge account over a device flow.
+**Authentication.** A forge account over a loopback-redirect OAuth flow with PKCE, measured in
+[0025](0025-Pi-Forge-Subscription.md) - or none at all in BYOK mode, below.
+
+**It updates itself by default.** `COPILOT_AUTO_UPDATE` is on unless set to `0`, so a task image
+that pins a version would silently run a different one and `sokar agents --supply-chain` would
+report a version that is not what ran. Any definition for this agent has to turn it off.
 
 **Can it be brokered?** **Yes**, and far more easily than assumed - the earlier
 "unlikely" was wrong. Measured 2026-09-05 against version 1.0.83 by installing it and
@@ -51,3 +56,5 @@ Those are two separate pieces of work that share a name.
   [0036](0036-Provider-GitHub-Copilot.md) and is not answered by BYOK.
 - Which model names the subscription serves, since BYOK requires an explicit model and
   the built-in catalogue is what a subscription run would use.
+- Whether `telemetry.individual.githubcopilot.com` can be refused without breaking it, the
+  same question the first agent's telemetry intake raised.

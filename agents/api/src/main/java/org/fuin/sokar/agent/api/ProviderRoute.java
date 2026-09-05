@@ -7,6 +7,12 @@ import org.jspecify.annotations.Nullable;
 /**
  * How Sokar's vault proxy stands in for the provider an agent talks to.
  * <p>
+ * <strong>This is a resolved pair, not a declaration.</strong> It is built by
+ * {@link #of(ProviderDefinition, AgentProvider)} from the provider's half - upstream, header,
+ * prefix, path - and the agent's half - which dialect it speaks and what shape of endpoint it can
+ * address. Neither side states the other's facts, which is what stops the same provider being
+ * described once per agent that reaches it.
+ * <p>
  * The agent is handed a phantom token, not the real credential. Something has to accept that
  * token and reissue the request upstream with the real one, and this record is what tells the
  * proxy how: where to forward, and which header the credential belongs in.
@@ -23,10 +29,30 @@ import org.jspecify.annotations.Nullable;
  * @param authHeader Credential type to header name.
  * @param authPrefix Credential type to the string placed before the credential.
  * @param endpoint What the agent is able to address the proxy as.
+ * @param endpointPath Path appended to the endpoint the agent is given, because the dialect it
+ *        speaks is served under it. Empty when the provider serves it at the root.
  */
 public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
         Map<String, String> authHeader, Map<String, String> authPrefix,
-        Map<String, String> unbrokerable, Endpoint endpoint) {
+        Map<String, String> unbrokerable, Endpoint endpoint, String endpointPath) {
+
+    /**
+     * Returns the route an agent takes to a provider.
+     * <p>
+     * The only place the two halves meet. Everything the proxy needs to forward a request comes
+     * from the provider; everything about how the agent is told where to send it comes from the
+     * agent.
+     *
+     * @param provider Who serves the models.
+     * @param agent What the agent says it can speak and address.
+     * @return The resolved route.
+     * @throws AgentException If the provider does not serve a dialect the agent speaks.
+     */
+    public static ProviderRoute of(ProviderDefinition provider, AgentProvider agent) {
+        return new ProviderRoute(provider.upstream(), agent.socketEnvironment(),
+                provider.authHeader(), provider.authPrefix(), provider.unbrokerable(),
+                agent.endpoint(), provider.pathFor(agent.dialect()));
+    }
 
     /**
      * What an agent can be pointed at.
@@ -76,7 +102,7 @@ public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
      */
     public ProviderRoute(String upstream, @Nullable String socketEnvironment,
             Map<String, String> authHeader, Map<String, String> authPrefix) {
-        this(upstream, socketEnvironment, authHeader, authPrefix, Map.of(), Endpoint.SOCKET);
+        this(upstream, socketEnvironment, authHeader, authPrefix, Map.of(), Endpoint.SOCKET, "");
     }
 
     /**
@@ -91,7 +117,8 @@ public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
     public ProviderRoute(String upstream, @Nullable String socketEnvironment,
             Map<String, String> authHeader, Map<String, String> authPrefix,
             Map<String, String> unbrokerable) {
-        this(upstream, socketEnvironment, authHeader, authPrefix, unbrokerable, Endpoint.SOCKET);
+        this(upstream, socketEnvironment, authHeader, authPrefix, unbrokerable, Endpoint.SOCKET,
+                "");
     }
 
     /**
@@ -131,6 +158,18 @@ public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
         authHeader = Map.copyOf(authHeader);
         authPrefix = Map.copyOf(authPrefix);
         unbrokerable = Map.copyOf(unbrokerable);
+        endpointPath = endpointPath == null ? "" : endpointPath;
+    }
+
+    /**
+     * Returns the endpoint an agent should be given, with the dialect's path already on it.
+     *
+     * @param base Address the agent can reach, without a trailing slash.
+     * @return Endpoint to hand to the agent.
+     */
+    public String endpointFor(String base) {
+        final String trimmed = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+        return trimmed + endpointPath;
     }
 
     /**

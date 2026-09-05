@@ -112,6 +112,64 @@ The last one corrects a claim made when the policy was written: that Sokar neede
 domains because every socket is bound by a host process the operator started. True of
 binding, false of connecting.
 
+## Measured, 2026-09-05 - a real sign-in with a personal subscription
+
+Run by the operator on a VM, in a container, with the credential never leaving that machine.
+
+**It is not a device flow.** Both this file and [0036](0036-Provider-GitHub-Copilot.md) said it
+was, and both were wrong. `/login` is a **loopback redirect with PKCE**:
+
+```
+https://github.com/login/oauth/authorize?client_id=…&redirect_uri=http%3A%2F%2F127.0.0.1%3A40905%2Fcallback
+    &scope=read:user+read:org+repo+gist+codespace&code_challenge=…&code_challenge_method=S256
+```
+
+It opens an HTTP server on a random high port and waits to be called back there. That matters:
+a device flow prints a short code usable from any device, while this needs the browser and the
+listener on the same host - so the sign-in cannot be done from anywhere but the machine running
+the CLI, and the test itself only worked through an ssh tunnel. The PKCE challenge means the
+callback must reach the same process that began the flow, so replaying the URL elsewhere does
+not work either.
+
+**What it stores, and it is storable.** One file, mode 0600, JSON with comments:
+
+```
+~/.copilot/config.json
+  authTokens["https://github.com:<login>"].token   a 40-character gho_… token
+```
+
+That is the whole of it. No refresh token, no expiry field, nothing else secret in the
+directory - the session store and state files hold none. The CLI warns that it is saved
+somewhere insecure, which is accurate: it is plaintext in a file.
+
+**Consequences, in order of how much they change:**
+
+- **The credential is portable**, so obtaining it on the host and importing it is possible.
+  This was the open question and the answer is yes.
+- **Nothing here expires**, so [0024](0024-Refreshable-Task-Tokens.md) is **not** a
+  prerequisite for this provider, which is the opposite of what was assumed.
+- **The sign-in cannot be automated from inside a task**, and never could be. It has to be a
+  host-side operation with a browser, which is what an import step is for.
+
+**Hosts contacted**, from a CONNECT log that sees names and not traffic:
+
+| host | calls |
+|---|---|
+| `api.individual.githubcopilot.com` | 4 - the model API |
+| `api.github.com` | 4 |
+| `telemetry.individual.githubcopilot.com` | 2 |
+| `exp.individual.githubcopilot.com` | 2 |
+| `github.com` | 1 - the sign-in itself |
+
+`telemetry.` is a refused-domain candidate, the same call as the first agent's Datadog intake.
+
+**Unverified, and it decides where the broker sits.** Four calls to `api.github.com` beside
+four to the model API is consistent with the usual two-stage shape - a long-lived `gho_` token
+exchanged for a short-lived one, which the client then uses directly. The logs do not record
+request paths, so this was not confirmed. If it holds, brokering only the model API is not
+enough: the exchange happens first, and whatever comes back is a real credential the agent then
+holds. Worth settling before any code is written.
+
 ## To be checked
 
 - ~~Whether this agent's endpoint can be redirected for this provider.~~ **Answered for
@@ -121,10 +179,11 @@ binding, false of connecting.
   does and never checked. Oh My Pi advertises GitHub Copilot among its providers; Pi's own
   list does not say so. If it does not, [0046](0046-Agent-Oh-My-Pi.md) is the cheaper
   vehicle for this question than a new agent.
-- Whether the sign-in yields something storable at all, or only a session belonging
-  to a browser profile.
-- How long the token lasts. If it is shorter than a task, [0024](0024-Refreshable-Task-Tokens.md)
-  is a prerequisite rather than a follow-up.
+- ~~Whether the sign-in yields something storable at all.~~ **Answered:** a 40-character
+  `gho_` token in a file. Storable and portable.
+- ~~How long the token lasts.~~ **Answered:** nothing stored expires, so
+  [0024](0024-Refreshable-Task-Tokens.md) is not a prerequisite.
+- **Where the broker sits**, given the probable two-stage token exchange. See above.
 
 ## Notes
 
