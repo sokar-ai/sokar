@@ -71,6 +71,9 @@ public class AgentsCommand implements Callable<Integer> {
                         java.util.stream.Stream.of(directory),
                         AgentDirectory.standard(xdg.data()).locations().stream()).toList());
 
+        final java.util.Map<String, org.fuin.sokar.agent.api.ProviderDefinition> providers =
+                org.fuin.sokar.agent.api.ProviderDirectory.standard(xdg.data()).all();
+
         try (InstalledAgents agents = new InstalledAgents(locations, xdg.runtime())) {
 
             if (agents.size() == 0 && agents.failures().isEmpty()) {
@@ -89,10 +92,20 @@ public class AgentsCommand implements Callable<Integer> {
                     if (verbose) {
                         out.println("             domains: "
                                 + String.join(", ", agent.definition().allowedDomains()));
-                        if (agent.definition().route() != null) {
-                            out.println("             proxied: "
-                                    + agent.definition().route().upstreamHost()
-                                    + " (the credential is swapped in on the way out)");
+                        if (agent.definition().provider() != null) {
+                            out.println("             speaks:  "
+                                    + agent.definition().provider().dialect());
+                            for (final var entry : providers.entrySet()) {
+                                if (agent.definition().provider().canDrive(entry.getValue())) {
+                                    out.println("             provider:"
+                                            + (entry.getKey().equals(
+                                                agent.definition().provider().defaultProvider())
+                                                    ? " " + entry.getKey() + " (default)"
+                                                    : " " + entry.getKey())
+                                            + " -> " + entry.getValue().upstreamHost()
+                                            + " (the credential is swapped in on the way out)");
+                                }
+                            }
                         }
                         if (!agent.definition().refusedDomains().isEmpty()) {
                             // Shown so that a blocked connection is something the operator was

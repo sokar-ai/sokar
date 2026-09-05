@@ -58,8 +58,10 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         }
         try (var agents = context.agents()) {
             agents.find(name).ifPresent(agent -> {
-                final var route = agent.definition().route();
-                final String reason = route == null ? null : route.unbrokerableReason(type);
+                final var selection = SelectedProvider.choose(context.providers(),
+                        agent.definition(), null);
+                final String reason = selection == null ? null
+                        : selection.route().unbrokerableReason(type);
                 if (reason != null) {
                     err.println("sokar: '" + name + "' cannot use a '" + type + "' credential"
                             + " through the proxy - " + reason);

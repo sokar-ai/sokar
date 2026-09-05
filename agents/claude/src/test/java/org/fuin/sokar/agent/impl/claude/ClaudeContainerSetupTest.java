@@ -16,8 +16,8 @@ class ClaudeContainerSetupTest {
     private static final String TOKEN = "sokar_pt_example";
 
     private List<ContainerFile> files(String type) {
-        return new ClaudeContainerSetup().files(TOKEN, type, "/workspace",
-                "/run/sokar/vault.sock");
+        return new ClaudeContainerSetup().files(new org.fuin.sokar.agent.api.SetupContext(
+                TOKEN, type, "/workspace", "", "anthropic"));
     }
 
     private Map<?, ?> parse(ContainerFile file) {

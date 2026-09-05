@@ -34,6 +34,37 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Agent to install in the image. Default: the only one installed.")
     private String agentName;
 
+    @Option(names = "--provider", paramLabel = "<name>",
+            description = "Provider to serve the models. Default: the agent's own.")
+    private String providerName;
+
+    /**
+     * The chosen provider, worked out once. Null both before it is resolved and when the agent
+     * is not brokered at all, which is why the flag beside it exists.
+     */
+    @org.jspecify.annotations.Nullable
+    private SelectedProvider provider;
+
+    private boolean providerResolved;
+
+    /**
+     * Returns the provider this task uses, resolving it the first time it is asked for.
+     *
+     * @param agent The agent, or {@code null}.
+     * @return The selection, or {@code null} when nothing is brokered.
+     */
+    @org.jspecify.annotations.Nullable
+    private SelectedProvider provider(org.fuin.sokar.agent.api.@org.jspecify.annotations.Nullable
+            InstalledAgent agent) {
+        if (!providerResolved) {
+            providerResolved = true;
+            provider = agent == null ? null
+                    : SelectedProvider.choose(context.providers(), agent.definition(),
+                            providerName);
+        }
+        return provider;
+    }
+
     @Option(names = "--credential-type", paramLabel = "<type>",
             description = "Overrides the kind recorded with the credential when it was stored.")
     private String credentialType;
@@ -92,11 +123,12 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     @org.jspecify.annotations.Nullable
     private String unbrokerable(org.fuin.sokar.agent.api.@org.jspecify.annotations.Nullable
             InstalledAgent agent) {
-        if (agent == null || agent.definition().route() == null) {
+        final SelectedProvider selection = provider(agent);
+        if (agent == null || selection == null) {
             return null;
         }
         final String type = credentialType(agent.name());
-        final String reason = agent.definition().route().unbrokerableReason(type);
+        final String reason = selection.route().unbrokerableReason(type);
         return reason == null ? null
                 : "the '" + type + "' credential stored for '" + agent.name()
                         + "' cannot be used. " + reason + ".";
@@ -289,9 +321,9 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // An agent that can only address a URL still gets the broker on its socket: only the
             // listening end moves into the container's namespace, and that is a relay started
             // after the container exists.
-            final boolean needsRelay = selected != null
-                    && selected.definition().route() != null
-                    && selected.definition().route().endpoint()
+            final SelectedProvider serving = provider(selected);
+            final boolean needsRelay = serving != null
+                    && serving.route().endpoint()
                             == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL;
 
             final CredentialPlumbing plumbing = startVault(selected, container, out, err);
@@ -558,14 +590,18 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * @param environment What the container was given.
      * @return Endpoint, or empty when nothing was brokered.
      */
-    private static String endpointFor(org.fuin.sokar.agent.api.InstalledAgent agent,
+    private String endpointFor(org.fuin.sokar.agent.api.InstalledAgent agent,
             java.util.Map<String, String> environment) {
-        final var route = agent.definition().route();
-        if (route == null) {
+        final SelectedProvider selection = provider(agent);
+        if (selection == null) {
             return "";
         }
+        final var route = selection.route();
         if (route.endpoint() == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL) {
-            return TaskWiring.VAULT_URL;
+            // The dialect's path belongs on the endpoint rather than in the agent: the same
+            // provider serves different wire formats under different paths, and only the
+            // provider knows which.
+            return route.endpointFor(TaskWiring.VAULT_URL);
         }
         final String variable = route.socketEnvironment();
         return variable == null ? "" : environment.getOrDefault(variable, "");
@@ -633,9 +669,12 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         if (agent == null) {
             return null;
         }
-        final org.fuin.sokar.agent.api.ProviderRoute route = agent.definition().route();
+        final SelectedProvider selection = provider(agent);
+        final org.fuin.sokar.agent.api.ProviderRoute route =
+                selection == null ? null : selection.route();
         final String type = credentialType(agent.name());
-        final String variable = agent.definition().tokenVariable(type);
+        final String variable = selection == null ? agent.definition().tokenVariable(type)
+                : agent.definition().tokenVariable(type, selection.definition());
         if (route == null || variable == null) {
             // Nothing to proxy through. Not an error - an agent may take no credential at all -
             // but if it takes one and cannot be redirected, say so rather than issue a token
@@ -702,10 +741,12 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         if (route.socketEnvironment() != null) {
             environment.put(route.socketEnvironment(), TaskWiring.VAULT_MOUNT);
         }
-        if (agent.definition().baseUrlEnvironment() != null) {
+        final String baseUrl = agent.definition().provider() == null ? null
+                : agent.definition().provider().baseUrlEnvironment();
+        if (baseUrl != null) {
             // Both, always. The socket variable only picks the transport; without a base URL the
             // agent uses its own compiled-in endpoint and never touches the socket at all.
-            environment.put(agent.definition().baseUrlEnvironment(), TaskWiring.VAULT_URL);
+            environment.put(baseUrl, route.endpointFor(TaskWiring.VAULT_URL));
         }
         out.println("vault     " + socket + " -> " + route.upstream());
         out.println("token     " + variable + "=" + org.fuin.sokar.vault.PhantomToken.abbreviate(token));

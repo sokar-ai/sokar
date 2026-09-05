@@ -47,7 +47,6 @@ public final class AgentDefinitionJson {
         out.put("supportsResume", Boolean.valueOf(definition.supportsResume()));
         putIfPresent(out, "resumeFlag", definition.resumeFlag());
         out.put("tokenEnvironment", definition.tokenEnvironment());
-        putIfPresent(out, "baseUrlEnvironment", definition.baseUrlEnvironment());
         if (!definition.packaged().isEmpty()) {
             final java.util.List<Object> trees = new java.util.ArrayList<>();
             for (final PackagedTree tree : definition.packaged()) {
@@ -55,16 +54,17 @@ public final class AgentDefinitionJson {
             }
             out.put("packaged", trees);
         }
-        if (definition.route() != null) {
-            final Map<String, Object> route = new java.util.LinkedHashMap<>();
-            route.put("upstream", definition.route().upstream());
-            putIfPresent(route, "socketEnvironment", definition.route().socketEnvironment());
-            route.put("endpoint", definition.route().endpoint().name().toLowerCase(
+        if (definition.provider() != null) {
+            final Map<String, Object> provider = new java.util.LinkedHashMap<>();
+            provider.put("dialect", definition.provider().dialect());
+            putIfPresent(provider, "default", definition.provider().defaultProvider());
+            provider.put("endpoint", definition.provider().endpoint().name().toLowerCase(
                     java.util.Locale.ROOT));
-            route.put("authHeader", definition.route().authHeader());
-            route.put("authPrefix", definition.route().authPrefix());
-            route.put("unbrokerable", definition.route().unbrokerable());
-            out.put("route", route);
+            putIfPresent(provider, "socketEnvironment",
+                    definition.provider().socketEnvironment());
+            putIfPresent(provider, "baseUrlEnvironment",
+                    definition.provider().baseUrlEnvironment());
+            out.put("provider", provider);
         }
         out.put("allowedDomains", definition.allowedDomains());
         out.put("refusedDomains", definition.refusedDomains());
@@ -104,8 +104,7 @@ public final class AgentDefinitionJson {
                 Boolean.TRUE.equals(source.get("supportsResume")),
                 optional(source, "resumeFlag"),
                 map(source.get("tokenEnvironment")),
-                optional(source, "baseUrlEnvironment"),
-                route(source.get("route")),
+                agentProvider(source.get("provider")),
                 strings(source.get("allowedDomains")),
                 strings(source.get("refusedDomains")),
                 optional(source, "version"),
@@ -182,27 +181,31 @@ public final class AgentDefinitionJson {
     }
 
     /**
-     * Reads a provider route, absent for an agent that cannot be redirected.
+     * Reads what an agent says about providers, absent when it cannot be redirected.
      *
-     * @param value Route object, or {@code null}.
-     * @return Route, or {@code null}.
+     * @param value Provider object, or {@code null}.
+     * @return What the agent declared, or {@code null}.
      */
     @Nullable
-    private static ProviderRoute route(@Nullable Object value) {
+    private static AgentProvider agentProvider(@Nullable Object value) {
         if (!(value instanceof Map<?, ?> source)) {
             return null;
         }
-        final Object upstream = source.get("upstream");
-        if (upstream == null) {
+        final Object dialect = source.get("dialect");
+        if (dialect == null) {
             return null;
         }
-        return new ProviderRoute(String.valueOf(upstream),
-                source.get("socketEnvironment") == null ? null
-                        : String.valueOf(source.get("socketEnvironment")),
-                map(source.get("authHeader")), map(source.get("authPrefix")),
-                map(source.get("unbrokerable")),
+        return new AgentProvider(String.valueOf(dialect),
+                text(source.get("default")),
                 ProviderRoute.Endpoint.of(source.get("endpoint") == null ? null
-                        : String.valueOf(source.get("endpoint")), "the agent's own description"));
+                        : String.valueOf(source.get("endpoint")), "the agent's own description"),
+                text(source.get("socketEnvironment")),
+                text(source.get("baseUrlEnvironment")));
+    }
+
+    @Nullable
+    private static String text(@Nullable Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private static java.util.List<PackagedTree> packaged(@Nullable Object value) {

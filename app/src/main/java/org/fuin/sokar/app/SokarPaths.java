@@ -95,6 +95,20 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the provider directories to scan, the operator's own first.
+     * <p>
+     * Data files rather than executables, so they live under {@code share} where an agent binary
+     * lives under {@code libexec}.
+     *
+     * @return Directory scanner.
+     */
+    public org.fuin.sokar.agent.api.ProviderDirectory providerDirectory() {
+        return new org.fuin.sokar.agent.api.ProviderDirectory(java.util.List.of(
+                xdg.data().resolve("providers"),
+                org.fuin.sokar.agent.api.ProviderDirectory.PACKAGED));
+    }
+
+    /**
      * Returns the first location holding the hooks that is not the chosen one.
      *
      * @param chosen The directory actually in use.

@@ -14,7 +14,8 @@ class PiContainerSetupTest {
     private static final String TOKEN = "sokar_pt_example";
 
     private List<ContainerFile> files(String endpoint) {
-        return new PiContainerSetup().files(TOKEN, "api-key", "/workspace", endpoint);
+        return new PiContainerSetup().files(new org.fuin.sokar.agent.api.SetupContext(
+                TOKEN, "api-key", "/workspace", endpoint, "openrouter"));
     }
 
     @Test
@@ -28,10 +29,13 @@ class PiContainerSetupTest {
     }
 
     @Test
-    void pointsPiAtTheBrokerUnderTheDialectPath() {
+    void writesTheEndpointAndProviderItWasGiven() {
 
-        // OpenRouter serves the OpenAI dialect under /api/v1; a base without it answers 404.
-        assertThat(files("http://127.0.0.1:9419").getFirst().content())
+        // Neither is this agent's to decide any more. The dialect's path is already on the
+        // endpoint - OpenRouter serves the OpenAI dialect under /api/v1, and a base without it
+        // answers 404 - and the provider's name arrives with the task, so pointing Pi somewhere
+        // else is no longer a change to this binary.
+        assertThat(files("http://127.0.0.1:9419/api/v1").getFirst().content())
                 .contains("\"http://127.0.0.1:9419/api/v1\"")
                 .contains("registerProvider(\"openrouter\"");
     }
@@ -56,7 +60,8 @@ class PiContainerSetupTest {
     void survivesATokenWithCharactersThatWouldBreakTheFile() {
 
         final List<ContainerFile> files = new PiContainerSetup()
-                .files("tok\"en\\with\nquotes", "api-key", "/workspace", "http://127.0.0.1:9419");
+                .files(new org.fuin.sokar.agent.api.SetupContext("tok\"en\\with\nquotes",
+                        "api-key", "/workspace", "http://127.0.0.1:9419", "openrouter"));
 
         assertThat(files.getFirst().content())
                 .as("written as a JSON literal, so a stray quote cannot end the string")

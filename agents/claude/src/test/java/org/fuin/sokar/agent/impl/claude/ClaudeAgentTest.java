@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import org.fuin.sokar.agent.api.Agent;
 import org.fuin.sokar.agent.api.AgentException;
 import org.fuin.sokar.agent.api.AgentRegistry;
+import org.fuin.sokar.agent.api.ProviderDefinition;
 import org.fuin.sokar.agent.api.RunRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,15 +37,43 @@ class ClaudeAgentTest {
 
         assertThat(agent.definition().label()).isEqualTo("Claude Code");
         assertThat(agent.definition().gitIdentity().email()).isEqualTo("noreply@anthropic.com");
-        assertThat(agent.definition().allowedDomains()).contains("api.anthropic.com");
+        // api.anthropic.com is deliberately NOT here: the provider declares its own host, and
+        // this agent no longer restates it.
+        assertThat(agent.definition().allowedDomains())
+                .contains("platform.claude.com")
+                .doesNotContain("api.anthropic.com");
     }
 
     @Test
-    void sendsAnOauthTokenAndAnApiKeyToDifferentVariables() {
+    void takesItsCredentialVariablesFromTheProviderRatherThanRestatingThem() {
 
-        // Sending one as the other fails in a way that looks like a bad key.
-        assertThat(agent.definition().tokenVariable("oauth")).isEqualTo("CLAUDE_CODE_OAUTH_TOKEN");
-        assertThat(agent.definition().tokenVariable("api-key")).isEqualTo("ANTHROPIC_API_KEY");
+        // Sending an OAuth token as an API key fails in a way that looks like a bad key, so the
+        // two variables have to differ - but which they are is Anthropic's fact, not this
+        // agent's, and every agent reaching Anthropic would otherwise repeat it.
+        assertThat(agent.definition().tokenVariable("oauth")).isNull();
+        assertThat(agent.definition().tokenVariable("api-key")).isNull();
+
+        final ProviderDefinition anthropic = new ProviderDefinition("anthropic", "Anthropic",
+                "https://api.anthropic.com", java.util.Map.of("anthropic-messages", ""),
+                java.util.Map.of("oauth", "Authorization", "_default", "x-api-key"),
+                java.util.Map.of("oauth", "Bearer ", "_default", ""), java.util.Map.of(),
+                java.util.Map.of("oauth", "CLAUDE_CODE_OAUTH_TOKEN",
+                        "_default", "ANTHROPIC_API_KEY"));
+
+        assertThat(agent.definition().tokenVariable("oauth", anthropic))
+                .isEqualTo("CLAUDE_CODE_OAUTH_TOKEN");
+        assertThat(agent.definition().tokenVariable("api-key", anthropic))
+                .isEqualTo("ANTHROPIC_API_KEY");
+    }
+
+    @Test
+    void declaresHowItMustBePointedAtAProvider() {
+
+        assertThat(agent.definition().provider()).isNotNull();
+        assertThat(agent.definition().provider().dialect()).isEqualTo("anthropic-messages");
+        assertThat(agent.definition().provider().defaultProvider()).isEqualTo("anthropic");
+        assertThat(agent.definition().provider().socketEnvironment())
+                .isEqualTo("ANTHROPIC_UNIX_SOCKET");
     }
 
     @Test

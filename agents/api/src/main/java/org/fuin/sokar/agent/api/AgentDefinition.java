@@ -20,9 +20,9 @@ import org.jspecify.annotations.Nullable;
  * @param resumeFlag Flag that continues a session, or {@code null}.
  * @param tokenEnvironment Credential type to environment variable, with {@code _default} as the
  *        fallback key.
- * @param baseUrlEnvironment Variable naming the API endpoint, or {@code null}.
- * @param route How the vault proxy stands in for the provider, or {@code null} if the agent
- *        cannot be redirected and must be given its credential directly.
+ * @param provider Which providers the agent can drive and how it must be pointed at one, or
+ *        {@code null} if the agent cannot be redirected and must be given its credential
+ *        directly.
  * @param allowedDomains Domains the agent needs to resolve and reach.
  * @param refusedDomains Domains the agent is known to ask for and is deliberately not given -
  *        telemetry and crash reporting. Declared rather than merely absent so that a test can
@@ -36,8 +36,8 @@ import org.jspecify.annotations.Nullable;
  */
 public record AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
         HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
-        Map<String, String> tokenEnvironment, @Nullable String baseUrlEnvironment,
-        @Nullable ProviderRoute route, List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
+        Map<String, String> tokenEnvironment, @Nullable AgentProvider provider,
+        List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
         List<InstallArtifact> artifacts,
         List<String> installAsRoot, List<String> installAsAgent,
         List<PackagedTree> packaged, @Nullable String configDirectory) {
@@ -53,8 +53,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
      * @param supportsResume Whether it can continue a session.
      * @param resumeFlag Flag that resumes, or {@code null}.
      * @param tokenEnvironment Token variable by credential kind.
-     * @param baseUrlEnvironment Variable naming the endpoint, or {@code null}.
-     * @param route How its credential is brokered, or {@code null}.
+     * @param provider Which providers it drives, or {@code null}.
      * @param allowedDomains Domains it needs.
      * @param refusedDomains Domains it asks for and is denied.
      * @param version Version of the tool it installs, or {@code null}.
@@ -64,13 +63,13 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
      */
     public AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
             HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
-            Map<String, String> tokenEnvironment, @Nullable String baseUrlEnvironment,
-            @Nullable ProviderRoute route, List<String> allowedDomains,
+            Map<String, String> tokenEnvironment, @Nullable AgentProvider provider,
+            List<String> allowedDomains,
             List<String> refusedDomains, @Nullable String version,
             List<InstallArtifact> artifacts, List<String> installAsRoot,
             List<String> installAsAgent) {
         this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag,
-                tokenEnvironment, baseUrlEnvironment, route, allowedDomains, refusedDomains,
+                tokenEnvironment, provider, allowedDomains, refusedDomains,
                 version, artifacts, installAsRoot, installAsAgent, List.of(), null);
     }
 
@@ -88,8 +87,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
      * @param supportsResume Whether sessions can be continued.
      * @param resumeFlag Flag continuing a session, or {@code null}.
      * @param tokenEnvironment Credential type to environment variable.
-     * @param baseUrlEnvironment Variable naming the API endpoint, or {@code null}.
-     * @param route Vault proxy route, or {@code null}.
+     * @param provider Which providers it drives, or {@code null}.
      * @param allowedDomains Domains the agent needs.
      * @param refusedDomains Domains it asks for and is deliberately denied.
      * @param version Version of the agent CLI installed.
@@ -144,13 +142,31 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
 
     /**
      * Returns the environment variable a credential of the given type belongs in.
+     * <p>
+     * The agent's own answer only. Most agents no longer give one, because the variable a
+     * provider's credential goes in belongs to the provider - this is the override for an agent
+     * that reads something else.
      *
      * @param credentialType Credential type, for example {@code oauth}.
-     * @return Variable name, or {@code null} if the agent takes no token.
+     * @return Variable name, or {@code null} if the agent names none.
      */
     @Nullable
     public String tokenVariable(String credentialType) {
         final String specific = tokenEnvironment.get(credentialType);
         return specific != null ? specific : tokenEnvironment.get(DEFAULT_TOKEN_KEY);
+    }
+
+    /**
+     * Returns the variable a credential of the given type belongs in, falling back to the
+     * provider's own answer.
+     *
+     * @param credentialType Credential type.
+     * @param serving Provider serving the task.
+     * @return Variable name, or {@code null} when neither names one.
+     */
+    @Nullable
+    public String tokenVariable(String credentialType, ProviderDefinition serving) {
+        final String own = tokenVariable(credentialType);
+        return own != null ? own : serving.tokenVariable(credentialType);
     }
 }

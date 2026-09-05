@@ -58,12 +58,13 @@ public class AgentServer implements AutoCloseable {
 
         server.method("ContainerSetup", (parameters, replies) -> {
             final List<Map<String, Object>> files = new java.util.ArrayList<>();
-            for (final ContainerFile file : agent.containerSetup().files(
+            final SetupContext context = new SetupContext(
                     String.valueOf(parameters.get("token")),
                     String.valueOf(parameters.get("credentialType")),
                     String.valueOf(parameters.get("workspace")),
-                    parameters.get("endpoint") == null ? ""
-                            : String.valueOf(parameters.get("endpoint")))) {
+                    text(parameters.get("endpoint")),
+                    text(parameters.get("provider")));
+            for (final ContainerFile file : agent.containerSetup().files(context)) {
                 final Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("path", file.path());
                 entry.put("content", file.content());
@@ -148,5 +149,15 @@ public class AgentServer implements AutoCloseable {
 
     private static Integer integer(Map<String, Object> parameters, String key) {
         return parameters.get(key) instanceof Number value ? Integer.valueOf(value.intValue()) : null;
+    }
+
+    /**
+     * Returns an optional varlink string parameter, never {@code null}.
+     *
+     * @param value Raw value, possibly absent.
+     * @return The value, or an empty string.
+     */
+    private static String text(@org.jspecify.annotations.Nullable Object value) {
+        return value == null ? "" : String.valueOf(value);
     }
 }

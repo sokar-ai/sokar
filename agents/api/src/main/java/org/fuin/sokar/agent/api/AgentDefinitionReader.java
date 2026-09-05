@@ -94,8 +94,7 @@ public final class AgentDefinitionReader {
                 supportsResume,
                 optional(session, "resume_flag"),
                 map(provider.get("token_env")),
-                optional(provider, "base_url_env"),
-                route(provider, origin),
+                agentProvider(provider, origin),
                 strings(root.get("allowed_domains")),
                 strings(root.get("refused_domains")),
                 optional(install, "version"),
@@ -107,26 +106,42 @@ public final class AgentDefinitionReader {
     }
 
     /**
-     * Reads the {@code proxy} block inside {@code provider}.
+     * Reads the {@code provider} block.
      * <p>
      * Absent for an agent that cannot be redirected at a proxy. That is a real case rather than
      * an error - it means the agent has to be given its credential directly, which is a decision
      * the operator makes with {@code --credential-type direct}, not something this reader can fix.
+     * <p>
+     * What is <em>not</em> here any more is the provider's own half: upstream, header, prefix and
+     * path. Those are declared once, in the provider's own file, and an agent that restated them
+     * would be free to disagree with the agent next to it about the same provider.
      *
      * @param provider The provider block.
      * @param origin Where the definition came from, for error messages.
-     * @return Route, or {@code null} when no proxy block is declared.
+     * @return What the agent says about providers, or {@code null} when it declares none.
      */
     @Nullable
-    private static ProviderRoute route(Map<?, ?> provider, String origin) {
-        if (!(provider.get("proxy") instanceof Map<?, ?> proxy)) {
+    private static AgentProvider agentProvider(Map<?, ?> provider, String origin) {
+        if (provider.isEmpty()) {
             return null;
         }
-        return new ProviderRoute(required(proxy, "upstream", origin),
-                optional(proxy, "socket_env"),
-                map(proxy.get("auth_header")), map(proxy.get("auth_prefix")),
-                map(proxy.get("unbrokerable")),
-                ProviderRoute.Endpoint.of(optional(proxy, "endpoint"), origin));
+        final String dialect = optional(provider, "dialect");
+        if (dialect == null) {
+            // A block with only 'token_env' describes an agent that takes its credential
+            // directly and is not brokered at all - a real case, not a mistake. But a block
+            // that says how to point the agent somewhere and then omits the dialect is a
+            // mistake, and a silent one, so it is named.
+            for (final String key : List.of("endpoint", "socket_env", "base_url_env", "default")) {
+                if (provider.get(key) != null) {
+                    throw new AgentException(origin + ": 'provider." + key + "' is set, so the"
+                            + " block must also name the 'dialect' the agent speaks, or 'native'");
+                }
+            }
+            return null;
+        }
+        return new AgentProvider(dialect, optional(provider, "default"),
+                ProviderRoute.Endpoint.of(optional(provider, "endpoint"), origin),
+                optional(provider, "socket_env"), optional(provider, "base_url_env"));
     }
 
     private static String text(@Nullable String value) {

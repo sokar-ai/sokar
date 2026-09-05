@@ -19,7 +19,7 @@ public final class AgentProtocol {
      * Raised when a change would make an older Sokar misread a newer agent, or the reverse. Adding
      * an optional field does not qualify; renaming or removing one does.
      */
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     /** Returns the agent's definition and the protocol version it speaks. */
     public static final String DESCRIBE = INTERFACE + ".Describe";

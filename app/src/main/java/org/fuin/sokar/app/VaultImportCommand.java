@@ -126,8 +126,10 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
                     + value.secret().length() + " characters) from " + directory);
             out.flush();
 
-            final var route = agent.definition().route();
-            final String reason = route == null ? null : route.unbrokerableReason(value.type());
+            final var selection = SelectedProvider.choose(context.providers(),
+                    agent.definition(), null);
+            final String reason = selection == null ? null
+                    : selection.route().unbrokerableReason(value.type());
             if (reason != null) {
                 err.println("sokar: stored, but a task will refuse it. " + reason + ".");
                 err.println("sokar: store a usable one with: sokar vault put " + agent.name()

@@ -22,6 +22,8 @@
              package is what an operator installs and what an agent package depends on. -->
         <package.name>sokar</package.name>
         <hook.install.dir>/usr/libexec/sokar/hooks</hook.install.dir>
+        <!-- Data files an operator can add to, not executables, so share rather than libexec. -->
+        <provider.install.dir>/usr/share/sokar/providers</provider.install.dir>
     </properties>
 
     <!-- Not used for a classpath - this module produces no code. It is here so the reactor builds
@@ -94,6 +96,17 @@
                                     <controlDir>${project.basedir}/src/deb/control</controlDir>
                                     <skipPOMs>false</skipPOMs>
                                     <dataSet>
+                                        <data>
+                                            <src>${project.basedir}/../providers</src>
+                                            <type>directory</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${provider.install.dir}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
                                         <data>
                                             <src>${project.basedir}/../app/target/sokar</src>
                                             <type>file</type>

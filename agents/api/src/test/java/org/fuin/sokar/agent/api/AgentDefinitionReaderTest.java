@@ -79,51 +79,36 @@ class AgentDefinitionReaderTest {
     }
 
     @Test
-    void readsTheProxyRouteAndTheHostItImplies() {
+    void readsWhatTheAgentSaysAboutProviders() {
 
         final AgentDefinition definition = read(MINIMAL + """
+
                 provider:
+                  default: example
+                  dialect: openai
+                  endpoint: socket
+                  socket_env: EXAMPLE_UNIX_SOCKET
+                  base_url_env: EXAMPLE_BASE_URL
                   token_env:
-                    _default: API_KEY
-                  proxy:
-                    upstream: https://api.example.com
-                    socket_env: EXAMPLE_UNIX_SOCKET
-                    auth_header:
-                      oauth: Authorization
-                      _default: x-api-key
-                    auth_prefix:
-                      oauth: "Bearer "
-                      _default: ""
+                    oauth: EXAMPLE_OAUTH_TOKEN
                 """);
 
-        assertThat(definition.route()).isNotNull();
-        assertThat(definition.route().socketEnvironment()).isEqualTo("EXAMPLE_UNIX_SOCKET");
-        // The host is derived, not declared twice: it is what the deny rule needs.
-        assertThat(definition.route().upstreamHost()).isEqualTo("api.example.com");
-        assertThat(definition.route().authHeaderFor("oauth")).isEqualTo("Authorization");
-        assertThat(definition.route().authPrefixFor("oauth")).isEqualTo("Bearer ");
-        assertThat(definition.route().authHeaderFor("api-key")).isEqualTo("x-api-key");
-        assertThat(definition.route().authPrefixFor("api-key")).isEmpty();
+        assertThat(definition.provider()).isNotNull();
+        assertThat(definition.provider().dialect()).isEqualTo("openai");
+        assertThat(definition.provider().defaultProvider()).isEqualTo("example");
+        assertThat(definition.provider().socketEnvironment()).isEqualTo("EXAMPLE_UNIX_SOCKET");
+        assertThat(definition.provider().baseUrlEnvironment()).isEqualTo("EXAMPLE_BASE_URL");
+
+        // The agent's own override still works; the fallback lives on the provider now.
+        assertThat(definition.tokenVariable("oauth")).isEqualTo("EXAMPLE_OAUTH_TOKEN");
     }
 
     @Test
-    void anAgentThatCannotBeRedirectedHasNoRoute() {
+    void anAgentThatCannotBeRedirectedDeclaresNoProvider() {
 
         // Not an error. It means the agent must be given its credential directly, which is
         // the operator's decision to make rather than the reader's to paper over.
-        assertThat(read(MINIMAL).route()).isNull();
-    }
-
-    @Test
-    void refusesAnUpstreamThatWouldSendTheCredentialInTheClear() {
-
-        assertThatThrownBy(() -> read(MINIMAL + """
-                provider:
-                  proxy:
-                    upstream: http://api.example.com
-                """))
-                .isInstanceOf(AgentException.class)
-                .hasMessageContaining("must be an https URL");
+        assertThat(read(MINIMAL).provider()).isNull();
     }
 
     @Test
@@ -168,15 +153,16 @@ class AgentDefinitionReaderTest {
 
         final AgentDefinition definition = read(MINIMAL + """
                 provider:
+                  dialect: openai
+                  base_url_env: EXAMPLE_BASE_URL
                   token_env:
                     oauth: EXAMPLE_OAUTH_TOKEN
                     _default: EXAMPLE_API_KEY
-                  base_url_env: EXAMPLE_BASE_URL
                 """);
 
         assertThat(definition.tokenVariable("oauth")).isEqualTo("EXAMPLE_OAUTH_TOKEN");
         assertThat(definition.tokenVariable("api-key")).isEqualTo("EXAMPLE_API_KEY");
-        assertThat(definition.baseUrlEnvironment()).isEqualTo("EXAMPLE_BASE_URL");
+        assertThat(definition.provider().baseUrlEnvironment()).isEqualTo("EXAMPLE_BASE_URL");
     }
 
     @Test
@@ -272,12 +258,11 @@ class AgentDefinitionReaderTest {
         // The safer one, and what every agent gets unless it says it cannot use a socket.
         final AgentDefinition definition = read(MINIMAL + """
                 provider:
-                  proxy:
-                    upstream: https://api.example.com
-                    socket_env: UC_SOCKET
+                  dialect: openai
+                  socket_env: UC_SOCKET
                 """);
 
-        assertThat(definition.route().endpoint()).isEqualTo(ProviderRoute.Endpoint.SOCKET);
+        assertThat(definition.provider().endpoint()).isEqualTo(ProviderRoute.Endpoint.SOCKET);
     }
 
     @Test
@@ -285,12 +270,11 @@ class AgentDefinitionReaderTest {
 
         final AgentDefinition definition = read(MINIMAL + """
                 provider:
-                  proxy:
-                    upstream: https://api.example.com
-                    endpoint: url
+                  dialect: native
+                  endpoint: url
                 """);
 
-        assertThat(definition.route().endpoint()).isEqualTo(ProviderRoute.Endpoint.URL);
+        assertThat(definition.provider().endpoint()).isEqualTo(ProviderRoute.Endpoint.URL);
     }
 
     @Test
@@ -300,27 +284,11 @@ class AgentDefinitionReaderTest {
         // and the agent would be pointed at something it cannot address.
         assertThatThrownBy(() -> read(MINIMAL + """
                 provider:
-                  proxy:
-                    upstream: https://api.example.com
-                    endpoint: carrier-pigeon
+                  dialect: openai
+                  endpoint: carrier-pigeon
                 """))
                 .isInstanceOf(AgentException.class)
                 .hasMessageContaining("must be 'socket' or 'url'");
-    }
-
-    @Test
-    void readsTheCredentialKindsTheProxyCannotCarry() {
-        final AgentDefinition definition = read(MINIMAL + """
-                provider:
-                  proxy:
-                    upstream: https://example.test
-                    unbrokerable:
-                      oauth: "it contacts the provider directly"
-                """);
-
-        assertThat(definition.route().unbrokerableReason("oauth"))
-                .isEqualTo("it contacts the provider directly");
-        assertThat(definition.route().unbrokerableReason("api-key")).isNull();
     }
 
     @Test

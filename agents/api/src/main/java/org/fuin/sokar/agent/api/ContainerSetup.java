@@ -20,15 +20,10 @@ public interface ContainerSetup {
     /**
      * Returns the files to place before the agent starts.
      *
-     * @param token Token the agent should present, standing in for the real credential.
-     * @param credentialType Kind of credential it stands in for.
-     * @param workspace Absolute path of the working directory inside the container.
-     * @param endpoint Where the agent should send its requests - a socket path or a URL,
-     *        whichever it declared it can address - or empty when it is not brokered.
+     * @param context What the agent is told about this task.
      * @return Files to write, possibly empty.
      */
-    List<ContainerFile> files(String token, String credentialType, String workspace,
-            String endpoint);
+    List<ContainerFile> files(SetupContext context);
 
     /**
      * Setup for an agent that needs nothing placed.
@@ -36,6 +31,6 @@ public interface ContainerSetup {
      * @return Setup returning no files.
      */
     static ContainerSetup none() {
-        return (token, credentialType, workspace, endpoint) -> List.of();
+        return context -> List.of();
     }
 }

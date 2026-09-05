@@ -93,7 +93,7 @@ class AgentProtocolTest {
 
         assertThat(round.headless().modelFlag()).isNull();
         assertThat(round.resumeFlag()).isNull();
-        assertThat(round.baseUrlEnvironment()).isNull();
+        assertThat(round.provider()).isNull();
         assertThat(round).isEqualTo(minimal);
     }
 

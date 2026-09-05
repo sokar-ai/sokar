@@ -9,20 +9,15 @@ import org.fuin.sokar.wire.Json;
  * provider's endpoint is fixed unless an extension overrides it. Extensions are auto-discovered
  * from {@code ~/.pi/agent/extensions}, so this is a file to place rather than a command to run.
  * <p>
- * <strong>This belongs to the provider, not to Pi.</strong> The path under the base URL is
- * OpenRouter's - it serves the OpenAI dialect under {@code /api/v1} - and a second agent reaching
- * the same provider would need the same suffix.
+ * <strong>Neither the provider's name nor its path is written here any more.</strong> Both were
+ * constants, and changing them meant rebuilding this binary - which is exactly what pointing Pi
+ * at a second provider once cost. The name arrives with the task and the path is already on the
+ * endpoint Sokar hands over.
  */
 final class PiRoutingExtension {
 
     /** Auto-discovered by Pi; the name only has to be unique and end in {@code .ts}. */
     static final String FILE = "/home/agent/.pi/agent/extensions/sokar-route.ts";
-
-    /** Provider Pi already knows, whose endpoint is overridden rather than added. */
-    static final String PROVIDER = "openrouter";
-
-    /** Where OpenRouter serves the dialect Pi speaks. A base without it answers 404. */
-    static final String DIALECT_PATH = "/api/v1";
 
     private PiRoutingExtension() {
         throw new UnsupportedOperationException("Utility class");
@@ -31,11 +26,13 @@ final class PiRoutingExtension {
     /**
      * Returns the extension that sends Pi's requests to the broker instead of the provider.
      *
-     * @param endpoint Base URL Sokar is listening on, inside this container's namespace.
+     * @param provider Name of the provider, as Pi already knows it.
+     * @param endpoint Base URL Sokar is listening on, inside this container's namespace, with
+     *        the dialect's path already on it.
      * @param token Task-scoped token to present, standing in for the real credential.
      * @return File content.
      */
-    static String document(String endpoint, String token) {
+    static String document(String provider, String endpoint, String token) {
         // Written as JSON literals rather than pasted into the source: a token is opaque and a
         // stray quote in it would otherwise produce an extension that does not parse.
         return """
@@ -44,11 +41,6 @@ final class PiRoutingExtension {
                 export default function (pi) {
                     pi.registerProvider(%s, { baseUrl: %s, apiKey: %s });
                 }
-                """.formatted(Json.write(PROVIDER),
-                        Json.write(trimSlash(endpoint) + DIALECT_PATH), Json.write(token));
-    }
-
-    private static String trimSlash(String url) {
-        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+                """.formatted(Json.write(provider), Json.write(endpoint), Json.write(token));
     }
 }

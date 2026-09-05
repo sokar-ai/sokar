@@ -31,43 +31,31 @@ session:
   resume_flag: "--resume"
 
 provider:
-  # Claude switches the variable by credential type: an OAuth token and an API
-  # key go to different places, and sending one as the other fails in a way that
-  # looks like a bad key.
-  token_env:
-    oauth: CLAUDE_CODE_OAUTH_TOKEN
-    _default: ANTHROPIC_API_KEY
+  # Anthropic's half - upstream, headers, prefixes, the variable a credential goes in - is
+  # declared once in providers/anthropic.yaml and not repeated here. What is left is only what
+  # belongs to this agent.
+  default: anthropic
+
+  # One wire format wherever it points, unlike a provider-agnostic agent that speaks whichever
+  # its provider does.
+  dialect: anthropic-messages
+
+  # A socket: a file the container mounts, invisible to anything that cannot open it. It needs no
+  # firewall hole, no plaintext hop across the namespace boundary, and its 0600 permissions are
+  # the access control. An agent that can only be given a URL declares 'url' instead and is
+  # served by a relay in its own network namespace.
+  endpoint: socket
+  socket_env: ANTHROPIC_UNIX_SOCKET
+
+  # Both are set on purpose. The socket variable only selects the transport; without the base
+  # URL, Claude Code falls back to its compiled-in endpoint - measured, it then resolved
+  # api.anthropic.com 184 times in one run and never touched the socket.
   base_url_env: ANTHROPIC_BASE_URL
 
-  # Where the vault proxy stands in for Anthropic. The agent gets a phantom token and
-  # talks to a unix socket; the proxy verifies the token, puts the real credential in the
-  # header named here, and reissues the request upstream over TLS.
-  #
-  # A socket rather than a port: it needs no firewall hole, no plaintext hop across the
-  # namespace boundary, and its 0600 file permissions are the access control.
-  #
-  # Declaring the upstream also produces the deny rule. Claude Code compiles in its own
-  # base URL, so an agent that ignores ANTHROPIC_UNIX_SOCKET would otherwise send the
-  # phantom token straight to api.anthropic.com. While the proxy is in use that host is
-  # withheld from the firewall, and a bypass shows up as a dropped connection in the audit
-  # trail rather than as an authentication error nobody can explain.
-  proxy:
-    upstream: https://api.anthropic.com
-    # A socket: a file the container mounts, invisible to anything that cannot open it. An agent
-    # that can only be given a URL declares 'endpoint: url' instead, and is served differently.
-    endpoint: socket
-    socket_env: ANTHROPIC_UNIX_SOCKET
-    # An OAuth token is a bearer token; an API key is not, and Anthropic reads it from its
-    # own header. Sending either as the other fails exactly like a bad credential.
-    auth_header:
-      oauth: Authorization
-      _default: x-api-key
-    auth_prefix:
-      oauth: "Bearer "
-      _default: ""
-
+# api.anthropic.com is not listed: the provider declares its own host, and it is withheld from
+# the firewall while the proxy is in use so that an agent ignoring the redirect shows up as a
+# dropped connection rather than as an unexplained authentication error.
 allowed_domains:
-  - api.anthropic.com
   # Contacted before an interactive session starts. Without it the CLI reports it cannot
   # reach Anthropic and quits, whatever the credential is.
   - platform.claude.com

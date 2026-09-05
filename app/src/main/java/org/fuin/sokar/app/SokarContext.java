@@ -125,6 +125,18 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
     }
 
     /**
+     * Returns the providers declared on this machine.
+     * <p>
+     * Read every time rather than cached: a provider is a file an operator can drop in, and
+     * nothing should have to be restarted for it to be seen.
+     *
+     * @return Providers by name.
+     */
+    public java.util.Map<String, org.fuin.sokar.agent.api.ProviderDefinition> providers() {
+        return paths.providerDirectory().all();
+    }
+
+    /**
      * Returns a handle on the container runtime.
      *
      * @return Podman.

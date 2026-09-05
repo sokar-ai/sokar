@@ -24,23 +24,18 @@ session:
   resume_flag: "--session"
 
 provider:
-  # OpenRouter serves the OpenAI dialect and takes a bearer token. Pi knows it natively and reads
-  # the key from this variable.
-  token_env:
-    _default: OPENROUTER_API_KEY
+  # OpenRouter's half - upstream, bearer header, the /api/v1 the OpenAI dialect is served under -
+  # is declared once in providers/openrouter.yaml. Pointing this agent at a different provider is
+  # now a choice at run time rather than an edit and a rebuild.
+  default: openrouter
 
-  proxy:
-    upstream: https://openrouter.ai
-    # A URL, not a socket: Pi registers a provider with a baseUrl, and has nowhere to put a socket
-    # path. Sokar answers that by binding the broker inside this task's own network namespace.
-    endpoint: url
-    auth_header:
-      _default: Authorization
-    auth_prefix:
-      _default: "Bearer "
+  # 'native' because Pi is not tied to one wire format: it knows providers, and speaks whichever
+  # each one's own dialect is. An agent with a fixed format names it instead.
+  dialect: native
 
-allowed_domains:
-  - openrouter.ai
+  # A URL, not a socket: Pi registers a provider with a baseUrl and has nowhere to put a socket
+  # path. Sokar answers that by binding a relay inside this task's own network namespace.
+  endpoint: url
 
 install:
   version: "${agent.cli.version}"

@@ -18,11 +18,12 @@ import org.fuin.sokar.agent.api.ContainerSetup;
 public class ClaudeContainerSetup implements ContainerSetup {
 
     @Override
-    public List<ContainerFile> files(String token, String credentialType, String workspace,
-            String endpoint) {
+    public List<ContainerFile> files(org.fuin.sokar.agent.api.SetupContext context) {
         return List.of(
-                ContainerFile.of(ClaudeFirstRun.FILE, ClaudeFirstRun.document(workspace)),
+                ContainerFile.of(ClaudeFirstRun.FILE,
+                        ClaudeFirstRun.document(context.workspace())),
                 ContainerFile.secret(AnthropicCredentialFile.FILE,
-                        AnthropicCredentialFile.document(token, credentialType)));
+                        AnthropicCredentialFile.document(context.token(),
+                                context.credentialType())));
     }
 }

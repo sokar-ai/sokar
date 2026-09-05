@@ -97,6 +97,17 @@ public class ProviderDirectory {
         return broken;
     }
 
+    /**
+     * Returns the declaration files that would be read, in scan order.
+     *
+     * @return Files, possibly empty.
+     */
+    public List<Path> declarations() {
+        final List<Path> all = new ArrayList<>();
+        locations.forEach(location -> all.addAll(files(location)));
+        return List.copyOf(all);
+    }
+
     private static List<Path> files(Path location) {
         if (!Files.isDirectory(location)) {
             return List.of();

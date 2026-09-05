@@ -3,6 +3,7 @@ package org.fuin.sokar.agent.impl.pi;
 import java.util.List;
 import org.fuin.sokar.agent.api.ContainerFile;
 import org.fuin.sokar.agent.api.ContainerSetup;
+import org.fuin.sokar.agent.api.SetupContext;
 
 /**
  * What Pi needs in a fresh container before it will run unattended.
@@ -14,15 +15,15 @@ import org.fuin.sokar.agent.api.ContainerSetup;
 public class PiContainerSetup implements ContainerSetup {
 
     @Override
-    public List<ContainerFile> files(String token, String credentialType, String workspace,
-            String endpoint) {
+    public List<ContainerFile> files(SetupContext context) {
 
-        if (endpoint == null || endpoint.isBlank()) {
+        if (!context.brokered()) {
             // Nothing was brokered, so there is nothing to point anywhere. Pi will report an
             // unconfigured provider, which is the honest outcome.
             return List.of();
         }
         return List.of(ContainerFile.secret(PiRoutingExtension.FILE,
-                PiRoutingExtension.document(endpoint, token)));
+                PiRoutingExtension.document(context.provider(), context.endpoint(),
+                        context.token())));
     }
 }
