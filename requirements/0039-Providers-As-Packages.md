@@ -130,12 +130,105 @@ made the split this requirement proposes.
 
 The experiment is on the branch `probe/pi-anthropic`, deliberately not merged.
 
+## The design, settled 2026-09-05
+
+### A provider is a declaration, not a package
+
+The open question was whether a provider needs its own *package* or only its own
+*declaration*. **Declaration**, and the reason is the measurement already in this file: an
+agent needs a binary because it has behaviour that cannot be expressed as data - a stream
+formatter, first-run container setup, the quirks of one CLI. A provider, measured across
+the two that exist, is *entirely* data: an upstream, a header, a prefix, a path. There is
+nothing to execute.
+
+So a provider is a YAML file found by a directory scan, in the same two-location shape
+agents already use:
+
+```
+~/.local/share/sokar/providers/     an operator's own, and it wins
+/usr/share/sokar/providers/         what a package installed
+```
+
+`share`, not `libexec`: these are data files, not executables. That already satisfies
+"adding a provider needs no change to Sokar and no rebuild of any agent" without a binary,
+a varlink connection or an installable of its own - and a package can still *carry* one,
+because shipping and declaring are different questions.
+
+### The split, as files
+
+A provider says where it is and how to speak to it:
+
+```yaml
+# /usr/share/sokar/providers/anthropic.yaml
+name: anthropic
+label: Anthropic
+upstream: https://api.anthropic.com
+dialects:
+  anthropic-messages: ""          # native first: the dialect this provider is
+auth_header:
+  _default: x-api-key
+  oauth: Authorization
+auth_prefix:
+  _default: ""
+  oauth: "Bearer "
+token_env:
+  _default: ANTHROPIC_API_KEY
+  oauth: CLAUDE_CODE_OAUTH_TOKEN
+```
+
+```yaml
+# openrouter.yaml - one provider, two dialects at two paths
+dialects:
+  openai: "/api/v1"
+  anthropic-messages: "/api"
+```
+
+An agent says what it speaks and what it can address:
+
+```yaml
+provider:
+  default: openrouter
+  dialect: openai       # or 'native' - see below
+  endpoint: url         # socket | url, unchanged, and still the agent's own property
+```
+
+### `dialect: native` is what makes a provider-agnostic agent expressible
+
+Claude Code speaks one wire format wherever it points, so it says
+`dialect: anthropic-messages`. Copilot CLI's BYOK mode is told which to speak, so it says
+`openai`. Pi is neither: it *knows* providers, and speaks whatever each one's own dialect
+is - so it says `native`, meaning "the first dialect the provider declares".
+
+That is the whole of what the Pi probe had to change in Java. With this, the same switch
+is `--provider anthropic` and no rebuild, which is the acceptance test for this
+requirement rather than a description of it.
+
+### An agent can drive a provider it has never heard of
+
+The last open question, answered by the shape: yes, when the provider serves a dialect the
+agent speaks. Nothing pairs them by name. A provider added tomorrow that declares
+`openai` is drivable by every agent that speaks `openai`, and by every `native` agent that
+recognises its name.
+
+### The vault is keyed by provider
+
+Forced by the probe rather than argued: pointing Pi at Anthropic meant storing the *same*
+Anthropic key a second time, under the name `pi`, beside the copy under `claude`. Two
+entries, one credential, and neither name says which provider it is for.
+
+`sokar vault put anthropic` replaces `sokar vault put claude`. Existing entries are
+migrated by name where the old agent had exactly one provider, which is true of every entry
+that can exist today.
+
+
 ## To be checked
 
 - ~~**Whether the duplication is real yet.**~~ **Answered by measurement, 2026-09-05** -
   see below. It is real.
-- Whether a provider needs to be a separate *package* or only a separate
-  *declaration*. A package buys independent versioning and release, which is what
-  the agent split was for; it also doubles the number of things to install.
-- Whether an agent can drive a provider it has never heard of, given only a
-  declaration, or whether each pairing needs something written by hand.
+- ~~Whether a provider needs to be a separate *package* or only a separate
+  *declaration*.~~ **Declaration**, see above.
+- ~~Whether an agent can drive a provider it has never heard of.~~ **Yes**, when the
+  provider serves a dialect the agent speaks. See above.
+- Whether `dialect: native` survives a provider whose name the agent does not recognise.
+  Pi registers a provider *by name*, so a provider it has never heard of may need its
+  dialect stated after all. Testable the moment a third provider exists.
