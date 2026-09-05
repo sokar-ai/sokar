@@ -116,8 +116,24 @@ binding, false of connecting.
 
 Run by the operator on a VM, in a container, with the credential never leaving that machine.
 
-**It is not a device flow.** Both this file and [0036](0036-Provider-GitHub-Copilot.md) said it
-was, and both were wrong. `/login` is a **loopback redirect with PKCE**:
+**There are three sign-in modes, and only one of them needs a browser.** `copilot login --help`,
+read after the fact:
+
+| mode | what it does |
+|---|---|
+| `--web-flow` | loopback redirect with PKCE. Default **on a local desktop** |
+| `--device-code` | a short code usable from any device. Default in **remote or headless environments** - SSH, dev containers, CI |
+| `--with-token` | reads a token from standard input |
+
+So the original "device flow" was half right and the correction "not a device flow" was half
+wrong. Which one runs is detected, and **the detection was wrong in a container over SSH**: it
+chose the web flow there and waited for a callback nothing could deliver. `--device-code` forces
+the useful one.
+
+**None of this needed solving the browser problem.** `--with-token` reads a credential from
+standard input, which is exactly the host-side import this requirement was asking for, and it
+means a task container never needs a browser, a tunnel or a callback listener at all. The web
+flow was measured the hard way before that was found:
 
 ```
 https://github.com/login/oauth/authorize?client_id=…&redirect_uri=http%3A%2F%2F127.0.0.1%3A40905%2Fcallback
@@ -148,8 +164,14 @@ somewhere insecure, which is accurate: it is plaintext in a file.
   This was the open question and the answer is yes.
 - **Nothing here expires**, so [0024](0024-Refreshable-Task-Tokens.md) is **not** a
   prerequisite for this provider, which is the opposite of what was assumed.
-- **The sign-in cannot be automated from inside a task**, and never could be. It has to be a
-  host-side operation with a browser, which is what an import step is for.
+- **The sign-in does not have to happen in a task at all.** `--with-token` on standard input,
+  and three environment variables that outrank anything stored - `COPILOT_GITHUB_TOKEN`,
+  `GH_TOKEN`, `GITHUB_TOKEN`, in that order of precedence. The first of those is the hook a
+  broker would use, and it is the same shape as the first agent's.
+- **A fine-grained PAT with the "Copilot Requests" permission is accepted**, and is a much better
+  credential to hold than the OAuth token: the sign-in yields one carrying `repo`, `gist`,
+  `codespace` and `read:org`, while a scoped PAT carries only what Copilot needs. If Sokar
+  supports this provider, that is the credential kind to ask for.
 
 **Hosts contacted**, from a CONNECT log that sees names and not traffic:
 
@@ -205,10 +227,13 @@ Settling it needs the request path at `api.github.com`, which a disposable accou
 - **Where the broker sits.** The exchange is at `api.github.com` and the model API takes what
   it returns, so brokering the model API alone is not enough - and brokering the exchange leaves
   a real short-lived token in the container. Needs the request path to confirm.
-- **Whether the sign-in can be driven at all where it must run.** Measured on a desktop VM: the
-  CLI cannot open a browser itself and does not say so - it just waits - and its callback
-  listener binds a fresh random port each attempt. A host-side import step has to hand the URL
-  out deliberately and let the listener be reached, which is two things, not one.
+- **Why the web flow runs twice.** Measured on a desktop: after the first sign-in completed and
+  the token was stored, a second authorization opened by itself, on a different port. Both were
+  the same client and the same shape. The CLI's own logs would say why, and they were deleted
+  with the credential before anyone looked - so next time, keep `~/.copilot/logs/` first. Not on
+  the critical path, since `--with-token` avoids the web flow entirely.
+- Whether `COPILOT_GITHUB_TOKEN` is honoured for a phantom token, which is the whole design if
+  it is. Untested: it needs a credential, and the one used here was wiped.
 
 ## Notes
 

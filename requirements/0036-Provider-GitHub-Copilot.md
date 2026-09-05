@@ -10,10 +10,12 @@ Serve models from GitHub Copilot to a task, without the credential entering the 
 
 **Reached how.** Its own agent, and as a provider inside provider-agnostic agents.
 
-**Authentication.** A forge account over a **loopback-redirect OAuth flow with PKCE** - not a
-device flow, which is what this said until it was measured. It yields a long-lived `gho_` token
-stored in plaintext in `~/.copilot/config.json`; see [0025](0025-Pi-Forge-Subscription.md) for
-the full measurement.
+**Authentication.** A forge account, by device code or browser redirect, yielding a long-lived
+`gho_` token in `~/.copilot/config.json` - plaintext, because a container has no credential
+store. It also accepts a **fine-grained PAT with the "Copilot Requests" permission**, which is
+the better credential to hold: the OAuth token carries `repo`, `gist` and `codespace` as well.
+A token can be supplied on standard input or in `COPILOT_GITHUB_TOKEN`. See
+[0025](0025-Pi-Forge-Subscription.md) for the measurement.
 
 **Can it be brokered?** **Half answered.** The credential is storable, portable and does not
 expire, so the vault side is solved. What is not settled is where the proxy stands: the model

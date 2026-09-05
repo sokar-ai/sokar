@@ -8,8 +8,10 @@ Support GitHub Copilot CLI as a packaged agent.
 
 **Providers.** One subscription, which itself fronts several models from different vendors.
 
-**Authentication.** A forge account over a loopback-redirect OAuth flow with PKCE, measured in
-[0025](0025-Pi-Forge-Subscription.md) - or none at all in BYOK mode, below.
+**Authentication.** Four ways, and only one of them is awkward: a device code, a browser
+loopback redirect, a token on standard input (`--with-token`), or `COPILOT_GITHUB_TOKEN` /
+`GH_TOKEN` / `GITHUB_TOKEN`, which outrank anything stored. Or none at all in BYOK mode, below.
+Measured in [0025](0025-Pi-Forge-Subscription.md).
 
 **It updates itself by default.** `COPILOT_AUTO_UPDATE` is on unless set to `0`, so a task image
 that pins a version would silently run a different one and `sokar agents --supply-chain` would
