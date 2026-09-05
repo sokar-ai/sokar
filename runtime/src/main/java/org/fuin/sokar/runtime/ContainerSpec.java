@@ -14,8 +14,15 @@ import java.util.Map;
  */
 public class ContainerSpec {
 
-    /** Address inside a task container that reaches the host's loopback. */
+    /**
+     * Address a container reaches the host at when podman uses pasta, which podman 5 does by
+     * default. Kept only as the fallback when podman cannot be asked - podman 4 answers with the
+     * host's own LAN address instead, so this is a guess and is treated as one.
+     */
     public static final String HOST_LOOPBACK = "169.254.1.2";
+
+    /** Name podman writes into a container's {@code /etc/hosts} for the host it runs on. */
+    public static final String HOST_FROM_CONTAINER = "host.containers.internal";
 
     private final String name;
 

@@ -26,6 +26,28 @@ class PodmanTest {
     private final Podman podman = new Podman(runner);
 
     @Test
+    void asksPodmanWhereAContainerReachesTheHost() {
+
+        // Both answers seen in the wild on the same project: pasta on podman 5, and the host's
+        // own LAN address on podman 4. Assuming either one breaks the git gate on the other.
+        runner.answering("run", "127.0.0.1\tlocalhost\n"
+                + "169.254.1.2\thost.containers.internal host.docker.internal\n");
+        assertThat(podman.hostAddressFromContainer("ubuntu:24.04")).contains("169.254.1.2");
+
+        runner.answering("run", "10.1.0.194\thost.containers.internal host.docker.internal\n");
+        assertThat(podman.hostAddressFromContainer("ubuntu:24.04")).contains("10.1.0.194");
+    }
+
+    @Test
+    void answersNothingRatherThanGuessingWhenTheNameIsAbsent() {
+
+        // The caller falls back to the old constant and says so. Returning a wrong address
+        // silently would firewall the gate off with a hanging push as the only symptom.
+        runner.answering("run", "127.0.0.1\tlocalhost\n");
+        assertThat(podman.hostAddressFromContainer("ubuntu:24.04")).isEmpty();
+    }
+
+    @Test
     void readsTheVersionInAnExplicitFormat() {
 
         runner.answering("version", "5.7.0");
