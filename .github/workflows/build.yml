@@ -98,10 +98,12 @@ jobs:
 
       - name: Install as a package would
         run: |
-          mkdir -p ~/.local/bin ~/.local/share/sokar/agents
+          # No sudo: Sokar scans ~/.local/share/sokar/providers before /usr/share, and hooks
+          # resolve from ~/.local/bin before /usr/libexec. An unprivileged install is the shape
+          # a task actually runs in.
+          mkdir -p ~/.local/bin ~/.local/share/sokar/agents ~/.local/share/sokar/providers
           cp hooks/target/sokar-hook-* app/target/sokar ~/.local/bin/
-          sudo mkdir -p /usr/share/sokar/providers
-          sudo cp providers/*.yaml /usr/share/sokar/providers/
+          cp providers/*.yaml ~/.local/share/sokar/providers/
           ~/.local/bin/sokar setup
           echo "PATH=$HOME/.local/bin:$PATH" >> "$GITHUB_ENV"
 

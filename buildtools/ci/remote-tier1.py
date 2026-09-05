@@ -58,7 +58,8 @@ def main() -> int:
                         help="leave the server running afterwards, for debugging")
     args = parser.parse_args()
 
-    key_file = Path(hetzner.private_key(args.ssh_private_key))
+    # The key goes into an agent, never onto a filesystem.
+    environment = hetzner.agent(args.ssh_private_key)
 
     client = hetzner.client()
     image = (client.images.get_by_id(args.snapshot) if args.snapshot
@@ -68,38 +69,42 @@ def main() -> int:
     with hetzner.provisioned(client, name=f"sokar-ci-tier1-{stamp}",
                              server_type=args.server_type, image_name=image.name or str(image.id),
                              location=args.location, ssh_key_name=args.ssh_key,
-                             private_key_file=str(key_file),
+                             environment=environment,
                              keep=args.keep, image_override=image) as (server, address):
 
         hetzner.await_ssh(address)
 
         print("\n-- sending the working tree --")
-        upload(address, key_file)
+        upload(address, environment)
 
         print("\n-- building --")
-        remote(address, key_file, f"cd {REPO} && ./mvnw -B -Pnative -DskipTests package "
+        remote(address, environment, f"cd {REPO} && ./mvnw -B -Pnative -DskipTests package "
                                   "-pl app,hooks,agents/claude -am -DquickBuild=true")
 
         print("\n-- installing as a package would --")
-        remote(address, key_file,
-               "mkdir -p ~/.local/bin ~/.local/share/sokar/agents && "
+        # Entirely in the user's own directories, with no sudo. Sokar scans
+        # ~/.local/share/sokar/providers before /usr/share, and hooks resolve from ~/.local/bin
+        # before /usr/libexec - so an unprivileged install is a supported shape, not a shortcut.
+        # It is also the shape that matches how a task actually runs: rootless.
+        remote(address, environment,
+               "mkdir -p ~/.local/bin ~/.local/share/sokar/agents "
+               "~/.local/share/sokar/providers && "
                f"cp {REPO}/hooks/target/sokar-hook-* ~/.local/bin/ && "
                f"cp {REPO}/app/target/sokar ~/.local/bin/ && "
-               f"sudo mkdir -p /usr/share/sokar/providers && "
-               f"sudo cp {REPO}/providers/*.yaml /usr/share/sokar/providers/ && "
+               f"cp {REPO}/providers/*.yaml ~/.local/share/sokar/providers/ && "
                "~/.local/bin/sokar setup")
 
         print("\n-- what sokar thinks of this machine --")
-        remote(address, key_file, "PATH=$HOME/.local/bin:$PATH sokar doctor", check=False)
+        remote(address, environment, "PATH=$HOME/.local/bin:$PATH sokar doctor", check=False)
 
         print("\n-- tier 1, under SELinux enforcing --")
-        remote(address, key_file,
+        remote(address, environment,
                f"cd {REPO} && PATH=$HOME/.local/bin:$PATH bash buildtools/e2e-tier1.sh")
 
     return 0
 
 
-def upload(address: str, key_file: Path) -> None:
+def upload(address: str, environment: dict[str, str]) -> None:
     """
     Copies the working tree to the server.
 
@@ -111,31 +116,21 @@ def upload(address: str, key_file: Path) -> None:
                              capture_output=True, check=True).stdout
     print(f"  {len(archive) // 1024} KiB")
     result = subprocess.run(
-        ssh_command(address, key_file, BUILD_USER,
-                    f"rm -rf {REPO} && mkdir -p {REPO} && tar -x -C {REPO}"),
-        input=archive, capture_output=True, timeout=600,
+        hetzner.ssh_argv(address, f"rm -rf {REPO} && mkdir -p {REPO} && tar -x -C {REPO}",
+                         user=BUILD_USER),
+        input=archive, env=environment, capture_output=True, timeout=600,
     )
     if result.returncode != 0:
         sys.exit(f"upload failed: {result.stderr.decode(errors='replace')}")
 
 
-def remote(address: str, key_file: Path, command: str, *, check: bool = True) -> None:
+def remote(address: str, environment: dict[str, str], command: str, *,
+           check: bool = True) -> None:
     """Runs one command on the server, streaming its output into this log."""
-    result = subprocess.run(ssh_command(address, key_file, BUILD_USER, command), timeout=3600)
+    result = subprocess.run(hetzner.ssh_argv(address, command, user=BUILD_USER),
+                            env=environment, timeout=3600)
     if check and result.returncode != 0:
         sys.exit(f"\nfailed on the remote with exit code {result.returncode}: {command}")
-
-
-def ssh_command(address: str, key_file: Path, user: str, command: str) -> list[str]:
-    """
-    Builds the ssh invocation.
-
-    Host key checking is off and known-hosts is /dev/null: the machine is new every time, at an
-    address the API has just told us, so there is no key that could have been known.
-    """
-    return ["ssh", "-i", str(key_file), "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR",
-            "-o", "ConnectTimeout=15", f"{user}@{address}", command]
 
 
 if __name__ == "__main__":

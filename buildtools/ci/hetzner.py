@@ -16,7 +16,6 @@ from __future__ import annotations
 import os
 import socket
 import subprocess
-import tempfile
 import sys
 import time
 from contextlib import contextmanager
@@ -55,51 +54,65 @@ def client() -> Client:
 SSH_KEY_VARIABLE = "SSH"
 
 
-def private_key(path: str) -> str:
+def agent(path: str) -> dict[str, str]:
     """
-    Returns a path to the private key, taking it from the environment when CI put it there.
+    Loads the private key into an ssh-agent and returns the environment that reaches it.
 
-    Written to a file because ssh(1) wants one, with 0600 before anything is in it: a key that
-    exists world-readable for even a moment is a key that leaked. The file lands in the runner's
-    temporary directory, which is discarded with the job.
+    The key never touches a filesystem. ssh(1) takes a key by path and has no way to be handed the
+    material directly, so the alternative was writing the secret to a temporary file - which also
+    made the exact bytes matter, and a stray carriage return then failed as "error in libcrypto"
+    with nothing naming the file or the reason.
 
-    :param path: Fallback path, for a developer running this on their own machine.
-    :return: Path to a private key file.
+    The agent dies with this process, so nothing outlives the run.
+
+    :param path: A key file, for a developer running this on their own machine. Ignored when the
+        key is in the environment.
+    :return: Environment variables that reach the agent, for ssh and scp.
     """
     material = os.environ.get(SSH_KEY_VARIABLE, "")
-    if not material.strip():
+    if material.strip():
+        # Carriage returns make an otherwise valid key unreadable, and ssh-add explains that no
+        # better than ssh did.
+        material = material.replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+        complain_if_malformed(material)
+    else:
         if not os.path.isfile(path):
             sys.exit(
                 f"No private key. Set {SSH_KEY_VARIABLE} to the key itself, or pass "
                 f"--ssh-private-key; there is nothing at {path}"
             )
-        return path
+        material = Path(path).read_text()
 
-    # Carriage returns make an otherwise valid key unreadable, and OpenSSH says so only as
-    # "error in libcrypto", which names neither the file nor the reason.
-    material = material.replace("\r\n", "\n").replace("\r", "\n").strip()
-    complain_if_malformed(material)
+    started = subprocess.run(["ssh-agent", "-s"], capture_output=True, text=True)
+    if started.returncode != 0:
+        sys.exit(f"Could not start ssh-agent: {started.stderr.strip()}")
 
-    target = Path(tempfile.mkdtemp(prefix="sokar-ci-")) / "id"
-    target.touch(mode=0o600)
-    target.write_text(material + "\n")
-    return str(target)
+    environment = dict(os.environ)
+    for line in started.stdout.split("\n"):
+        if "=" in line and ";" in line:
+            name, _, rest = line.partition("=")
+            environment[name.strip()] = rest.split(";")[0]
+
+    added = subprocess.run(["ssh-add", "-"], input=material, capture_output=True, text=True,
+                           env=environment)
+    if added.returncode != 0:
+        sys.exit(f"ssh-agent would not take the key: {added.stderr.strip()}")
+    return environment
 
 
 def complain_if_malformed(material: str) -> None:
     """
-    Says what is wrong with the key before ssh does, in terms of the secret rather than of crypto.
+    Says what is wrong with the key before ssh-add does, in terms of the secret rather than crypto.
 
-    Every check here is a way a secret gets damaged between a file and an environment variable,
-    and each one produces the same unhelpful "error in libcrypto" from OpenSSH.
+    Every check here is a way a secret gets damaged between a file and an environment variable.
     """
-    lines = material.split("\n")
+    lines = material.strip().split("\n")
     if not lines[0].startswith("-----BEGIN"):
         sys.exit(
             f"{SSH_KEY_VARIABLE} does not start with a PEM header. It begins "
             f"{lines[0][:20]!r} - is it a public key, or a path rather than the key itself?"
         )
-    # Checked before the footer: a key whose line breaks were lost fails the footer test too, and
+    # Checked before the footer: a key whose line breaks were lost fails that test too, and
     # "no PEM footer" sends the reader looking for the wrong problem.
     if len(lines) < 3:
         sys.exit(
@@ -111,7 +124,23 @@ def complain_if_malformed(material: str) -> None:
         sys.exit(f"{SSH_KEY_VARIABLE} does not end with a PEM footer; it ends {lines[-1][:20]!r}")
 
 
-def ssh_key(hcloud_client: Client, name: str | None, private_key_file: str):
+def fingerprint(environment: dict[str, str]) -> str:
+    """
+    Returns the MD5 fingerprint of the key in the agent, which is what the API reports.
+
+    Asked of the agent rather than derived from a file, so the key stays where it is.
+    """
+    listed = subprocess.run(["ssh-add", "-l", "-E", "md5"], capture_output=True, text=True,
+                            env=environment)
+    if listed.returncode != 0:
+        sys.exit(f"The agent holds no key: {listed.stdout.strip()} {listed.stderr.strip()}")
+    for field in listed.stdout.split():
+        if field.startswith("MD5:"):
+            return field[len("MD5:"):]
+    sys.exit(f"Could not parse a fingerprint from: {listed.stdout.strip()}")
+
+
+def ssh_key(hcloud_client: Client, name: str | None, environment: dict[str, str]):
     """
     Returns the SSH key to create servers with.
 
@@ -121,7 +150,7 @@ def ssh_key(hcloud_client: Client, name: str | None, private_key_file: str):
     shows up as a connection refused twenty lines later. The fingerprint cannot drift.
 
     :param name: Explicit name, which wins when given.
-    :param private_key_file: The private key that will be used to connect.
+    :param environment: Reaches the agent holding the key that will be used to connect.
     :return: The matching key in the project.
     """
     available = list(hcloud_client.ssh_keys.get_all())
@@ -132,7 +161,7 @@ def ssh_key(hcloud_client: Client, name: str | None, private_key_file: str):
         sys.exit(f"No SSH key named '{name}' in the project. "
                  f"Available: {[k.name for k in available] or 'none'}")
 
-    wanted = fingerprint(private_key_file)
+    wanted = fingerprint(environment)
     for key in available:
         if key.fingerprint == wanted:
             print(f"ssh key '{key.name}' matches the private key in hand")
@@ -142,27 +171,6 @@ def ssh_key(hcloud_client: Client, name: str | None, private_key_file: str):
         f"  in the project: {[(k.name, k.fingerprint) for k in available] or 'none'}\n"
         "  add its public half to the project, or pass --ssh-key to use one of the above"
     )
-
-
-def fingerprint(private_key_file: str) -> str:
-    """
-    Returns the MD5 fingerprint of a private key's public half, which is what the API reports.
-
-    Derived from the private key so that nothing has to hold the public half as well.
-    """
-    public = subprocess.run(["ssh-keygen", "-y", "-f", private_key_file],
-                            capture_output=True, text=True)
-    if public.returncode != 0:
-        sys.exit(f"Cannot read {private_key_file}: {public.stderr.strip()}")
-    shown = subprocess.run(["ssh-keygen", "-l", "-E", "md5", "-f", "/dev/stdin"],
-                           input=public.stdout, capture_output=True, text=True)
-    if shown.returncode != 0:
-        sys.exit(f"Cannot fingerprint {private_key_file}: {shown.stderr.strip()}")
-    # "2048 MD5:aa:bb:.. comment (RSA)" - the API reports the hex pairs without the prefix.
-    for field in shown.stdout.split():
-        if field.startswith("MD5:"):
-            return field[len("MD5:"):]
-    sys.exit(f"Could not parse a fingerprint from: {shown.stdout.strip()}")
 
 
 def image(hcloud_client: Client, name: str) -> Image:
@@ -204,7 +212,7 @@ def newest_snapshot(hcloud_client: Client) -> Image:
 
 @contextmanager
 def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_name: str,
-                location: str, ssh_key_name: str | None, private_key_file: str,
+                location: str, ssh_key_name: str | None, environment: dict[str, str],
                 keep: bool = False, image_override: Image | None = None):
     """
     Creates a server and destroys it again, whatever happens in between.
@@ -215,11 +223,12 @@ def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_nam
     :param keep: Leaves the server running, for debugging. Prints what it will cost per day and
         how to remove it, because the whole point of this module is that nothing is left running
         by accident.
+    :param environment: Reaches the ssh-agent holding the key.
     :param image_override: An image already in hand, for a snapshot. Snapshots are found by
         description and label rather than by name, so they cannot be looked up the way a system
         image can.
     """
-    key = ssh_key(hcloud_client, ssh_key_name, private_key_file)
+    key = ssh_key(hcloud_client, ssh_key_name, environment)
     found = image_override if image_override is not None else image(hcloud_client, image_name)
 
     print(f"creating {name}: {server_type}, {image_name}, {location}")
@@ -275,17 +284,22 @@ def await_ssh(address: str, *, timeout: int = 300, port: int = 22) -> None:
     sys.exit(f"{address} never answered on port {port} within {timeout}s")
 
 
-def ssh(address: str, key_file: str, command: str, *, check: bool = True) -> str:
+def ssh_argv(address: str, command: str, user: str = "root") -> list[str]:
     """
-    Runs one command on the server and returns its output.
+    Builds an ssh invocation that takes its key from the agent.
 
-    StrictHostKeyChecking is off and the known-hosts file is /dev/null: the host is new every
-    time and is identified by an address the API just told us, so there is no key to have known.
+    No -i: the key is in the agent, not on disk. StrictHostKeyChecking is off and known-hosts is
+    /dev/null because the host is new every time, at an address the API has just told us, so
+    there is no key that could have been known.
     """
+    return ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=15", f"{user}@{address}", command]
+
+
+def ssh(address: str, environment: dict[str, str], command: str, *, check: bool = True) -> str:
+    """Runs one command on the server and returns its output."""
     result = subprocess.run(
-        ["ssh", "-i", key_file, "-o", "StrictHostKeyChecking=no",
-         "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR",
-         "-o", "ConnectTimeout=15", f"root@{address}", command],
+        ssh_argv(address, command), env=environment,
         capture_output=True, text=True, timeout=1800,
     )
     if check and result.returncode != 0:
