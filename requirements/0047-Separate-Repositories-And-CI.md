@@ -70,8 +70,89 @@ after creation instead of before, a missing `connectto`, and `podman unshare` ru
 **Fedora with SELinux enforcing is therefore tested locally only, before a release, and the
 README says so.** A green badge does not mean that platform passed.
 
-**TODO, not scheduled:** spawn a dedicated AWS VM from the workflow for this leg, most likely
-provisioned with Terraform, so it runs on demand rather than on somebody's laptop.
+### How the Fedora leg gets covered: an on-demand box, driven over SSH
+
+Not a self-hosted runner, and not a nested VM. A GitHub-hosted job acts as **controller**: it
+creates a Hetzner Cloud server, runs the suite on it over SSH, and destroys it.
+
+```
+GitHub-hosted job (ubuntu-latest)
+  → hcloud: create server from a prepared snapshot
+  → ssh: run buildtools/e2e-tier1.sh, stream the output back
+  → hcloud: delete the server            ALWAYS, even on failure
+```
+
+**Why not a self-hosted runner.** There is no agent to install, register, patch or trust, no
+long-lived machine holding a token, and nothing accumulates between runs - podman images, a
+warm `~/.m2`, stale `/run/user/<uid>/sokar` state. Every one of those has already produced a
+confusing failure in this project, and an ephemeral machine cannot have them. The cost is that
+the Actions UI shows one long SSH step instead of named ones, which the suite's own output
+makes tolerable.
+
+**Why not nested QEMU.** Nesting is what forces bare metal - on AWS, nested virtualisation
+exists only on `.metal` instances. It buys a matrix of many operating systems from one host,
+and this needs exactly one. An ordinary virtualised VM gives real SELinux: measured on the
+development VM, `systemd-detect-virt` says `kvm` and `getenforce` says `Enforcing`. SELinux is
+a guest-kernel property; virtualisation is irrelevant to it. What a hosted runner lacks is not
+hardware but **the choice of OS image**.
+
+**Sizing**, from measurement rather than estimate:
+
+| | value | why |
+|---|---|---|
+| vCPU | **8** | native-image is the entire cost - 17m26s for seven binaries on GitHub's 2 cores; the same `sokar` binary takes 3m43s there and ~35s on a 16-core machine |
+| RAM | **16 GB** | GraalVM takes ~80% of RAM for a build and used 6.29 GB for one binary. The development VM's 3 GB is too small to build at all |
+| disk | **80 GB** is ample | GraalVM 733 MB, musl toolchain 243 MB extracted, build output 231 MB, `~/.m2` 1-2 GB, podman storage already 687 MB after a few runs with task images at ~500 MB each |
+
+A Hetzner **CPX42** (8 vCPU, 16 GB, 320 GB) at **€0.1335/hour** fits with room to spare.
+
+**Cost, which is what makes this worth doing at all:**
+
+| | |
+|---|---|
+| one run, 15 minutes | **€0.033** |
+| 20 runs per month | €0.67 |
+| 100 runs per month | €3.34 |
+| **left running by mistake** | **€97/month** |
+
+So the whole design rests on one thing: **the server is always destroyed.** The delete step runs
+on failure and on cancellation, and a scheduled sweep removes anything tagged older than an hour
+- a workflow that dies before its cleanup is the realistic way this becomes expensive, not a
+decision anyone makes.
+
+**Driven with the Hetzner Cloud Python API**, which is small enough to keep in one script:
+
+```python
+from hcloud import Client
+from hcloud.images import Image
+from hcloud.server_types import ServerType
+
+client = Client(token=..., application_name="sokar-ci")
+response = client.servers.create(
+    name="sokar-ci-<run id>",
+    server_type=ServerType(name="cpx42"),
+    image=Image(name="<the prepared snapshot>"),
+)
+...
+response.server.delete()      # BoundServer.delete(), and it must always run
+```
+
+**A prepared snapshot, not a stock image.** An 8-core box builds in four or five minutes, but a
+stock Fedora needs podman, GraalVM, the musl toolchain and a warm `~/.m2` first - ten minutes of
+provisioning to save twelve of building. A snapshot with all of it costs about €0.25/month and
+brings boot-to-ready to roughly a minute. Refreshing it then becomes a periodic chore of the
+same kind as [0044](0044-Automated-Agent-Updates.md).
+
+**When it runs:** `main` and manual dispatch, not every push. Ubuntu stays on free hosted
+runners, which already pass 22 of 24 checks. A few runs a week puts this under a euro a month
+for the one gap that cannot be closed any other way.
+
+**Two things that will bite on any machine that is not a GitHub runner:**
+
+- **`loginctl enable-linger` for the user the suite runs as.** A process started by a service is
+  not a login session, so `/run/user/<uid>` may not exist - and that is where task state lives.
+  It happened to exist on GitHub's runner; that is luck, not a guarantee.
+- **`subuid`/`subgid` entries**, or rootless podman does not start at all.
 
 ## 3. What has to change before an agent can leave
 
