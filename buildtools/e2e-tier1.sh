@@ -418,6 +418,10 @@ if podman exec "$CONTAINER" sh -c 'test -d /workspace/.git' 2>/dev/null; then
         # A hang prints nothing, which is the least useful failure there is. Say where the
         # container was pointed and what happened when it tried, so the next reader does not
         # have to reproduce it to find out.
+        # sokar already checks the container's /etc/hosts against the address it firewalled
+        # open, and says so on stderr - but that goes into the start log, which nothing read.
+        # A diagnosis that is produced and then discarded is worse than none.
+        grep '^sokar:' "$START_LOG" 2>/dev/null | while read -r line; do info "  $line"; done
         info "the remote the agent was given:"
         podman exec "$CONTAINER" sh -c 'cd /workspace && git remote get-url sokar' 2>&1 \
             | while read -r line; do info "    $line"; done
