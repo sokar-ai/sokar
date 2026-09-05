@@ -67,10 +67,11 @@ def main() -> int:
     image = (client.images.get_by_id(args.snapshot) if args.snapshot
              else hetzner.newest_snapshot(client, args.operating_system))
 
-    # The run id as well as the time: two runs starting in the same second would otherwise ask
-    # for the same name, and Hetzner rejects the second.
+    # The time and the leg. Two runs starting in the same second would otherwise ask for the same
+    # name and Hetzner would reject the second - and the leg is already what makes a matrix run
+    # unique, so taking the tail of run_id() as well produced names like "...-2-ubuntu".
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    with hetzner.provisioned(client, name=f"sokar-ci-{args.operating_system}-{stamp}-{hetzner.run_id()[-8:]}",
+    with hetzner.provisioned(client, name=f"sokar-ci-{args.operating_system}-{stamp}",
                              server_type=args.server_type, image_name=image.name or str(image.id),
                              location=args.location, ssh_key_name=args.ssh_key,
                              environment=environment,
@@ -114,10 +115,16 @@ def main() -> int:
                f"cp {REPO}/providers/*.yaml ~/.local/share/sokar/providers/ && "
                "~/.local/bin/sokar setup")
 
+        # Its own verdict on the machine, and the podman version - which decides whether this leg
+        # is really covering podman 4 or has quietly become a second Fedora. Both were silent in
+        # the first matrix run and nothing noticed, so this one says when it has nothing to say.
         print("\n-- what sokar thinks of this machine --")
-        remote(address, environment, "PATH=$HOME/.local/bin:$PATH sokar doctor", check=False)
+        remote(address, environment,
+               "podman --version; "
+               "PATH=$HOME/.local/bin:$PATH sokar doctor 2>&1 "
+               "|| echo '(sokar doctor failed)'", check=False)
 
-        print("\n-- tier 1, under SELinux enforcing --")
+        print(f"\n-- tier 1, on {args.operating_system} --")
         remote(address, environment,
                f"cd {REPO} && PATH=$HOME/.local/bin:$PATH bash buildtools/e2e-tier1.sh")
 
