@@ -45,32 +45,33 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
     }
 
     /**
-     * Says so when the agent of this name cannot use a credential of this kind.
+     * Says so when nothing will look this credential up, or when its kind cannot be brokered.
      * <p>
      * Checked here as well as at task start, because storing is where the choice is made and a
-     * task may not be run for days.
+     * task may not be run for days. A name nobody knows is worth saying whether or not a kind
+     * was given: the commonest way to get this wrong is to type the agent's name instead of the
+     * provider's, and that stores something no task will ever find.
      *
      * @param err Where to report.
      */
-    private void warnIfUnbrokerable(PrintWriter err) {
+    private void warnIfNothingWillUseIt(PrintWriter err) {
+        final var provider = context.providers().get(name);
+        if (provider == null) {
+            // Not refused: a credential may be stored before its provider is declared, and an
+            // operator may have names of their own. Said once, so a typo is findable.
+            err.println("sokar: no provider '" + name + "' is declared; a task will only find"
+                    + " this credential if something asks for it by that name");
+            err.flush();
+            return;
+        }
         if (type == null) {
             return;
         }
-        try (var agents = context.agents()) {
-            agents.find(name).ifPresent(agent -> {
-                final var selection = SelectedProvider.choose(context.providers(),
-                        agent.definition(), null);
-                final String reason = selection == null ? null
-                        : selection.route().unbrokerableReason(type);
-                if (reason != null) {
-                    err.println("sokar: '" + name + "' cannot use a '" + type + "' credential"
-                            + " through the proxy - " + reason);
-                    err.flush();
-                }
-            });
-        } catch (RuntimeException ex) {
-            // Storing must not fail because an agent could not be asked.
-            return;
+        final String reason = provider.unbrokerableReason(type);
+        if (reason != null) {
+            err.println("sokar: '" + name + "' cannot use a '" + type + "' credential"
+                    + " through the proxy - " + reason);
+            err.flush();
         }
     }
 
@@ -107,7 +108,7 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         // The value is never echoed, not even truncated: a terminal scrollback is a file.
         out.println("stored    " + name + " (" + (type == null ? "kind not stated" : type) + ", "
                 + value.length() + " characters)");
-        warnIfUnbrokerable(err);
+        warnIfNothingWillUseIt(err);
         final String suspicious = new org.fuin.sokar.vault.VaultEntry(value, type).suspicious();
         if (suspicious != null) {
             err.println("sokar: check what you stored - " + suspicious);

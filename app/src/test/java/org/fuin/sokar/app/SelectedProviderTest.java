@@ -39,6 +39,51 @@ class SelectedProviderTest {
     }
 
     @Test
+    void aCredentialIsKeyedByTheProviderThatIssuedIt() {
+
+        // The point of the change: two agents reaching one provider find one entry, rather than
+        // each storing its own copy of the same secret under its own name.
+        assertThat(SelectedProvider.credentialKey(java.util.Set.of("anthropic"), "one-agent",
+                "anthropic")).isEqualTo("anthropic");
+        assertThat(SelectedProvider.credentialKey(java.util.Set.of("anthropic"), "other-agent",
+                "anthropic")).isEqualTo("anthropic");
+    }
+
+    @Test
+    void aVaultWrittenBeforeTheChangeStillWorks() {
+
+        // An entry under the agent's own name is what every existing vault holds. Upgrading must
+        // not stop anyone authenticating.
+        assertThat(SelectedProvider.credentialKey(java.util.Set.of("one-agent"), "one-agent",
+                "anthropic")).isEqualTo("one-agent");
+    }
+
+    @Test
+    void theProvidersNameWinsOnceItIsStored() {
+
+        // Both present: the new key is the real one, so moving a credential takes effect without
+        // having to remove the old entry first.
+        assertThat(SelectedProvider.credentialKey(java.util.Set.of("one-agent", "anthropic"),
+                "one-agent", "anthropic")).isEqualTo("anthropic");
+    }
+
+    @Test
+    void anEmptyVaultIsToldWhereACredentialBelongs() {
+
+        // Not the agent's name: this is what the "no credential for X" message says, and it
+        // should name the place a new one goes.
+        assertThat(SelectedProvider.credentialKey(java.util.Set.of(), "one-agent", "anthropic"))
+                .isEqualTo("anthropic");
+    }
+
+    @Test
+    void anAgentWithNoProviderKeepsItsOwnName() {
+
+        assertThat(SelectedProvider.credentialKey(java.util.Set.of("direct"), "direct", null))
+                .isEqualTo("direct");
+    }
+
+    @Test
     void theShippedDeclarationsParse() {
 
         // They are data files installed to /usr/share, so nothing else would catch a typo in

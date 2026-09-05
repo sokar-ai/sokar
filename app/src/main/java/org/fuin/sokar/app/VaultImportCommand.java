@@ -115,24 +115,28 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
             }
 
             final Credential value = credential.get();
+            final var selection = SelectedProvider.choose(context.providers(),
+                    agent.definition(), null);
+            // Stored under the provider's name: the credential is the provider's, and a second
+            // agent reaching the same one must find it rather than store its own copy.
+            final String key = selection == null ? agent.name() : selection.name();
+
             final char[] passphrase = context.requirePassphrase();
             context.vault().update(passphrase, entries -> {
-                entries.put(agent.name(), new VaultEntry(value.secret(), value.type()));
+                entries.put(key, new VaultEntry(value.secret(), value.type()));
                 return entries;
             });
             cache(passphrase, out);
             // The value is never echoed: what is useful is that it arrived and which kind it is.
-            out.println("imported  " + agent.name() + " (" + value.type() + ", "
+            out.println("imported  " + key + " (" + value.type() + ", "
                     + value.secret().length() + " characters) from " + directory);
             out.flush();
 
-            final var selection = SelectedProvider.choose(context.providers(),
-                    agent.definition(), null);
             final String reason = selection == null ? null
                     : selection.route().unbrokerableReason(value.type());
             if (reason != null) {
                 err.println("sokar: stored, but a task will refuse it. " + reason + ".");
-                err.println("sokar: store a usable one with: sokar vault put " + agent.name()
+                err.println("sokar: store a usable one with: sokar vault put " + key
                         + " --type <kind>");
                 err.flush();
             }

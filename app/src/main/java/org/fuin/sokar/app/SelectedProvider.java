@@ -57,6 +57,34 @@ public record SelectedProvider(ProviderDefinition definition, ProviderRoute rout
         return new SelectedProvider(provider, ProviderRoute.of(provider, agent.provider()));
     }
 
+    /**
+     * Returns the vault key a task's credential is stored under.
+     * <p>
+     * The provider's name, because the credential is the provider's: two agents reaching the same
+     * provider must find one entry, not store two copies of the same secret under their own
+     * names.
+     * <p>
+     * <strong>An older vault still works.</strong> An entry under the agent's own name is used
+     * when there is none under the provider's, so upgrading does not stop anyone authenticating.
+     * When neither exists the provider's name is returned, because that is where a new one
+     * belongs and it is the name the "no credential" message should say.
+     *
+     * @param stored Names the vault currently holds.
+     * @param agentName The agent's own name.
+     * @param providerName The provider serving this task, or {@code null} when it is not brokered.
+     * @return Key to look the credential up by.
+     */
+    public static String credentialKey(java.util.Set<String> stored, String agentName,
+            @Nullable String providerName) {
+        if (providerName == null) {
+            return agentName;
+        }
+        if (!stored.contains(providerName) && stored.contains(agentName)) {
+            return agentName;
+        }
+        return providerName;
+    }
+
     private static String names(Map<String, ProviderDefinition> declared) {
         return declared.isEmpty() ? "none" : String.join(", ", declared.keySet());
     }

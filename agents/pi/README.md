@@ -26,19 +26,20 @@ package is built — against a lockfile pinning every dependency by integrity ha
 ## Storing the credential
 
 Pi has one credential kind here, an OpenRouter API key, so there is no `--type`
-to state:
+to state. It is stored under the provider's name, so `--provider anthropic` picks
+up an Anthropic key stored the same way without anything being restated:
 
 ```
 sokar vault unlock
-printf '%s' 'sk-or-…' | sokar vault put pi
+printf '%s' 'sk-or-…' | sokar vault put openrouter
 ```
 
 Unlock **first**: `vault put` reads the credential from standard input, so it has
 nothing left to read a passphrase from. The name must be `pi` — Sokar looks the
-credential up by the agent's own name — which is the wrong key for a credential
-that belongs to a provider rather than to an agent, and is why a second agent
-reaching OpenRouter would have to store the same key again under its own name.
-Use `printf`, not `echo`, or a newline becomes part of your key.
+credential up by the **provider's** name, not this agent's. That is what lets a
+second agent reaching OpenRouter use the same entry instead of storing another
+copy of the same secret. Use `printf`, not `echo`, or a newline becomes part of
+your key.
 
 ## What the container actually gets
 

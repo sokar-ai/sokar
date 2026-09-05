@@ -37,9 +37,9 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             description = "Unix socket to bind, created owner-only.")
     private Path socket;
 
-    @Option(names = "--agent", paramLabel = "<name>", required = true,
-            description = "Agent whose credential is brokered. Also the token's scope.")
-    private String agent;
+    @Option(names = "--credential", paramLabel = "<name>", required = true,
+            description = "Vault entry to swap in - the provider's name.")
+    private String credential;
 
     @Option(names = "--task", paramLabel = "<name>",
             description = "Task the token is for. Default: ${DEFAULT-VALUE}")
@@ -115,8 +115,8 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             // changed. Minting a new one would look to the agent exactly like a bad credential.
             final String existing = reuseToken ? readToken() : null;
             token = existing == null
-                    ? broker.mint(agent, task, Duration.ofHours(hours))
-                    : broker.adopt(existing, agent, task, Duration.ofHours(hours));
+                    ? broker.mint(credential, task, Duration.ofHours(hours))
+                    : broker.adopt(existing, credential, task, Duration.ofHours(hours));
         } catch (VaultException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();
@@ -135,7 +135,7 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
 
             out.println("socket    " + socket);
             out.println("upstream  " + upstream);
-            out.println("scope     " + agent + "/" + task);
+            out.println("scope     " + credential + "/" + task);
             out.println("header    " + authHeader);
             // The token itself is not printed. It goes in a 0600 file instead, because this
             // process's output is redirected to a log that outlives the task.

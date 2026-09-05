@@ -48,6 +48,46 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     private boolean providerResolved;
 
     /**
+     * Returns the name this task's credential is stored under.
+     * <p>
+     * <strong>The provider's name, not the agent's.</strong> A credential belongs to whoever
+     * issued it: pointing a second agent at a provider the first already uses meant storing the
+     * same key twice, under two agent names, with neither saying which provider it was for.
+     * <p>
+     * A vault written before that change is still read: an entry under the agent's own name is
+     * used when there is none under the provider's, so nobody's stored credential stops working
+     * on upgrade. {@link #reportLegacyCredential} is what tells them to move it.
+     *
+     * @param agent The agent.
+     * @return Vault key.
+     */
+    private String credentialName(org.fuin.sokar.agent.api.InstalledAgent agent) {
+        final SelectedProvider selection = provider(agent);
+        return SelectedProvider.credentialKey(context.credentials().keySet(), agent.name(),
+                selection == null ? null : selection.name());
+    }
+
+    /**
+     * Says once that a credential is stored under the old key.
+     *
+     * @param agent The agent.
+     * @param out Where to report.
+     */
+    private void reportLegacyCredential(org.fuin.sokar.agent.api.@org.jspecify.annotations.Nullable
+            InstalledAgent agent, PrintWriter out) {
+        if (agent == null) {
+            return;
+        }
+        final SelectedProvider selection = provider(agent);
+        if (selection != null && credentialName(agent).equals(agent.name())
+                && !agent.name().equals(selection.name())) {
+            out.println("credential stored under '" + agent.name() + "', which is this agent's"
+                    + " name; it belongs to '" + selection.name() + "'. Move it with:"
+                    + " sokar vault put " + selection.name());
+        }
+    }
+
+    /**
      * Returns the variable this task's credential belongs in.
      * <p>
      * The agent's own answer if it gives one, otherwise the provider's. Most agents no longer
@@ -59,7 +99,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      */
     @org.jspecify.annotations.Nullable
     private String tokenVariable(org.fuin.sokar.agent.api.InstalledAgent agent) {
-        final String type = credentialType(agent.name());
+        final String type = credentialType(credentialName(agent));
         final SelectedProvider selection = provider(agent);
         return selection == null ? agent.definition().tokenVariable(type)
                 : agent.definition().tokenVariable(type, selection.definition());
@@ -120,7 +160,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return;
         }
         try {
-            if (staleCredential(context.credentials().get(agent.name()),
+            if (staleCredential(context.credentials().get(credentialName(agent)),
                     agent.extractCredential(VaultImportCommand
                             .expand(agent.definition().configDirectory())).orElse(null))) {
                 out.println("credential the vault's copy is older than the one '" + agent.name()
@@ -145,7 +185,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         if (agent == null || selection == null) {
             return null;
         }
-        final String type = credentialType(agent.name());
+        final String type = credentialType(credentialName(agent));
         final String reason = selection.route().unbrokerableReason(type);
         return reason == null ? null
                 : "the '" + type + "' credential stored for '" + agent.name()
@@ -299,6 +339,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
 
             reportStaleCredential(select(agents), out);
+            reportLegacyCredential(select(agents), out);
 
             final String refusal = unbrokerable(select(agents));
             if (refusal != null) {
@@ -548,7 +589,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             final SelectedProvider selection = provider(agent);
             final var files = agent.containerSetup(
                     new org.fuin.sokar.agent.api.SetupContext(token,
-                            credentialType(agent.name()), TaskWorkspace.MOUNT,
+                            credentialType(credentialName(agent)), TaskWorkspace.MOUNT,
                             endpointFor(agent, environment),
                             selection == null ? "" : selection.name()));
             for (final var file : files) {
@@ -704,7 +745,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final SelectedProvider selection = provider(agent);
         final org.fuin.sokar.agent.api.ProviderRoute route =
                 selection == null ? null : selection.route();
-        final String type = credentialType(agent.name());
+        final String type = credentialType(credentialName(agent));
         final String variable = tokenVariable(agent);
         if (route == null || variable == null) {
             // Nothing to proxy through. Not an error - an agent may take no credential at all -
@@ -717,9 +758,9 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             }
             return null;
         }
-        if (!context.credentials().containsKey(agent.name())) {
+        if (!context.credentials().containsKey(credentialName(agent))) {
             out.println("token     none - the vault holds no credential for '"
-                    + agent.name() + "'");
+                    + credentialName(agent) + "'");
             return null;
         }
 
@@ -736,7 +777,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 "vault", "serve",
                 "--socket", socket.toString()));
         command.addAll(java.util.List.of(
-                "--agent", agent.name(),
+                "--credential", credentialName(agent),
                 "--task", task,
                 "--upstream", route.upstream(),
                 "--auth-header", route.authHeaderFor(type),
@@ -1174,7 +1215,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         }
 
         final var credentials = context.credentials();
-        if (!credentials.containsKey(agent.name())) {
+        if (!credentials.containsKey(credentialName(agent))) {
             // Reported once already, where the proxy would have been started.
             return java.util.Map.of();
         }
@@ -1184,7 +1225,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final org.fuin.sokar.vault.TokenBroker broker =
                 new org.fuin.sokar.vault.TokenBroker(() -> secrets);
         final org.fuin.sokar.vault.PhantomToken token =
-                broker.mint(agent.name(), task, java.time.Duration.ofHours(tokenHours));
+                broker.mint(credentialName(agent), task, java.time.Duration.ofHours(tokenHours));
 
         out.println("token     " + variable + "="
                 + org.fuin.sokar.vault.PhantomToken.abbreviate(token.value()));

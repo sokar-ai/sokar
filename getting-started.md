@@ -152,7 +152,7 @@ and the vault's copy is behind.
 
 ```
 sokar vault unlock
-printf '%s' 'sk-ant-...' | sokar vault put claude --type api-key   # your real key here
+printf '%s' 'sk-ant-...' | sokar vault put anthropic --type api-key   # your real key here
 ```
 
 The order is not a style preference. `vault put` reads the credential from
@@ -196,7 +196,7 @@ Start again:
 sokar vault unlock --forget
 mv ~/.local/share/sokar/vault.bin ~/.local/share/sokar/vault.bin.old
 sokar vault unlock
-printf '%s' 'sk-ant-your-real-key' | sokar vault put claude
+printf '%s' 'sk-ant-your-real-key' | sokar vault put anthropic
 ```
 
 `--forget` first, or a cached passphrase keeps being used ahead of anything you

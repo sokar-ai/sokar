@@ -22,8 +22,8 @@ that looks exactly like a wrong key.
 
 | You have                              | Store it as                    | Sokar sends               |
 |---------------------------------------|--------------------------------|---------------------------|
-| an API key from the Anthropic Console | `vault put claude --type api-key` | `x-api-key: sk-ant-…`  |
-| a Claude subscription                 | `vault put claude --type oauth`   | `Authorization: Bearer …` |
+| an API key from the Anthropic Console | `vault put anthropic --type api-key` | `x-api-key: sk-ant-…`  |
+| a Claude subscription                 | `vault put anthropic --type oauth`   | `Authorization: Bearer …` |
 
 The kind is stored with the credential, so no task has to repeat it.
 
@@ -39,13 +39,17 @@ rather than for API usage.
 
 ```
 sokar vault unlock
-printf '%s' 'sk-ant-…' | sokar vault put claude --type api-key
+printf '%s' 'sk-ant-…' | sokar vault put anthropic --type api-key
 ```
 
 Unlock **first**: `vault put` reads the credential from standard input, so it has
-nothing left to read a passphrase from. The name must be `claude` — Sokar looks
-the credential up by the agent's own name. Use `printf`, not `echo`, or a newline
-becomes part of your key.
+nothing left to read a passphrase from. The name is **`anthropic`, the provider** —
+not `claude`, the agent. A credential belongs to whoever issued it, so any agent
+pointed at Anthropic finds this one entry rather than storing its own copy. Use
+`printf`, not `echo`, or a newline becomes part of your key.
+
+A vault written before that change still works: an entry under `claude` is used
+when there is none under `anthropic`, and a task says where to move it.
 
 Then:
 
@@ -63,7 +67,7 @@ Not your credential. Three variables:
 ```
 ANTHROPIC_API_KEY=sokar_pt_…            a phantom token, this task only
 ANTHROPIC_UNIX_SOCKET=/run/sokar/vault.sock
-ANTHROPIC_BASE_URL=http://localhost:9419
+ANTHROPIC_BASE_URL=http://127.0.0.1:9419
 ```
 
 For a subscription the variable is `CLAUDE_CODE_OAUTH_TOKEN` instead; the kind
@@ -115,11 +119,20 @@ defends, and `buildtools/e2e-tier1.sh` checks it directly.
 $ sokar agents --verbose
 NAME         BINARY           LABEL                  FROM
 claude       claude           Claude Code            /usr/libexec/sokar/agents/sokar-agent-claude
-             domains: api.anthropic.com, platform.claude.com, claude.ai, statsig.anthropic.com
-             proxied: api.anthropic.com (the credential is swapped in on the way out)
+             domains: platform.claude.com, claude.ai, statsig.anthropic.com
+             speaks:  anthropic-messages
+             provider: anthropic (default) -> api.anthropic.com (the credential is swapped in on the way out)
+             provider: openrouter -> openrouter.ai (the credential is swapped in on the way out)
              refused: http-intake.logs.us5.datadoghq.com, raw.githubusercontent.com
              resume:  yes
 ```
+
+`api.anthropic.com` is **not** in `domains`: the provider declares its own host and
+Sokar adds it to the task, so this agent no longer restates it.
+
+**OpenRouter appears without anyone writing that.** This agent speaks
+`anthropic-messages`, OpenRouter serves that dialect under `/api`, and the two match -
+so `--provider openrouter` works with no change here.
 
 `platform.claude.com` is contacted before an interactive session starts, and the
 CLI quits if it cannot reach it - whatever the credential is.
