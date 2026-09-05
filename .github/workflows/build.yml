@@ -1,16 +1,31 @@
-# What a push proves.
+# What a change proves, and where.
 #
-# Two legs, because neither covers the other:
+#   every push and pull request   build and unit tests, on a GitHub-hosted runner. Free, no
+#                                 secrets, works for a fork - and the only thing a fork's
+#                                 changes get.
 #
-#   ubuntu    a GitHub-hosted runner. Free, and enough for the containment story - the image
-#             build, the hardening, the firewall, and that the credential never enters a task.
-#             It cannot run SELinux: hosted runners are Ubuntu with AppArmor, and SELinux cannot
-#             be turned on from inside a container.
+#   merged to main                the acceptance suite, on two rented machines in parallel.
 #
-#   fedora    a Hetzner server booted from a prepared snapshot, driven over SSH. This is the only
-#             place SELinux enforcing is tested, and four real defects have been found there that
-#             did not reproduce on Ubuntu. It costs about three cents a run and is destroyed
-#             afterwards - see requirements/0047 and 0048.
+# Release builds do not belong here at all: an artifact that gets published must come from a
+# machine that is not rented for ten minutes and destroyed. That job does not exist yet - see
+# requirements/0047, steps 3 and 4.
+#
+# Both acceptance legs run the same suite on a Hetzner server booted from a prepared snapshot, in parallel:
+#
+#   fedora    SELinux enforcing, with Sokar's own policy module loaded. The only place that is
+#             tested at all - a hosted runner is Ubuntu with AppArmor and cannot enable SELinux.
+#
+#   ubuntu    AppArmor, and podman 4 as 24.04 LTS ships it. Not redundant: the git gate was
+#             firewalled off for every user on podman 4, and neither development VM could see it
+#             because both run podman 5.
+#
+# Why not a hosted runner. Measured: 858s there against 320s on a cpx42, and the 320s includes
+# creating the machine and destroying it afterwards. Two cores is the whole difference - 634s of
+# that 858s was native-image. Running here also means full optimisation rather than -Ob, so a
+# pull request builds the same binary as main.
+#
+# About two cents a push for both servers, and each destroys itself. A run that is cancelled
+# cannot, which is what .github/workflows/sweep.yml is for.
 #
 # Tier 2 needs a real provider credential and spends money per run, so it is not here yet.
 name: Build
@@ -23,29 +38,22 @@ on:
   workflow_dispatch:
 
 # One run per branch. Without this every push leaves its predecessor running to completion on a
-# commit nobody cares about any more, and they contend for the same caches.
+# commit nobody cares about any more - and a cancelled run leaks its server, which is why the
+# scheduled sweep exists.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
 
-  ubuntu:
-    name: Ubuntu - build and tier 1
+  # Every push and every pull request, including from a fork. Free, needs no secrets, and it is
+  # the only thing a fork's changes get until someone merges them - so it has to be worth having
+  # on its own.
+  build:
+    name: Build and unit tests
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install what a task needs
-        run: |
-          sudo apt-get update -qq
-          # podman, nft and nsenter are already on the runner; dnsmasq is not, and its nftset
-          # support is what puts a resolved address into the allow set. Without it every declared
-          # domain is unreachable, silently.
-          sudo apt-get install -y -qq dnsmasq-base
-          dnsmasq --version | grep -q nftset || { echo "dnsmasq has no nftset"; exit 1; }
+      - uses: actions/checkout@v7
 
       - name: Set up GraalVM
         uses: graalvm/setup-graalvm@v1
@@ -54,107 +62,51 @@ jobs:
           distribution: 'graalvm-community'
           cache: 'maven'
 
-      # The three hooks are statically linked against musl, and native-image is handed an explicit
-      # compiler path, so the toolchain has to exist before the build. Cached because it is a
-      # large download plus a zlib build, and it only changes when the installer does.
-      - name: Cache the musl toolchain
-        id: musl-cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.local/opt/x86_64-linux-musl-native
-          key: musl-${{ hashFiles('buildtools/install-musl.sh') }}
+      - name: Build and unit tests
+        run: ./mvnw -B verify
 
-      # musl.cc is not reachable from a hosted runner at all - not slow, no connection - so the
-      # toolchain is mirrored as a release asset here. The digest in install-musl.sh is what is
-      # trusted; the mirror only has to be reachable.
-      - name: Fetch the musl toolchain from the release mirror
-        if: steps.musl-cache.outputs.cache-hit != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release download toolchain-musl-native \
-              --repo "$GITHUB_REPOSITORY" \
-              --pattern 'x86_64-linux-musl-native.tgz' \
-              --output "$RUNNER_TEMP/musl.tgz"
-          echo "MUSL_URL=file://$RUNNER_TEMP/musl.tgz" >> "$GITHUB_ENV"
-
-      - name: Install the musl toolchain
-        run: bash buildtools/install-musl.sh
-
-      - name: Unit tests
-        run: ./mvnw -B test
-
-      # -Ob everywhere except main: it roughly halves native-image on a two-core runner, at the
-      # cost of a less optimised binary. Fine for a suite that measures behaviour, not fine for
-      # anything that ships - so the release branch builds fully and a pull request does not.
-      # Passed explicitly either way, so the log says which produced the binary.
-      - name: Build the native binaries
-        env:
-          QUICK_BUILD: ${{ github.ref == 'refs/heads/main' && 'false' || 'true' }}
-        run: |
-          echo "quickBuild=$QUICK_BUILD  (full optimisation on main only)"
-          ./mvnw -B -Pnative -DskipTests package -pl app,hooks,agents/claude -am \
-              -DquickBuild="$QUICK_BUILD"
-
-      - name: Install as a package would
-        run: |
-          # No sudo: Sokar scans ~/.local/share/sokar/providers before /usr/share, and hooks
-          # resolve from ~/.local/bin before /usr/libexec. An unprivileged install is the shape
-          # a task actually runs in.
-          mkdir -p ~/.local/bin ~/.local/share/sokar/agents ~/.local/share/sokar/providers
-          cp hooks/target/sokar-hook-* app/target/sokar ~/.local/bin/
-          cp providers/*.yaml ~/.local/share/sokar/providers/
-          ~/.local/bin/sokar setup
-          echo "PATH=$HOME/.local/bin:$PATH" >> "$GITHUB_ENV"
-
-      - name: What sokar thinks of this machine
-        run: sokar doctor || true
-
-      - name: Tier 1
-        run: bash buildtools/e2e-tier1.sh
-
-      - name: What was left behind
-        if: always()
-        run: |
-          echo "== containers =="; podman ps -a || true
-          echo "== task state =="; ls -la "/run/user/$(id -u)/sokar" 2>&1 || echo "  none"
-          echo "== hook log =="; cat "/run/user/$(id -u)/sokar/hooks.log" 2>/dev/null || echo "  none"
-
-  fedora:
-    name: Fedora - tier 1 under SELinux enforcing
+  # Only what has landed on main, plus a manual run. Every leg here rents a machine, so a branch
+  # that is still being pushed to would spend money on each revision - and a pull request from a
+  # fork cannot see the secrets anyway. What guards a pull request is the job above.
+  tier1:
+    name: Tier 1 - ${{ matrix.os }}
     runs-on: ubuntu-latest
-    # Only where the secrets exist and the spend is deliberate. Never for a pull request from a
-    # fork, which cannot see the secrets anyway.
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    needs: build
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+
+    strategy:
+      # One leg failing must not cancel the other - which of them fails is usually the finding.
+      fail-fast: false
+      matrix:
+        os: [fedora, ubuntu]
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
 
       - name: Install the Hetzner client
         run: pip install --quiet hcloud
 
-      # The server is destroyed by the script itself, in a finally, so a failure here does not
-      # leave one billing. The sweep below is for the case the script cannot handle: this job
-      # being cancelled between two statements.
-      #
       # Two things come from the environment and neither is written down here: REMOTE_BUILD, the
-      # API token, and SSH, the private key that reaches the servers it creates. The script writes
-      # the key to a 0600 file in the runner's temporary directory and finds the matching key in
-      # the Hetzner project by fingerprint - so nothing has to keep a key name in step with the
-      # secret holding its private half.
-      - name: Tier 1 on Fedora
+      # API token, and SSH, the private key that reaches the servers it creates. The key goes into
+      # an ssh-agent rather than onto a filesystem, and the matching key in the Hetzner project is
+      # found by fingerprint - so nothing has to keep a key name in step with the secret.
+      #
+      # The server is destroyed by the script itself, in a finally.
+      - name: Tier 1 on ${{ matrix.os }}
         env:
           REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
           SSH: ${{ secrets.SSH }}
-        run: python3 buildtools/ci/remote-tier1.py
+          # Both matrix legs share GITHUB_RUN_ID, so the leg is what makes a server's label
+          # unique - and the cleanup below deletes by that label.
+          SOKAR_CI_LEG: ${{ matrix.os }}
+        run: python3 buildtools/ci/remote-tier1.py --os ${{ matrix.os }}
 
       # Only what this run made. Deleting by age would catch another run's server whenever that
       # run is slower than the window, and the symptom - ssh dying part way through a build - is
-      # close to undebuggable. A cancelled job is covered by the scheduled sweep instead, which
-      # is the one case a job genuinely cannot handle itself.
+      # close to undebuggable.
       - name: Delete what this run created
         if: always()
         env:
           REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
+          SOKAR_CI_LEG: ${{ matrix.os }}
         run: python3 buildtools/ci/sweep.py --mine

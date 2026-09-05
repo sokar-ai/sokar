@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Runs the acceptance suite on a Fedora server with SELinux enforcing.
+Runs the acceptance suite on a Hetzner server booted from a prepared snapshot.
 
 This is the leg a GitHub-hosted runner cannot cover: hosted runners are Ubuntu with AppArmor, and
 SELinux cannot be turned on from inside a container. Four real defects have been found under
@@ -52,8 +52,10 @@ def main() -> int:
     parser.add_argument("--ssh-private-key",
                         default=str(Path.home() / ".claude" / ".ssh" / "sokar-ci-hetzner"),
                         help="used when the SSH environment variable is not set")
+    parser.add_argument("--os", default="fedora", dest="operating_system",
+                        help="which snapshot to boot, by its os label (default: %(default)s)")
     parser.add_argument("--snapshot", type=int, default=None,
-                        help="image id; default is the newest snapshot labelled sokar=ci")
+                        help="image id; default is the newest snapshot for --os")
     parser.add_argument("--keep", action="store_true",
                         help="leave the server running afterwards, for debugging")
     args = parser.parse_args()
@@ -63,12 +65,12 @@ def main() -> int:
 
     client = hetzner.client()
     image = (client.images.get_by_id(args.snapshot) if args.snapshot
-             else hetzner.newest_snapshot(client))
+             else hetzner.newest_snapshot(client, args.operating_system))
 
     # The run id as well as the time: two runs starting in the same second would otherwise ask
     # for the same name, and Hetzner rejects the second.
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    with hetzner.provisioned(client, name=f"sokar-ci-tier1-{stamp}-{hetzner.run_id()[-8:]}",
+    with hetzner.provisioned(client, name=f"sokar-ci-{args.operating_system}-{stamp}-{hetzner.run_id()[-8:]}",
                              server_type=args.server_type, image_name=image.name or str(image.id),
                              location=args.location, ssh_key_name=args.ssh_key,
                              environment=environment,

@@ -39,10 +39,17 @@ RUN_LABEL = "run"
 
 
 def run_id() -> str:
-    """Returns a label value identifying this run."""
+    """
+    Returns a label value identifying this run, uniquely.
+
+    The leg matters as well as the run: a matrix gives every leg the same GITHUB_RUN_ID, so
+    without it one leg's cleanup deletes the other leg's server part way through - which shows up
+    as ssh dying mid-build and is close to undebuggable.
+    """
     from_ci = os.environ.get("GITHUB_RUN_ID", "").strip()
+    leg = os.environ.get("SOKAR_CI_LEG", "").strip()
     if from_ci:
-        return from_ci
+        return f"{from_ci}-{leg}" if leg else from_ci
     return "local-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
 
 # CI puts the token here; the library's own examples use HCLOUD_TOKEN, so that is the fallback and
@@ -202,20 +209,27 @@ def image(hcloud_client: Client, name: str) -> Image:
     return found
 
 
-def newest_snapshot(hcloud_client: Client) -> Image:
+def newest_snapshot(hcloud_client: Client, operating_system: str) -> Image:
     """
-    Returns the most recent snapshot this project built.
+    Returns the most recent snapshot for one operating system.
 
     By label rather than by id, so a workflow does not carry a number that goes stale the next
-    time the snapshot is rebuilt. Newest wins, because rebuilding is how the image is updated.
+    time a snapshot is rebuilt. Newest wins, because rebuilding is how an image is updated.
+
+    :param operating_system: The `os` label a snapshot was built with, such as `fedora`.
     """
+    selector = f"{LABEL_SELECTOR},os={operating_system}"
     snapshots = [
-        i for i in hcloud_client.images.get_all(type="snapshot", label_selector=LABEL_SELECTOR)
+        i for i in hcloud_client.images.get_all(type="snapshot", label_selector=selector)
         if i.status == "available"
     ]
     if not snapshots:
+        available = sorted(
+            i.labels.get("os", "?")
+            for i in hcloud_client.images.get_all(type="snapshot", label_selector=LABEL_SELECTOR)
+        )
         sys.exit(
-            f"No snapshot labelled {LABEL_SELECTOR}. Build one first - see "
+            f"No snapshot for '{operating_system}'. Built: {available or 'none'} - see "
             "requirements/0048-Fedora-Test-Server-Snapshot.md"
         )
     newest = max(snapshots, key=lambda i: i.created)

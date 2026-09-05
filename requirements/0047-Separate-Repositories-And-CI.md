@@ -47,17 +47,37 @@ real suite" or a different plan.
 
 ## 2. What CI covers, and what it does not
 
-| | where | when |
-|---|---|---|
-| build + unit tests | `ubuntu-latest` | every push and pull request |
-| tier 1 | `ubuntu-latest` | every push and pull request |
-| tier 2 | `ubuntu-latest`, credential from a repository secret | `main` and manual dispatch only |
-| **Fedora, SELinux enforcing** | **nowhere** | see below |
+| | where | when | why there |
+|---|---|---|---|
+| build + unit tests | GitHub-hosted | every push and pull request | free, no secrets, so a fork's pull request gets it |
+| **acceptance suite** | **two rented machines, in parallel** | merged to `main`, and manual dispatch | needs SELinux enforcing and podman 4, which no hosted runner has |
+| tier 2 | not wired up | | needs a provider credential and spends money per run |
+| **release build and publish** | GitHub-hosted | on a tag | an artifact that is published must not come from a machine rented for ten minutes |
+
+**The rented legs are gated to `main` on purpose.** Each one rents a machine, so running them on
+every push to a branch would spend money on every revision of work in progress - and a fork's
+pull request cannot see the secrets in any case. What guards a pull request is the build and unit
+tests, which is why that job has to be worth having on its own.
 
 Tier 2 is gated for two independent reasons: secrets do not reach pull requests from forks, so
 it could not work there; and every run spends real API credits.
 
-### Fedora and SELinux are not covered, and that is stated rather than hidden
+### Both acceptance legs are rented, and that was measured rather than assumed
+
+| | total | of which native-image |
+|---|---|---|
+| hosted runner, 2 cores | **858 s** | 634 s |
+| rented `cpx42`, 8 cores | **320 s** | - |
+
+The rented machine is 2.7 times faster *including* creating and destroying itself. Two cores is
+the whole difference. It also means the build runs at full optimisation rather than `-Ob`, so a
+pull request and `main` produce the same binary - closing a gap this document opened earlier.
+
+**Neither leg is redundant.** Fedora is the only place SELinux enforcing is tested at all. Ubuntu
+24.04 carries **podman 4**, and the git gate was firewalled off for every user on that release -
+a defect neither development VM could see, because both run podman 5.
+
+### Fedora and SELinux are not covered by a hosted runner, and that is stated rather than hidden
 
 **A hosted runner cannot run SELinux in enforcing mode.** The runners are Ubuntu with AppArmor,
 SELinux cannot be turned on from inside a container, and nested virtualisation is not
