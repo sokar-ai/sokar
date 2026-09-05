@@ -1,0 +1,127 @@
+# Spike: can a GitHub-hosted runner run what the two VMs run?
+#
+# This answers requirements/0047 section 1 and nothing else. It is deliberately one job with
+# the diagnostics FIRST and unconditional, so a single run reports every unknown even when a
+# later step fails - a spike that dies at the first hurdle and tells you nothing about the
+# other four has cost a round trip for no reason.
+#
+# Delete this file once 0047 has its answer; the real workflow will not look like this.
+name: Spike - tier 1 on a hosted runner
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'spike/**'
+
+jobs:
+  tier1:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------- the unknowns
+      #
+      # Every one of these is a question 0047 asks. Reported before anything is installed, so
+      # the answers describe the runner rather than what this workflow did to it.
+      - name: What the runner looks like before anything is installed
+        run: |
+          echo "== identity and session =="
+          id
+          echo "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-<unset>}"
+          # The prime suspect: Actions runs as a service account, not a login session, and
+          # /run/user/<uid> is session-scoped. Sokar keeps task state there.
+          ls -ld "/run/user/$(id -u)" 2>&1 || echo "  /run/user/$(id -u) DOES NOT EXIST"
+          loginctl show-user "$(id -un)" 2>&1 | head -3 || echo "  no logind user record"
+          echo
+          echo "== user namespaces =="
+          sysctl -n user.max_user_namespaces 2>&1 || true
+          cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo "  (no such knob)"
+          echo "subuid: $(grep "^$(id -un):" /etc/subuid 2>/dev/null || echo NONE)"
+          echo "subgid: $(grep "^$(id -un):" /etc/subgid 2>/dev/null || echo NONE)"
+          echo
+          echo "== what is already here =="
+          for t in podman nft dnsmasq nsenter git python3 slirp4netns pasta; do
+            printf '  %-12s %s\n' "$t" "$(command -v $t || echo MISSING)"
+          done
+          echo
+          echo "== security modules =="
+          echo "selinux: $(getenforce 2>/dev/null || echo 'not present')"
+          echo "apparmor: $(aa-status --enabled 2>/dev/null && echo enabled || echo 'not enabled/absent')"
+
+      - name: Install what a task needs
+        run: |
+          sudo apt-get update -qq
+          # slirp4netns/passt: rootless networking. uidmap: newuidmap for the userns mapping.
+          sudo apt-get install -y -qq podman nftables dnsmasq-base uidmap slirp4netns
+          echo "podman: $(podman --version)"
+          echo "nft:    $(nft --version)"
+
+      - name: Does dnsmasq have the nftset support the egress filter needs
+        run: |
+          # Not optional and its absence is silent: nftset is what puts a resolved address into
+          # the allow set, so without it every declared domain is unreachable.
+          dnsmasq --version | head -2
+          if dnsmasq --version | grep -qi 'nftset'; then
+            echo "RESULT: nftset compiled in"
+          else
+            echo "RESULT: nftset NOT in the compile-time options"
+            dnsmasq --version | sed -n '2,4p'
+          fi
+
+      - name: Make a runtime directory if the runner has none
+        run: |
+          # If /run/user/<uid> is missing this is the cheapest fix, and whether it was needed
+          # is itself the finding - a real workflow would have to do the same thing.
+          RUNTIME="/run/user/$(id -u)"
+          if [ -d "$RUNTIME" ]; then
+            echo "RESULT: the runner already has $RUNTIME"
+          else
+            echo "RESULT: $RUNTIME was missing and had to be created by hand"
+            sudo mkdir -p "$RUNTIME"
+            sudo chown "$(id -u):$(id -g)" "$RUNTIME"
+            sudo chmod 0700 "$RUNTIME"
+          fi
+          echo "XDG_RUNTIME_DIR=$RUNTIME" >> "$GITHUB_ENV"
+
+      - name: Can rootless podman start a container at all
+        run: |
+          podman info --format '{{.Host.Security.Rootless}} {{.Host.NetworkBackend}}' || true
+          podman run --rm docker.io/library/alpine:3.20 echo "RESULT: rootless podman works"
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          cache: 'maven'
+
+      - name: Build the native binaries
+        run: ./mvnw -B -Pnative -DskipTests package
+
+      - name: Install as a package would
+        run: |
+          # Hooks resolve from ~/.local/bin before the packaged location, so this needs no root.
+          mkdir -p ~/.local/bin ~/.local/share/sokar/agents
+          cp hooks/target/sokar-hook-* ~/.local/bin/
+          cp app/target/sokar ~/.local/bin/
+          sudo mkdir -p /usr/share/sokar/providers
+          sudo cp providers/*.yaml /usr/share/sokar/providers/
+          ~/.local/bin/sokar setup
+          echo "PATH=$HOME/.local/bin:$PATH" >> "$GITHUB_ENV"
+
+      - name: What sokar thinks of this machine
+        run: sokar doctor || true
+
+      - name: Tier 1
+        run: bash buildtools/e2e-tier1.sh
+
+      # Runs whatever happened above, because a failure is the interesting case.
+      - name: What was left behind
+        if: always()
+        run: |
+          echo "== containers =="; podman ps -a || true
+          echo "== task state =="; ls -la "/run/user/$(id -u)/sokar" 2>&1 || echo "  none"
+          echo "== hook log =="; cat "/run/user/$(id -u)/sokar/hooks.log" 2>/dev/null || echo "  none"
