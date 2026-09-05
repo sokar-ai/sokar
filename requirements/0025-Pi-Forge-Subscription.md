@@ -163,12 +163,31 @@ somewhere insecure, which is accurate: it is plaintext in a file.
 
 `telemetry.` is a refused-domain candidate, the same call as the first agent's Datadog intake.
 
-**Unverified, and it decides where the broker sits.** Four calls to `api.github.com` beside
-four to the model API is consistent with the usual two-stage shape - a long-lived `gho_` token
-exchanged for a short-lived one, which the client then uses directly. The logs do not record
-request paths, so this was not confirmed. If it holds, brokering only the model API is not
-enough: the exchange happens first, and whatever comes back is a real credential the agent then
-holds. Worth settling before any code is written.
+**The two-stage shape, now measured but still not proven.** A second run on a desktop VM, one
+real prompt through a CONNECT-logging proxy:
+
+| host | calls |
+|---|---|
+| `api.github.com` | 2 |
+| `api.individual.githubcopilot.com` | 2 |
+| `telemetry.individual.githubcopilot.com` | 2 |
+
+The model API is never reached without `api.github.com` being called the same number of times,
+and **nothing new is written to disk**: after the prompt, `config.json` still holds exactly one
+`gho_` token and no cache file contains anything token- or expiry-shaped. So whatever comes back
+from that exchange lives in memory for the length of a session.
+
+Request paths were not captured - that needs a TLS intercept, which was not worth doing to
+somebody's personal account - so this remains strong evidence rather than proof.
+
+**What it means for the broker, if it holds.** The credential Sokar swaps in is presented at
+`api.github.com`, not at the model API. The short-lived token that comes back is minted for the
+agent and held by it, so a task would hold a real credential - scoped to Copilot and short-lived,
+but real - for the requests that actually cost money. That is weaker than the property every
+other provider gives, where the container never holds anything but a phantom token, and it has
+to be stated plainly rather than discovered later.
+
+Settling it needs the request path at `api.github.com`, which a disposable account can supply.
 
 ## To be checked
 
@@ -183,7 +202,13 @@ holds. Worth settling before any code is written.
   `gho_` token in a file. Storable and portable.
 - ~~How long the token lasts.~~ **Answered:** nothing stored expires, so
   [0024](0024-Refreshable-Task-Tokens.md) is not a prerequisite.
-- **Where the broker sits**, given the probable two-stage token exchange. See above.
+- **Where the broker sits.** The exchange is at `api.github.com` and the model API takes what
+  it returns, so brokering the model API alone is not enough - and brokering the exchange leaves
+  a real short-lived token in the container. Needs the request path to confirm.
+- **Whether the sign-in can be driven at all where it must run.** Measured on a desktop VM: the
+  CLI cannot open a browser itself and does not say so - it just waits - and its callback
+  listener binds a fresh random port each attempt. A host-side import step has to hand the URL
+  out deliberately and let the listener be reached, which is two things, not one.
 
 ## Notes
 
