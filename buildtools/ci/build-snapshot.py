@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -64,6 +65,15 @@ def main() -> int:
 
         print("\n-- customising --")
         run(address, key_file, "customise-fedora.sh")
+
+        # The relabel runs in early boot, before sshd, and Fedora reboots a second time once it
+        # finishes - so this waits longer than a plain boot would need. Without it the machine
+        # comes back permissive and the verification below refuses, correctly but expensively.
+        print("\n-- rebooting, so the relabel runs and enforcing takes effect --")
+        hetzner.ssh(address, str(key_file), "systemctl reboot", check=False)
+        time.sleep(20)
+        hetzner.await_ssh(address, timeout=900)
+
         run(address, key_file, "verify-fedora.sh")
 
         if args.no_snapshot:

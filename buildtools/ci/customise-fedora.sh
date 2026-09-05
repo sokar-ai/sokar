@@ -19,7 +19,10 @@ set -euo pipefail
 
 BUILD_USER="${BUILD_USER:-build}"
 GRAALVM_VERSION="${GRAALVM_VERSION:-25.0.2}"
-GRAALVM_SHA256="${GRAALVM_SHA256:-}"
+# The GraalVM Community build, and the digest its own release publishes beside it as .sha256.
+# Verified rather than trusted, like every other download this project makes.
+GRAALVM_URL="${GRAALVM_URL:-https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-${GRAALVM_VERSION}/graalvm-community-jdk-${GRAALVM_VERSION}_linux-x64_bin.tar.gz}"
+GRAALVM_SHA256="${GRAALVM_SHA256:-e0be791c8fda4d03b6b0a0cb824fef3149736170057b3a515252b44419606af0}"
 
 echo "==> packages"
 dnf -q -y install \
@@ -48,14 +51,8 @@ install -m 0600 -o "$BUILD_USER" -g "$BUILD_USER" \
 echo "==> graalvm $GRAALVM_VERSION"
 GRAAL_DIR="/opt/graalvm"
 if [ ! -x "$GRAAL_DIR/bin/native-image" ]; then
-    URL="https://download.oracle.com/graalvm/25/archive/graalvm-jdk-${GRAALVM_VERSION}_linux-x64_bin.tar.gz"
-    URL="${GRAALVM_URL:-$URL}"
-    curl -fSL --retry 3 -o /tmp/graalvm.tgz "$URL"
-    if [ -n "$GRAALVM_SHA256" ]; then
-        echo "$GRAALVM_SHA256  /tmp/graalvm.tgz" | sha256sum -c -
-    else
-        echo "    WARNING: no GRAALVM_SHA256 given, so this download is not verified"
-    fi
+    curl -fSL --retry 3 -o /tmp/graalvm.tgz "$GRAALVM_URL"
+    echo "$GRAALVM_SHA256  /tmp/graalvm.tgz" | sha256sum -c -
     mkdir -p "$GRAAL_DIR"
     tar -xzf /tmp/graalvm.tgz -C "$GRAAL_DIR" --strip-components=1
     rm -f /tmp/graalvm.tgz
@@ -67,6 +64,19 @@ export JAVA_HOME=$GRAAL_DIR
 export GRAALVM_HOME=$GRAAL_DIR
 export PATH=\$JAVA_HOME/bin:\$PATH
 PROFILE
+
+echo "==> SELinux enforcing"
+# Hetzner's fedora-44 image ships SELINUX=permissive - measured, not assumed. The policy is
+# installed and /sys/fs/selinux is there, so only the mode is wrong. That matters more here than
+# anywhere else: enforcing is the single thing this machine covers that a hosted runner cannot,
+# and a permissive snapshot would pass every test while proving nothing.
+#
+# A relabel as well as a flag: everything installed above was written while permissive, so some
+# of it carries no label or the wrong one. The reboot that applies this is done by the caller.
+sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config
+grep -q '^SELINUX=enforcing' /etc/selinux/config
+touch /.autorelabel
+echo "    set to enforcing; a relabel and reboot are needed before it takes effect"
 
 echo "==> base images the suite pulls"
 sudo -u "$BUILD_USER" -i podman pull -q docker.io/library/ubuntu:24.04 >/dev/null

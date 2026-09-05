@@ -73,9 +73,31 @@ def image(hcloud_client: Client, name: str) -> Image:
     return found
 
 
+def newest_snapshot(hcloud_client: Client) -> Image:
+    """
+    Returns the most recent snapshot this project built.
+
+    By label rather than by id, so a workflow does not carry a number that goes stale the next
+    time the snapshot is rebuilt. Newest wins, because rebuilding is how the image is updated.
+    """
+    snapshots = [
+        i for i in hcloud_client.images.get_all(type="snapshot", label_selector=LABEL_SELECTOR)
+        if i.status == "available"
+    ]
+    if not snapshots:
+        sys.exit(
+            f"No snapshot labelled {LABEL_SELECTOR}. Build one first - see "
+            "requirements/0048-Fedora-Test-Server-Snapshot.md"
+        )
+    newest = max(snapshots, key=lambda i: i.created)
+    print(f"snapshot {newest.id}: {newest.description} ({newest.created.isoformat()})")
+    return newest
+
+
 @contextmanager
 def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_name: str,
-                location: str, ssh_key_name: str, keep: bool = False):
+                location: str, ssh_key_name: str, keep: bool = False,
+                image_override: Image | None = None):
     """
     Creates a server and destroys it again, whatever happens in between.
 
@@ -85,9 +107,12 @@ def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_nam
     :param keep: Leaves the server running, for debugging. Prints what it will cost per day and
         how to remove it, because the whole point of this module is that nothing is left running
         by accident.
+    :param image_override: An image already in hand, for a snapshot. Snapshots are found by
+        description and label rather than by name, so they cannot be looked up the way a system
+        image can.
     """
     key = ssh_key(hcloud_client, ssh_key_name)
-    found = image(hcloud_client, image_name)
+    found = image_override if image_override is not None else image(hcloud_client, image_name)
 
     print(f"creating {name}: {server_type}, {image_name}, {location}")
     response = hcloud_client.servers.create(
