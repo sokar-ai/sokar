@@ -205,6 +205,21 @@ See [build.md](build.md). Three things that will bite:
   also where Terok has *not* solved something: its Claude OAuth proxy is
   experimental and off by default, and its Copilot authentication is broken.
 
+- **A provider is data; an agent is code.** An agent needs a binary because it has behaviour
+  that cannot be expressed as data - a stream formatter, first-run setup, one CLI's quirks. A
+  provider is an upstream, a header, a prefix and a path, so it is a YAML file found by a
+  directory scan under `/usr/share/sokar/providers`. Do not give it a process.
+
+- **The dialect's path belongs on the endpoint, never in the agent.** One provider serves
+  different wire formats under different paths - OpenRouter answers the OpenAI dialect at
+  `/api/v1` and Anthropic's at `/api`. An agent that hardcodes one cannot be pointed at a second
+  provider without being rebuilt, which is exactly what it cost before.
+
+- **Adding a field to a record that crosses varlink is two edits, and the compiler checks
+  neither.** The server reads the new field, the client has to send it, and a missing one arrives
+  as an empty string. `SetupContext.parameters()` is compared against the record's own components
+  by a test for that reason.
+
 ## Security rules that are not negotiable
 
 - **Never put a secret in a command line.** A process list is world-readable.

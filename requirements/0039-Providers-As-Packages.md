@@ -1,6 +1,8 @@
 # 0039 — Providers As Packages
 
-**Status:** open, but no longer ahead of the evidence. The trigger this was waiting for -
+**Status:** **built and verified on both VMs**, except the vault re-keying, which is the
+remaining half. What follows is the design as built; the trigger and the measurements that
+justified it are further down. The trigger this was waiting for -
 a second agent reaching a provider the first does not - is [0025](0025-Pi-Forge-Subscription.md),
 now being built. The extraction should follow it rather than precede it, from two real
 implementations rather than one.
@@ -220,6 +222,52 @@ entries, one credential, and neither name says which provider it is for.
 migrated by name where the old agent had exactly one provider, which is true of every entry
 that can exist today.
 
+
+## Built, and measured on both VMs, 2026-09-05
+
+`sokar agents --verbose`, with two agents and two providers installed and neither agent naming
+a header, a prefix or a host:
+
+```
+claude   claude   Claude Code
+         speaks:  anthropic-messages
+         provider: anthropic (default) -> api.anthropic.com
+         provider: openrouter -> openrouter.ai
+pi       pi       Pi
+         speaks:  native
+         provider: anthropic -> api.anthropic.com
+         provider: openrouter (default) -> openrouter.ai
+```
+
+**Claude Code can now reach OpenRouter and nobody wrote that.** It falls out of the pair: the
+agent speaks `anthropic-messages`, OpenRouter serves that dialect under `/api`, so the two match.
+That is the acceptance criterion "an agent can drive a provider it has never heard of", and it
+arrived without being aimed at.
+
+The acceptance test is the probe that started this, repeated as a flag:
+
+```
+$ sokar task run --agent pi --provider anthropic
+vault     .../vault.sock -> https://api.anthropic.com
+    pi.registerProvider("anthropic", { baseUrl: "http://127.0.0.1:9419", apiKey: "sokar_pt_..." })
+request   POST /v1/messages?beta=true -> 200 from the provider
+```
+
+Seven changes in two languages and a 15 MB rebuild became one flag. Tier 1 and tier 2 pass on
+Fedora and Ubuntu.
+
+### Three things this got wrong first, all found by running it
+
+- **The agent stopped being given a token variable.** Removing `token_env` from the definitions
+  was right, but two of the three places that asked for it were not moved onto the provider's
+  answer, so the setup files were silently not placed. Unit tests passed throughout.
+- **The provider's host was no longer in the firewall's allow list.** The agent used to name it
+  and no longer does, and nothing added it back - which would have stopped Claude Code from
+  starting at all, since it contacts the provider before it runs.
+- **The client never sent the provider's name.** The record carried it, the agent read it, and
+  the varlink call did not include it, so a task got `registerProvider("")`. Both sides compiled
+  and every test passed. It is now a record method compared against the record's own components,
+  so the next field that is added breaks a test rather than a task.
 
 ## To be checked
 
