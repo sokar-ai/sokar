@@ -66,8 +66,8 @@ def private_key(path: str) -> str:
     :param path: Fallback path, for a developer running this on their own machine.
     :return: Path to a private key file.
     """
-    material = os.environ.get(SSH_KEY_VARIABLE, "").strip()
-    if not material:
+    material = os.environ.get(SSH_KEY_VARIABLE, "")
+    if not material.strip():
         if not os.path.isfile(path):
             sys.exit(
                 f"No private key. Set {SSH_KEY_VARIABLE} to the key itself, or pass "
@@ -75,10 +75,40 @@ def private_key(path: str) -> str:
             )
         return path
 
+    # Carriage returns make an otherwise valid key unreadable, and OpenSSH says so only as
+    # "error in libcrypto", which names neither the file nor the reason.
+    material = material.replace("\r\n", "\n").replace("\r", "\n").strip()
+    complain_if_malformed(material)
+
     target = Path(tempfile.mkdtemp(prefix="sokar-ci-")) / "id"
     target.touch(mode=0o600)
-    target.write_text(material if material.endswith("\n") else material + "\n")
+    target.write_text(material + "\n")
     return str(target)
+
+
+def complain_if_malformed(material: str) -> None:
+    """
+    Says what is wrong with the key before ssh does, in terms of the secret rather than of crypto.
+
+    Every check here is a way a secret gets damaged between a file and an environment variable,
+    and each one produces the same unhelpful "error in libcrypto" from OpenSSH.
+    """
+    lines = material.split("\n")
+    if not lines[0].startswith("-----BEGIN"):
+        sys.exit(
+            f"{SSH_KEY_VARIABLE} does not start with a PEM header. It begins "
+            f"{lines[0][:20]!r} - is it a public key, or a path rather than the key itself?"
+        )
+    # Checked before the footer: a key whose line breaks were lost fails the footer test too, and
+    # "no PEM footer" sends the reader looking for the wrong problem.
+    if len(lines) < 3:
+        sys.exit(
+            f"{SSH_KEY_VARIABLE} is {len(lines)} line(s) long. A private key is many lines, so "
+            "its line breaks were lost on the way into the secret - store the file's contents "
+            "verbatim, newlines and all."
+        )
+    if not lines[-1].startswith("-----END"):
+        sys.exit(f"{SSH_KEY_VARIABLE} does not end with a PEM footer; it ends {lines[-1][:20]!r}")
 
 
 def ssh_key(hcloud_client: Client, name: str | None, private_key_file: str):
