@@ -92,8 +92,14 @@ def main() -> int:
         upload(address, environment)
 
         print("\n-- building --")
-        remote(address, environment, f"cd {REPO} && ./mvnw -B -Pnative -DskipTests package "
-                                  "-pl app,hooks,agents/claude -am -DquickBuild=true")
+        # JAVA_HOME is stated rather than inherited: an ssh command is neither a login nor an
+        # interactive shell, so /etc/profile.d is sourced on Fedora and not on Ubuntu.
+        #
+        # No -DquickBuild here. Eight cores build at full optimisation in a few minutes, so the
+        # binary this suite exercises is the one that would ship.
+        remote(address, environment,
+               f"cd {REPO} && JAVA_HOME=/opt/graalvm GRAALVM_HOME=/opt/graalvm PATH=/opt/graalvm/bin:$PATH ./mvnw -B -Pnative -DskipTests package "
+               "-pl app,hooks,agents/claude -am")
 
         print("\n-- installing as a package would --")
         # Entirely in the user's own directories, with no sudo. Sokar scans
