@@ -1,8 +1,9 @@
 # 0047 — Separate Repositories And Continuous Integration
 
-**Status:** the measurement in section 1 is **done and positive** - tier 1 runs on a hosted
-runner, 22 of 24 checks passing. What CI covers and what it cannot is in *What CI proves*. The
-repository split has not started.
+**Status:** **both legs are green.** Tier 1 passes 26 of 26 on a hosted Ubuntu runner and 26 of
+26 on a Fedora server with SELinux enforcing, provisioned on demand and destroyed afterwards. The
+gap this document said could never be closed on a hosted runner is closed by
+[0048](0048-Fedora-Test-Server-Snapshot.md). The repository split has not started.
 
 Two changes that only make sense together: the agents move into repositories of their own,
 and a push starts building and testing what is today built and tested by hand on two VMs.
@@ -294,7 +295,7 @@ That is the containment story, and it is most of what matters.
 
 | gap | why | fixable in CI? |
 |---|---|---|
-| **SELinux enforcing** | hosted runners are Ubuntu/AppArmor; SELinux cannot be enabled from inside a container and nested virtualisation is not dependable | **no** - needs the AWS VM in section 2 |
+| ~~**SELinux enforcing**~~ | ~~hosted runners are Ubuntu/AppArmor~~ | **covered** by an on-demand Fedora server - [0048](0048-Fedora-Test-Server-Snapshot.md) |
 | **the git gate** | the push hung on the runner and the cause is not yet known | unknown |
 | **package installation** | CI copies binaries into `~/.local/bin`; no `.deb` or `.rpm` is built, and nothing runs `dpkg -i` or `rpm -i` against a `sokar` it was not built with | yes, not wired up |
 | **tier 2** | needs a real credential and spends provider credits per run | yes, with a secret, on `main` and dispatch only |
@@ -318,6 +319,29 @@ a green `main`, and that is worth knowing rather than discovering.
 CI answers *is the containment intact and does the plumbing work*, on every push. The VMs answer
 *does it hold under SELinux, does it install as a package, does the gate work* - and stay a
 pre-release gate rather than a formality. This reduces the manual work; it does not remove it.
+
+## What the two legs proved, 2026-09-05
+
+| | |
+|---|---|
+| hosted Ubuntu runner | **26 of 26** |
+| on-demand Fedora, SELinux enforcing | **26 of 26** |
+
+**And they were not redundant.** Bringing CI up found two defects that had nothing to do with CI:
+
+- **The git gate was firewalled off for every user on podman 4**, which is what Ubuntu 24.04 LTS
+  ships. Sokar assumed a container reaches its host at pasta's `169.254.1.2`; podman 4 answers
+  with the host's own LAN address, so the rule opened an address nothing dialled and every push
+  hung until it timed out. Found on a hosted runner and on neither development VM - both run
+  podman 5.
+- **The musl toolchain was an 89 MB unverified download** from a single small host, with no
+  checksum, and it links the binaries that enforce the firewall. Now pinned by digest, with the
+  mirror interchangeable because the digest is what is trusted.
+
+**The rule about the VMs needs rewriting.** "Always run the tests on both VMs before committing"
+was written when the VMs were the only option, and it cannot survive them being switched off - a
+push-triggered build does not protect a commit that has already been made. What replaces it is a
+question this document should answer rather than leave to habit.
 
 ## To be checked
 
