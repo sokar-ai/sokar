@@ -1,6 +1,8 @@
 # 0047 — Separate Repositories And Continuous Integration
 
-**Status:** open, and blocked on one measurement before any of it is worth starting.
+**Status:** the measurement in section 1 is **done and positive** - tier 1 runs on a hosted
+runner, 22 of 24 checks passing. What CI covers and what it cannot is in *What CI proves*. The
+repository split has not started.
 
 Two changes that only make sense together: the agents move into repositories of their own,
 and a push starts building and testing what is today built and tested by hand on two VMs.
@@ -186,6 +188,55 @@ version line, so depending on a released API is the shape the design already wan
    container, so its CI needs podman and a much longer build. One hard problem at a time.
 7. **Then [0044](0044-Automated-Agent-Updates.md)**, which gets easier: one repository per agent
    is a natural unit for an update workflow.
+
+## What CI proves, and what only a VM can
+
+Measured on a hosted runner, 2026-09-05, rather than predicted. **Every unknown in section 1
+came back positive** and tier 1 ran: 22 of its 24 checks passed on a machine that had never
+seen this project.
+
+### What a hosted runner covers
+
+- **The image is built correctly** - the agent contributes a layer, the CLI is installed, the
+  installed version *matches the pin*, and it runs as an unprivileged user.
+- **The container is hardened** - `NoNewPrivs` set, every capability dropped, the nft hook fires
+  at create time, and egress to an undeclared address is denied.
+- **The credential never enters the container** - a phantom token is injected, the proxy socket
+  is mounted, a request through it reaches the real provider and comes back rejected, and the
+  container holds no credential.
+- **Failures clean up** - a task that cannot build its image leaves no helper processes and no
+  pid files claiming live ones.
+
+That is the containment story, and it is most of what matters.
+
+### What it does not cover
+
+| gap | why | fixable in CI? |
+|---|---|---|
+| **SELinux enforcing** | hosted runners are Ubuntu/AppArmor; SELinux cannot be enabled from inside a container and nested virtualisation is not dependable | **no** - needs the AWS VM in section 2 |
+| **the git gate** | the push hung on the runner and the cause is not yet known | unknown |
+| **package installation** | CI copies binaries into `~/.local/bin`; no `.deb` or `.rpm` is built, and nothing runs `dpkg -i` or `rpm -i` against a `sokar` it was not built with | yes, not wired up |
+| **tier 2** | needs a real credential and spends provider credits per run | yes, with a secret, on `main` and dispatch only |
+| **glibc coupling** | `sokar` and `sokard` are dynamically linked, so building on Ubuntu 24.04 sets a floor nothing checks | yes, by testing an older base |
+
+**SELinux is the expensive one.** Four real defects were found there and **none reproduced on
+Ubuntu**: `nft` unable to read a file, a socket labelled after creation instead of before, a
+missing `connectto`, and `podman unshare` running as `container_runtime_t`. A green badge says
+nothing about that platform.
+
+### A gap introduced on purpose
+
+Native-image is built with `-Ob` on every branch except `main`, because it roughly halves a
+build that otherwise takes seventeen of a twenty-two minute run on two cores. So **a pull
+request tests a less optimised binary than the one that ships**, and only `main` builds fully.
+For behaviour that is a sound trade; it does mean a green PR is a slightly weaker statement than
+a green `main`, and that is worth knowing rather than discovering.
+
+### The division, stated plainly
+
+CI answers *is the containment intact and does the plumbing work*, on every push. The VMs answer
+*does it hold under SELinux, does it install as a package, does the gate work* - and stay a
+pre-release gate rather than a formality. This reduces the manual work; it does not remove it.
 
 ## To be checked
 
