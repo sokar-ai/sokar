@@ -98,6 +98,20 @@ jobs:
           distribution: 'graalvm-community'
           cache: 'maven'
 
+      # The hooks are statically linked against musl and native-image is handed an explicit
+      # compiler path under ~/.local/opt, so the toolchain has to exist before the build or it
+      # fails with "does not specify a path to an executable". Cached because it is a large
+      # download plus a zlib build, and it only changes when the installer does. The script is
+      # idempotent, so it still runs on a cache hit and verifies what was restored.
+      - name: Cache the musl toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/opt/x86_64-linux-musl-native
+          key: musl-${{ hashFiles('buildtools/install-musl.sh') }}
+
+      - name: Install the musl toolchain
+        run: bash buildtools/install-musl.sh
+
       - name: Build the native binaries
         run: ./mvnw -B -Pnative -DskipTests package
 
