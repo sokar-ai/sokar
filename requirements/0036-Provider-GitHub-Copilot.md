@@ -24,6 +24,26 @@ times per session, which looks like the long-lived token being exchanged for a s
 the client then uses directly. If so, brokering the model API alone leaves a real credential
 inside the container.
 
+## The stored credential cannot be reached by either extractor
+
+`sokar vault import` lifts what a vendor's own sign-in already wrote, using one of the two shapes
+in the SPI: a dotted path into a JSON file, or a variable in an env file. Neither reaches this
+one.
+
+```
+~/.copilot/config.json
+  authTokens."https://github.com:michael-schnell".token
+```
+
+The account name is **inside the key**, and the key contains both dots and colons, so
+`JsonFieldExtractor` splits it into pieces that do not exist. Supporting this provider needs
+either a wildcard segment or a "the only key under this object" rule - the first case where the
+two shipped shapes are not enough.
+
+It is also the first credential whose location is clearly the **provider's** business rather than
+the agent's, which is the split [0039](0039-Providers-As-Packages.md) makes: any agent signing in
+to GitHub Copilot finds it in the same place, in the same shape.
+
 ## Acceptance
 
 - A task reaches this provider through the broker, and the request arrives.
