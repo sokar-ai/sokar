@@ -104,10 +104,27 @@ jobs:
       # download plus a zlib build, and it only changes when the installer does. The script is
       # idempotent, so it still runs on a cache hit and verifies what was restored.
       - name: Cache the musl toolchain
+        id: musl-cache
         uses: actions/cache@v4
         with:
           path: ~/.local/opt/x86_64-linux-musl-native
           key: musl-${{ hashFiles('buildtools/install-musl.sh') }}
+
+      # musl.cc is not reachable from a hosted runner at all - not slow, no connection - so the
+      # toolchain is mirrored as a release asset on this repository. The digest in
+      # install-musl.sh is what is trusted; the mirror only has to be reachable. Skipped on a
+      # cache hit, which is the same condition under which the installer would not download.
+      - name: Fetch the musl toolchain from the release mirror
+        if: steps.musl-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download toolchain-musl-native \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern 'x86_64-linux-musl-native.tgz' \
+              --output "$RUNNER_TEMP/musl.tgz"
+          ls -la "$RUNNER_TEMP/musl.tgz"
+          echo "MUSL_URL=file://$RUNNER_TEMP/musl.tgz" >> "$GITHUB_ENV"
 
       - name: Install the musl toolchain
         run: bash buildtools/install-musl.sh
