@@ -4,6 +4,8 @@
 
 Support Codex CLI as a packaged agent.
 
+**Upstream.** https://github.com/openai/codex, npm `@openai/codex`.
+
 **Providers.** One vendor.
 
 **Authentication.** An account sign-in or an API key.

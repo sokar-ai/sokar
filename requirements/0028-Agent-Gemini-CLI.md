@@ -4,6 +4,8 @@
 
 Support Gemini CLI as a packaged agent.
 
+**Upstream.** https://github.com/google-gemini/gemini-cli, npm `@google/gemini-cli`.
+
 **Providers.** One vendor.
 
 **Authentication.** An account sign-in or an API key.

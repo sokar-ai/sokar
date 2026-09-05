@@ -1,8 +1,10 @@
 # 0036 — Provider GitHub Copilot
 
-**Status:** chosen, see [0025](0025-Oh-My-Pi-Forge-Subscription.md)
+**Status:** chosen, see [0025](0025-Pi-Forge-Subscription.md)
 
 Serve models from GitHub Copilot to a task, without the credential entering the container.
+
+**Upstream.** https://github.com/features/copilot.
 
 **Reached how.** Its own agent, and as a provider inside provider-agnostic agents.
 

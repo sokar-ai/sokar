@@ -1,8 +1,13 @@
-# 0025 — Oh My Pi Forge Subscription
+# 0025 — Pi Forge Subscription
 
 **Status:** the first half is **built and verified**. Pi runs as a packaged agent against
 OpenRouter, answers a real prompt, and the credential never enters the container. The forge
 subscription with its browser sign-in is the remaining half.
+
+The agent is [Pi](0032-Agent-Pi.md) - `earendil-works/pi`, not the separate project called
+Oh My Pi ([0046](0046-Agent-Oh-My-Pi.md)), which these files named by mistake until
+2026-09-05. Nothing built was affected: the module, the package and the definition always
+said `pi` and always installed `@earendil-works/pi-coding-agent`.
 
 The second agent to build, chosen deliberately rather than by convenience. It is a
 provider-agnostic agent authenticating against a forge's own subscription over a
@@ -112,6 +117,10 @@ binding, false of connecting.
 - ~~Whether this agent's endpoint can be redirected for this provider.~~ **Answered for
   OpenRouter:** yes, by an extension rather than a variable. Still open for a forge
   subscription, which may not use the same dialect.
+- **Whether this agent reaches a forge subscription at all.** The requirement assumed it
+  does and never checked. Oh My Pi advertises GitHub Copilot among its providers; Pi's own
+  list does not say so. If it does not, [0046](0046-Agent-Oh-My-Pi.md) is the cheaper
+  vehicle for this question than a new agent.
 - Whether the sign-in yields something storable at all, or only a session belonging
   to a browser profile.
 - How long the token lasts. If it is shorter than a task, [0024](0024-Refreshable-Task-Tokens.md)

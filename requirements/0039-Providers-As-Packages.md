@@ -1,7 +1,7 @@
 # 0039 — Providers As Packages
 
 **Status:** open, but no longer ahead of the evidence. The trigger this was waiting for -
-a second agent reaching a provider the first does not - is [0025](0025-Oh-My-Pi-Forge-Subscription.md),
+a second agent reaching a provider the first does not - is [0025](0025-Pi-Forge-Subscription.md),
 now being built. The extraction should follow it rather than precede it, from two real
 implementations rather than one.
 
@@ -48,7 +48,7 @@ Evidence this is real rather than tidy-minded: a provider serving a compatible
 dialect ([0038](0038-Provider-Zhipu.md)) is already reachable only by making the
 broker's upstream a variable, and two of the candidate agents authenticate per
 provider rather than per agent ([0031](0031-Agent-OpenCode.md),
-[0032](0032-Agent-Oh-My-Pi.md)).
+[0032](0032-Agent-Pi.md)).
 
 There is already one place where the two are mixed: what the first agent writes into
 a fresh container is partly its own first-run state and partly the shape its
@@ -88,7 +88,7 @@ exists, because it makes the eventual boundary obvious rather than arbitrary.
 
 ## The endpoint belongs to the pair, and now there is proof
 
-The table above says redirection is a property of both sides. [0025](0025-Oh-My-Pi-Forge-Subscription.md)
+The table above says redirection is a property of both sides. [0025](0025-Pi-Forge-Subscription.md)
 shows what that costs in practice: one agent takes a socket path in a variable, the other can
 only address a URL and needs a listener bound inside its container's namespace. The provider
 is the same in both cases. So a provider declaration cannot carry "how to reach it" alone -
@@ -97,7 +97,7 @@ the agent has to declare what shape of endpoint it can use, and Sokar satisfies 
 ## To be checked
 
 - **Whether the duplication is real yet.** With one agent it is not. The first case
-  where two agents reach the same provider is [0025](0025-Oh-My-Pi-Forge-Subscription.md);
+  where two agents reach the same provider is [0025](0025-Pi-Forge-Subscription.md);
   until it exists, this is abstraction ahead of evidence, and doing it early would
   be guessing at a boundary rather than observing one.
 - Whether a provider needs to be a separate *package* or only a separate

@@ -4,6 +4,9 @@
 
 Support Grok Build as a packaged agent.
 
+**Upstream.** https://github.com/xai-org/grok-build - Rust rather than npm, installed from
+`x.ai/cli`, so it pins differently from every agent listed here so far.
+
 **Providers.** One vendor, whose model is also on its public API.
 
 **Authentication.** A subscription account.

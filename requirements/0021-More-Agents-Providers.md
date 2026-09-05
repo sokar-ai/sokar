@@ -38,11 +38,14 @@ real credential or go unsupported.
 | [GitHub Copilot CLI](0029-Agent-Copilot-CLI.md) | GitHub Copilot | yes | forge account, device flow | unlikely, unverified |
 | [Grok Build](0030-Agent-Grok-Build.md) | xAI | yes | subscription account | unverified |
 | [OpenCode](0031-Agent-OpenCode.md) | many, per session | **no** | key, sign-in, or variable | **documented** |
-| [Oh My Pi](0032-Agent-Oh-My-Pi.md) | many, 40+ | **no** | key, variable, or sign-in with refresh | **yes**, verified - by an extension, not a variable |
+| [Pi](0032-Agent-Pi.md) | several, count unverified | **no** | key, variable, or sign-in with refresh | **yes**, verified - by an extension, not a variable |
+| [Oh My Pi](0046-Agent-Oh-My-Pi.md) | 60+, claimed | **no** | key, variable, or OAuth sign-in | unverified |
 
-Ordered by reported usage among professional developers, except the last two: Grok
-Build is too recent for usage to mean anything, and Oh My Pi is here because it is
-provider-agnostic and small enough to be a fair test of the onboarding path.
+Ordered by reported usage among professional developers, except the last three: Grok
+Build is too recent for usage to mean anything, Pi is here because it is
+provider-agnostic and small enough to be a fair test of the onboarding path, and Oh My Pi
+is a fork of a different project of the same shape, listed so the two are not confused
+again.
 
 ## Providers
 
@@ -56,7 +59,7 @@ provider-agnostic and small enough to be a fair test of the onboarding path.
 | [xAI](0037-Provider-xAI.md) | its own agent, or its public API | subscription or API key | one agent each |
 | [Zhipu](0038-Provider-Zhipu.md) | an endpoint compatible with another vendor's dialect | API key, in a variable of its own | **the broker's upstream cannot be a constant** |
 
-The one chosen to be built next is [0025](0025-Oh-My-Pi-Forge-Subscription.md).
+The one chosen to be built next is [0025](0025-Pi-Forge-Subscription.md).
 
 ## What a provider-agnostic agent already models
 

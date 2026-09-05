@@ -4,6 +4,8 @@
 
 Serve models from OpenAI to a task, without the credential entering the container.
 
+**Upstream.** https://platform.openai.com.
+
 **Reached how.** Its own agent, and any agent speaking its dialect - which is the most widely imitated one.
 
 **Authentication.** An account sign-in or an API key.

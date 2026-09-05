@@ -240,6 +240,12 @@ test may cite a requirement number. Requirements move, merge and are dropped; co
 that names one goes stale silently and starts to look like a contract. A comment
 should name the constraint itself, which is what makes it worth reading anyway.
 
+**Every agent and provider names its upstream project by link, and an implemented one
+carries a `README.md` in its own directory that opens with that link.** Two projects can
+share a name - Pi and Oh My Pi are different codebases from different authors - and a
+requirement that says only "Pi" cannot be checked by anyone. The link is the identity;
+the npm package or download URL beside it is what the build actually installs.
+
 `README.md` is an index; the substance lives in `getting-started.md`, `why.md`,
 `your-tooling.md`, `build.md` and `agents/README.md`. `.sokar.md` is the planning
 document — gitignored, and the place where phase status, decisions and findings

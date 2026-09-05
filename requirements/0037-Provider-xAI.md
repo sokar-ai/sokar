@@ -4,6 +4,8 @@
 
 Serve models from xAI to a task, without the credential entering the container.
 
+**Upstream.** https://docs.x.ai.
+
 **Reached how.** Its own agent, and its public API from any agent.
 
 **Authentication.** A subscription account, or an API key for the public API.

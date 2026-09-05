@@ -4,6 +4,8 @@
 
 Serve models from Google to a task, without the credential entering the container.
 
+**Upstream.** https://ai.google.dev.
+
 **Reached how.** Its own agent, and provider-agnostic agents.
 
 **Authentication.** An account sign-in or an API key.

@@ -4,6 +4,8 @@
 
 Support OpenCode as a packaged agent.
 
+**Upstream.** https://github.com/sst/opencode.
+
 **Providers.** Many, chosen per session.
 
 **Authentication.** Per provider: a pasted key in one store, a browser sign-in, or an environment variable. A stored value may be a reference to a variable rather than a literal.

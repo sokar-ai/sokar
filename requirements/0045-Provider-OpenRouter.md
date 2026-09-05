@@ -4,6 +4,8 @@
 
 Serve models from OpenRouter to a task, without the credential entering the container.
 
+**Upstream.** https://openrouter.ai - the broker's upstream in `pi.yaml`.
+
 **Reached how.** Any agent speaking the OpenAI dialect, which OpenRouter serves under
 `/api/v1`. Its Anthropic-shaped skin sits under `/api`, so the path an agent needs
 depends on which dialect it speaks - a base URL ending in `/v1` answers "model not
@@ -22,7 +24,7 @@ provider proved with an agent that is not its own.
 
 ## Notes
 
-Verified on 2026-09-04 with [Pi](0032-Agent-Oh-My-Pi.md): a real prompt answered, the
+Verified on 2026-09-04 with [Pi](0032-Agent-Pi.md): a real prompt answered, the
 broker logging `POST /api/v1/chat/completions -> 200 from the provider`, and no trace of
 the key in the container's environment or files.
 

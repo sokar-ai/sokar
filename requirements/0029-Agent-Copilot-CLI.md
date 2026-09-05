@@ -4,6 +4,8 @@
 
 Support GitHub Copilot CLI as a packaged agent.
 
+**Upstream.** https://github.com/github/copilot-cli, npm `@github/copilot`.
+
 **Providers.** One subscription, which itself fronts several models from different vendors.
 
 **Authentication.** A forge account over a device flow.

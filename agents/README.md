@@ -9,6 +9,7 @@ binary that is already there.
 agents/
 ├── api/          sokar-agent-api       the SPI and the protocol; both sides link it
 ├── claude/       sokar-agent-claude    → its own binary
+├── pi/           sokar-agent-pi        → its own binary, and it ships its own CLI
 └── <yours>/
 ```
 
@@ -33,6 +34,11 @@ published `sokar-agent-api`.
 ## Onboarding a new agent
 
 Six files, none of them outside this directory except two lines of `pom.xml`.
+
+Start with a `README.md` in the new directory whose first line links the upstream
+project — the exact repository, and the npm package or download URL the build
+installs. Names are not unique in this field, and an agent that only says "Pi" or
+"Codex" cannot be told apart from the fork next to it.
 
 ### 1. `agents/<name>/pom.xml`
 

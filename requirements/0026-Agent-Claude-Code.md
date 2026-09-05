@@ -4,6 +4,10 @@
 
 Support Claude Code as a packaged agent.
 
+**Upstream.** https://github.com/anthropics/claude-code - installed here as a pinned release
+binary from `downloads.claude.ai` rather than from npm; the artefact and its digest are in
+`claude.yaml`.
+
 **Providers.** Anthropic, and the same models through three cloud vendors.
 
 **Authentication.** A subscription token or an API key. The kind decides which variable carries it.

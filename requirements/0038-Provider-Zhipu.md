@@ -4,6 +4,9 @@
 
 Serve models from Zhipu to a task, without the credential entering the container.
 
+**Upstream.** https://open.bigmodel.cn in China, https://z.ai internationally - one vendor
+behind two hosts, which is part of why the broker's upstream cannot be a constant.
+
 **Reached how.** **An endpoint compatible with another vendor's dialect**, so an agent built for that vendor drives it.
 
 **Authentication.** An API key, carried in a variable of its own that no agent definition names today.

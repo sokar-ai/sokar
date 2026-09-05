@@ -4,6 +4,8 @@
 
 Serve models from Anthropic to a task, without the credential entering the container.
 
+**Upstream.** https://docs.anthropic.com.
+
 **Reached how.** Its own agent natively, and any agent speaking its dialect.
 
 **Authentication.** A subscription token or an API key.

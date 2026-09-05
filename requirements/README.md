@@ -15,7 +15,7 @@ survives at all.
 | 9 | [Task Lifecycle Control](0009-Task-Lifecycle-Control.md) | Tasks can be listed, stopped and resumed as first-class operations rather than by reaching for the container runtime. |  |
 | 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Removing a task must not silently destroy work the agent never pushed. | yes |
 | 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
-| 25 | [Oh My Pi Forge Subscription](0025-Oh-My-Pi-Forge-Subscription.md) | The second agent to build: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
+| 25 | [Pi Forge Subscription](0025-Pi-Forge-Subscription.md) | The second agent's remaining half: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
 | 44 | [Automated Agent Updates](0044-Automated-Agent-Updates.md) | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
 | 20 | [Narrow The Git Endpoint](0020-Narrow-The-Git-Endpoint.md) | The host endpoint a task clones from should not be reachable from the local network. | yes |
 | 1 | [Local Daemon API](0001-Local-Daemon-API.md) | Everything the interface can do is exposed by a local daemon over a private socket, so no feature depends on shelling out to the CLI. | yes |
@@ -46,7 +46,7 @@ survives at all.
 Reference rather than work: what exists, how each authenticates, and whether it can
 be brokered. Compared side by side in
 [0021](0021-More-Agents-Providers.md); the one chosen to be built next is
-[0025](0025-Oh-My-Pi-Forge-Subscription.md).
+[0025](0025-Pi-Forge-Subscription.md).
 
 | # | Entry | What it covers | Open question |
 |---|---|---|---|
@@ -56,7 +56,8 @@ be brokered. Compared side by side in
 | 29 | [Agent Copilot CLI](0029-Agent-Copilot-CLI.md) | One agent: how it authenticates and whether it can be brokered. | yes |
 | 30 | [Agent Grok Build](0030-Agent-Grok-Build.md) | One agent: how it authenticates and whether it can be brokered. | yes |
 | 31 | [Agent OpenCode](0031-Agent-OpenCode.md) | One agent: how it authenticates and whether it can be brokered. | yes |
-| 32 | [Agent Oh My Pi](0032-Agent-Oh-My-Pi.md) | One agent: how it authenticates and whether it can be brokered. | yes |
+| 32 | [Agent Pi](0032-Agent-Pi.md) | One agent: how it authenticates and whether it can be brokered. | yes |
+| 46 | [Agent Oh My Pi](0046-Agent-Oh-My-Pi.md) | One agent: a fork of a different Pi, listed so the two are not confused. | yes |
 | 33 | [Provider Anthropic](0033-Provider-Anthropic.md) | One provider: how it authenticates and whether it can be brokered. | yes |
 | 34 | [Provider OpenAI](0034-Provider-OpenAI.md) | One provider: how it authenticates and whether it can be brokered. | yes |
 | 35 | [Provider Google](0035-Provider-Google.md) | One provider: how it authenticates and whether it can be brokered. | yes |
