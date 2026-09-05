@@ -36,6 +36,9 @@ class AgentIsolationTest {
     /** Everything under here is agent-shaped and exempt from both rules. */
     private static final String AGENTS_DIRECTORY = "agents";
 
+    /** Where provider declarations live; they are allowed to name themselves. */
+    private static final String PROVIDERS_DIRECTORY = "providers";
+
     @Test
     void noCodeOutsideTheAgentModulesDependsOnAnAgent() {
 
@@ -96,6 +99,65 @@ class AgentIsolationTest {
         assertThat(offences)
                 .as("agent names used as string literals outside %s/", AGENTS_DIRECTORY)
                 .isEmpty();
+    }
+
+    @Test
+    void noProviderNameAppearsAsAStringLiteralInJava() throws IOException {
+
+        // The same rule as for agents, for the same reason: a provider is selected by name at run
+        // time, so `if (provider.equals("..."))` in Sokar would make adding the next one a change
+        // to this codebase.
+        //
+        // Narrower than the agent rule in one way, and deliberately. That rule scans tests too,
+        // because an agent has a module of its own to be exempt. A provider has no module - it is
+        // a YAML file and nothing else - so a test that checks the shipped declarations has
+        // nowhere to live that is exempt, and would have to describe them without naming them.
+        // That would test less. Product code is where the rule has teeth, so that is what is
+        // scanned.
+        //
+        // Declarations themselves may name providers: an agent says which it uses by default,
+        // which is data, and moving that into data is the whole point.
+        final Path root = repositoryRoot();
+        final List<String> providerNames = providerNames(root);
+
+        if (providerNames.isEmpty()) {
+            assertThat(root.resolve(PROVIDERS_DIRECTORY)).exists();
+            return;
+        }
+
+        final List<String> offences = new ArrayList<>();
+        try (Stream<Path> sources = Files.walk(root)) {
+            sources.filter(AgentIsolationTest::isProductSource)
+                    .filter(path -> path.toString().contains("/src/main/java/"))
+                    .forEach(path -> scan(root, path, providerNames, offences));
+        }
+
+        assertThat(offences)
+                .as("provider names used as string literals in Java")
+                .isEmpty();
+    }
+
+    /**
+     * Returns the providers this repository declares, taken from the files themselves so the rule
+     * needs no maintaining when one is added.
+     *
+     * @param root Repository root.
+     * @return Names, sorted.
+     * @throws IOException If the directory cannot be read.
+     */
+    private static List<String> providerNames(Path root) throws IOException {
+        final Path providers = root.resolve(PROVIDERS_DIRECTORY);
+        if (!Files.isDirectory(providers)) {
+            return List.of();
+        }
+        try (Stream<Path> declarations = Files.list(providers)) {
+            return declarations
+                    .filter(path -> path.getFileName().toString().endsWith(".yaml"))
+                    .map(path -> path.getFileName().toString().replace(".yaml", ""))
+                    .distinct()
+                    .sorted()
+                    .toList();
+        }
     }
 
     /**

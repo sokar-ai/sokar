@@ -1,7 +1,7 @@
 # 0039 — Providers As Packages
 
-**Status:** **built and verified on both VMs**, except the vault re-keying, which is the
-remaining half. What follows is the design as built; the trigger and the measurements that
+**Status:** **built and verified on both VMs**, vault re-keying included. Every acceptance
+criterion is met. What follows is the design as built; the trigger and the measurements that
 justified it are further down. The trigger this was waiting for -
 a second agent reaching a provider the first does not - is [0025](0025-Pi-Forge-Subscription.md),
 now being built. The extraction should follow it rather than precede it, from two real
@@ -218,9 +218,27 @@ Forced by the probe rather than argued: pointing Pi at Anthropic meant storing t
 Anthropic key a second time, under the name `pi`, beside the copy under `claude`. Two
 entries, one credential, and neither name says which provider it is for.
 
-`sokar vault put anthropic` replaces `sokar vault put claude`. Existing entries are
-migrated by name where the old agent had exactly one provider, which is true of every entry
-that can exist today.
+`sokar vault put anthropic` replaces `sokar vault put claude`. **Measured on Fedora:** one
+entry under `anthropic`, and both agents authenticated against it in turn - each with its own
+phantom token, each reaching `POST /v1/messages?beta=true -> 200`.
+
+**An older vault is not broken.** An entry under the agent's own name is used when there is
+none under the provider's, so nobody's stored credential stops working on upgrade; a task says
+where to move it. Verified by running one: a credential stored under the agent's name still
+authenticated, and printed
+
+```
+credential stored under 'claude', which is this agent's name; it belongs to 'anthropic'.
+          Move it with: sokar vault put anthropic
+```
+
+The rule is four lines and its cases are not obvious, so it is a pure function with its own
+tests rather than a condition inside a command.
+
+**One thing this exposed.** `vault serve` took the vault key in an option called `--agent`, which
+was true when the two were the same name and misleading afterwards. It is now `--credential`.
+That option was the last place a provider's name travelled under an agent's label, and it was
+found by a task failing to authenticate rather than by reading the code.
 
 
 ## Built, and measured on both VMs, 2026-09-05
