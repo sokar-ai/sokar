@@ -264,8 +264,11 @@ class TaskRunCommandTest {
         execute(context(dir, true), "task", "run", "--keep",
                 "-p", projectFile(dir, MINIMAL).toString());
 
+        // 'rm --force', which is how a task container is removed - not any argument containing
+        // "rm". A throwaway container elsewhere in the run legitimately passes --rm, and matching
+        // that made this fail for the wrong reason.
         assertThat(runner.invocations()).noneSatisfy(command ->
-                assertThat(command.describe()).contains("rm "));
+                assertThat(command.describe()).contains("rm --force"));
     }
 
     @Test

@@ -370,7 +370,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             java.nio.file.Files.createDirectories(state);
 
             TaskWiring wiring = new TaskWiring(
-                    workspace == null || !workspace.gated() ? null : TaskWorkspace.gateAddress(),
+                    workspace == null || !workspace.gated() ? null : gateAddress(project),
                     workspace == null ? 0 : workspace.port(), null, null);
 
             environmentCache = new java.util.LinkedHashMap<>();
@@ -905,6 +905,33 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.println("sokar: could not start the git gate: " + ex.getMessage());
             err.flush();
         }
+    }
+
+    /**
+     * Returns the address the firewall must open for the git gate.
+     * <p>
+     * Asked of podman rather than assumed. The name podman uses does not resolve on the host, so
+     * this was a constant - and the constant is wrong on podman 4, which answers with the host's
+     * own LAN address instead of pasta's {@code 169.254.1.2}. Ubuntu 24.04 LTS ships podman 4.9.3,
+     * so every gate there was firewalled off and every push hung until it timed out.
+     * <p>
+     * Costs one throwaway container against an image the task already needs. When podman cannot
+     * answer, the old constant is used and said so: a wrong guess breaks the gate, which is
+     * recoverable, while refusing to run breaks the task, which is not.
+     *
+     * @param project The project, for the image to ask with.
+     * @return Address a container reaches this host at.
+     */
+    private String gateAddress(org.fuin.sokar.core.project.Project project) {
+        final java.util.Optional<String> asked =
+                context.podman().hostAddressFromContainer(project.baseImage());
+        if (asked.isPresent()) {
+            return asked.get();
+        }
+        spec.commandLine().getErr().println("sokar: could not ask podman where a container reaches"
+                + " this host; assuming " + TaskWorkspace.gateAddress()
+                + ", and the git gate will not work if that is wrong");
+        return TaskWorkspace.gateAddress();
     }
 
     /**

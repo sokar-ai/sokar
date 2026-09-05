@@ -66,6 +66,44 @@ public class Podman {
     }
 
     /**
+     * Returns the address a container reaches this host at.
+     * <p>
+     * Asked rather than assumed, because podman decides it and the answer differs by version:
+     * measured on 2026-09-05, podman 5.8.1 gives {@code 169.254.1.2} and podman 4.9.3 gives the
+     * host's own LAN address. Ubuntu 24.04 LTS ships 4.9.3, so a hardcoded constant firewalled
+     * the git gate off for everyone on that release, with a push that hung until it timed out as
+     * the only symptom.
+     * <p>
+     * It has to be a throwaway container rather than a query: the name is written into a
+     * container's {@code /etc/hosts}, and podman fills that in only once the container starts -
+     * after {@code create} there is not even a file. The image is one the caller already needs,
+     * so nothing extra is pulled.
+     *
+     * @param image Image to ask with, which must already be present.
+     * @return The address, or empty when it cannot be determined.
+     */
+    public Optional<String> hostAddressFromContainer(String image) {
+        final CommandResult result = runner.run(podman("run", "--rm", image,
+                "cat", "/etc/hosts"));
+        if (!result.successful()) {
+            return Optional.empty();
+        }
+        for (final String line : result.trimmedOutput().split("\n")) {
+            final String entry = line.strip();
+            if (entry.isEmpty() || entry.startsWith("#")) {
+                continue;
+            }
+            final String[] fields = entry.split("\\s+");
+            for (int i = 1; i < fields.length; i++) {
+                if (ContainerSpec.HOST_FROM_CONTAINER.equals(fields[i])) {
+                    return Optional.of(fields[0]);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Tells whether an image is present locally.
      *
      * @param image Image name, with or without a tag.
