@@ -1,0 +1,163 @@
+# What a push proves.
+#
+# Two legs, because neither covers the other:
+#
+#   ubuntu    a GitHub-hosted runner. Free, and enough for the containment story - the image
+#             build, the hardening, the firewall, and that the credential never enters a task.
+#             It cannot run SELinux: hosted runners are Ubuntu with AppArmor, and SELinux cannot
+#             be turned on from inside a container.
+#
+#   fedora    a Hetzner server booted from a prepared snapshot, driven over SSH. This is the only
+#             place SELinux enforcing is tested, and four real defects have been found there that
+#             did not reproduce on Ubuntu. It costs about three cents a run and is destroyed
+#             afterwards - see requirements/0047 and 0048.
+#
+# Tier 2 needs a real provider credential and spends money per run, so it is not here yet.
+name: Build
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+  workflow_dispatch:
+
+# One run per branch. Without this every push leaves its predecessor running to completion on a
+# commit nobody cares about any more, and they contend for the same caches.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  ubuntu:
+    name: Ubuntu - build and tier 1
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install what a task needs
+        run: |
+          sudo apt-get update -qq
+          # podman, nft and nsenter are already on the runner; dnsmasq is not, and its nftset
+          # support is what puts a resolved address into the allow set. Without it every declared
+          # domain is unreachable, silently.
+          sudo apt-get install -y -qq dnsmasq-base
+          dnsmasq --version | grep -q nftset || { echo "dnsmasq has no nftset"; exit 1; }
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          cache: 'maven'
+
+      # The three hooks are statically linked against musl, and native-image is handed an explicit
+      # compiler path, so the toolchain has to exist before the build. Cached because it is a
+      # large download plus a zlib build, and it only changes when the installer does.
+      - name: Cache the musl toolchain
+        id: musl-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/opt/x86_64-linux-musl-native
+          key: musl-${{ hashFiles('buildtools/install-musl.sh') }}
+
+      # musl.cc is not reachable from a hosted runner at all - not slow, no connection - so the
+      # toolchain is mirrored as a release asset here. The digest in install-musl.sh is what is
+      # trusted; the mirror only has to be reachable.
+      - name: Fetch the musl toolchain from the release mirror
+        if: steps.musl-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download toolchain-musl-native \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern 'x86_64-linux-musl-native.tgz' \
+              --output "$RUNNER_TEMP/musl.tgz"
+          echo "MUSL_URL=file://$RUNNER_TEMP/musl.tgz" >> "$GITHUB_ENV"
+
+      - name: Install the musl toolchain
+        run: bash buildtools/install-musl.sh
+
+      - name: Unit tests
+        run: ./mvnw -B test
+
+      # -Ob everywhere except main: it roughly halves native-image on a two-core runner, at the
+      # cost of a less optimised binary. Fine for a suite that measures behaviour, not fine for
+      # anything that ships - so the release branch builds fully and a pull request does not.
+      # Passed explicitly either way, so the log says which produced the binary.
+      - name: Build the native binaries
+        env:
+          QUICK_BUILD: ${{ github.ref == 'refs/heads/main' && 'false' || 'true' }}
+        run: |
+          echo "quickBuild=$QUICK_BUILD  (full optimisation on main only)"
+          ./mvnw -B -Pnative -DskipTests package -pl app,hooks,agents/claude -am \
+              -DquickBuild="$QUICK_BUILD"
+
+      - name: Install as a package would
+        run: |
+          mkdir -p ~/.local/bin ~/.local/share/sokar/agents
+          cp hooks/target/sokar-hook-* app/target/sokar ~/.local/bin/
+          sudo mkdir -p /usr/share/sokar/providers
+          sudo cp providers/*.yaml /usr/share/sokar/providers/
+          ~/.local/bin/sokar setup
+          echo "PATH=$HOME/.local/bin:$PATH" >> "$GITHUB_ENV"
+
+      - name: What sokar thinks of this machine
+        run: sokar doctor || true
+
+      - name: Tier 1
+        run: bash buildtools/e2e-tier1.sh
+
+      - name: What was left behind
+        if: always()
+        run: |
+          echo "== containers =="; podman ps -a || true
+          echo "== task state =="; ls -la "/run/user/$(id -u)/sokar" 2>&1 || echo "  none"
+          echo "== hook log =="; cat "/run/user/$(id -u)/sokar/hooks.log" 2>/dev/null || echo "  none"
+
+  fedora:
+    name: Fedora - tier 1 under SELinux enforcing
+    runs-on: ubuntu-latest
+    # Only where the secrets exist and the spend is deliberate. Not on every push, and never for
+    # a pull request from a fork, which cannot see the secrets anyway.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install the Hetzner client
+        run: pip install --quiet hcloud
+
+      - name: The key that reaches the test servers
+        env:
+          SSH_KEY: ${{ secrets.REMOTE_BUILD_SSH_KEY }}
+        run: |
+          install -d -m 0700 "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/ssh/id"
+          chmod 0600 "$RUNNER_TEMP/ssh/id"
+
+      # The server is destroyed by the script itself, in a finally, so a failure here does not
+      # leave one billing. The sweep below is for the case the script cannot handle: this job
+      # being cancelled between two statements.
+      - name: Tier 1 on Fedora
+        env:
+          REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
+        run: |
+          python3 buildtools/ci/remote-tier1.py \
+              --ssh-private-key "$RUNNER_TEMP/ssh/id"
+
+      # Belt and braces for the one case the script cannot cover: this job being cancelled
+      # between two statements, so its own finally never runs.
+      #
+      # Thirty minutes, not zero. A zero-age sweep would delete a server another run had just
+      # created - the script's own cleanup already handles the normal path, and the worst this
+      # delay costs is about six cents.
+      - name: Delete anything left behind
+        if: always()
+        env:
+          REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
+        run: python3 buildtools/ci/sweep.py --older-than 30 --now
