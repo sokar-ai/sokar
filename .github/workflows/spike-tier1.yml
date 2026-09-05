@@ -14,6 +14,12 @@ on:
     branches:
       - 'spike/**'
 
+# One run per branch. Without this every push leaves its predecessor running to completion on a
+# commit nobody cares about any more - which is how two builds ended up in flight at once.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tier1:
     runs-on: ubuntu-latest
