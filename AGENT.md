@@ -246,6 +246,12 @@ One brief line. The reasoning behind a change is a finding, and a finding goes i
 
 ## Documentation
 
+**Run the unit suite before committing.** The acceptance suite is CI's job, on `main`, on two
+rented machines - one with SELinux enforcing, one with podman 4. Before a release, run it
+deliberately rather than assuming a green badge covered it. A development VM is for diagnosing a
+failure quickly, not for gating a commit; nothing should depend on one existing. See
+[0047](requirements/0047-Separate-Repositories-And-CI.md).
+
 **A requirement that is done is deleted**, file and index row together, once whatever
 is worth keeping has moved into this file. They describe work to do, not work that was
 done; git history is where finished work lives.

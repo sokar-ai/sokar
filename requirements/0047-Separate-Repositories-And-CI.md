@@ -358,14 +358,33 @@ pre-release gate rather than a formality. This reduces the manual work; it does 
   checksum, and it links the binaries that enforce the firewall. Now pinned by digest, with the
   mirror interchangeable because the digest is what is trusted.
 
-**The rule about the VMs needs rewriting.** "Always run the tests on both VMs before committing"
-was written when the VMs were the only option, and it cannot survive them being switched off - a
-push-triggered build does not protect a commit that has already been made. What replaces it is a
-question this document should answer rather than leave to habit.
+### What replaces "always run the tests on both VMs before committing"
+
+That rule was written when the VMs were the only way to run the suite at all. It cannot survive
+them being switched off, and it was already the wrong shape: a build triggered by a push does not
+protect a commit that has already been made.
+
+**The rule is now:**
+
+- **Before committing**, run the unit suite. It is seconds, it catches most things, and it is the
+  only check that happens before history is written.
+- **The acceptance suite is CI's job**, on `main`, on two machines that are more faithful than the
+  VMs were - one with SELinux enforcing and Sokar's policy loaded, one with podman 4.
+- **Before a release**, run it deliberately: `workflow_dispatch`, or `remote-tier1.py` by hand.
+- **Keep a development VM for debugging, not for gating.** When a leg fails, a VM is where it gets
+  diagnosed in seconds rather than in ten-minute cycles. That is a convenience, and nothing should
+  depend on it existing.
+
+**What this loses, stated plainly.** A commit can now reach `main` without the acceptance suite
+having run on it - the suite runs *after* the merge, not before. That is a real weakening compared
+to the old rule when the old rule was followed, and it is the price of the rule being followed at
+all. If it starts to bite, the answer is a pull request gate rather than a habit: run the rented
+legs on a pull request from this repository, which costs about two cents per revision.
 
 ## To be checked
 
-- The spike in section 1, which gates everything.
+- ~~The spike in section 1.~~ **Answered:** it runs, and the acceptance suite now runs on rented
+  machines rather than hosted ones because they are 2.7 times faster.
 - **What happens to the isolation rules.** `AgentIsolationTest` gets stronger for the core once
   `agents/` is gone - nothing left to exempt - but the rule that an agent must not depend on
   another agent loses its subject. It has to move into each agent repository or into a shared
