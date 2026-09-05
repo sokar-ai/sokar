@@ -335,9 +335,25 @@ else
         | sed -n -e 's/^ *refused: *//p' -e 's/^ *proxied: \([^ ]*\).*/\1/p' \
         | tr ',' '\n' | tr -d ' ' | grep . || true)"
 
+    # A resolver appends its search domains to every unqualified lookup, so one query for
+    # 'example.com' can appear as 'example.com.<search>' as well. Those are the same query and
+    # must not read as an undeclared name - on a cloud VM the search domain is something like
+    # 'ku0h....ex.internal.cloudapp.net', and on a home network it is the router's.
+    #
+    # Taken from the container's own resolver rather than a fixed list: a hardcoded suffix only
+    # covers the network its author happened to be on.
+    SEARCH="$(podman exec "$CONTAINER" sh -c 'sed -n "s/^search //p" /etc/resolv.conf' \
+        2>/dev/null | tr ' ' '\n' | sed 's/\.$//' | grep . || true)"
+
     UNDECLARED="$(grep -oE 'config [a-z0-9.-]+ is NXDOMAIN' "$DNS_LOG" 2>/dev/null \
         | awk '{print $2}' | sort -u \
-        | grep -vE '\.(fritz\.box|local|localdomain)$' || true)"
+        | grep -vE '\.(local|localdomain)$' || true)"
+
+    # Strip a trailing search domain, so the name is compared as the agent meant it.
+    for suffix in $SEARCH; do
+        UNDECLARED="$(echo "$UNDECLARED" | sed "s/\.${suffix//./\\.}$//")"
+    done
+    UNDECLARED="$(echo "$UNDECLARED" | sort -u | grep . || true)"
 
     if [ -n "$REFUSED" ]; then
         BLOCKED="$(echo "$UNDECLARED" | grep -Fxf <(echo "$REFUSED") || true)"
@@ -399,6 +415,21 @@ if podman exec "$CONTAINER" sh -c 'test -d /workspace/.git' 2>/dev/null; then
         echo "$PUSH_OUT" | tail -3 | while read -r line; do info "  $line"; done
         info "check that the ruleset opens the gate port - a missing rule looks"
         info "exactly like this, as a connect timeout rather than a refusal"
+        # A hang prints nothing, which is the least useful failure there is. Say where the
+        # container was pointed and what happened when it tried, so the next reader does not
+        # have to reproduce it to find out.
+        info "the remote the agent was given:"
+        podman exec "$CONTAINER" sh -c 'cd /workspace && git remote get-url sokar' 2>&1 \
+            | while read -r line; do info "    $line"; done
+        info "what it resolves to inside the container:"
+        podman exec "$CONTAINER" sh -c \
+            'getent hosts host.containers.internal || echo "  does not resolve"' 2>&1 \
+            | while read -r line; do info "    $line"; done
+        info "the connection attempt:"
+        podman exec "$CONTAINER" sh -c \
+            'cd /workspace && GIT_TRACE=1 GIT_CURL_VERBOSE=1 timeout 15 git ls-remote sokar 2>&1 \
+             | grep -iE "connect|trying|refused|timed out|resolve" | head -5' 2>&1 \
+            | while read -r line; do info "    $line"; done
     fi
 
     if [ "$PUSHED" -eq 0 ]; then
