@@ -16,9 +16,11 @@ from __future__ import annotations
 import os
 import socket
 import subprocess
+import tempfile
 import sys
 import time
 from contextlib import contextmanager
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 from hcloud import Client
@@ -48,13 +50,89 @@ def client() -> Client:
     )
 
 
-def ssh_key(hcloud_client: Client, name: str):
-    """Returns the named SSH key, or exits listing what the project actually has."""
-    key = hcloud_client.ssh_keys.get_by_name(name)
-    if key is None:
-        available = [k.name for k in hcloud_client.ssh_keys.get_all()]
-        sys.exit(f"No SSH key named '{name}' in the project. Available: {available or 'none'}")
-    return key
+# CI holds the private key here, as the key material itself rather than a path. Locally it is a
+# file, which is what --ssh-private-key defaults to.
+SSH_KEY_VARIABLE = "SSH"
+
+
+def private_key(path: str) -> str:
+    """
+    Returns a path to the private key, taking it from the environment when CI put it there.
+
+    Written to a file because ssh(1) wants one, with 0600 before anything is in it: a key that
+    exists world-readable for even a moment is a key that leaked. The file lands in the runner's
+    temporary directory, which is discarded with the job.
+
+    :param path: Fallback path, for a developer running this on their own machine.
+    :return: Path to a private key file.
+    """
+    material = os.environ.get(SSH_KEY_VARIABLE, "").strip()
+    if not material:
+        if not os.path.isfile(path):
+            sys.exit(
+                f"No private key. Set {SSH_KEY_VARIABLE} to the key itself, or pass "
+                f"--ssh-private-key; there is nothing at {path}"
+            )
+        return path
+
+    target = Path(tempfile.mkdtemp(prefix="sokar-ci-")) / "id"
+    target.touch(mode=0o600)
+    target.write_text(material if material.endswith("\n") else material + "\n")
+    return str(target)
+
+
+def ssh_key(hcloud_client: Client, name: str | None, private_key_file: str):
+    """
+    Returns the SSH key to create servers with.
+
+    Matched to the private key in hand rather than named, when no name is given. Naming it means
+    keeping two things in step - the secret holding the private half and the key registered in the
+    project - and when they drift the server is created with a public key nobody holds, which
+    shows up as a connection refused twenty lines later. The fingerprint cannot drift.
+
+    :param name: Explicit name, which wins when given.
+    :param private_key_file: The private key that will be used to connect.
+    :return: The matching key in the project.
+    """
+    available = list(hcloud_client.ssh_keys.get_all())
+    if name:
+        for key in available:
+            if key.name == name:
+                return key
+        sys.exit(f"No SSH key named '{name}' in the project. "
+                 f"Available: {[k.name for k in available] or 'none'}")
+
+    wanted = fingerprint(private_key_file)
+    for key in available:
+        if key.fingerprint == wanted:
+            print(f"ssh key '{key.name}' matches the private key in hand")
+            return key
+    sys.exit(
+        f"No key in the project matches the private key ({wanted}).\n"
+        f"  in the project: {[(k.name, k.fingerprint) for k in available] or 'none'}\n"
+        "  add its public half to the project, or pass --ssh-key to use one of the above"
+    )
+
+
+def fingerprint(private_key_file: str) -> str:
+    """
+    Returns the MD5 fingerprint of a private key's public half, which is what the API reports.
+
+    Derived from the private key so that nothing has to hold the public half as well.
+    """
+    public = subprocess.run(["ssh-keygen", "-y", "-f", private_key_file],
+                            capture_output=True, text=True)
+    if public.returncode != 0:
+        sys.exit(f"Cannot read {private_key_file}: {public.stderr.strip()}")
+    shown = subprocess.run(["ssh-keygen", "-l", "-E", "md5", "-f", "/dev/stdin"],
+                           input=public.stdout, capture_output=True, text=True)
+    if shown.returncode != 0:
+        sys.exit(f"Cannot fingerprint {private_key_file}: {shown.stderr.strip()}")
+    # "2048 MD5:aa:bb:.. comment (RSA)" - the API reports the hex pairs without the prefix.
+    for field in shown.stdout.split():
+        if field.startswith("MD5:"):
+            return field[len("MD5:"):]
+    sys.exit(f"Could not parse a fingerprint from: {shown.stdout.strip()}")
 
 
 def image(hcloud_client: Client, name: str) -> Image:
@@ -96,8 +174,8 @@ def newest_snapshot(hcloud_client: Client) -> Image:
 
 @contextmanager
 def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_name: str,
-                location: str, ssh_key_name: str, keep: bool = False,
-                image_override: Image | None = None):
+                location: str, ssh_key_name: str | None, private_key_file: str,
+                keep: bool = False, image_override: Image | None = None):
     """
     Creates a server and destroys it again, whatever happens in between.
 
@@ -111,7 +189,7 @@ def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_nam
         description and label rather than by name, so they cannot be looked up the way a system
         image can.
     """
-    key = ssh_key(hcloud_client, ssh_key_name)
+    key = ssh_key(hcloud_client, ssh_key_name, private_key_file)
     found = image_override if image_override is not None else image(hcloud_client, image_name)
 
     print(f"creating {name}: {server_type}, {image_name}, {location}")

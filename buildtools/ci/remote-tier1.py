@@ -14,6 +14,10 @@ build, instead of ten minutes of installing.
     export REMOTE_BUILD="$(cat ~/.claude/.ssh/hetzner-api-token.txt)"
     python3 buildtools/ci/remote-tier1.py
 
+Two things come from the environment: REMOTE_BUILD, the Hetzner API token, and SSH, the private
+key that reaches the servers it creates. Locally the key is a file instead - see
+--ssh-private-key.
+
 The server is destroyed whatever happens. At 0.111 EUR/hour a forgotten one costs 81 EUR a
 month, against about 3 cents for a run.
 """
@@ -42,18 +46,19 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--type", default="cpx42", dest="server_type")
     parser.add_argument("--location", default="fsn1")
-    parser.add_argument("--ssh-key", default="sokar-ci")
+    parser.add_argument("--ssh-key", default=None,
+                        help="name of the key in the Hetzner project; by default the one whose "
+                             "fingerprint matches the private key being used")
     parser.add_argument("--ssh-private-key",
-                        default=str(Path.home() / ".claude" / ".ssh" / "sokar-ci-hetzner"))
+                        default=str(Path.home() / ".claude" / ".ssh" / "sokar-ci-hetzner"),
+                        help="used when the SSH environment variable is not set")
     parser.add_argument("--snapshot", type=int, default=None,
                         help="image id; default is the newest snapshot labelled sokar=ci")
     parser.add_argument("--keep", action="store_true",
                         help="leave the server running afterwards, for debugging")
     args = parser.parse_args()
 
-    key_file = Path(args.ssh_private_key)
-    if not key_file.is_file():
-        sys.exit(f"No private key at {key_file}")
+    key_file = Path(hetzner.private_key(args.ssh_private_key))
 
     client = hetzner.client()
     image = (client.images.get_by_id(args.snapshot) if args.snapshot
@@ -63,6 +68,7 @@ def main() -> int:
     with hetzner.provisioned(client, name=f"sokar-ci-tier1-{stamp}",
                              server_type=args.server_type, image_name=image.name or str(image.id),
                              location=args.location, ssh_key_name=args.ssh_key,
+                             private_key_file=str(key_file),
                              keep=args.keep, image_override=image) as (server, address):
 
         hetzner.await_ssh(address)

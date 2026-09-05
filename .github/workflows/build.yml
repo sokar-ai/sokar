@@ -132,23 +132,20 @@ jobs:
       - name: Install the Hetzner client
         run: pip install --quiet hcloud
 
-      - name: The key that reaches the test servers
-        env:
-          SSH_KEY: ${{ secrets.REMOTE_BUILD_SSH_KEY }}
-        run: |
-          install -d -m 0700 "$RUNNER_TEMP/ssh"
-          printf '%s\n' "$SSH_KEY" > "$RUNNER_TEMP/ssh/id"
-          chmod 0600 "$RUNNER_TEMP/ssh/id"
-
       # The server is destroyed by the script itself, in a finally, so a failure here does not
       # leave one billing. The sweep below is for the case the script cannot handle: this job
       # being cancelled between two statements.
+      #
+      # Two things come from the environment and neither is written down here: REMOTE_BUILD, the
+      # API token, and SSH, the private key that reaches the servers it creates. The script writes
+      # the key to a 0600 file in the runner's temporary directory and finds the matching key in
+      # the Hetzner project by fingerprint - so nothing has to keep a key name in step with the
+      # secret holding its private half.
       - name: Tier 1 on Fedora
         env:
           REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
-        run: |
-          python3 buildtools/ci/remote-tier1.py \
-              --ssh-private-key "$RUNNER_TEMP/ssh/id"
+          SSH: ${{ secrets.SSH }}
+        run: python3 buildtools/ci/remote-tier1.py
 
       # Belt and braces for the one case the script cannot cover: this job being cancelled
       # between two statements, so its own finally never runs.
