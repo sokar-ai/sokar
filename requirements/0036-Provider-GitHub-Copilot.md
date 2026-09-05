@@ -1,6 +1,8 @@
 # 0036 — Provider GitHub Copilot
 
-**Status:** chosen, see [0025](0025-Pi-Forge-Subscription.md)
+**Status:** chosen, see [0025](0025-Pi-Forge-Subscription.md). **Not** answered by the
+BYOK mode found in [0029](0029-Agent-Copilot-CLI.md): that mode switches GitHub
+authentication off rather than brokering it, so the subscription remains untested.
 
 Serve models from GitHub Copilot to a task, without the credential entering the container.
 
@@ -10,7 +12,10 @@ Serve models from GitHub Copilot to a task, without the credential entering the 
 
 **Authentication.** A forge account over a device flow, yielding a short-lived token.
 
-**Can it be brokered?** Unverified. The token's lifetime may make [0024](0024-Refreshable-Task-Tokens.md) a prerequisite.
+**Can it be brokered?** Unverified, and the open question the device flow has to answer:
+whether the sign-in yields something storable and replayable at all, what host and header
+carry it, and how long it lasts. If it is shorter than a task,
+[0024](0024-Refreshable-Task-Tokens.md) is a prerequisite rather than a follow-up.
 
 ## Acceptance
 

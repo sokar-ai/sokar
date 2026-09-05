@@ -94,12 +94,46 @@ only address a URL and needs a listener bound inside its container's namespace. 
 is the same in both cases. So a provider declaration cannot carry "how to reach it" alone -
 the agent has to declare what shape of endpoint it can use, and Sokar satisfies it.
 
+## The duplication is real, measured 2026-09-05
+
+The file argued with itself: the status line said the trigger was a second agent reaching
+a provider the first does not, the checklist said it was two agents reaching the **same**
+provider. The stricter one has now fired, by experiment rather than by argument.
+
+Pi was pointed at Anthropic - the provider the first agent already uses - and asked a real
+question through the broker:
+
+```
+request   POST /v1/messages?beta=true -> 200 from the provider
+```
+
+The answer came back, and `sk-ant-` appeared nowhere in the container. Two agents, one
+provider, and Anthropic is now described in two places.
+
+**What the switch cost is the actual finding.** Pointing one agent at a provider the other
+already reaches needed seven changes in two languages:
+
+| where | what |
+|---|---|
+| `pi.yaml` | `token_env`, `proxy.upstream`, `auth_header`, `auth_prefix`, `allowed_domains` |
+| `PiRoutingExtension.java` | `PROVIDER`, `DIALECT_PATH` - **constants, so a 15 MB binary had to be rebuilt** |
+
+Five of those seven are data the other agent already states, in its own words, about the
+same provider: `api.anthropic.com`, `x-api-key`, an empty prefix. The two that are not data
+are the ones that make this a rebuild rather than an edit - and a provider that ships as a
+declaration is exactly the thing that would remove them.
+
+A third data point arrived the same day and points the same way:
+[Copilot CLI](0029-Agent-Copilot-CLI.md) models the provider dialect as a value of its own,
+`COPILOT_PROVIDER_TYPE` being `openai`, `azure` or `anthropic` - an agent that has already
+made the split this requirement proposes.
+
+The experiment is on the branch `probe/pi-anthropic`, deliberately not merged.
+
 ## To be checked
 
-- **Whether the duplication is real yet.** With one agent it is not. The first case
-  where two agents reach the same provider is [0025](0025-Pi-Forge-Subscription.md);
-  until it exists, this is abstraction ahead of evidence, and doing it early would
-  be guessing at a boundary rather than observing one.
+- ~~**Whether the duplication is real yet.**~~ **Answered by measurement, 2026-09-05** -
+  see below. It is real.
 - Whether a provider needs to be a separate *package* or only a separate
   *declaration*. A package buys independent versioning and release, which is what
   the agent split was for; it also doubles the number of things to install.
