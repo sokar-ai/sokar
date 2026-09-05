@@ -1,6 +1,6 @@
 # 0048 — Fedora Test Server And Its Snapshot
 
-**Status:** open. Design agreed, nothing built.
+**Status:** **built.** The snapshot exists and is verified; what it took is below.
 
 [0047](0047-Separate-Repositories-And-CI.md) establishes that SELinux enforcing is the one thing
 a GitHub-hosted runner can never cover, and that the answer is an on-demand Hetzner server driven
@@ -120,6 +120,59 @@ a value, and a missing token fails with which variables were looked at.
   inside the script
 
 The token needs write access to servers, images and SSH keys in one project, and nothing else.
+
+## Built, and what it cost to get right
+
+**Status: the snapshot exists.** Built 2026-09-05, verified, and the server destroyed itself each
+time. Nine attempts, of which four failed on the *provisioning* and none on the suite - worth
+recording, because every one of them would otherwise be rediscovered.
+
+### What the stock image does not give you
+
+- **SELinux ships `permissive`.** Measured on a fresh server before anything was installed:
+  `getenforce` says `Permissive`, `/etc/selinux/config` says `SELINUX=permissive`, and the
+  targeted policy is installed with `/sys/fs/selinux` present. Only the mode is wrong - so it
+  needs the config changed, `/.autorelabel`, and a reboot. Everything above was written while
+  permissive, so the relabel is not optional.
+- **No `gcc`.** native-image is useless without one and says so as *"Default native-compiler
+  executable 'gcc' not found"*, twenty minutes into a run.
+- **No `sudo` for an ordinary user**, which is right - so nothing in a run may assume it.
+
+### The four provisioning defects, and what each teaches
+
+| what failed | why | the lesson |
+|---|---|---|
+| native-image had no `gcc` | never installed | "present" is not "works" - see below |
+| rootless podman would not start | `install -d -o build` sets ownership on the **last** component only, so `/home/build/.local` was root-owned | a single root-owned directory in a user's home reads as a Sokar permissions bug |
+| the verification reported a missing compiler that was there | its scratch directory came from `mktemp -d` as **root**, and `javac` ran as `build` | a check that fails for its own reasons is worse than no check |
+| the run could not `sudo` | the build user has no password, correctly | install into the operator's own directories - which is the shape a task runs in anyway |
+
+**So the verification compiles rather than inspects.** It builds a real `Probe.java` twice - once
+ordinarily, once `--static --libc=musl` as the hooks need - and refuses to snapshot if either
+fails. That distinction is what the first two rebuilds paid for.
+
+### The thing that would have been missed entirely
+
+**Sokar's own SELinux policy module.** The development VM has it because it was installed by hand
+months ago; a fresh machine has nothing. Without `sokar_socket` a task container is denied
+`connectto` on its own vault socket - and the denial is `dontaudit`'ed, so it appears as an agent
+that cannot authenticate with **nothing in the audit log**. The snapshot now compiles and loads
+it while the checkout is still present, and the verification checks `semodule -l`.
+
+### What is in the image
+
+GraalVM 25.0.2 pinned by the digest its release publishes, the musl cross-toolchain and a
+musl-built zlib, `gcc`/`glibc-devel`/`zlib-devel`, podman with `ubuntu:24.04` and `alpine:3.20`
+pre-pulled, SELinux enforcing with Sokar's policy loaded, and a **warm `~/.m2`** from building the
+project once - the checkout itself is deleted, since it goes stale immediately and the dependency
+cache does not.
+
+**1.48 GB, about EUR 0.018 a month.** A run boots it in about a minute.
+
+### Do not rebuild to test a change to the provisioning
+
+Provision once with `--keep` and iterate against the live server over SSH. Every defect above was
+found at the end of a fifteen-minute cycle and would have been found in under a minute that way.
 
 ## Confirmed against the API, 2026-09-05
 
