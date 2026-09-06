@@ -26,6 +26,7 @@
         <!-- Data files an operator can add to, not executables, so share rather than libexec. -->
         <provider.install.dir>/usr/share/sokar/providers</provider.install.dir>
         <selinux.install.dir>/usr/share/sokar/selinux</selinux.install.dir>
+        <sbom.install.dir>/usr/share/sokar/sbom</sbom.install.dir>
     </properties>
 
     <!-- Not used for a classpath - this module produces no code. It is here so the reactor builds
@@ -183,6 +184,21 @@
                                                 <type>perm</type>
                                                 <prefix>${selinux.install.dir}</prefix>
                                                 <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <!-- The bill of what this package carries. Payload, not
+                                             documentation: under /usr/share/doc it would be
+                                             excluded from the deb side of the parity check and
+                                             not from the rpm side. -->
+                                        <data>
+                                            <src>${project.basedir}/../target/sokar.cdx.json</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${sbom.install.dir}</prefix>
+                                                <filemode>644</filemode>
                                                 <user>root</user>
                                                 <group>root</group>
                                             </mapper>
