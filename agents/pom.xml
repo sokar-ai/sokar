@@ -197,6 +197,7 @@
 
     <modules>
         <module>api</module>
+        <module>stub</module>
         <module>claude</module>
         <module>pi</module>
     </modules>

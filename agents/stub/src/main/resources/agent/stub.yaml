@@ -1,0 +1,95 @@
+# The agent the acceptance suite drives.
+#
+# Not a mock of the machinery - everything around it is real: a real image build, a real
+# container, a real firewall, a real credential proxy. What is fake is only the tool inside,
+# which is a shell script this definition writes into the image.
+#
+# That is on purpose. A vendor CLI makes the suite depend on somebody else's release, a 320 MB
+# download and whatever that version happens to do; this one does exactly what the checks need
+# and nothing else, so a check that used to observe a vendor's behaviour can assert ours.
+
+name: stub
+label: Stub Agent
+binary: sokar-stub-cli
+
+git_identity:
+  name: Sokar Stub
+  email: noreply@sokar.invalid
+
+headless:
+  # Positional, like Pi. Nothing here needs a flag the script would have to parse.
+  prompt_flag: ""
+
+session:
+  supports_resume: false
+
+provider:
+  # Anthropic, because the credential-exchange check needs an upstream that answers a bad key
+  # with its own rejection - which is what proves the proxy swapped the phantom token rather
+  # than answering for itself. Any provider that rejects clearly would do.
+  default: anthropic
+  dialect: anthropic-messages
+  endpoint: socket
+  socket_env: SOKAR_STUB_SOCKET
+  base_url_env: SOKAR_STUB_BASE_URL
+
+# Resolved on purpose, and granted. IANA holds example.com for exactly this, so it will not
+# move, expire or start redirecting somewhere else.
+allowed_domains:
+  - example.com
+
+# Resolved on purpose, and NOT granted. This is the pair that makes domain coverage an
+# assertion rather than an observation: the suite can require that this name was asked for and
+# came back NXDOMAIN, so a firewall that quietly stopped working fails the run. With a vendor
+# CLI the same check depended on that vendor still shipping telemetry.
+refused_domains:
+  - example.net
+
+install:
+  version: "${agent.cli.version}"
+
+  # Written into the image, not fetched: a build that downloads nothing cannot install different
+  # bytes on different days, and the suite gains no coverage from exercising curl.
+  #
+  # A quoted here-document, so nothing below is expanded while the file is being written and
+  # nothing needs escaping. Plain $VAR rather than ${VAR}, because this file is Maven-filtered
+  # and ${...} is what filtering replaces.
+  as_root:
+    - "RUN cat > /usr/local/bin/sokar-stub-cli <<'STUB'"
+    - "#!/bin/sh"
+    - "if [ \"$1\" = \"--version\" ]; then"
+    - "    echo '${agent.cli.version} (Sokar stub agent)'"
+    - "    exit 0"
+    - "fi"
+    - ""
+    - "# Declared and granted. The resolver answers only what the definition declares."
+    - "if getent hosts example.com >/dev/null 2>&1; then"
+    - "    echo 'stub: example.com resolved'"
+    - "else"
+    - "    echo 'stub: example.com did not resolve'"
+    - "fi"
+    - ""
+    - "# Declared as refused, and asked for on purpose. This is the half that makes domain"
+    - "# coverage an assertion: the query must appear in the resolver log as NXDOMAIN."
+    - "if getent hosts example.net >/dev/null 2>&1; then"
+    - "    echo 'stub: example.net resolved'"
+    - "else"
+    - "    echo 'stub: example.net refused'"
+    - "fi"
+    - ""
+    - "# Redeem this task's token against the provider through the proxy socket. A rejection"
+    - "# from the provider is the expected end: it proves the proxy swapped the token rather"
+    - "# than answering for itself."
+    - "if [ -S \"$SOKAR_STUB_SOCKET\" ]; then"
+    - "    curl -s --max-time 30 --unix-socket \"$SOKAR_STUB_SOCKET\" \\"
+    - "        -H \"x-api-key: $ANTHROPIC_API_KEY\" \\"
+    - "        -H 'anthropic-version: 2023-06-01' \\"
+    - "        -H 'content-type: application/json' \\"
+    - "        -X POST http://api.anthropic.com/v1/messages \\"
+    - "        -d '{\"model\":\"claude-3-5-haiku-20241022\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}'"
+    - "    echo"
+    - "else"
+    - "    echo 'stub: no proxy socket'"
+    - "fi"
+    - "STUB"
+    - "RUN chmod 0755 /usr/local/bin/sokar-stub-cli"

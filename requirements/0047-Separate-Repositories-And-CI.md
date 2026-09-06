@@ -552,6 +552,41 @@ suite goes green while proving less than it used to, which is worse than deletin
 installed at the pinned version, honours a socket or a base URL, and reaches only the hosts its
 definition declares.
 
+### Written, 2026-09-06
+
+`agents/stub`, on Sokar's version rather than its own, with `agent.package.skip` on - nobody
+installs it, the suite copies the binary. Its tool is a shell script the definition writes into
+the image: it looks up `example.com`, which it declares and is granted, looks up `example.net`,
+which it declares as **refused**, and redeems its task token through the proxy socket. Both names
+are IANA-reserved, so neither can move, expire or start redirecting.
+
+That pair is the point. The domain-coverage check currently depends on Claude Code happening to
+resolve a Datadog intake; with the stub, the refusal is declared on one side and asked for on the
+other, so a firewall that quietly stopped working fails the run instead of going unnoticed.
+
+**Three things this cost, none of them predicted:**
+
+- **`Agent.imageLayer()` is never called by Sokar.** The first version put the script there, as an
+  override, which is the natural-looking place. Nothing runs it: the image is built from the
+  *describe* response's `installAsRoot`, and there is no protocol method for a layer. The override
+  compiled, unit-tested green, and would have produced an image with no tool in it. Anything an
+  agent contributes to an image has to be in the definition.
+- **A here-document is what makes that readable**, and podman had to be asked whether it accepts
+  one. `installAsRoot` lines are joined with `\n` into the Containerfile, so a quoted `<<'STUB'`
+  spanning list items needs no escaping at all - but Dockerfile here-documents are a BuildKit
+  feature and podman's own parser is not BuildKit. Measured: podman 5.8.4 builds it, the file
+  lands, and `--version` answers. The definition is Maven-filtered, so the script uses `$VAR`
+  rather than `${VAR}` throughout - filtering replaces `${...}`.
+- **The first test passed while proving nothing.** It asserted the script *mentioned* each
+  declared domain; pointing the lookup at a third name left it green, because the old name was
+  still in an `echo` beside it. It now parses the `getent hosts` lines and requires the set of
+  names actually looked up to equal the set declared - in both directions. Both were bitten:
+  point a lookup elsewhere and it fails, declare a domain nothing asks for and it fails.
+
+Seven tests, 474 in the suite. The negative control is worth keeping: run the script in a plain
+`ubuntu:24.04` and *both* names resolve, so a green run inside a task is the containment
+working rather than the script pretending.
+
 ## Tier 2, and turning it off
 
 Tier 2 belongs to the agent repositories, but wherever it runs the shape is the same: a real

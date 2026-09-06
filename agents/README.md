@@ -8,6 +8,7 @@ binary that is already there.
 ```
 agents/
 ├── api/          sokar-agent-api       the agent contract; both sides link it
+├── stub/         sokar-agent-stub      → the agent the acceptance suite drives
 ├── claude/       sokar-agent-claude    → its own binary
 ├── pi/           sokar-agent-pi        → its own binary, and it ships its own CLI
 └── <yours>/
