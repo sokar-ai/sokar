@@ -404,6 +404,13 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             environmentCache = new java.util.LinkedHashMap<>();
             final java.util.List<String> domains = new java.util.ArrayList<>(selected == null
                     ? java.util.List.of() : selected.definition().allowedDomains());
+            // Every destination carries where it came from, so the report at the end of this can
+            // answer "who decided this" rather than only "what is open".
+            final java.util.Map<String, String> origins = new java.util.LinkedHashMap<>();
+            if (selected != null) {
+                selected.definition().allowedDomains().forEach(host ->
+                        origins.putIfAbsent(host, "agent " + selected.definition().name()));
+            }
 
             // An agent that can only address a URL still gets the broker on its socket: only the
             // listening end moves into the container's namespace, and that is a relay started
@@ -417,6 +424,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     if (!domains.contains(host)) {
                         domains.add(host);
                     }
+                    origins.putIfAbsent(host, "provider " + serving.definition().name());
                 }
             }
             // What the PROJECT's own tooling needs, as opposed to what the agent needs. Resolved
@@ -424,18 +432,18 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // cannot fetch a dependency for a reason nothing explains.
             final java.util.Map<String, String> projectOrigins;
             try {
-                projectOrigins = projectEgress(project, context);
+                projectOrigins = projectEgress(project, context.paths().egressSets());
             } catch (org.fuin.sokar.shield.EgressSetException ex) {
                 err.println("sokar: " + ex.getMessage());
                 err.flush();
                 return 2;
             }
-            projectOrigins.keySet().forEach(host -> {
+            projectOrigins.forEach((host, origin) -> {
                 if (!domains.contains(host)) {
                     domains.add(host);
                 }
+                origins.putIfAbsent(host, origin);
             });
-            reportEgress(project, projectOrigins, out);
 
             final boolean needsRelay = serving != null
                     && serving.route().endpoint()
@@ -477,10 +485,13 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     final String host = upstreamHost(project.upstream());
                     if (host != null && !domains.contains(host)) {
                         domains.add(host);
+                        origins.putIfAbsent(host, "upstream");
                         out.println("upstream  " + host + " (the agent pushes there directly)");
                     }
                 }
             }
+
+            reportReachable(project, origins, refused(selected), out);
 
             // The port is decided before this, so the firewall rule can name it; the gate itself
             // starts afterwards, because its log lives in the state directory that start()
@@ -1513,18 +1524,17 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * Returns the hosts the project declared, each mapped to where it came from.
      *
      * @param project The project.
-     * @param context Where the installed sets are found.
+     * @param sets Where the installed sets are found.
      * @return Host to origin, empty when the project declared nothing.
      */
-    private static java.util.Map<String, String> projectEgress(Project project,
-            SokarContext context) {
+    static java.util.Map<String, String> projectEgress(Project project,
+            org.fuin.sokar.shield.EgressSetDirectory sets) {
         final org.fuin.sokar.core.project.Egress egress = project.egress();
         if (egress.isEmpty()) {
             return java.util.Map.of();
         }
-        final org.fuin.sokar.shield.EgressSetDirectory sets = context.paths().egressSets();
-        final java.util.Map<String, String> origins =
-                new java.util.LinkedHashMap<>(sets.origins(egress.sets()));
+        final java.util.Map<String, String> origins = new java.util.LinkedHashMap<>();
+        sets.origins(egress.sets()).forEach((host, set) -> origins.put(host, "set " + set));
         // A directly named host wins the label: an operator who wrote it down should see it
         // reported as their own decision, not as whichever set happens to contain it too.
         egress.domains().forEach(domain -> origins.put(domain, "project"));
@@ -1532,34 +1542,63 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     }
 
     /**
-     * Prints what the project opened, and what it costs when that includes a forge.
+     * Returns the destinations an agent asks for and is deliberately not given.
+     *
+     * @param selected The chosen agent, or {@code null}.
+     * @return Hosts, empty when the agent names none.
+     */
+    static java.util.List<String> refused(
+            org.fuin.sokar.agent.api.InstalledAgent selected) {
+        return selected == null ? java.util.List.of() : selected.definition().refusedDomains();
+    }
+
+    /**
+     * Prints every destination a task may reach, with who decided it.
+     * <p>
+     * One list rather than a line per source, because the question an operator has is "what can
+     * this reach, and who said so" - and four differently shaped lines do not answer it. A
+     * destination that was deliberately refused is listed too, and marked: "we said no" and
+     * "nobody mentioned it" are different states, and only one of them is a thing to go and fix.
      *
      * @param project The project.
-     * @param origins Host to origin.
+     * @param origins Host to the origin that granted it, in the order the sources were consulted.
+     * @param refused Hosts an agent declares it asks for and is not given.
      * @param out Where to report.
      */
-    private static void reportEgress(Project project, java.util.Map<String, String> origins,
-            PrintWriter out) {
-        if (origins.isEmpty()) {
+    static void reportReachable(Project project, java.util.Map<String, String> origins,
+            java.util.List<String> refused, PrintWriter out) {
+
+        if (origins.isEmpty() && refused.isEmpty()) {
+            out.println("reachable      nothing - no agent, provider or project declared a host");
+            out.flush();
             return;
         }
-        final org.fuin.sokar.core.project.Egress egress = project.egress();
-        final java.util.List<String> declared = new java.util.ArrayList<>(egress.sets());
-        egress.domains().forEach(domain -> declared.add(domain + " (named directly)"));
-        out.println("egress         " + String.join(", ", declared)
-                + " - " + origins.size() + " hosts, ports 80 and 443");
 
-        // Said once, at the top, where the other origin lines are. Not refused: an agent
-        // legitimately clones dependencies from a forge.
-        final java.util.List<String> forges = origins.entrySet().stream()
-                .filter(entry -> FORGES.stream().anyMatch(forge ->
-                        entry.getKey().equals(forge) || entry.getKey().endsWith("." + forge)))
-                .map(java.util.Map.Entry::getKey)
+        final int width = java.util.stream.Stream.concat(origins.keySet().stream(),
+                        refused.stream())
+                .mapToInt(String::length).max().orElse(0);
+
+        String label = "reachable";
+        for (final java.util.Map.Entry<String, String> entry : origins.entrySet()) {
+            out.printf("%-14s %-" + width + "s  %s%n", label, entry.getKey(), entry.getValue());
+            label = "";
+        }
+        for (final String host : refused) {
+            out.printf("%-14s %-" + width + "s  %s%n", label, host, "refused on purpose");
+            label = "";
+        }
+        out.println("               ports 80 and 443; everything else is NXDOMAIN");
+
+        // Said once, here, where the grants are. Not refused: an agent legitimately clones
+        // dependencies from a forge.
+        final java.util.List<String> forges = origins.keySet().stream()
+                .filter(host -> FORGES.stream().anyMatch(forge ->
+                        host.equals(forge) || host.endsWith("." + forge)))
                 .toList();
         if (!forges.isEmpty()
                 && project.securityClass() == org.fuin.sokar.core.project.SecurityClass.GUARDED) {
-            out.println("               this project can reach " + String.join(", ", forges)
-                    + ", so the gate now rests on the container holding no credential for them");
+            out.println("               " + String.join(", ", forges) + " is reachable, so the"
+                    + " gate now rests on this container holding no credential for it");
         }
         out.flush();
     }
