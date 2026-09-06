@@ -172,8 +172,31 @@ thing an image installs is worse than none - but it is marked as fetched, not sh
    at a 401 for want of credentials, which is as far as it can go here. `maven-gpg-plugin`
    now reports *signing 5 files* where it reported four, so the bill is signed with
    everything else rather than being the one unsigned artifact.
-3. **The npm SBOM**, produced inside `build-pi-tree.sh` and carried into `pi-tree.tar.gz`, so
-   the tree and its bill cannot separate.
+3. ~~**The npm SBOM**~~ **Done, 2026-09-06**, in `sokar-pi`. `@cyclonedx/cyclonedx-npm` 6.0.1
+   runs inside the pinned Node container immediately after `npm ci` - the only moment the
+   lockfile and the installed tree exist together, since the next line deletes the lockfile.
+   The bill is written into the tree, so it travels inside `pi-tree.tar.gz` and cannot get
+   separated from what it describes. **134 npm components, 127 carrying a SHA-512.**
+
+   Node itself is appended afterwards: it is in the tree and is not an npm package, so nothing
+   npm-aware could have listed it. The digest recorded is the one the script already verifies,
+   rather than one computed after the fact.
+
+   **Two shapes to know before writing the diff in step 6**, both of which made this look
+   broken for a while:
+
+   - **Components nest.** `cyclonedx-npm` emits a tree, not a flat list. Counting
+     `bom["components"]` gives 2; walking recursively gives 135.
+   - **`name` is scope-stripped, `purl` is not.** `@earendil-works/pi-coding-agent` appears as
+     `name: "pi-coding-agent"` with
+     `purl: "pkg:npm/%40earendil-works/pi-coding-agent@0.85.0"`. Comparing on `name` reported
+     59 installed packages missing that were present all along. **The purl is the identity.**
+   - Integrity hashes are on the `distribution` external reference, not on the component.
+
+   The lockfile has 167 entries against the bill's 134, and the difference is accounted for:
+   37 are optional builds for other platforms - `@esbuild/darwin-arm64` and its like - which
+   `npm ci` does not install on linux-x64. **Nothing installed is missing from the bill**,
+   checked by comparing purls against every non-platform-restricted lockfile entry.
 4. **Merge and ship.** One `sbom.cdx.json` per package, at the same path in the `.deb` and the
    `.rpm` so the payload-parity check keeps holding, and uploaded beside the package in
    Artifactory so it can be fetched without installing.
