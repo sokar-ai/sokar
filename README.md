@@ -96,6 +96,11 @@ Why build this if Terok is so cool? See [why](why.md)
 Everything needed to go from nothing to a running agent. Paste it into the project you want
 an agent to work on.
 
+> [!NOTE]  
+> This is the quick path for the case where **Claude Code is already installed and signed
+> in on the host you run Sokar from** — `vault import` copies the credential it is holding,
+> whether that is an API key or a subscription token, so nothing is retyped.
+
 **Debian and Ubuntu**
 
 ```sh
