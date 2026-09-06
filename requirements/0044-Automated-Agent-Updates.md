@@ -118,10 +118,42 @@ thing an image installs is worse than none - but it is marked as fetched, not sh
 
 ### Steps
 
-1. **Measure what a scan can see.** Run `syft` against `app/target/sokar` and against the
-   built `.deb`. If it recovers the Java components, scanning is simpler than generating and
-   this plan shrinks. If it does not - the expectation - build-time generation is the only
-   honest source, and that is recorded rather than asserted.
+1. ~~**Measure what a scan can see.**~~ **Done, 2026-09-06**, with `syft` 1.51.1 in a
+   container. Scanning is a cross-check at best:
+
+   | scanned | components |
+   |---|---|
+   | `app/target/sokar`, the native image | **0** |
+   | `sokar_…_amd64.deb` | 2 - the package and the file, nothing inside |
+   | `sokar-agent-pi_…_amd64.deb` | 2 |
+   | `pi-tree.tar.gz` | 2 - only the Node binary |
+   | the tree unpacked, syft's defaults | 2 |
+   | the tree unpacked, JavaScript cataloger forced | 141 |
+
+   Three findings, in order of how much they cost to learn:
+
+   - **A native image is opaque to a scanner.** Zero components from a 36 MB binary built
+     from the whole reactor. Whatever `sokar` depends on is knowable only from the build.
+   - **A scanner sees nothing through an archive.** The npm tree is a `.tar.gz` inside a
+     `.deb`, and neither layer is opened - so Pi's 167 packages are invisible in the very
+     artifact an operator installs.
+   - **syft's default cataloger set for a *directory* scan excludes JavaScript.** The
+     unpacked tree returns two components until `--override-default-catalogers javascript`
+     is passed, and the tool warns that doing so "may result in inaccurate SBOMs". A default
+     run therefore reports almost nothing and looks like a correct answer.
+
+   And even forced, it is worse than the lockfile it is scanning:
+
+   | | syft | `package-lock.json` |
+   |---|---|---|
+   | npm packages | 141 | **167** |
+   | integrity hashes | **0** | 160 |
+   | licences | 134 | 167 |
+
+   Twenty-six packages missing and no hashes at all. Since the stop conditions are a diff of
+   component and licence sets, a source that silently omits 16% of them is not a source.
+   **Build-time generation it is**, and `syft` is not adopted even as a cross-check for now -
+   it would need its own justification rather than inheriting one from this measurement.
 2. **Maven SBOMs.** `cyclonedx-maven-plugin` in the root `pluginManagement`, bound in the two
    published modules and in whatever aggregates for the packages. Verify the artifact
    attached to `sokar-agent-api` deploys alongside the jar under `-Pcentral-sonatype-release`,
