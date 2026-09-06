@@ -184,3 +184,34 @@ jobs:
               --build-name=sokar --build-number="$GITHUB_RUN_ID"
           jf rt build-add-git sokar "$GITHUB_RUN_ID"
           jf rt build-publish sokar "$GITHUB_RUN_ID"
+
+      # Uploaded is not the same as installable. Indexing is asynchronous, and a package with
+      # missing or wrong properties is stored happily and never appears in the index - which is
+      # invisible until an operator's apt says there is nothing to install.
+      - name: The packages are indexed, not merely stored
+        env:
+          JF_URL: ${{ vars.JF_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+        run: |
+          set -eu
+          await() {
+              label="$1" path="$2" needle="$3" tries=0
+              while [ "$tries" -lt 20 ]; do
+                  if jf rt curl -s -XGET "$path" 2>/dev/null | grep -q "$needle"; then
+                      echo "  OK    $label lists '$needle'"
+                      return 0
+                  fi
+                  tries=$((tries + 1))
+                  sleep 6
+              done
+              echo "::error::$label never listed '$needle' after two minutes - uploaded but not indexed"
+              return 1
+          }
+          FAILED=0
+          await "the Debian index" \
+              "/sokar-dist-deb/dists/snapshots/main/binary-amd64/Packages" \
+              "Package: sokar" || FAILED=1
+          await "the RPM index" \
+              "/sokar-dist-rpm/snapshots/repodata/repomd.xml" \
+              "primary" || FAILED=1
+          exit "$FAILED"
