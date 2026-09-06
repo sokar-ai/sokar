@@ -12,6 +12,7 @@
     </parent>
 
     <artifactId>sokar-vault</artifactId>
+    <name>Sokar Vault</name>
     <description>Sokar - Credential store (VAULT)</description>
 
     <dependencies>
@@ -37,8 +38,7 @@
 
         <dependency>
             <groupId>org.fuin.sokar</groupId>
-            <artifactId>sokar-core</artifactId>
-            <type>test-jar</type>
+            <artifactId>sokar-testing</artifactId>
             <scope>test</scope>
         </dependency>
 

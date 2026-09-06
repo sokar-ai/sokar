@@ -13,6 +13,7 @@
 
     <artifactId>sokar-dist-deb</artifactId>
     <packaging>pom</packaging>
+    <name>Sokar Debian Package</name>
     <description>Sandboxes AI agent tasks in hardened rootless containers</description>
 
     <properties>

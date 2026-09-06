@@ -12,6 +12,7 @@
     </parent>
 
     <artifactId>sokar-supervisor</artifactId>
+    <name>Sokar Supervisor</name>
     <description>Sokar - Per-container services (SUPERVISOR)</description>
 
     <dependencies>

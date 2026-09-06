@@ -12,6 +12,7 @@
     </parent>
 
     <artifactId>sokar-wire</artifactId>
+    <name>Sokar Wire</name>
     <description>Sokar - Cross-boundary records (WIRE)</description>
 
 </project>

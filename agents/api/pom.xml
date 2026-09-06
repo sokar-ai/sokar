@@ -12,6 +12,7 @@
     </parent>
 
     <artifactId>sokar-agent-api</artifactId>
+    <name>Sokar Agent API</name>
     <description>Sokar - Agent SPI (AGENT-API)</description>
 
     <dependencies>

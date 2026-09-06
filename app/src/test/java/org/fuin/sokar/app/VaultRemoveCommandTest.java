@@ -7,7 +7,7 @@ import java.io.StringWriter;
 import java.nio.file.Path;
 import java.util.Map;
 import org.fuin.sokar.core.config.XdgPaths;
-import org.fuin.sokar.core.process.FakeCommandRunner;
+import org.fuin.sokar.testing.FakeCommandRunner;
 import org.fuin.sokar.vault.VaultEntry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

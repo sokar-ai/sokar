@@ -7,7 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.fuin.sokar.core.process.CommandException;
-import org.fuin.sokar.core.process.FakeCommandRunner;
+import org.fuin.sokar.testing.FakeCommandRunner;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.core.project.SecurityClass;
 import org.junit.jupiter.api.Test;

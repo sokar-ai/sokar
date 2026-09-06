@@ -16,6 +16,7 @@
     <artifactId>sokar</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
+    <name>Sokar</name>
     <description>Sandboxing AI agents in YOLO mode using Podman and Java/GraalVM (PARENT)</description>
     <url>https://github.com/fuinorg/sokar/</url>
 
@@ -58,6 +59,7 @@
     <modules>
         <module>wire</module>
         <module>core</module>
+        <module>testing</module>
         <module>runtime</module>
         <module>shield</module>
         <module>clearance</module>
@@ -142,9 +144,8 @@
 
             <dependency>
                 <groupId>org.fuin.sokar</groupId>
-                <artifactId>sokar-core</artifactId>
+                <artifactId>sokar-testing</artifactId>
                 <version>${sokar.version}</version>
-                <type>test-jar</type>
                 <scope>test</scope>
             </dependency>
 
@@ -292,6 +293,36 @@
                                 </requireProperty>
                             </rules>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Resolved versions inline, so the parent and aggregator poms need not be
+                 published. In the main build, not a release profile: what is installed is
+                 then what is deployed. Pom modules are skipped, so aggregators keep theirs. -->
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.8.0</version>
+                <configuration>
+                    <flattenMode>oss</flattenMode>
+                    <updatePomFile>true</updatePomFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>

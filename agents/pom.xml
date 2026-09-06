@@ -13,6 +13,7 @@
 
     <artifactId>sokar-agents</artifactId>
     <packaging>pom</packaging>
+    <name>Sokar Agents</name>
     <description>Sokar - Agents (PARENT)</description>
 
     <!-- One submodule per agent, plus the SPI both sides share.

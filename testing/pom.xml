@@ -11,25 +11,23 @@
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>sokar-gate</artifactId>
-    <name>Sokar Gate</name>
-    <description>Sokar - Git gate (GATE)</description>
+    <artifactId>sokar-testing</artifactId>
+    <name>Sokar Testing</name>
+    <description>Sokar - Fixtures shared by the modules' tests (TESTING)</description>
+
+    <properties>
+        <!-- Fixtures are for this reactor. Publishing them would make an internal helper
+             something an out-of-repository agent could depend on. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
 
     <dependencies>
 
-        <!-- compile -->
+        <!-- compile: an ordinary jar, so what it fakes is a compile dependency -->
 
         <dependency>
             <groupId>org.fuin.sokar</groupId>
             <artifactId>sokar-core</artifactId>
-        </dependency>
-
-        <!-- test -->
-
-        <dependency>
-            <groupId>org.fuin.sokar</groupId>
-            <artifactId>sokar-testing</artifactId>
-            <scope>test</scope>
         </dependency>
 
     </dependencies>

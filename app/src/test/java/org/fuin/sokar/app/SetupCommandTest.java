@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.fuin.sokar.core.config.XdgPaths;
-import org.fuin.sokar.core.process.FakeCommandRunner;
+import org.fuin.sokar.testing.FakeCommandRunner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;

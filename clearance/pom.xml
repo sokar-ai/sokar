@@ -12,6 +12,7 @@
     </parent>
 
     <artifactId>sokar-clearance</artifactId>
+    <name>Sokar Clearance</name>
     <description>Sokar - Allow/deny decisions (CLEARANCE)</description>
 
     <dependencies>
@@ -39,13 +40,6 @@
         </dependency>
 
         <!-- test -->
-
-        <dependency>
-            <groupId>org.fuin.sokar</groupId>
-            <artifactId>sokar-core</artifactId>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
 
     </dependencies>
 

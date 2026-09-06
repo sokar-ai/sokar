@@ -1,9 +1,12 @@
-package org.fuin.sokar.core.process;
+package org.fuin.sokar.testing;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.fuin.sokar.core.process.Command;
+import org.fuin.sokar.core.process.CommandResult;
+import org.fuin.sokar.core.process.CommandRunner;
 
 /**
  * A {@link CommandRunner} that records what it was asked to run and answers from a script.

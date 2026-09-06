@@ -12,6 +12,7 @@
     </parent>
 
     <artifactId>sokar-hooks</artifactId>
+    <name>Sokar Hooks</name>
     <description>Sokar - OCI hooks (HOOKS)</description>
 
     <dependencies>

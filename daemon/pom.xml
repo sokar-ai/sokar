@@ -12,6 +12,7 @@
     </parent>
 
     <artifactId>sokard</artifactId>
+    <name>Sokar Daemon</name>
     <description>Sokar - Daemon (DAEMON)</description>
 
     <dependencies>

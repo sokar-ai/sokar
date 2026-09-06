@@ -287,7 +287,30 @@ which is the worst thing on that list.
 **The test-jar must not reach Sonatype, and nine modules use it.** It is produced by `core` and
 consumed across the reactor, so it cannot simply be dropped. The clean form is a module of its
 own - shared test fixtures as an ordinary jar with `maven.deploy.skip`, and `core` stops
-producing a test-jar. Nine POMs change one dependency each; mechanical, but not nothing.
+producing a test-jar.
+
+**Done, and the fixture turned out to be one class.** `sokar-testing` now holds
+`FakeCommandRunner`, in `org.fuin.sokar.testing` rather than in `core`'s package - a jar owning
+a package another artifact also owns is the kind of thing that reads as a mistake later. `core`
+no longer produces a test-jar at all, and nothing in the reactor asks for one.
+
+Not nine modules but six, and one of those was carrying a dependency it never used: `clearance`
+declared the test-jar and imports nothing from it. `core`'s own tests do not use the fixture
+either, so `sokar-testing` can depend on `core` without a cycle - which is what makes it an
+ordinary jar rather than a second test-jar.
+
+**Also done: `<name>` and `flatten-maven-plugin`.** The audit said the *root* POM lacks the
+`<name>` Central requires. True, but not sufficient: **`<name>` is not an inherited element**, so
+a root-only fix leaves every deployed artifact without one. Eighteen modules now declare theirs,
+and the flattened `sokar-agent-api` POM was checked rather than assumed - it carries name,
+description, url, licences, developers and scm, has no `<parent>`, and lists its three
+dependencies at resolved versions.
+
+One thing that flattening exposes and nobody has decided: the `org.fuin:pom` parent derives each
+module's `<url>` from the *artifactId* chain, so the SPI advertises
+`github.com/fuinorg/sokar/sokar-agents/sokar-agent-api/`, a path that does not exist. Central
+requires a url, not a working one, so it does not block publishing - but it is wrong, and it is
+in every POM.
 
 ## 4. Publishing
 
@@ -318,9 +341,10 @@ version line, so depending on a released API is the shape the design already wan
 1. ~~**Spike** - tier 1 on a hosted runner, in this repository, nothing else moved.~~ **Done.**
 2. ~~**CI for this repository**, whatever the spike allows.~~ **Done** - both legs rented, in
    parallel, gated to `main`; hosted runners keep the build and will carry the release.
-3. **Shrink the published surface** - drop the unused `sokar-core` dependency, move `varlink`
+3. ~~**Shrink the published surface** - drop the unused `sokar-core` dependency, move `varlink`
    into `sokar-wire`, delete the unused test-jar dependency, extract the shared fixtures, add
-   `<name>`, add `flatten-maven-plugin`.
+   `<name>`, add `flatten-maven-plugin`.~~ **Done.** 467 tests green; the SPI resolves three
+   artifacts.
 4. **Publish the SPI and its closure** at a real version.
 5. **Write the stub agent** and move tier 1 onto it. This has to happen *before* an agent
    leaves, not after: the moment `agents/claude` is a different repository, the core's own

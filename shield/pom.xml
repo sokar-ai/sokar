@@ -12,6 +12,7 @@
     </parent>
 
     <artifactId>sokar-shield</artifactId>
+    <name>Sokar Shield</name>
     <description>Sokar - Egress control and audit (SHIELD)</description>
 
     <dependencies>
@@ -32,8 +33,7 @@
 
         <dependency>
             <groupId>org.fuin.sokar</groupId>
-            <artifactId>sokar-core</artifactId>
-            <type>test-jar</type>
+            <artifactId>sokar-testing</artifactId>
             <scope>test</scope>
         </dependency>
 

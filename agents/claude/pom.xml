@@ -23,6 +23,7 @@
          resolve to THIS version and find nothing. -->
 
     <version>1.0.0-SNAPSHOT</version>
+    <name>Sokar Agent Claude Code</name>
     <description>Sokar agent for Claude Code</description>
 
     <properties>

@@ -3,7 +3,7 @@ package org.fuin.sokar.vault;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.fuin.sokar.core.process.FakeCommandRunner;
+import org.fuin.sokar.testing.FakeCommandRunner;
 import org.junit.jupiter.api.Test;
 
 /**
