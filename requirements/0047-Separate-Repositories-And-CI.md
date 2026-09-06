@@ -382,6 +382,41 @@ one.
 `OSS_SONATYPE_GPG_PASSPHRASE`. A missing one fails the job rather than publishing an unsigned
 artifact, which is the behaviour to want.
 
+### The first run published everything, 2026-09-06
+
+The allow-list above did not hold. Run 92160991865 uploaded all nineteen modules to
+central-snapshots, root aggregator and RPM package included.
+
+`maven.deploy.skip` is read by `maven-deploy-plugin`, and under `-Pcentral-sonatype-release`
+that plugin never runs. `central-publishing-maven-plugin` is declared with
+`<extensions>true</extensions>`, and its `DeployLifecycleParticipant` rewrites every module's
+model at session start: where it finds no pre-existing publish binding it injects its own
+`publish` goal on the `deploy` phase - the log says *Installing Central Publishing features*
+and then names 19 modules. `maven-deploy-plugin` appears nowhere in that log, so the property
+that was supposed to be the allow-list was never consulted. Its own switch is `skipPublishing`,
+checked per artifact in `PublishMojo.processSnapshot`, alongside `excludeArtifacts` - a list of
+artifactIds. The root POM now sets `skipPublishing` true and the same two modules set it false,
+and both properties carry a one-line comment naming which plugin reads which.
+
+`skipPublishing` is the right lever rather than `excludeArtifacts` for the same reason
+`maven.deploy.skip` was: a list of what not to publish has to be edited whenever a module is
+added, and a module added and forgotten gets published. It is also safe at the end of the
+reactor - the mojo runs in every module either way, so the last one still performs the upload.
+
+**Why the local verification missed it.** It deployed with a plain
+`mvn deploy -DaltDeploymentRepository=file://...`, without the release profile. That is
+`maven-deploy-plugin`, which does honour `maven.deploy.skip` - so seventeen modules printed
+*Skipping artifact deployment* and the check passed while exercising a code path CI does not
+take. A verification that does not name the profile the real deploy uses verifies a different
+build.
+
+The fix was proven on the CI path: `mvn clean deploy -Pcentral-sonatype-release -s settings.xml
+-Dgpg.skip=true`, with no credentials. Before, twenty artifacts were staged into
+`target/central-deferred`; after, eighteen modules print *Skipping Central Snapshot Publishing
+for artifact* and only `sokar-wire` and `sokar-agent-api` are staged. Both runs end at HTTP 401
+from central-snapshots, which is as far as this goes without a Sonatype account - the upload
+itself is unverified.
+
 **Agents pin a released agent API, never a snapshot.** This is the one point worth arguing about,
 because it is the failure this organisation has already hit: downstream CI resolving a snapshot
 that had vanished upstream while a local `~/.m2` still held a copy. Agents now carry their own

@@ -44,7 +44,10 @@
         <!-- Nothing is published unless a module opts in. Sokar ships as binaries and packages;
              the only artifacts anyone resolves from Maven are the agent API and what it drags
              in, so every other module would be publishing an internal for people to depend on. -->
+        <!-- Read by maven-deploy-plugin, which -Pcentral-sonatype-release never runs. -->
         <maven.deploy.skip>true</maven.deploy.skip>
+        <!-- Read by central-publishing-maven-plugin, which is what that profile does run. -->
+        <skipPublishing>true</skipPublishing>
 
         <!-- Panama FFM is only stable from 22 on, and native-image is built with GraalVM 25. -->
         <java.release.version>25</java.release.version>

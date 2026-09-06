@@ -19,6 +19,7 @@
         <!-- Deployed to Central. An agent in its own repository resolves this jar to
              compile against; without it there is no way to build an agent outside here. -->
         <maven.deploy.skip>false</maven.deploy.skip>
+        <skipPublishing>false</skipPublishing>
     </properties>
 
     <dependencies>
