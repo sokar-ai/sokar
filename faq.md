@@ -19,9 +19,9 @@ What a task may resolve comes from three places, and none of them is yours to se
 
 `project.yml` has no key for it, `sokar task run` has no flag for it, and the firewall opens
 nothing toward the host except the git gate's own port — so a proxy running on your machine
-is not reachable either. [Requirement 0013](requirements/0013-Egress-Sets-Editor.md) assumes
-a project *can* declare destinations, which is the interface for a mechanism that does not
-exist yet.
+is not reachable either. This is
+[requirement 0049](requirements/0049-Project-Egress.md), and it is the one gap that makes
+Sokar unusable for ordinary development until it is closed.
 
 ### What works in the meantime
 
