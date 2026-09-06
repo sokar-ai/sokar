@@ -40,10 +40,12 @@ Supervise agents from a Flutter client — wherever they run :construction:
 
 ### Features
 
-- **A file beside your code** — `project.yml` names the base image, the security class and anything else you want
-  baked in; each task is a container built from it and thrown away afterwards
-- **The security class belongs to the project** — `offline` forwards nothing upstream ever, `guarded` and `online`
-  forward only what you approve, and no task can talk its way up
+- **A file beside your code** — `project.yml` names the base image, the security class, what the build may reach and
+  anything else you want baked in; each task is a container built from it and thrown away afterwards
+- **Your build can still fetch dependencies** — name what it needs and nothing else resolves: `egress: {sets: [maven]}`
+  opens Maven Central on ports 80 and 443, `sokar shield sets` lists the rest, and an undeclared registry is `NXDOMAIN`
+- **The security class belongs to the project** — `offline` forwards nothing upstream ever, `guarded` forwards only
+  what you approve, `online` gives the agent the upstream directly, and no task can talk its way up
 - **Interactive or unattended** — a shell by default, or `-P "…"` to run the agent headlessly and format what it says
 - **Three image layers, the middle one pinned** — your base, then the agent's CLI fetched from a fixed URL and checked
   against a SHA-256, then your own lines
@@ -132,7 +134,9 @@ sokar vault unlock
 sokar vault import claude
 
 # Run one. With no project.yml here it offers to write one, taking the project
-# name from this directory - Enter accepts every default.
+# name from this directory - Enter accepts every default. What it writes includes an
+# 'egress' block: a task reaches only what the file names, so add 'maven', 'node' or
+# whatever your build needs. 'sokar shield sets' lists them.
 sokar task run
 ```
 
@@ -169,7 +173,9 @@ sokar vault unlock
 sokar vault import claude
 
 # Run one. With no project.yml here it offers to write one, taking the project
-# name from this directory - Enter accepts every default.
+# name from this directory - Enter accepts every default. What it writes includes an
+# 'egress' block: a task reaches only what the file names, so add 'maven', 'node' or
+# whatever your build needs. 'sokar shield sets' lists them.
 sokar task run
 ```
 

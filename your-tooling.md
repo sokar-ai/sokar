@@ -73,6 +73,9 @@ installing something does not widen the network.
 firewall does not govern, so they can fetch from anywhere. At *run* time the task's
 resolver answers NXDOMAIN for any name that is not declared, so a tool that reaches out
 while the agent is working fails to resolve rather than being blocked and prompted about.
-Fetch what it needs here, in the build, and the running task needs no network for it —
-see [the FAQ](faq.md).
+
+Two ways out, and they are not alternatives. Fetch what the tool needs here, in the build, and
+the running task needs no network for it. If it genuinely has to reach out while the agent
+works - a package registry is the usual case - name that in the project's `egress` section,
+where the grant is reviewed like any other change. See [the FAQ](faq.md).
 

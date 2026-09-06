@@ -255,11 +255,60 @@ project:
   # upstream: "git@github.com:you/myproject.git"   # required by online; optional otherwise
 image:
   base_image: "ubuntu:24.04"
+egress:                     # what the build may reach; nothing else resolves
+  sets: [os-packages-debian, git-hosting]
+  # domains: ["nexus.corp.example"]   # a private mirror, if you have one
 limits:                     # optional; these are the defaults
   memory: "8g"              # "none" to opt out on purpose
   pids: 2048
   # cpus: "2.0"             # unset means no CPU limit
 ```
+
+### What the build may reach
+
+**Nothing that is not named here.** The block the wizard writes is the whole mechanism:
+
+```yaml
+egress:
+  sets: [os-packages-debian, git-hosting]
+```
+
+`sets` are curated lists of hosts, written once so that "reaching npm" means the same thing in
+every project. See what is installed:
+
+```sh
+sokar shield sets              # names and how many hosts each grants
+sokar shield sets --verbose    # and the hosts themselves
+```
+
+Add what your build needs — `maven`, `node`, `python`, `rust`, `go`, `containers` — and, for a
+host no set covers, name it directly:
+
+```yaml
+egress:
+  sets: [maven]
+  domains: ["nexus.corp.example"]
+```
+
+Four things worth knowing before you widen it:
+
+- **The package set follows the base image, not your machine.** A Fedora host running a task on
+  `ubuntu:24.04` needs `os-packages-debian`; the wizard picks the right one from the base image
+  you chose.
+- **Ports 80 and 443 only.** A declared name opens web ports at the addresses it resolves to,
+  not the host. Declaring `git-hosting` does not open ssh, so it does not hand an agent a
+  `git push` that goes around the gate.
+- **An `offline` project refuses this section** rather than ignoring it, and says so.
+- **`os-packages-fedora` cannot be complete.** `dnf` fetches from mirrors named by a mirrorlist,
+  which differ by region and by day, so each one raises a clearance prompt. Pin a baseurl in
+  your image snippet if that matters. Debian and Ubuntu use stable CDN names and are covered.
+- **Declaring a forge is a real decision.** `git-hosting` makes github.com resolvable, and in a
+  `guarded` project the gate then rests on the container holding no credential for it rather
+  than on the host being unreachable. Sokar prints that at task start. It does not refuse: an
+  agent legitimately clones dependencies from a forge.
+
+What a task may reach is printed when it starts, with where each entry came from — the agent,
+the provider, the upstream, or this file.
 
 **Why the limits are there.** An agent in YOLO mode runs commands nobody reviewed,
 so a runaway build is a normal outcome rather than an attack. `--pids-limit` also
@@ -442,8 +491,10 @@ desktop notification with Allow and Deny. You are asked once per destination and
 asked again in either direction, so an agent cannot keep retrying until you click the
 wrong thing.
 
-Adding a host a task may reach is not something a project can do today — see
-[the FAQ](faq.md) for what to do instead.
+**If the host is one your build legitimately needs, declare it** rather than clicking
+Allow — `egress.sets` or `egress.domains` in `project.yml`, above. A clearance is for one
+address on one run; the declaration is reviewed, diffable, and applies to everyone who
+clones the repository.
 
 `--clearance` changes that for one task: `prompt` (the default), `allow`, `deny`,
 or `off`. **On a machine with no desktop session, use one of the other three** —
