@@ -112,6 +112,60 @@ else
     fail "the rpm ships no /usr/share/licenses/<package>/LICENSE"
 fi
 
+# ------------------------------------------------------------------ the bill
+#
+# A package that ships no bill, or one describing something else, is the failure this exists
+# for: the automated update gate compares the new bill against the published one, and it cannot
+# notice a changed dependency set in a document that was never written or never updated.
+echo
+echo "-- bills of materials --"
+
+check_bom() {
+    local label="$1" package="$2" name="$3" version="$4" body
+    case "$package" in
+        *.deb) body="$(dpkg-deb --fsys-tarfile "$package" \
+                   | tar -xO "./usr/share/sokar/sbom/$name.cdx.json" 2>/dev/null)" ;;
+        # rpm2archive, not rpm2cpio: the fedora image has no cpio, so that pipe produced
+        # nothing at all and read as a missing file.
+        *)     body="$(podman run --rm -v "$(dirname "$package")":/pkg:ro,Z fedora:41 sh -c \
+                   "rpm2archive -n - < '/pkg/$(basename "$package")' \
+                    | tar -xO './usr/share/sokar/sbom/$name.cdx.json'" 2>/dev/null)" ;;
+    esac
+
+    if [ -z "$body" ]; then
+        fail "$label ships no bill at /usr/share/sokar/sbom/$name.cdx.json"
+        return
+    fi
+    printf '%s' "$body" | python3 -c "
+import json, sys
+bom = json.load(sys.stdin)
+assert bom.get('bomFormat') == 'CycloneDX', 'not a CycloneDX document'
+subject = bom['metadata']['component']
+assert subject['name'] == '$name', f\"names {subject['name']}, not $name\"
+assert subject['version'] == '$version', f\"version {subject['version']}, not $version\"
+
+def count(items):
+    return sum(1 + count(c.get('components')) for c in (items or []))
+total = count(bom.get('components'))
+assert total > 0, 'lists no components at all'
+print(total)
+" > /tmp/sokar-bom-count 2>/tmp/sokar-bom-error
+
+    if [ $? -eq 0 ]; then
+        pass "$label ships a bill for itself ($(cat /tmp/sokar-bom-count) components)"
+    else
+        fail "$label ships a bill that $(tail -1 /tmp/sokar-bom-error | sed 's/^AssertionError: //')"
+    fi
+    rm -f /tmp/sokar-bom-count /tmp/sokar-bom-error
+}
+
+SOKAR_VERSION="$(dpkg-deb -f "$DEB" Version)"
+AGENT_VERSION="$(dpkg-deb -f "$AGENT_DEB" Version)"
+check_bom "the sokar deb" "$DEB" "sokar" "${SOKAR_VERSION/\~/-}"
+check_bom "the sokar rpm" "$RPM" "sokar" "${SOKAR_VERSION/\~/-}"
+check_bom "the agent deb" "$AGENT_DEB" "sokar-agent-stub" "${AGENT_VERSION/\~/-}"
+check_bom "the agent rpm" "$AGENT_RPM" "sokar-agent-stub" "${AGENT_VERSION/\~/-}"
+
 DEB_VERSION="$(dpkg-deb -f "$DEB" Version)"
 RPM_VERSION="$(podman run --rm -v "$(dirname "$RPM")":/pkg:ro,Z fedora:41 \
     rpm -qp --qf '%{VERSION}' "/pkg/$(basename "$RPM")" 2>/dev/null)"

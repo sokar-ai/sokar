@@ -34,6 +34,7 @@
         <jdeb.version>1.14</jdeb.version>
         <rpm.version>1.13.0</rpm.version>
         <agent.install.dir>/usr/libexec/sokar/agents</agent.install.dir>
+        <sbom.install.dir>/usr/share/sokar/sbom</sbom.install.dir>
         <!-- Signing is off for local and CI builds and on for releases, where the key exists.
              §12 says the shipped packages are signed; this is the switch, not an exemption. -->
         <rpm.sign.skip>true</rpm.sign.skip>
@@ -71,6 +72,30 @@
             <id>dist</id>
             <build>
                 <plugins>
+
+                    <!-- Every agent package carries a bill, the same as Sokar's own. The
+                         stub is the only agent module left here, and it packages itself so the
+                         packaging path still has something to exercise. -->
+
+                    <plugin>
+                        <groupId>org.cyclonedx</groupId>
+                        <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>cyclonedx</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>makeBom</goal>
+                                </goals>
+                                <configuration>
+                                    <projectType>application</projectType>
+                                    <outputName>${project.artifactId}.cdx</outputName>
+                                    <skipNotDeployed>false</skipNotDeployed>
+                                    <skipAttach>true</skipAttach>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
 
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
@@ -136,6 +161,17 @@
                                                 <group>root</group>
                                             </mapper>
                                         </data>
+                                        <data>
+                                            <src>${project.build.directory}/${project.artifactId}.cdx.json</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${sbom.install.dir}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
                                         <!-- Debian Policy 12.5: every binary package ships one. -->
                                         <data>
                                             <src>${project.basedir}/../src/deb/copyright/copyright</src>
@@ -194,6 +230,13 @@
                                     <name>${agent.install.dir}/${project.artifactId}</name>
                                     <file>${project.build.directory}/${project.artifactId}</file>
                                     <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${sbom.install.dir}/${project.artifactId}.cdx.json</name>
+                                    <file>${project.build.directory}/${project.artifactId}.cdx.json</file>
+                                    <mode>0644</mode>
                                     <user>root</user>
                                     <group>root</group>
                                 </entry>

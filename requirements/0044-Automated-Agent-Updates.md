@@ -236,9 +236,34 @@ thing an image installs is worse than none - but it is marked as fetched, not sh
      and the `<executions>` block that was in `pluginManagement` then bound `makeBom` in all
      seventeen. `pluginManagement` now carries configuration only, each module binds its own
      execution, and the root's declaration is `<inherited>false</inherited>`.
-5. **Guards.** Extend `check-packages.sh`: every package contains an SBOM, it parses, its
-   top-level component name and version match the package, and Pi's names the npm tree. Each
-   proven to fail by breaking it once.
+5. ~~**Guards.**~~ **Done, 2026-09-06.** Two places, because they answer different questions.
+
+   `check-packages.sh` checks all four packages built here - Sokar's `.deb` and `.rpm`, the stub
+   agent's pair - for a bill that parses, declares `bomFormat: CycloneDX`, names the package it
+   ships in at the package's own version, and lists at least one component. The stub now carries
+   a bill of its own, so the agent packaging path is covered rather than only Sokar's.
+
+   Each agent's `acceptance.sh` checks the bill **on a machine that installed the package**,
+   which is the stronger question: not "did the build write one" but "did an operator get one".
+   It also requires the bill to name the thing that makes that agent's bill non-trivial -
+   `claude-code`, the CLI the package does not contain, and `sokar-agent-pi-tree`, the tree it
+   does.
+
+   **Proven to fail, not assumed to.** Every branch was broken once:
+
+   | broken | result |
+   |---|---|
+   | the bill names another package | FAIL, both formats |
+   | the bill lists no components | FAIL |
+   | the bill is absent from the package | FAIL |
+   | `bomFormat` is not CycloneDX | REJECTED |
+   | the agent's bill omits its fetched CLI | REJECTED |
+
+   **And one of those failures was real while it was being written.** The rpm branch reported
+   *"ships no bill"* for a file the parity check had already proved was inside the package:
+   `fedora:41` has `rpm2cpio` but **no `cpio`**, so the extraction pipe produced nothing and read
+   as absence. `rpm2archive -n - | tar -xO` works and needs nothing installed. A guard that
+   cannot open the package it is checking passes for the wrong reason just as easily.
 6. **Then the stop conditions become code.** Compare the new SBOM against the published one:
    a changed component set or a changed licence set stops the update and asks. This is the
    step that makes the automation trustworthy, and it cannot be written before 1-5 exist.
