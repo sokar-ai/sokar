@@ -287,6 +287,12 @@ provisioning rather than on the suite:
   `Unknown instruction: "IF"`. Anything an agent contributes to an image has to be one
   `RUN`, continued with backslashes. It also has to be in the *definition*: `imageLayer()`
   is never called by Sokar, which builds from the `describe` response's `installAsRoot`.
+- **Three repositories rent from one project, and nothing coordinates them.** The core's two
+  acceptance legs plus an agent's two can ask for six machines at once; the API answers
+  `resource_limit_exceeded` and the run dies after having built everything. Creating a server
+  now waits and retries on that one error - and only that one, because a bad image or a full
+  datacentre is not something waiting fixes. The agent repositories also run their legs
+  `max-parallel: 1`, so each takes one machine at a time rather than two.
 - **Name a run's servers after the run *and the leg*.** Both matrix legs share `GITHUB_RUN_ID`,
   so a cleanup keyed on it alone deletes the other leg's machine mid-suite.
 

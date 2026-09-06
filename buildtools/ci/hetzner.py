@@ -22,7 +22,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
-from hcloud import Client
+from hcloud import APIException, Client
 from hcloud.images import Image
 from hcloud.locations import Location
 from hcloud.server_types import ServerType
@@ -273,6 +273,51 @@ def location_for(hcloud_client: Client, server_type: str) -> str:
                      + ", ".join(tried))
 
 
+# How long to keep asking when the project is at its server limit, and how often. Three
+# repositories rent machines now - the core's two acceptance legs and an agent's two - and
+# nothing coordinates them, so overlapping runs collide. The API says resource_limit_exceeded
+# and the run dies twenty minutes in, having already built everything.
+LIMIT_WAIT_SECONDS = 30
+LIMIT_ATTEMPTS = 20
+
+
+def create_when_there_is_room(hcloud_client: Client, *, name: str, server_type: str,
+                              image: Image, location: str, key):
+    """
+    Creates a server, waiting rather than failing while the project is at its limit.
+
+    Only that one error is retried. Anything else - a bad image, a full datacentre, a rejected
+    token - is a mistake that waiting cannot fix, and burning ten minutes before reporting it
+    would be worse than failing now.
+
+    :param key: SSH key to create the server with.
+    :return: The create response.
+    :raises SystemExit: If there was still no room after LIMIT_ATTEMPTS.
+    """
+    for attempt in range(1, LIMIT_ATTEMPTS + 1):
+        try:
+            return hcloud_client.servers.create(
+                name=name,
+                server_type=ServerType(name=server_type),
+                image=image,
+                location=Location(name=location),
+                ssh_keys=[key],
+                labels={**LABEL, RUN_LABEL: run_id()},
+            )
+        except APIException as failure:
+            if failure.code != "resource_limit_exceeded":
+                raise
+            if attempt == LIMIT_ATTEMPTS:
+                raise SystemExit(
+                    f"the project was still at its server limit after "
+                    f"{LIMIT_ATTEMPTS * LIMIT_WAIT_SECONDS // 60} minutes. Another run is "
+                    f"holding machines, or something leaked one: check with sweep.py --list")
+            print(f"  at the project's server limit, waiting {LIMIT_WAIT_SECONDS}s "
+                  f"({attempt}/{LIMIT_ATTEMPTS})")
+            time.sleep(LIMIT_WAIT_SECONDS)
+    raise SystemExit("unreachable")
+
+
 @contextmanager
 def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_name: str,
                 location: str, ssh_key_name: str | None, environment: dict[str, str],
@@ -295,14 +340,9 @@ def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_nam
     found = image_override if image_override is not None else image(hcloud_client, image_name)
 
     print(f"creating {name}: {server_type}, {image_name}, {location}")
-    response = hcloud_client.servers.create(
-        name=name,
-        server_type=ServerType(name=server_type),
-        image=found,
-        location=Location(name=location),
-        ssh_keys=[key],
-        labels={**LABEL, RUN_LABEL: run_id()},
-    )
+    response = create_when_there_is_room(
+        hcloud_client, name=name, server_type=server_type, image=found, location=location,
+        key=key)
     server = response.server
     response.action.wait_until_finished()
     address = server.public_net.ipv4.ip
