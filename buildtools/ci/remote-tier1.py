@@ -46,7 +46,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--type", default="cpx42", dest="server_type")
-    parser.add_argument("--location", default="fsn1")
+    parser.add_argument("--location", default=None,
+                        help="a specific location; by default one is chosen from the "
+                             "eu-central zone that currently has the server type")
     parser.add_argument("--ssh-key", default=None,
                         help="name of the key in the Hetzner project; by default the one whose "
                              "fingerprint matches the private key being used")
@@ -68,6 +70,7 @@ def main() -> int:
     environment = hetzner.agent(args.ssh_private_key)
 
     client = hetzner.client()
+    location = args.location or hetzner.location_for(client, args.server_type)
     image = (client.images.get_by_id(args.snapshot) if args.snapshot
              else hetzner.newest_snapshot(client, args.operating_system))
 
@@ -77,7 +80,7 @@ def main() -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     with hetzner.provisioned(client, name=f"sokar-ci-{args.operating_system}-{stamp}",
                              server_type=args.server_type, image_name=image.name or str(image.id),
-                             location=args.location, ssh_key_name=args.ssh_key,
+                             location=location, ssh_key_name=args.ssh_key,
                              environment=environment,
                              keep=args.keep, image_override=image) as (server, address):
 

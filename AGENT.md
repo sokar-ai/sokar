@@ -262,6 +262,11 @@ provisioning rather than on the suite:
   of a fifteen-minute cycle and would have been found in under a minute that way.
 - **`eu-central` is a network zone, not a location.** `servers.create()` takes a location;
   `fsn1`, `nbg1` and `hel1` all sit in that zone. Passing the zone fails.
+- **Do not hard-code a location.** Availability is per datacentre and changes: on 2026-09-06
+  `fsn1` offered *zero* server types while `nbg1` and `hel1` offered eighteen. The failure is
+  `unsupported location for server type`, which reads like a wrong type or a bad token rather
+  than a full datacentre. `hetzner.location_for()` asks which location in `eu-central` currently
+  has the type and uses that.
 - **Name a run's servers after the run *and the leg*.** Both matrix legs share `GITHUB_RUN_ID`,
   so a cleanup keyed on it alone deletes the other leg's machine mid-suite.
 

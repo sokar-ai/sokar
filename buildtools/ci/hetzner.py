@@ -237,6 +237,42 @@ def newest_snapshot(hcloud_client: Client, operating_system: str) -> Image:
     return newest
 
 
+# Where a CI server may be created. A zone rather than a location on purpose: a single location
+# runs out - fsn1 offered zero server types on 2026-09-06 while nbg1 and hel1 offered eighteen -
+# and a hard-coded one fails with "unsupported location for server type", which reads like a
+# wrong type or a bad token rather than a full datacentre.
+NETWORK_ZONE = "eu-central"
+
+
+def location_for(hcloud_client: Client, server_type: str) -> str:
+    """
+    Picks a location in the zone that can actually create this server type right now.
+
+    Asked rather than assumed: availability is per datacentre and changes, and Hetzner reports a
+    location that cannot serve a type the same way it reports a nonsense one.
+
+    :param server_type: Type the server will be created with.
+    :return: Location name.
+    :raises SystemExit: If nothing in the zone has it, listing what was asked.
+    """
+    wanted = hcloud_client.server_types.get_by_name(server_type)
+    if wanted is None:
+        raise SystemExit(f"no such server type: {server_type}")
+
+    tried = []
+    for datacenter in hcloud_client.datacenters.get_all():
+        if datacenter.location.network_zone != NETWORK_ZONE:
+            continue
+        available = {t.id for t in datacenter.server_types.available}
+        tried.append(f"{datacenter.name}={'yes' if wanted.id in available else 'no'}")
+        if wanted.id in available:
+            print(f"location {datacenter.location.name} has {server_type} ({', '.join(tried)})")
+            return datacenter.location.name
+
+    raise SystemExit(f"no location in {NETWORK_ZONE} currently offers {server_type}: "
+                     + ", ".join(tried))
+
+
 @contextmanager
 def provisioned(hcloud_client: Client, *, name: str, server_type: str, image_name: str,
                 location: str, ssh_key_name: str | None, environment: dict[str, str],
