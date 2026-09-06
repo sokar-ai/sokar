@@ -197,9 +197,45 @@ thing an image installs is worse than none - but it is marked as fetched, not sh
    37 are optional builds for other platforms - `@esbuild/darwin-arm64` and its like - which
    `npm ci` does not install on linux-x64. **Nothing installed is missing from the bill**,
    checked by comparing purls against every non-platform-restricted lockfile entry.
-4. **Merge and ship.** One `sbom.cdx.json` per package, at the same path in the `.deb` and the
-   `.rpm` so the payload-parity check keeps holding, and uploaded beside the package in
-   Artifactory so it can be fetched without installing.
+4. ~~**Merge and ship.**~~ **Done, 2026-09-06**, in all three repositories. One bill per
+   package, at `/usr/share/sokar/sbom/<package>.cdx.json` in both the `.deb` and the `.rpm`,
+   and uploaded beside the package in Artifactory so it can be read before installing.
+
+   | package | components |
+   |---|---|
+   | `sokar` | 24 - seventeen modules and seven third-party |
+   | `sokar-agent-claude` | 5 - four Maven, plus the CLI it does *not* contain |
+   | `sokar-agent-pi` | 140 - four Maven, plus the tree nested under what carries it |
+
+   **Not `/usr/share/doc`, which was the obvious choice.** The parity check strips
+   `/usr/share/doc` from the deb side and `/usr/share/licenses` from the rpm side, so a bill
+   there would be compared on one side only and fail. Under `/usr/share/sokar/sbom` it is
+   payload in both, the check covers it for nothing, and it now reports ten files where it
+   reported nine.
+
+   **Pi's two bills are merged rather than shipped side by side**, with the tree nested under
+   the component that carries it - CycloneDX allows a component tree, so the document says what
+   ships inside what instead of flattening 134 npm packages beside four Maven jars. Two
+   documents would mean a consumer reads both and step 6 diffs both.
+
+   **Claude Code's bill names a component the package does not contain.** The CLI is fetched at
+   image build from a pinned URL, so nothing reading a dependency graph can know about it; it is
+   recorded with its digest and marked `sokar:delivery = fetched-at-image-build`. Read from the
+   *filtered* definition in `target/classes`, which is the file the binary answers `describe`
+   with, so it cannot drift from what an image installs.
+
+   **Three things cost time here**, all worth knowing before touching this again:
+
+   - **The plugin does nothing offline and only warns.** `Goal makeBom requires online mode for
+     execution but Maven is currently offline, skipping`. An `-o` build - the habit in this
+     repository - produces no bills at all and passes.
+   - **`skipNotDeployed` defaults to true**, so the aggregate produced no file: the root is not
+     deployed to Maven, and neither are the packages. It is the packages that ship, so this is
+     off.
+   - **Declaring the plugin in the root's `<build><plugins>` inherits it into every module**,
+     and the `<executions>` block that was in `pluginManagement` then bound `makeBom` in all
+     seventeen. `pluginManagement` now carries configuration only, each module binds its own
+     execution, and the root's declaration is `<inherited>false</inherited>`.
 5. **Guards.** Extend `check-packages.sh`: every package contains an SBOM, it parses, its
    top-level component name and version match the package, and Pi's names the npm tree. Each
    proven to fail by breaking it once.
