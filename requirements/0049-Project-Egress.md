@@ -162,14 +162,18 @@ Sokar unusable for the thing it exists for. It argues for the shape:
 
 ## To be checked
 
-- **What a Maven build actually contacts, measured before the set is written.** Terok has no
-  Java set, so nothing here is inherited: `repo.maven.apache.org` redirects to a CDN, plugin
-  and parent-POM resolution may reach further, and the answer is to run a real build inside a
-  guarded task and read the resolver log afterwards - the same way the agents'
-  `allowed_domains` were found. The sets Terok already proved can be taken as read and
-  confirmed later. The set has to cover **snapshots as well as releases** -
-  `central.sonatype.com` serves `maven-snapshots`, and a project building against an unreleased
-  dependency reaches it rather than `repo.maven.apache.org`.
+- ~~**What a Maven build actually contacts.**~~ **Measured, and the set ships.** 193 artifacts
+  resolved into an empty local repository through a logging proxy that recorded every host the
+  resolver tunnelled to: `repo.maven.apache.org`, and `central.sonatype.com` for snapshots.
+  Plugins, parent POMs and transitive dependencies all came from the first - Central's CDN
+  answers under its own name, so the redirect this was expected to reveal does not exist.
+  `repo1.maven.org` is in the set as the alias older poms hard-code. A project with repositories
+  of its own reaches those too, and they belong in its `egress.domains`.
+- **What `dnf` contacts, which no set can answer.** A Fedora image asks
+  `mirrors.fedoraproject.org` for a mirrorlist and then fetches from whichever mirrors it names -
+  arbitrary hosts that differ by region and by day. `os-packages-fedora` says so in the file and
+  cannot do better; a project that needs reproducible installs should pin a baseurl in its image
+  snippet. Debian and Ubuntu use stable CDN names and are covered.
 - **Whether a set may carry more than domains.** A CDN that answers a different address per
   request is fine, because dnsmasq adds each answer as it answers. One that is reached by
   address, without a name, is not, and would need something else.
