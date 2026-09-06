@@ -64,14 +64,28 @@ jobs:
 
       # No signing key means no InRelease, and apt refuses the repository - with an error
       # that reads as a network problem.
-      - name: The Debian repository has a signing key
+      - name: The repositories have a signing key
         run: |
           set -eu
-          key="$(jf rt curl -s -XGET "/api/repositories/$DEB_REPO" | jq -r '.primaryKeyPairRef // ""')"
-          if [ -n "$key" ]; then
-              echo "  OK    signed by keypair '$key'"
-          else
-              echo "::error::$DEB_REPO has no primary keypair; apt will reject an unsigned Release"
+          FAILED=0
+          for repo in "$DEB_REPO" "$RPM_REPO"; do
+              key="$(jf rt curl -s -XGET "/api/repositories/$repo" \
+                  | jq -r '.primaryKeyPairRef // ""')"
+              if [ -n "$key" ]; then
+                  echo "  OK    $repo is signed by keypair '$key'"
+              elif [ "$repo" = "$RPM_REPO" ]; then
+                  echo "  NOTE  $repo has no keypair. dnf tolerates unsigned repodata, so this"
+                  echo "        is a warning rather than a failure."
+              else
+                  echo "::error::$repo has no primary keypair, so there is no InRelease and apt will reject it. Fix: Administration -> Repositories -> $repo -> Edit -> Primary Keypair"
+                  FAILED=1
+              fi
+          done
+          if [ "$FAILED" = 1 ]; then
+              echo "Keypairs this token can see:"
+              jf rt curl -s -XGET "/api/security/keypair" \
+                  | jq -r '.[]?.pairName // empty' | sed 's/^/  /' \
+                  || echo "  (could not list them; check Keys Management in the UI)"
               exit 1
           fi
 
