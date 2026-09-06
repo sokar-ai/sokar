@@ -119,12 +119,12 @@ sudo apt install -y sokar sokar-agent-claude
 # hook descriptors per user, so a system-wide install would fire them for every container.
 sokar setup
 
-# Your credential, on the host. It never enters the container - the agent gets a
-# task-scoped phantom token, and a proxy swaps in the real key on the way out.
+# Your credential, copied from the Claude Code already installed on this host - so no key
+# goes through your shell or your history. The first unlock sets the vault passphrase.
+# It never enters the container: the agent gets a task-scoped token, and a proxy swaps in
+# the real key on the way out.
 sokar vault unlock
-read -rsp 'Anthropic API key: ' KEY && echo
-printf '%s' "$KEY" | sokar vault put anthropic --type api-key
-unset KEY
+sokar vault import claude
 
 # Run one. With no project.yml here it offers to write one, taking the project
 # name from this directory - Enter accepts every default.
@@ -156,19 +156,22 @@ sokar setup
 # the denial is dontaudit'ed, and it looks like an agent that cannot authenticate.
 sudo /usr/share/sokar/selinux/install-selinux-policy.sh
 
-# Your credential, on the host. It never enters the container - the agent gets a
-# task-scoped phantom token, and a proxy swaps in the real key on the way out.
+# Your credential, copied from the Claude Code already installed on this host - so no key
+# goes through your shell or your history. The first unlock sets the vault passphrase.
+# It never enters the container: the agent gets a task-scoped token, and a proxy swaps in
+# the real key on the way out.
 sokar vault unlock
-read -rsp 'Anthropic API key: ' KEY && echo
-printf '%s' "$KEY" | sokar vault put anthropic --type api-key
-unset KEY
+sokar vault import claude
 
 # Run one. With no project.yml here it offers to write one, taking the project
 # name from this directory - Enter accepts every default.
 sokar task run
 ```
 
-Step by step, with what each line does and what goes wrong when it is skipped:
+**No Claude Code on this host?** Then there is nothing to import, and the credential goes in
+by hand — an API key from your provider's console, or a subscription token from the agent's
+own login. Both are in the step-by-step guides, which also cover what each line above does and
+what goes wrong when it is skipped:
 [Debian and Ubuntu](getting-started-debian.md) · [Fedora and RHEL](getting-started-fedora.md).
 
 ## Adding your tools to a container
