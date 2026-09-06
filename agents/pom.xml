@@ -136,6 +136,18 @@
                                                 <group>root</group>
                                             </mapper>
                                         </data>
+                                        <!-- Debian Policy 12.5: every binary package ships one. -->
+                                        <data>
+                                            <src>${project.basedir}/../src/deb/copyright/copyright</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/share/doc/${project.artifactId}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
                                     </dataSet>
                                 </configuration>
                             </execution>
@@ -184,6 +196,15 @@
                                     <mode>0755</mode>
                                     <user>root</user>
                                     <group>root</group>
+                                </entry>
+                                <!-- 'license' marks it %license, so 'rpm -qL' answers. -->
+                                <entry>
+                                    <name>/usr/share/licenses/${project.artifactId}/LICENSE</name>
+                                    <file>${project.basedir}/../../LICENSE</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                    <license>true</license>
                                 </entry>
                             </entries>
                         </configuration>

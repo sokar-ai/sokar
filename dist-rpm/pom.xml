@@ -183,6 +183,15 @@ Where SELinux is enforcing, a task container cannot reach sokar's sockets until 
                                     <user>root</user>
                                     <group>root</group>
                                 </entry>
+                                <!-- 'license' marks it %license, so 'rpm -qL' answers. -->
+                                <entry>
+                                    <name>/usr/share/licenses/${package.name}/LICENSE</name>
+                                    <file>${project.basedir}/../LICENSE</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                    <license>true</license>
+                                </entry>
                             </entries>
                         </configuration>
                     </plugin>

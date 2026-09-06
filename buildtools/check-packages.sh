@@ -80,15 +80,33 @@ fi
 echo
 echo "-- deb and rpm agree --"
 
-DEB_FILES="$(dpkg-deb -c "$DEB" | awk '$1 !~ /^d/ {print substr($6, 2)}' | sort)"
-RPM_FILES="$(podman run --rm -v "$(dirname "$RPM")":/pkg:ro,Z fedora:41 \
+DEB_ALL="$(dpkg-deb -c "$DEB" | awk '$1 !~ /^d/ {print substr($6, 2)}' | sort)"
+RPM_ALL="$(podman run --rm -v "$(dirname "$RPM")":/pkg:ro,Z fedora:41 \
     rpm -qlp "/pkg/$(basename "$RPM")" 2>/dev/null | sort)"
 
+# The licence is the one file the two ecosystems put in different places on purpose - Debian
+# Policy 12.5 wants /usr/share/doc/<pkg>/copyright, rpm wants %license under
+# /usr/share/licenses/<pkg>. Each is checked on its own below; everything else must match.
+DEB_FILES="$(echo "$DEB_ALL" | grep -v '^/usr/share/doc/' || true)"
+RPM_FILES="$(echo "$RPM_ALL" | grep -v '^/usr/share/licenses/' || true)"
+
 if [ "$DEB_FILES" = "$RPM_FILES" ]; then
-    pass "both packages install the same $(echo "$DEB_FILES" | wc -l) file(s)"
+    pass "both packages install the same $(echo "$DEB_FILES" | wc -l) payload file(s)"
 else
     fail "the deb and the rpm do not install the same files"
     diff <(echo "$DEB_FILES") <(echo "$RPM_FILES") | while read -r line; do info "$line"; done
+fi
+
+if echo "$DEB_ALL" | grep -q '^/usr/share/doc/.*/copyright$'; then
+    pass "the deb ships a copyright file where Debian policy requires one"
+else
+    fail "the deb ships no /usr/share/doc/<package>/copyright"
+fi
+
+if echo "$RPM_ALL" | grep -q '^/usr/share/licenses/.*/LICENSE$'; then
+    pass "the rpm ships its licence under /usr/share/licenses"
+else
+    fail "the rpm ships no /usr/share/licenses/<package>/LICENSE"
 fi
 
 DEB_VERSION="$(dpkg-deb -f "$DEB" Version)"
