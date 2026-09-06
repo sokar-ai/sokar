@@ -40,6 +40,12 @@
     </issueManagement>
 
     <properties>
+
+        <!-- Nothing is published unless a module opts in. Sokar ships as binaries and packages;
+             the only artifacts anyone resolves from Maven are the agent SPI and what it drags
+             in, so every other module would be publishing an internal for people to depend on. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+
         <!-- Panama FFM is only stable from 22 on, and native-image is built with GraalVM 25. -->
         <java.release.version>25</java.release.version>
         <!-- Sokar's own release line. Every internal module except an agent is on it.

@@ -4,11 +4,12 @@
 #                                 secrets, works for a fork - and the only thing a fork's
 #                                 changes get.
 #
-#   merged to main                the acceptance suite, on two rented machines in parallel.
+#   merged to main                the acceptance suite, on two rented machines in parallel,
+#                                 then the publish.
 #
-# Release builds do not belong here at all: an artifact that gets published must come from a
-# machine that is not rented for ten minutes and destroyed. That job does not exist yet - see
-# requirements/0047, steps 3 and 4.
+# Publishing runs here rather than on a rented machine: an artifact anyone resolves must not come
+# from a box that exists for ten minutes and is then destroyed. Two modules are published, the
+# agent SPI and the wire it needs; everything else has maven.deploy.skip on by default.
 #
 # Both acceptance legs run the same suite on a Hetzner server booted from a prepared snapshot, in parallel:
 #
@@ -62,8 +63,11 @@ jobs:
           distribution: 'graalvm-community'
           cache: 'maven'
 
+      # -s settings.xml so a developer's own ~/.m2/settings.xml cannot be what makes a build
+      # work here. It is also where the snapshot repository is declared, for when something
+      # upstream is one.
       - name: Build and unit tests
-        run: ./mvnw -B verify
+        run: ./mvnw -B verify -s settings.xml
 
   # Only what has landed on main, plus a manual run. Every leg here rents a machine, so a branch
   # that is still being pushed to would spend money on each revision - and a pull request from a
@@ -110,3 +114,40 @@ jobs:
           REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
           SOKAR_CI_LEG: ${{ matrix.os }}
         run: python3 buildtools/ci/sweep.py --mine
+
+  # Snapshots of the agent SPI, so an agent repository can build against it without a checkout of
+  # this one. After tier 1 on purpose: a published snapshot that fails the acceptance suite is
+  # worse than no snapshot, and waiting costs nothing that is not already being spent.
+  #
+  # Four secrets, none of them written down here: OSS_SONATYPE_USERNAME and OSS_SONATYPE_TOKEN
+  # authenticate to Central, OSS_SONATYPE_GPG_PRIVATE_KEY and OSS_SONATYPE_GPG_PASSPHRASE sign
+  # what is uploaded. Central rejects an unsigned artifact, so a missing key fails the job
+  # rather than publishing something unusable.
+  deploy:
+    name: Publish the agent SPI
+    runs-on: ubuntu-latest
+    needs: [build, tier1]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          cache: 'maven'
+
+      - name: Import the signing key
+        uses: crazy-max/ghaction-import-gpg@v7
+        with:
+          gpg_private_key: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
+
+      - name: Deploy
+        env:
+          OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
+          OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
+          OSS_SONATYPE_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
+        run: ./mvnw -B clean deploy -Pcentral-sonatype-release -s settings.xml

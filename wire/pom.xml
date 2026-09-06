@@ -15,4 +15,32 @@
     <name>Sokar Wire</name>
     <description>Sokar - Cross-boundary records (WIRE)</description>
 
+    <properties>
+        <!-- Deployed to Central. Not interesting on its own - it is deployed because
+             sokar-agent-api's pom names it, so resolving the SPI needs it too. -->
+        <maven.deploy.skip>false</maven.deploy.skip>
+    </properties>
+
+    <build>
+
+        <plugins>
+
+            <!-- Central rejects a release without these. The fuin parent only manages them, so
+                 a published module has to name them; an unpublished one must not, or every
+                 module pays for javadoc it never ships. -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+
+    </build>
+
 </project>

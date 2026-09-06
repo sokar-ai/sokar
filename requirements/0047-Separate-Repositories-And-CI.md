@@ -340,6 +340,39 @@ and RPM repositories are separate typed repositories and one key cannot serve bo
 (`deb.distribution`, `deb.component`, `deb.architecture`) or Artifactory stores the file and
 never indexes it, silently. Packages are signed. The deploy token is scoped and lives in CI.
 
+### Built, 2026-09-06
+
+The release machinery is already in `org.fuin:pom:2.0.2` - a `central-sonatype-release` profile
+carrying `maven-gpg-plugin` and `central-publishing-maven-plugin` against a
+`central-sonatype` server id. Sokar inherits it, so what was missing was the three things around
+it, taken from `cqrs-4-java`, which publishes the same way:
+
+- **A `settings.xml` in the repository.** CI passes `-s settings.xml`, so a developer's own
+  `~/.m2/settings.xml` is never what makes a build work. It holds the `central-sonatype` server
+  reading `OSS_SONATYPE_USERNAME` / `OSS_SONATYPE_TOKEN` from the environment, the
+  `gpg.passphrase` the profile expects, and the snapshot repository. Nothing secret is in it.
+- **An allow-list, not a deny-list.** `maven.deploy.skip` is **true in the root**, and exactly
+  two modules turn it off: `sokar-agent-api`, which an agent in its own repository compiles
+  against, and `sokar-wire`, which its POM names. Verified rather than assumed by deploying to a
+  `file://` repository: seventeen modules printed *Skipping artifact deployment* and two
+  artifacts landed.
+- **A `deploy` job** on a hosted runner, on pushes to `main`, `needs: [build, tier1]`. Publishing
+  after the acceptance suite costs nothing that is not already being spent, and a snapshot that
+  fails tier 1 is worse than no snapshot.
+
+**What the dry run caught: no sources and no javadoc.** The fuin parent declares
+`maven-source-plugin` and `maven-javadoc-plugin` in `<pluginManagement>` only, so a module that
+does not name them ships a bare jar - which Central accepts as a snapshot and **rejects as a
+release**. That would have surfaced at the first real release rather than now. Both published
+modules name them, and a deploy now produces jar, sources, javadoc and a parent-less flattened
+POM. `maven-gpg-plugin` was confirmed to reach all four: run with the profile and no key, it
+fails with *no default secret key* after reporting *signing 4 files*.
+
+**Still needed before this runs green:** four repository secrets -
+`OSS_SONATYPE_USERNAME`, `OSS_SONATYPE_TOKEN`, `OSS_SONATYPE_GPG_PRIVATE_KEY`,
+`OSS_SONATYPE_GPG_PASSPHRASE`. A missing one fails the job rather than publishing an unsigned
+artifact, which is the behaviour to want.
+
 **Agents pin a released SPI, never a snapshot.** This is the one point worth arguing about,
 because it is the failure this organisation has already hit: downstream CI resolving a snapshot
 that had vanished upstream while a local `~/.m2` still held a copy. Agents now carry their own

@@ -15,12 +15,6 @@
     <name>Sokar Testing</name>
     <description>Sokar - Fixtures shared by the modules' tests (TESTING)</description>
 
-    <properties>
-        <!-- Fixtures are for this reactor. Publishing them would make an internal helper
-             something an out-of-repository agent could depend on. -->
-        <maven.deploy.skip>true</maven.deploy.skip>
-    </properties>
-
     <dependencies>
 
         <!-- compile: an ordinary jar, so what it fakes is a compile dependency -->
