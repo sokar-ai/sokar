@@ -44,9 +44,19 @@
 
         <plugins>
 
-            <!-- Central rejects a release without these. The fuin parent only manages them, so
-                 a published module has to name them; an unpublished one must not, or every
-                 module pays for javadoc it never ships. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Automatic-Module-Name>org.fuin.sokar.agent.api</Automatic-Module-Name>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!-- Central rejects a release without these, and the parent only manages them. -->
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

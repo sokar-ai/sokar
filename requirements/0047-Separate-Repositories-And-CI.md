@@ -369,6 +369,14 @@ modules name them, and a deploy now produces jar, sources, javadoc and a parent-
 POM. `maven-gpg-plugin` was confirmed to reach all four: run with the profile and no key, it
 fails with *no default secret key* after reporting *signing 4 files*.
 
+**Both published jars declare `Automatic-Module-Name`** - `org.fuin.sokar.wire` and
+`org.fuin.sokar.agent.api`. Neither had one, and neither carried OSGi headers either: the fuin
+parent manages `maven-bundle-plugin` but does not bind it, so nothing was writing a manifest
+beyond `Created-By`. Left alone, a modular consumer gets a name derived from the *file name* -
+`sokar.wire`, `sokar.agent.api` - which matches no package and moves if the artifactId ever
+does. Stating it costs one manifest entry and fixes it before anyone can depend on the derived
+one.
+
 **Still needed before this runs green:** four repository secrets -
 `OSS_SONATYPE_USERNAME`, `OSS_SONATYPE_TOKEN`, `OSS_SONATYPE_GPG_PRIVATE_KEY`,
 `OSS_SONATYPE_GPG_PASSPHRASE`. A missing one fails the job rather than publishing an unsigned
