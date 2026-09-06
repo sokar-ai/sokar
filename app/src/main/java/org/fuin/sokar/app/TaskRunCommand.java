@@ -287,6 +287,26 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
+        // Nobody should have to write a file by hand before their first task: every field has
+        // a defensible default and the name follows from the directory. Only when someone is
+        // there to answer - a script that lands here with no project file is more likely in the
+        // wrong directory than wanting one written, and the message below says what to do.
+        if (!java.nio.file.Files.exists(projectFile) && System.console() != null) {
+            try (java.io.BufferedReader in = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(System.in, java.nio.charset.StandardCharsets.UTF_8))) {
+                if (!ProjectWizard.create(projectFile, in, out)) {
+                    out.flush();
+                    return 2;
+                }
+                out.println();
+                out.flush();
+            } catch (java.io.IOException ex) {
+                err.println("sokar: " + ex.getMessage());
+                err.flush();
+                return 2;
+            }
+        }
+
         final Project project;
         try {
             project = ProjectReader.read(projectFile);

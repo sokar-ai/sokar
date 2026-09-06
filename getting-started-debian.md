@@ -2,49 +2,10 @@
 
 By the end of this you will have an agent working inside a hardened container, with your
 real credential still on the host, and its work waiting for you to review before it goes
-anywhere.
+anywhere. For the whole thing as one block to paste, see
+[the README](README.md#getting-started).
 
 On Fedora or RHEL instead? [Getting started on Fedora](getting-started-fedora.md).
-
-## The short version
-
-Paste this into the project you want an agent to work on. It is the whole of this
-document, without the explanations.
-
-```sh
-sudo apt install -y ca-certificates curl gnupg
-curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
-  | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
-echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb snapshots main" \
-  | sudo tee /etc/apt/sources.list.d/sokar.list
-sudo apt update
-sudo apt install -y sokar sokar-agent-claude
-
-# The OCI hooks, once per user. The package deliberately does not do this: podman reads
-# hook descriptors per user, so a system-wide install would fire them for every container.
-sokar setup
-
-# Your credential, on the host. It never enters the container - the agent gets a
-# task-scoped phantom token, and a proxy swaps in the real key on the way out.
-sokar vault unlock
-read -rsp 'Anthropic API key: ' KEY && echo
-printf '%s' "$KEY" | sokar vault put anthropic --type api-key
-unset KEY
-
-# What this project's container is built from.
-cat > project.yml <<EOF
-project:
-  name: "$(basename "$PWD")"
-  security_class: "guarded"
-image:
-  base_image: "ubuntu:24.04"
-EOF
-
-sokar task run
-```
-
-The rest of this page is what each of those lines does, and what goes wrong when it is
-skipped.
 
 ## Before you start
 
@@ -255,7 +216,24 @@ Code takes an API key or a subscription OAuth token; say which when you store it
 
 ## 4. Describe your project
 
-`project.yml`, beside your code:
+**You do not have to write this file.** `sokar task run` in a directory without one offers
+to write it, taking the project name from the directory and Enter for every default:
+
+```
+No project definition here yet. One line each, Enter takes the default.
+
+  project name [my-project]:
+  security class (offline/guarded/online) [guarded]:
+  base image [ubuntu:24.04]:
+
+Write project.yml? [Y/n]
+```
+
+It only asks when there is a terminal to answer from. A script that lands here without a
+project file is more likely in the wrong directory than wanting one written, so it gets an
+error saying where to run this instead.
+
+`project.yml` is an ordinary file beside your code, and everything in it can be changed:
 
 ```yaml
 project:

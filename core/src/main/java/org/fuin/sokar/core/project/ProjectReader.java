@@ -36,7 +36,8 @@ public final class ProjectReader {
      */
     public static Project read(Path file) {
         if (!Files.isRegularFile(file)) {
-            throw new ProjectException("No project file at " + file);
+            throw new ProjectException("No project file at " + file
+                    + ". Run 'sokar task run' in a terminal and it will offer to write one.");
         }
         try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             return read(reader, file.toString());

@@ -91,7 +91,7 @@ Why build this if Terok is so cool? See [why](why.md)
 </tr>
 </table>
 
-## Install
+## Getting started
 
 Everything needed to go from nothing to a running agent. Paste it into the project you want
 an agent to work on.
@@ -118,15 +118,8 @@ read -rsp 'Anthropic API key: ' KEY && echo
 printf '%s' "$KEY" | sokar vault put anthropic --type api-key
 unset KEY
 
-# What this project's container is built from.
-cat > project.yml <<EOF
-project:
-  name: "$(basename "$PWD")"
-  security_class: "guarded"
-image:
-  base_image: "ubuntu:24.04"
-EOF
-
+# Run one. With no project.yml here it offers to write one, taking the project
+# name from this directory - Enter accepts every default.
 sokar task run
 ```
 
@@ -157,22 +150,12 @@ read -rsp 'Anthropic API key: ' KEY && echo
 printf '%s' "$KEY" | sokar vault put anthropic --type api-key
 unset KEY
 
-# What this project's container is built from.
-cat > project.yml <<EOF
-project:
-  name: "$(basename "$PWD")"
-  security_class: "guarded"
-image:
-  base_image: "ubuntu:24.04"
-EOF
-
+# Run one. With no project.yml here it offers to write one, taking the project
+# name from this directory - Enter accepts every default.
 sokar task run
 ```
 
-What each line does, and what goes wrong when it is skipped:
-[Debian](getting-started-debian.md) · [Fedora](getting-started-fedora.md).
-
-## Getting started
+Step by step, with what each line does and what goes wrong when it is skipped:
 [Debian and Ubuntu](getting-started-debian.md) · [Fedora and RHEL](getting-started-fedora.md).
 
 ## Adding your tools to a container
