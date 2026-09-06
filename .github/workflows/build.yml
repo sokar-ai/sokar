@@ -110,7 +110,7 @@ jobs:
       # Only the ubuntu leg, and only because of glibc: a native image links it dynamically, so a
       # binary built on Fedora 44 will not start on Ubuntu 24.04, while the reverse runs
       # everywhere. Both packages carry the same bytes, so there is one binary to get right.
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: matrix.os == 'ubuntu'
         with:
           name: native-binaries
@@ -173,7 +173,7 @@ jobs:
       # could not be built on it at all.
       #
       # After the deploy above, never before: that step starts with 'clean'.
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: native-binaries
 
