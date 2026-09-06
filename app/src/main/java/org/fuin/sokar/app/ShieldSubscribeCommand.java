@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.clearance.ClearanceService;
-import org.fuin.sokar.clearance.varlink.VarlinkClient;
+import org.fuin.sokar.wire.varlink.VarlinkClient;
 import org.fuin.sokar.wire.Json;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;

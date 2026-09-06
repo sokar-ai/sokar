@@ -4,7 +4,7 @@ import java.io.PrintWriter;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.core.config.XdgPaths;
 import org.fuin.sokar.core.hardening.ProcessHardening;
-import org.fuin.sokar.core.hardening.SocketContext;
+import org.fuin.sokar.wire.SocketContext;
 import org.fuin.sokar.core.process.CommandResult;
 import org.fuin.sokar.core.process.ProcessCommandRunner;
 import org.fuin.sokar.shield.DnsmasqProbe;

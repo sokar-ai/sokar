@@ -1,4 +1,4 @@
-package org.fuin.sokar.clearance.varlink;
+package org.fuin.sokar.wire.varlink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

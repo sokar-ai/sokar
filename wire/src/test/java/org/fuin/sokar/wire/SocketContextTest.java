@@ -1,4 +1,4 @@
-package org.fuin.sokar.core.hardening;
+package org.fuin.sokar.wire;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

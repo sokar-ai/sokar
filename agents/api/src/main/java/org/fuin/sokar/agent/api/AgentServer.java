@@ -6,7 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.fuin.sokar.clearance.varlink.VarlinkServer;
+import org.fuin.sokar.wire.varlink.VarlinkServer;
 
 /**
  * Serves one agent over varlink.

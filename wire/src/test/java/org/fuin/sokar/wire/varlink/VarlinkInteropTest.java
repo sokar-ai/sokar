@@ -1,16 +1,14 @@
-package org.fuin.sokar.clearance.varlink;
+package org.fuin.sokar.wire.varlink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import org.fuin.sokar.core.process.Command;
-import org.fuin.sokar.core.process.CommandResult;
-import org.fuin.sokar.core.process.ProcessCommandRunner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -24,15 +22,40 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>
  * Skipped where {@code varlinkctl} is not installed rather than failing: it ships with systemd 255
  * and later, and a machine without it is not a machine with a broken Sokar.
+ * <p>
+ * Runs the process itself rather than through the core runner, because this module has no
+ * dependencies and is meant to keep it that way - the agent SPI resolves it.
  */
 class VarlinkInteropTest {
 
     private static final String INTERFACE = "org.fuin.sokar.Clearance1";
 
-    private final ProcessCommandRunner runner = new ProcessCommandRunner(Duration.ofSeconds(30));
+    /** What a finished process said, and whether it succeeded. */
+    private record Result(String standardOutput, String standardError, boolean successful) {
+    }
 
-    private boolean available() {
-        return runner.run(Command.of("sh", "-c", "command -v varlinkctl")).successful();
+    /** Streams go to files so neither can fill a pipe while the other is being read. */
+    private Result run(Path dir, String... argv) {
+        try {
+            final Path out = Files.createTempFile(dir, "out", null);
+            final Path err = Files.createTempFile(dir, "err", null);
+            final Process process = new ProcessBuilder(argv)
+                    .redirectOutput(out.toFile()).redirectError(err.toFile()).start();
+            if (!process.waitFor(java.time.Duration.ofSeconds(30))) {
+                process.destroyForcibly();
+                throw new IllegalStateException("varlinkctl did not finish: " + List.of(argv));
+            }
+            return new Result(Files.readString(out), Files.readString(err), process.exitValue() == 0);
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private boolean available(Path dir) {
+        return run(dir, "sh", "-c", "command -v varlinkctl").successful();
     }
 
     private VarlinkServer server(Path dir) {
@@ -51,11 +74,10 @@ class VarlinkInteropTest {
     @Test
     void systemdCanIntrospectTheService(@TempDir Path dir) throws IOException {
 
-        assumeTrue(available(), "varlinkctl is not installed");
+        assumeTrue(available(dir), "varlinkctl is not installed");
 
         try (VarlinkServer server = server(dir)) {
-            final CommandResult result = runner.run(Command.of(
-                    "varlinkctl", "info", server.socketPath().toString()));
+            final Result result = run(dir, "varlinkctl", "info", server.socketPath().toString());
 
             assertThat(result.standardOutput() + result.standardError()).contains("Sokar");
             assertThat(result.successful()).isTrue();
@@ -65,12 +87,11 @@ class VarlinkInteropTest {
     @Test
     void systemdCanCallAMethod(@TempDir Path dir) throws IOException {
 
-        assumeTrue(available(), "varlinkctl is not installed");
+        assumeTrue(available(dir), "varlinkctl is not installed");
 
         try (VarlinkServer server = server(dir)) {
-            final CommandResult result = runner.run(Command.of(
-                    "varlinkctl", "call", server.socketPath().toString(),
-                    INTERFACE + ".Ping", "{}"));
+            final Result result = run(dir, "varlinkctl", "call", server.socketPath().toString(),
+                    INTERFACE + ".Ping", "{}");
 
             assertThat(result.standardOutput()).contains("pong");
             assertThat(result.successful()).isTrue();
@@ -80,12 +101,11 @@ class VarlinkInteropTest {
     @Test
     void systemdConsumesTheContinuesFlag(@TempDir Path dir) throws IOException {
 
-        assumeTrue(available(), "varlinkctl is not installed");
+        assumeTrue(available(dir), "varlinkctl is not installed");
 
         try (VarlinkServer server = server(dir)) {
-            final CommandResult result = runner.run(Command.of(
-                    "varlinkctl", "--more", "call", server.socketPath().toString(),
-                    INTERFACE + ".Stream", "{}"));
+            final Result result = run(dir, "varlinkctl", "--more", "call",
+                    server.socketPath().toString(), INTERFACE + ".Stream", "{}");
 
             // Four replies, and varlinkctl returning rather than hanging is the part that says
             // the 'continues' flag was written the way the protocol expects.

@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import org.fuin.sokar.clearance.varlink.VarlinkServer;
+import org.fuin.sokar.wire.varlink.VarlinkServer;
 
 /**
  * The clearance hub, reachable over varlink.

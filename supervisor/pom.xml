@@ -25,6 +25,11 @@
 
         <dependency>
             <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-wire</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
             <artifactId>sokar-vault</artifactId>
         </dependency>
 

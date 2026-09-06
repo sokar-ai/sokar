@@ -103,7 +103,7 @@ class AgentProtocolTest {
         try (AgentServer server = new AgentServer(agent(), dir.resolve("a.sock"))) {
             Thread.ofVirtual().start(server::serve);
 
-            try (var client = new org.fuin.sokar.clearance.varlink.VarlinkClient(server.socketPath())) {
+            try (var client = new org.fuin.sokar.wire.varlink.VarlinkClient(server.socketPath())) {
                 final Map<String, Object> answer = client.call(AgentProtocol.DESCRIBE, Map.of());
 
                 assertThat(((Number) answer.get("protocolVersion")).intValue())
@@ -118,7 +118,7 @@ class AgentProtocolTest {
         try (AgentServer server = new AgentServer(agent(), dir.resolve("a.sock"))) {
             Thread.ofVirtual().start(server::serve);
 
-            try (var client = new org.fuin.sokar.clearance.varlink.VarlinkClient(server.socketPath())) {
+            try (var client = new org.fuin.sokar.wire.varlink.VarlinkClient(server.socketPath())) {
                 final Object command = client.call(AgentProtocol.BUILD_COMMAND,
                         Map.of("prompt", "go", "model", "big")).get("command");
 
@@ -168,7 +168,7 @@ class AgentProtocolTest {
         try (AgentServer server = new AgentServer(echoing, dir.resolve("a.sock"))) {
             Thread.ofVirtual().start(server::serve);
 
-            try (var client = new org.fuin.sokar.clearance.varlink.VarlinkClient(
+            try (var client = new org.fuin.sokar.wire.varlink.VarlinkClient(
                     server.socketPath())) {
                 final Object files = client.call(AgentProtocol.CONTAINER_SETUP,
                         Map.of("token", "sokar_pt_x", "credentialType", "api-key",
@@ -191,7 +191,7 @@ class AgentProtocolTest {
         try (AgentServer server = new AgentServer(agent(), dir.resolve("a.sock"))) {
             Thread.ofVirtual().start(server::serve);
 
-            try (var client = new org.fuin.sokar.clearance.varlink.VarlinkClient(server.socketPath())) {
+            try (var client = new org.fuin.sokar.wire.varlink.VarlinkClient(server.socketPath())) {
                 final Map<String, Object> answer = client.call(AgentProtocol.EXTRACT_CREDENTIAL,
                         Map.of("configDirectory", dir.toString()));
 
@@ -208,7 +208,7 @@ class AgentProtocolTest {
         try (AgentServer server = new AgentServer(agent(), dir.resolve("a.sock"))) {
             Thread.ofVirtual().start(server::serve);
 
-            try (var client = new org.fuin.sokar.clearance.varlink.VarlinkClient(server.socketPath())) {
+            try (var client = new org.fuin.sokar.wire.varlink.VarlinkClient(server.socketPath())) {
                 final Map<String, Object> answer = client.call(AgentProtocol.EXTRACT_CREDENTIAL,
                         Map.of("configDirectory", dir.resolve("nowhere").toString()));
 
@@ -228,7 +228,7 @@ class AgentProtocolTest {
             Thread.ofVirtual().start(server::serve);
 
             final List<String> lines = new java.util.ArrayList<>();
-            try (var client = new org.fuin.sokar.clearance.varlink.VarlinkClient(server.socketPath())) {
+            try (var client = new org.fuin.sokar.wire.varlink.VarlinkClient(server.socketPath())) {
                 client.callMore(AgentProtocol.FORMAT_LOG,
                         Map.of("source", dir.resolve("raw.log").toString()), reply -> {
                             lines.add(String.valueOf(reply.get("line")));
@@ -245,7 +245,7 @@ class AgentProtocolTest {
         try (AgentServer server = new AgentServer(agent(), dir.resolve("a.sock"))) {
             Thread.ofVirtual().start(server::serve);
 
-            try (var client = new org.fuin.sokar.clearance.varlink.VarlinkClient(server.socketPath())) {
+            try (var client = new org.fuin.sokar.wire.varlink.VarlinkClient(server.socketPath())) {
                 assertThatThrownBy(() -> client.call(AgentProtocol.BUILD_COMMAND, Map.of()))
                         .hasMessageContaining("needs a prompt");
             }

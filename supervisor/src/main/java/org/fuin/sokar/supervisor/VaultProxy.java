@@ -19,7 +19,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import org.fuin.sokar.core.hardening.SocketContext;
+import org.fuin.sokar.wire.SocketContext;
 
 /**
  * Turns a phantom token into a real credential, on the way out.

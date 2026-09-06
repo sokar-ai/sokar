@@ -1,4 +1,4 @@
-package org.fuin.sokar.core.hardening;
+package org.fuin.sokar.wire;
 
 import java.io.Closeable;
 import java.io.FileOutputStream;

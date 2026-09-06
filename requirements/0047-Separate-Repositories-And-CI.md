@@ -247,6 +247,39 @@ compiler checking it. Once two agents live in their own repositories pinned to a
 the same move is a breaking change to a published artifact plus a coordinated release across
 three repositories. It is also right independently of the split.
 
+### Done, and the one thing the analysis missed
+
+**The closure is now three artifacts**, measured with `dependency:tree` rather than predicted:
+
+```
+org.fuin.sokar:sokar-agent-api
++- org.yaml:snakeyaml
++- org.fuin.sokar:sokar-wire
+\- org.jspecify:jspecify
+```
+
+`sokar-core`, `sokar-clearance`, both `dbus-java` artifacts and `slf4j-api` are gone.
+
+**What the analysis got wrong: `VarlinkServer` reaches into `sokar-core`.** The audit above
+established that `varlink/` contains no D-Bus reference, which is true, and concluded the move
+was a package rename. It is not: `VarlinkServer` calls `SocketContext.openUnixSocket()` from
+`org.fuin.sokar.core.hardening`, so moving `varlink` into `wire` alone would have replaced a
+dependency on `sokar-clearance` with one on `sokar-core` - undoing the edit it was paired with.
+
+`SocketContext` moved too, to `org.fuin.sokar.wire`. That is the right home independently: it
+labels a unix socket so a container may connect to it, which is transport, and it imports
+nothing but the JDK, so `wire` keeps its zero-dependency guarantee. Its other three callers
+(`supervisor`, `vault`, `app`) already resolved it transitively or now declare `sokar-wire`.
+
+**And a second one: `VarlinkInteropTest` used core's process runner** to drive `varlinkctl`.
+`core` depends on `wire`, so carrying that test across would have been a cycle. It now runs the
+process itself - about twenty lines - which is the correct shape for a test in a module whose
+whole point is having no dependencies.
+
+**The lesson.** An import audit that reads the *package* misses what a *class* calls. Both
+findings were the compiler's, in seconds, inside one reactor - which is the argument for doing
+this before the split rather than after, made concrete.
+
 **The `test-jar` dependency is unused and should go first.** Neither agent's tests import
 anything from `org.fuin.sokar.core`. Deleting it removes a cross-repository test-jar dependency,
 which is the worst thing on that list.

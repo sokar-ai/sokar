@@ -1,4 +1,4 @@
-package org.fuin.sokar.clearance.varlink;
+package org.fuin.sokar.wire.varlink;
 
 import java.io.IOException;
 import java.net.StandardProtocolFamily;

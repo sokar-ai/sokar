@@ -52,7 +52,7 @@ public class ShieldReadCommand implements Callable<Integer> {
         final PrintWriter err = spec.commandLine().getErr();
 
         try (NflogReader reader = new NflogReader(group);
-                org.fuin.sokar.clearance.varlink.VarlinkClient client = connect()) {
+                org.fuin.sokar.wire.varlink.VarlinkClient client = connect()) {
 
             final int[] seen = { 0 };
             reader.readUntilStopped(event -> {
@@ -83,12 +83,12 @@ public class ShieldReadCommand implements Callable<Integer> {
         }
     }
 
-    private org.fuin.sokar.clearance.varlink.VarlinkClient connect() {
+    private org.fuin.sokar.wire.varlink.VarlinkClient connect() {
         return reportTo == null ? null
-                : new org.fuin.sokar.clearance.varlink.VarlinkClient(reportTo);
+                : new org.fuin.sokar.wire.varlink.VarlinkClient(reportTo);
     }
 
-    private void report(org.fuin.sokar.clearance.varlink.VarlinkClient client,
+    private void report(org.fuin.sokar.wire.varlink.VarlinkClient client,
             BlockedConnection event, PrintWriter err) {
         try {
             client.call(org.fuin.sokar.clearance.ClearanceService.INTERFACE + ".Report",

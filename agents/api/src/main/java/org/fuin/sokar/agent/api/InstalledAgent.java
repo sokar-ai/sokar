@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import org.fuin.sokar.clearance.varlink.VarlinkClient;
+import org.fuin.sokar.wire.varlink.VarlinkClient;
 
 /**
  * An agent binary installed on this machine.

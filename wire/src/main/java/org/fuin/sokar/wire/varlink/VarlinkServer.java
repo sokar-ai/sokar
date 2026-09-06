@@ -1,4 +1,4 @@
-package org.fuin.sokar.clearance.varlink;
+package org.fuin.sokar.wire.varlink;
 
 import java.io.IOException;
 import java.net.UnixDomainSocketAddress;
@@ -11,7 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.fuin.sokar.core.hardening.SocketContext;
+import org.fuin.sokar.wire.SocketContext;
 
 /**
  * Serves varlink methods over a unix socket.

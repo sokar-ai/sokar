@@ -11,7 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
-import org.fuin.sokar.core.hardening.SocketContext;
+import org.fuin.sokar.wire.SocketContext;
 
 /**
  * An ssh-agent that signs with keys the container can never read.

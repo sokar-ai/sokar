@@ -1,4 +1,4 @@
-package org.fuin.sokar.clearance.varlink;
+package org.fuin.sokar.wire.varlink;
 
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
