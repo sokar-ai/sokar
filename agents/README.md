@@ -9,10 +9,14 @@ binary that is already there.
 agents/
 ├── api/          sokar-agent-api       the agent contract; both sides link it
 ├── stub/         sokar-agent-stub      → the agent the acceptance suite drives
-├── claude/       sokar-agent-claude    → its own binary
-├── pi/           sokar-agent-pi        → its own binary, and it ships its own CLI
-└── <yours>/
+└── pi/           sokar-agent-pi        → its own binary, and it ships its own CLI
 ```
+
+**A shipped agent lives in its own repository.** Claude Code is
+[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code): it builds against the published contract, releases on
+its own cadence, and this repository contains no reference to it. Pi is still here
+and moves next. The stub stays: without an agent in the tree the acceptance suite
+would have nothing to drive.
 
 ```
 $ sokar agents
@@ -20,10 +24,10 @@ no agents installed. Looked in:
   ~/.local/share/sokar/agents
   /usr/libexec/sokar/agents
 
-$ cp sokar-agent-claude ~/.local/share/sokar/agents/
+$ sudo apt install sokar-agent-claude
 $ sokar agents
 NAME         BINARY           LABEL                  FROM
-claude       claude           Claude Code            ~/.local/share/sokar/agents/sokar-agent-claude
+claude       claude           Claude Code            /usr/libexec/sokar/agents/sokar-agent-claude
 ```
 
 No rebuild. No re-sign. The `sokar` binary contains no occurrence of the string
@@ -148,7 +152,7 @@ public static void main(String[] args) {
 }
 ```
 
-Copy the `native` profile from `agents/claude/pom.xml` and change the image
+Copy the `native` profile from `agents/stub/pom.xml` and change the image
 name. The binary answers two modes: `serve <socket>` for Sokar, and `describe`
 for a human — `sokar-agent-example describe | jq` is what to reach for when
 Sokar will not use an agent that looks installed.

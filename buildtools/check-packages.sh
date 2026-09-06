@@ -13,7 +13,7 @@
 #   3. The dist profile lives in agents/pom.xml so that adding an agent needs no packaging
 #      config. It is therefore inherited by the aggregator and by sokar-agent-api, neither
 #      of which has a binary to package. A full-reactor build then fails on the aggregator
-#      while "-pl agents/claude" passes, which is how it went unnoticed.
+#      while "-pl agents/stub" passes, which is how it went unnoticed.
 #
 # Needs podman, and pulls ubuntu:24.04 and fedora:41.
 #
@@ -31,12 +31,15 @@ echo "== packages =="
 
 DEB="$(ls "$ROOT"/dist-deb/target/sokar_*.deb 2>/dev/null | head -1)"
 RPM="$(ls "$ROOT"/dist-rpm/target/sokar-*.rpm 2>/dev/null | head -1)"
-AGENT_DEB="$(ls "$ROOT"/agents/claude/target/sokar-agent-claude_*.deb 2>/dev/null | head -1)"
-AGENT_RPM="$(ls "$ROOT"/agents/claude/target/sokar-agent-claude-*.rpm 2>/dev/null | head -1)"
+# The stub, because the real agents live in their own repositories now. What is checked here is
+# Sokar's packaging machinery and that an agent package's dependency on sokar resolves - both of
+# which are the same whatever the agent is.
+AGENT_DEB="$(ls "$ROOT"/agents/stub/target/sokar-agent-stub_*.deb 2>/dev/null | head -1)"
+AGENT_RPM="$(ls "$ROOT"/agents/stub/target/sokar-agent-stub-*.rpm 2>/dev/null | head -1)"
 
 for f in "$DEB" "$RPM" "$AGENT_DEB" "$AGENT_RPM"; do
     if [ -z "$f" ]; then
-        echo "missing packages under dist-deb, dist-rpm or agents/claude"
+        echo "missing packages under dist-deb, dist-rpm or agents/stub"
         echo "run: JAVA_HOME=<graalvm> ./mvnw -Pnative,dist verify -DskipTests"
         echo "note the phase: 'package' builds the binaries and no packages at all"
         exit 2
@@ -51,8 +54,8 @@ echo
 echo "-- freshness --"
 STALE=0
 for pair in "$DEB:$ROOT/app/target/sokar" "$RPM:$ROOT/app/target/sokar" \
-            "$AGENT_DEB:$ROOT/agents/claude/target/sokar-agent-claude" \
-            "$AGENT_RPM:$ROOT/agents/claude/target/sokar-agent-claude"; do
+            "$AGENT_DEB:$ROOT/agents/stub/target/sokar-agent-stub" \
+            "$AGENT_RPM:$ROOT/agents/stub/target/sokar-agent-stub"; do
     pkg="${pair%%:*}"
     bin="${pair##*:}"
     if [ -f "$bin" ] && [ "$bin" -nt "$pkg" ]; then
@@ -162,19 +165,19 @@ COMMON='
     sokar setup >/dev/null 2>&1 && echo SETUP-OK
     grep -qho "/usr/libexec/sokar/hooks/sokar-hook-nft" \
         /root/.config/containers/oci/hooks.d/* 2>/dev/null && echo HOOKS-PACKAGED
-    sokar agents 2>/dev/null | grep -q claude && echo DISCOVERY-OK
+    sokar agents 2>/dev/null | grep -q stub && echo DISCOVERY-OK
 '
 
 install_check "Debian" ubuntu:24.04 "
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq >/dev/null 2>&1
     apt-get install -y -qq /deb/sokar_*.deb >/dev/null 2>&1
-    apt-get install -y -qq /agent/sokar-agent-claude_*.deb >/dev/null 2>&1 && echo AGENT-OK
+    apt-get install -y -qq /agent/sokar-agent-stub_*.deb >/dev/null 2>&1 && echo AGENT-OK
     $COMMON"
 
 install_check "Fedora" fedora:41 "
     dnf install -y -q /rpm/sokar-0*.rpm >/dev/null 2>&1
-    dnf install -y -q /agent/sokar-agent-claude-*.rpm >/dev/null 2>&1 && echo AGENT-OK
+    dnf install -y -q /agent/sokar-agent-stub-*.rpm >/dev/null 2>&1 && echo AGENT-OK
     $COMMON"
 
 echo

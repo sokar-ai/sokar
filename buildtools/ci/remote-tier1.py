@@ -107,7 +107,7 @@ def main() -> int:
         # binary this suite exercises is the one that would ship.
         remote(address, environment,
                f"cd {REPO} && JAVA_HOME=/opt/graalvm GRAALVM_HOME=/opt/graalvm PATH=/opt/graalvm/bin:$PATH ./mvnw -B -Pnative -DskipTests package "
-               "-pl app,daemon,hooks,agents/stub,agents/claude -am")
+               "-pl app,daemon,hooks,agents/stub -am")
 
         print("\n-- installing as a package would --")
         # Entirely in the user's own directories, with no sudo. Sokar scans
@@ -154,7 +154,6 @@ BINARIES = [
     "hooks/target/sokar-hook-nft",
     "hooks/target/sokar-hook-supervisor",
     "hooks/target/sokar-hook-reader",
-    "agents/claude/target/sokar-agent-claude",
 ]
 
 

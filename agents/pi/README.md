@@ -147,11 +147,11 @@ request   POST /api/v1/chat/completions -> 200 from the provider
 
 ## Checking it
 
-**There is no acceptance suite for this agent yet.** `buildtools/e2e-tier1.sh` and
-`e2e-tier2.sh` are written for Claude Code — they install `sokar-agent-claude`,
-pass `--agent claude`, and tier 2 runs the `claude` binary by name. They must be
-run with Pi installed alongside, which is how "two agents installed at once,
-neither disturbing the other" is checked, but they do not exercise Pi itself.
+**There is no acceptance suite for this agent yet.** `buildtools/e2e-tier1.sh` no
+longer names any agent — `SOKAR_E2E_AGENT=pi` points it here — but it has never been
+run that way, so what it would find is unknown. Tier 2 is not in this repository at
+all: it asks whether *this agent* authenticates against *this provider*, which is the
+agent's question, and it belongs with Pi when Pi moves to its own repository.
 
 What Pi has instead is a run that was measured by hand on 2026-09-04: a real
 prompt answered (`"text":"SOKARLIVE"`), `request POST /api/v1/chat/completions ->

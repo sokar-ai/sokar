@@ -24,8 +24,10 @@
         <!-- Filtered into stub.yaml and printed by the installed script, so the version check
              has something to compare. -->
         <agent.cli.version>1.0.0</agent.cli.version>
-        <!-- No .deb and no .rpm. Nobody installs this; the suite copies the binary. -->
-        <agent.package.skip>true</agent.package.skip>
+        <!-- It packages itself, so the packaging machinery still has an agent to exercise once
+             the real agents live elsewhere. Never published: the publish step uploads dist-deb
+             and dist-rpm and nothing else. -->
+        <agent.package.skip>false</agent.package.skip>
     </properties>
 
     <dependencies>

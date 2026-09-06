@@ -183,7 +183,7 @@ jobs:
           for f in app/target/sokar daemon/target/sokard \
                    hooks/target/sokar-hook-nft hooks/target/sokar-hook-supervisor \
                    hooks/target/sokar-hook-reader \
-                   agents/claude/target/sokar-agent-claude; do
+                   agents/stub/target/sokar-agent-stub; do
               [ -f "$f" ] || { echo "::error::$f did not arrive from the acceptance leg"; exit 1; }
               chmod 0755 "$f"
               printf '  %-46s %s\n' "$f" "$(du -h "$f" | cut -f1)"
@@ -191,7 +191,7 @@ jobs:
 
       # Packaging only, on modules whose binary arrived. No 'clean', or the binaries go with it.
       - name: Build the packages
-        run: ./mvnw -B -Pdist verify -DskipTests -pl agents/claude,dist-deb,dist-rpm
+        run: ./mvnw -B -Pdist verify -DskipTests -pl agents/stub,dist-deb,dist-rpm
 
       # Checks the two packages against each other and installs both in a clean Debian and
       # a clean Fedora container. Before the upload, not after: a package that does not

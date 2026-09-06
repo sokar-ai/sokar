@@ -495,8 +495,10 @@ version line, so depending on a released API is the shape the design already wan
    acceptance suite has nothing to run, and a suite that cannot run is a suite that quietly
    stops being maintained. It is also the switch tier 2 needs - with the stub as the default,
    turning every real provider off leaves a suite that still proves something.
-6. **Split one agent** - Claude Code, alone - and prove it builds and packages against the
-   published agent API with no checkout of this repository.
+6. ~~**Split one agent** - Claude Code, alone - and prove it builds and packages against the
+   published agent API with no checkout of this repository.~~ **Done**, and removed from this
+   reactor. It builds, packages, publishes and runs its own acceptance suite in
+   [sokar-claude-code](https://github.com/fuinorg/sokar-claude-code).
 7. **Split Pi.** Second on purpose: it ships a 70 MB npm tree built by `npm ci` inside a pinned
    container, so its CI needs podman and a much longer build. One hard problem at a time.
 8. **Then [0044](0044-Automated-Agent-Updates.md)**, which gets easier: one repository per agent
@@ -704,6 +706,25 @@ indistinguishable from facts:
 
 None of these were reachable with a single agent in the tree. They are the cost of the split
 showing up as soon as something else drove the same code.
+
+### And then `agents/claude` was deleted
+
+What it took beyond removing the module, none of it obvious from the module itself:
+
+- **`check-packages.sh` had no agent package to check.** It installs one and asserts its
+  dependency on `sokar` resolves - a property of Sokar's packaging, not of any agent. The stub
+  now packages itself for that purpose. It is never published: the publish step uploads
+  `dist-deb` and `dist-rpm` and nothing else.
+- **`e2e-tier2.sh` was deleted rather than moved.** It asked whether *Claude Code* could
+  authenticate, which is that agent's question; the agent repository answers it now, against
+  the published packages rather than a build tree.
+- **The remote build and the publish job both named the module.** The acceptance leg built it
+  and the deploy job fetched its binary to package.
+- **`getting-started.md` told you to copy the agent's `.deb` out of `agents/claude/target`**,
+  which no longer exists. A build here now produces Sokar and no agent, and the document says
+  so and links to where the agent comes from.
+
+455 tests, down from 474: the 19 that moved are Claude Code's own.
 
 ## Tier 2, and turning it off
 

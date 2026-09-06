@@ -80,7 +80,7 @@ See [build.md](build.md). Three things that will bite:
 - **The `dist` profile is inherited by modules that are not agents.** It lives in
   `agents/pom.xml` so adding an agent needs no packaging config, so the aggregator
   and `sokar-agent-api` inherit it with no binary to package. `agent.package.skip`
-  is on by default and each agent turns it off; `-pl agents/claude` hides the
+  is on by default and each agent turns it off; `-pl agents/stub` hides the
   failure that a full-reactor build hits.
 - **`${project.version}` inside a parent's `<dependencyManagement>` interpolates
   against the *inheriting* module**, not the parent. That is why the root POM

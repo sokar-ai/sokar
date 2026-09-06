@@ -74,13 +74,16 @@ sudo dnf reinstall sokar sokar-agent-claude               # Fedora
 
 ### From a local build
 
-A build leaves the two packages in two different modules — Sokar's own under
-`dist-deb/target`, the agent's under `agents/claude/target`. Collect them
-somewhere readable first, then install them together, from the project root:
+**An agent is built in its own repository** — Claude Code in
+[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code) — so a build here produces Sokar and no agent. Take
+the agent's package from the repository above, or build that repository too.
+
+Sokar's own package lands in `dist-deb/target`. Copy it somewhere readable first,
+then install, from the project root:
 
 ```
 mkdir -p /tmp/sokar-pkgs
-cp dist-deb/target/sokar_*.deb agents/claude/target/sokar-agent-claude_*.deb /tmp/sokar-pkgs/
+cp dist-deb/target/sokar_*.deb /tmp/sokar-pkgs/
 sudo apt install /tmp/sokar-pkgs/*.deb
 ```
 
@@ -88,7 +91,7 @@ or, on Fedora:
 
 ```
 mkdir -p /tmp/sokar-pkgs
-cp dist-rpm/target/sokar-*.rpm agents/claude/target/sokar-agent-claude-*.rpm /tmp/sokar-pkgs/
+cp dist-rpm/target/sokar-*.rpm /tmp/sokar-pkgs/
 sudo dnf install /tmp/sokar-pkgs/*.rpm
 ```
 
@@ -181,7 +184,7 @@ before going further.
 For a subscription there is no key to copy from a web page: the value is produced by
 the agent's login, run **on the host**. For Claude Code that is `claude setup-token`,
 which needs the agent installed on the host and prints a long-lived token to paste
-below — see [the Claude Code guide](agents/claude/README.md). This is also why
+below — see [the Claude Code guide](https://github.com/fuinorg/sokar-claude-code#readme). This is also why
 logging in inside the container is both blocked and pointless: the value has to end
 up in the vault, on the host, where the box cannot reach it.
 
@@ -262,7 +265,7 @@ interchangeable — an API key and a subscription token go in different headers,
 sending one as the other fails in a way that looks exactly like a wrong key. Claude
 Code takes an API key or a subscription OAuth token; say which when you store it
 (`--type api-key` or `--type oauth`) and no task has to repeat it — see
-[the Claude Code guide](agents/claude/README.md) for where to get each.
+[the Claude Code guide](https://github.com/fuinorg/sokar-claude-code#readme) for where to get each.
 `sokar agents --verbose` shows what each installed agent needs to reach.
 
 ## 4. Describe your project
