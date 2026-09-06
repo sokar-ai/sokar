@@ -22,6 +22,21 @@ The same rule in reverse: an agent module may depend on the published agent API 
 Those two are the only artifacts Sokar puts on Maven Central, so the rule is also
 what an agent in its own repository is *able* to resolve.
 
+**Every shipped agent is in its own repository** —
+[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code) and
+[sokar-pi](https://github.com/fuinorg/sokar-pi) — building against that published
+contract with no checkout of this one. What remains in `agents/` is the contract and
+the **stub**, which exists so the acceptance suite still has something to drive; a
+suite that cannot run is one that quietly stops being maintained.
+
+`SOKAR_E2E_AGENT` selects which agent `buildtools/e2e-tier1.sh` drives, defaulting to
+`stub`. Everything else it needs — the tool's name, its prompt flag, its provider, the
+variables it is pointed at a proxy with — is read from that agent's own `describe`
+response. Three things were hardcoded before a second agent drove it: the tool was
+looked for at `~/.local/bin/<name>`; the proxy variable was found by matching
+`*UNIX_SOCKET`, which is one agent's spelling and not a rule; and `sokar agents | grep`
+fails under `set -o pipefail` whenever *any* installed agent is unusable.
+
 ## Code
 
 - **Java 25.** Records for data, sealed interfaces where the set of cases is
@@ -267,8 +282,48 @@ provisioning rather than on the suite:
   `unsupported location for server type`, which reads like a wrong type or a bad token rather
   than a full datacentre. `hetzner.location_for()` asks which location in `eu-central` currently
   has the type and uses that.
+- **A Containerfile here-document builds on podman 5 and not on podman 4.** podman 4.9.3,
+  which Ubuntu 24.04 ships, reads every line as an instruction and fails with
+  `Unknown instruction: "IF"`. Anything an agent contributes to an image has to be one
+  `RUN`, continued with backslashes. It also has to be in the *definition*: `imageLayer()`
+  is never called by Sokar, which builds from the `describe` response's `installAsRoot`.
 - **Name a run's servers after the run *and the leg*.** Both matrix legs share `GITHUB_RUN_ID`,
   so a cleanup keyed on it alone deletes the other leg's machine mid-suite.
+
+## Publishing
+
+**Two artifacts reach Maven Central: `sokar-agent-api` and `sokar-wire`.** Nothing else,
+because nothing else is a contract anyone outside resolves. The packages go to
+Artifactory, `sokar-dist-deb` and `sokar-dist-rpm`, together with the agents' — an agent
+package declares `Depends: sokar`, so split across repositories the dependency would not
+resolve from one configured source.
+
+- **Two different properties control it, and only one is real under the release profile.**
+  `maven.deploy.skip` belongs to `maven-deploy-plugin`, which never runs under
+  `-Pcentral-sonatype-release`: `central-publishing-maven-plugin` is a build extension that
+  injects its own goal into every module. `skipPublishing` is what it reads. Both are
+  default-deny in the root and turned off in exactly those two modules. A local
+  `-DaltDeploymentRepository` check exercises the *other* plugin and proves nothing about CI.
+- **`jf rt upload` needs `--flat=true`.** Without it the source directory travels into the
+  target and the package lands one level deep, reporting success.
+- **A Debian upload without `deb.distribution`, `deb.component` and `deb.architecture` is
+  stored and never indexed**, with no error anywhere. Setting them needs **Annotate**
+  permission; overwriting the stable snapshot file name needs **Delete**. Both are separate
+  from Deploy.
+- **Build-info is not published.** It writes to `artifactory-build-info`, which the token
+  cannot reach, and `disable-auto-build-publish: true` stops the action attempting it.
+- **`.github/workflows/artifactory-smoke.yml`** checks all of that in twenty seconds without
+  building anything. Run it after rotating the token.
+
+**The published binary is the one the acceptance suite tested.** The Ubuntu leg fetches its
+binaries back before the server is destroyed and the publish job packages those, rather than
+compiling its own. Two reasons: a hosted runner has no musl cross-compiler, so the static
+hooks cannot be built there at all; and until this changed, the suite exercised one build
+while the packages shipped another. **Ubuntu, not Fedora** — a native image links glibc
+dynamically, so one built on Fedora will not start on Ubuntu 24.04 while the reverse runs on
+both. Both packages carry identical bytes, so there is one binary to get right. The leg
+writes a manifest beside the binaries and the publish job reads it, because the two lists
+drifted when they were written down twice.
 
 ## Security rules that are not negotiable
 
@@ -299,8 +354,7 @@ One brief line. The reasoning behind a change is a finding, and a finding goes i
 **Run the unit suite before committing.** The acceptance suite is CI's job, on `main`, on two
 rented machines - one with SELinux enforcing, one with podman 4. Before a release, run it
 deliberately rather than assuming a green badge covered it. A development VM is for diagnosing a
-failure quickly, not for gating a commit; nothing should depend on one existing. See
-[0047](requirements/0047-Separate-Repositories-And-CI.md).
+failure quickly, not for gating a commit; nothing should depend on one existing.
 
 **A requirement that is done is deleted**, file and index row together, once whatever
 is worth keeping has moved into this file. They describe work to do, not work that was

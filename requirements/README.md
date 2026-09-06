@@ -16,7 +16,6 @@ survives at all.
 | 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Removing a task must not silently destroy work the agent never pushed. | yes |
 | 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | 25 | [Pi Forge Subscription](0025-Pi-Forge-Subscription.md) | The second agent's remaining half: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
-| 47 | [Separate Repositories And CI](0047-Separate-Repositories-And-CI.md) | Agents build in their own repositories, and a push runs what the VMs run. | yes |
 | 44 | [Automated Agent Updates](0044-Automated-Agent-Updates.md) | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
 | 20 | [Narrow The Git Endpoint](0020-Narrow-The-Git-Endpoint.md) | The host endpoint a task clones from should not be reachable from the local network. | yes |
 | 1 | [Local Daemon API](0001-Local-Daemon-API.md) | Everything the interface can do is exposed by a local daemon over a private socket, so no feature depends on shelling out to the CLI. | yes |
