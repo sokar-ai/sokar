@@ -27,7 +27,7 @@ inside the container.
 ## The stored credential cannot be reached by either extractor
 
 `sokar vault import` lifts what a vendor's own sign-in already wrote, using one of the two shapes
-in the SPI: a dotted path into a JSON file, or a variable in an env file. Neither reaches this
+in the agent API: a dotted path into a JSON file, or a variable in an env file. Neither reaches this
 one.
 
 ```

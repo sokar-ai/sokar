@@ -27,7 +27,7 @@
 
     <dependencies>
 
-        <!-- compile: the SPI, and nothing else. Never another agent. -->
+        <!-- compile: the agent API, and nothing else. Never another agent. -->
 
         <dependency>
             <groupId>org.fuin.sokar</groupId>

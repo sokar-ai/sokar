@@ -9,7 +9,7 @@
 #
 # Publishing runs here rather than on a rented machine: an artifact anyone resolves must not come
 # from a box that exists for ten minutes and is then destroyed. Two modules are published, the
-# agent SPI and the wire it needs; everything else has maven.deploy.skip on by default.
+# agent API and the wire it needs; everything else has maven.deploy.skip on by default.
 #
 # Both acceptance legs run the same suite on a Hetzner server booted from a prepared snapshot, in parallel:
 #
@@ -115,7 +115,7 @@ jobs:
           SOKAR_CI_LEG: ${{ matrix.os }}
         run: python3 buildtools/ci/sweep.py --mine
 
-  # Snapshots of the agent SPI, so an agent repository can build against it without a checkout of
+  # Snapshots of the agent API, so an agent repository can build against it without a checkout of
   # this one. After tier 1 on purpose: a published snapshot that fails the acceptance suite is
   # worse than no snapshot, and waiting costs nothing that is not already being spent.
   #
@@ -124,7 +124,7 @@ jobs:
   # what is uploaded. Central rejects an unsigned artifact, so a missing key fails the job
   # rather than publishing something unusable.
   deploy:
-    name: Publish the agent SPI
+    name: Publish the agent API
     runs-on: ubuntu-latest
     needs: [build, tier1]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -17,7 +17,7 @@
 
     <properties>
         <!-- Deployed to Central. Not interesting on its own - it is deployed because
-             sokar-agent-api's pom names it, so resolving the SPI needs it too. -->
+             sokar-agent-api's pom names it, so resolving the agent API needs it too. -->
         <maven.deploy.skip>false</maven.deploy.skip>
     </properties>
 

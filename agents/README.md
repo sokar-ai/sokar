@@ -7,7 +7,7 @@ binary that is already there.
 
 ```
 agents/
-├── api/          sokar-agent-api       the SPI and the protocol; both sides link it
+├── api/          sokar-agent-api       the agent contract; both sides link it
 ├── claude/       sokar-agent-claude    → its own binary
 ├── pi/           sokar-agent-pi        → its own binary, and it ships its own CLI
 └── <yours>/
@@ -202,7 +202,7 @@ Override a method on `Agent`, **in your own module**:
 | `imageLayer()` | the `install:` block | the build needs more than fragments |
 | `headlessCommand(RunRequest)` | the shared builder | the command line is genuinely a different shape |
 
-`EnvFileExtractor` and `JsonFieldExtractor` in the SPI already cover most
+`EnvFileExtractor` and `JsonFieldExtractor` in the agent API already cover most
 credential layouts. Reach for an override only when they do not.
 
 **Never** add a branch outside your module that tests an agent's name. That is
@@ -280,7 +280,7 @@ says which.
 `AgentIsolationTest` in `sokar-app` runs three checks:
 
 1. No class outside `org.fuin.sokar.agent..` depends on an agent implementation.
-2. `sokar-app` sees the SPI package and nothing else agent-shaped.
+2. `sokar-app` sees the agent API package and nothing else agent-shaped.
 3. **No agent name appears as a string literal outside `agents/`.** ArchUnit
    reads types and members, not constant-pool literals, so this one is a source
    scan. It takes the list of names from the `agent/*.yaml` files themselves, so

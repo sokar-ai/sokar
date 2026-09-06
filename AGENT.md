@@ -17,7 +17,7 @@ is an ArchUnit test that fails the build. It was verified to bite by introducing
 If you find yourself wanting an exception, the answer is a new field in the agent
 definition YAML, not a branch in Sokar.
 
-The same rule in reverse: an agent module may depend on the published SPI -
+The same rule in reverse: an agent module may depend on the published agent API -
 `sokar-agent-api`, and `sokar-wire` for `Json` - and on nothing else of Sokar's.
 Those two are the only artifacts Sokar puts on Maven Central, so the rule is also
 what an agent in its own repository is *able* to resolve.
@@ -305,6 +305,12 @@ done; git history is where finished work lives.
 test may cite a requirement number. Requirements move, merge and are dropped; code
 that names one goes stale silently and starts to look like a contract. A comment
 should name the constraint itself, which is what makes it worth reading anyway.
+
+**It is the agent API, not an SPI.** `sokar-agent-api` carries both halves of the
+contract: the types Sokar calls to discover and drive an agent, and the types an
+agent implements so Sokar can call in. "SPI" names only the second half and reads
+as though the first is not there. Say **the agent API**, or **the agent contract**
+where the point is that both sides share it.
 
 **Every agent and provider names its upstream project by link, and an implemented one
 carries a `README.md` in its own directory that opens with that link.** Two projects can

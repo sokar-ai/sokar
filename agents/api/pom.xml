@@ -13,7 +13,7 @@
 
     <artifactId>sokar-agent-api</artifactId>
     <name>Sokar Agent API</name>
-    <description>Sokar - Agent SPI (AGENT-API)</description>
+    <description>Sokar - Agent API (AGENT-API)</description>
 
     <properties>
         <!-- Deployed to Central. An agent in its own repository resolves this jar to

@@ -9,7 +9,7 @@ import java.util.Optional;
 /**
  * Reads {@code NAME=value} from a dotenv-style file.
  * <p>
- * One of the two shapes common enough to belong in the SPI rather than in an agent. In the
+ * One of the two shapes common enough to belong in the agent API rather than in an agent. In the
  * reference implementation this same thing appears as a registry entry
  * {@code ("vibe": (extract_api_key_env, ".env", "MISTRAL_API_KEY"))} - a parameterised function
  * held in a name-keyed map, which is data wearing a function's clothing.

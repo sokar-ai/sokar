@@ -16,7 +16,7 @@
     <name>Sokar Agents</name>
     <description>Sokar - Agents (PARENT)</description>
 
-    <!-- One submodule per agent, plus the SPI both sides share.
+    <!-- One submodule per agent, plus the agent contract both sides share.
 
          Each agent builds its own native binary and its own package. Nothing in
          Sokar names an agent, and since agents are discovered by scanning a

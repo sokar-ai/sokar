@@ -24,7 +24,7 @@ import org.junit.jupiter.api.io.TempDir;
  * and later, and a machine without it is not a machine with a broken Sokar.
  * <p>
  * Runs the process itself rather than through the core runner, because this module has no
- * dependencies and is meant to keep it that way - the agent SPI resolves it.
+ * dependencies and is meant to keep it that way - the agent API resolves it.
  */
 class VarlinkInteropTest {
 

@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  */
 class AgentIsolationTest {
 
-    /** Package holding the SPI, which everything is allowed to depend on. */
+    /** Package holding the agent API, which everything is allowed to depend on. */
     private static final String API = "org.fuin.sokar.agent.api";
 
     /** Everything under here is agent-shaped and exempt from both rules. */
@@ -48,7 +48,8 @@ class AgentIsolationTest {
                 .that().resideOutsideOfPackage("org.fuin.sokar.agent..")
                 .should().dependOnClassesThat()
                 .resideInAPackage("org.fuin.sokar.agent.impl..")
-                .because("an agent is discovered through the SPI, never named. Depending on one"
+                .because("an agent is discovered through the agent API, never named. Depending"
+                        + " on one"
                         + " here would make adding the next agent a change to this module")
                 .allowEmptyShould(true);
 
@@ -66,7 +67,8 @@ class AgentIsolationTest {
                                 "an agent package other than " + API,
                                 javaClass -> javaClass.getPackageName().startsWith("org.fuin.sokar.agent.")
                                         && !javaClass.getPackageName().equals(API)))
-                .because("sokar-app is the composition root: it may call the SPI and must not know"
+                .because("sokar-app is the composition root: it may call the agent API and must"
+                        + " not know"
                         + " what implements it")
                 .allowEmptyShould(true);
 

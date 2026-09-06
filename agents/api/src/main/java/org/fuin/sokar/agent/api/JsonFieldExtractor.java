@@ -12,7 +12,8 @@ import org.fuin.sokar.wire.Json;
 /**
  * Reads a named field out of a JSON config file, following a dotted path.
  * <p>
- * The second of the two shapes common enough to belong in the SPI. A dotted path rather than a
+ * The second of the two shapes common enough to belong in the agent API. A dotted path rather
+ * than a
  * full query language: every real case in the reference implementation is one or two levels deep,
  * and a query language here would be a small programming language embedded in YAML.
  */

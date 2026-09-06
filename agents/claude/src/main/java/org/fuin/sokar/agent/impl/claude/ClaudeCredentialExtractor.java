@@ -15,7 +15,8 @@ import org.fuin.sokar.wire.Json;
 /**
  * Reads the OAuth token Claude writes at login.
  * <p>
- * Neither of the SPI's two shapes fits: the token sits under a nested key, and the refresh token
+ * Neither of the agent API's two shapes fits: the token sits under a nested key, and the
+ * refresh token
  * and expiry beside it are worth keeping. So this is an override - and the point of the structure
  * is that the override lives here, in Claude's own module, rather than as an entry in a
  * name-keyed registry that every other agent has to be looked up in.

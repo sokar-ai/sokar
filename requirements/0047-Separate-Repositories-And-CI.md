@@ -22,8 +22,8 @@ agents out without CI first would multiply the hand work by the number of agents
 - **Tier 2** runs where a credential exists, and never for a pull request from a fork. It is
   switchable from the build settings, and a leg switched off says so rather than passing quietly.
 - The core keeps an acceptance suite **after every agent has left**: a stub agent, built here,
-  that exercises the SPI, the firewall and the clearance path without downloading a vendor CLI.
-- An agent builds in its own repository against a **published** SPI, with no checkout of this
+  that exercises the agent API, the firewall and the clearance path without downloading a vendor CLI.
+- An agent builds in its own repository against a **published** agent API, with no checkout of this
   one, and the package it produces installs against a `sokar` binary it was never built with.
 - Jars are published to Sonatype; `.deb` and `.rpm` to Artifactory.
 - What is **not** covered by CI is written down rather than assumed.
@@ -196,7 +196,7 @@ sokar-wire
 sokar-core  test-jar, test scope
 ```
 
-**None of that is earned.** The SPI references exactly three types outside itself:
+**None of that is earned.** The agent API references exactly three types outside itself:
 
 ```
 org.fuin.sokar.wire.Json
@@ -211,9 +211,9 @@ org.fuin.sokar.clearance.varlink.VarlinkServer
 | `sokar-core` | declared `compile` in `agents/api/pom.xml` | **no** - not referenced in main or test |
 | `dbus-java-core`, `dbus-java-transport-native-unixsocket`, `slf4j-api` | transitive through `sokar-clearance` | **no** |
 
-### Making the SPI stand alone is one module move
+### Making the agent API stand alone is one module move
 
-`sokar-clearance` holds two unrelated things, and the SPI needs only the smaller one:
+`sokar-clearance` holds two unrelated things, and the agent API needs only the smaller one:
 
 ```
 clearance/
@@ -224,14 +224,14 @@ clearance/
 **`varlink/` is four classes and contains no dbus reference at all.** The D-Bus stack comes
 entirely from the desktop half, which no agent touches - so today an agent adapter carries D-Bus
 on its compile classpath for nothing, and `AgentIsolationTest` cannot see it because that rule is
-about names rather than about what the SPI drags along.
+about names rather than about what the agent API drags along.
 
 Two edits:
 
 1. **Delete the `sokar-core` dependency from `agents/api/pom.xml`.** Declared and unused; free.
 2. **Move `clearance/…/varlink/` into `sokar-wire`.** That is the natural home: `wire` is already
    the transport-and-encoding module, it has no dependencies of its own, and `Json` - the other
-   thing the SPI needs - is there. Three consumers move with it: `agents/api`, `app`, and
+   thing the agent API needs - is there. Three consumers move with it: `agents/api`, `app`, and
    `clearance` itself. A package move and import updates, checked by the compiler, not a redesign.
 
 What an out-of-repository agent then resolves:
@@ -243,7 +243,8 @@ after    sokar-agent-api, sokar-wire, snakeyaml
 ```
 
 **Do it before the split, not after.** Today it is one package move inside one reactor with a
-compiler checking it. Once two agents live in their own repositories pinned to a released SPI,
+compiler checking it. Once two agents live in their own repositories pinned to a released
+contract,
 the same move is a breaking change to a published artifact plus a coordinated release across
 three repositories. It is also right independently of the split.
 
@@ -307,7 +308,7 @@ description, url, licences, developers and scm, has no `<parent>`, and lists its
 dependencies at resolved versions.
 
 **And the url that flattening exposed is fixed.** Maven appends each child's artifactId to an
-inherited `url` and `scm`, so the SPI advertised
+inherited `url` and `scm`, so `sokar-agent-api` advertised
 `github.com/fuinorg/sokar/sokar-agents/sokar-agent-api/` - a path that does not exist, in every
 published POM. Maven 3.6.1 added attributes that turn the appending off, and the root now
 carries all four.
@@ -373,7 +374,7 @@ fails with *no default secret key* after reporting *signing 4 files*.
 `OSS_SONATYPE_GPG_PASSPHRASE`. A missing one fails the job rather than publishing an unsigned
 artifact, which is the behaviour to want.
 
-**Agents pin a released SPI, never a snapshot.** This is the one point worth arguing about,
+**Agents pin a released agent API, never a snapshot.** This is the one point worth arguing about,
 because it is the failure this organisation has already hit: downstream CI resolving a snapshot
 that had vanished upstream while a local `~/.m2` still held a copy. Agents now carry their own
 version line, so depending on a released API is the shape the design already wants.
@@ -385,16 +386,16 @@ version line, so depending on a released API is the shape the design already wan
    parallel, gated to `main`; hosted runners keep the build and will carry the release.
 3. ~~**Shrink the published surface** - drop the unused `sokar-core` dependency, move `varlink`
    into `sokar-wire`, delete the unused test-jar dependency, extract the shared fixtures, add
-   `<name>`, add `flatten-maven-plugin`.~~ **Done.** 467 tests green; the SPI resolves three
+   `<name>`, add `flatten-maven-plugin`.~~ **Done.** 467 tests green; the agent API resolves three
    artifacts.
-4. **Publish the SPI and its closure** at a real version.
+4. **Publish the agent API and its closure** at a real version.
 5. **Write the stub agent** and move tier 1 onto it. This has to happen *before* an agent
    leaves, not after: the moment `agents/claude` is a different repository, the core's own
    acceptance suite has nothing to run, and a suite that cannot run is a suite that quietly
    stops being maintained. It is also the switch tier 2 needs - with the stub as the default,
    turning every real provider off leaves a suite that still proves something.
 6. **Split one agent** - Claude Code, alone - and prove it builds and packages against the
-   published SPI with no checkout of this repository.
+   published agent API with no checkout of this repository.
 7. **Split Pi.** Second on purpose: it ships a 70 MB npm tree built by `npm ci` inside a pinned
    container, so its CI needs podman and a much longer build. One hard problem at a time.
 8. **Then [0044](0044-Automated-Agent-Updates.md)**, which gets easier: one repository per agent
@@ -533,7 +534,7 @@ telemetry in one version, and it will change under us. A stub can reach for a de
 undeclared one *on purpose*, which turns that check from an observation into an assertion.
 
 It also removes a 320 MB download from every run, and it tests exactly what the core owns: the
-SPI, the image build, the firewall, the phantom token, the gate.
+agent API, the image build, the firewall, the phantom token, the gate.
 
 **What it must not become** is a stub that passes because it asks nothing of the core. It has to
 install a binary, resolve names, present a credential and push through the gate - otherwise the

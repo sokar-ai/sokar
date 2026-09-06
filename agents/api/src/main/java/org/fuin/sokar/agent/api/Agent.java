@@ -35,7 +35,8 @@ public interface Agent {
      * Returns how this agent's credential is read out of its config directory.
      *
      * @return Extractor. The default finds nothing, because an agent that stores its credential in
-     *         a shape the SPI does not know about must say so rather than appear unauthenticated.
+     *         a shape the agent API does not know about must say so rather than appear
+     *         unauthenticated.
      */
     default CredentialExtractor credentialExtractor() {
         return CredentialExtractor.none();
