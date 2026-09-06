@@ -216,13 +216,12 @@ jobs:
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
         run: |
           set -eux
+          # --flat: without it the source directory travels too, and the package lands at
+          # pool/main/s/sokar/dist-deb/target/... instead of where the pool path says.
           jf rt upload "dist-deb/target/*.deb" "sokar-dist-deb/pool/main/s/sokar/" \
-              --target-props="deb.distribution=snapshots;deb.component=main;deb.architecture=amd64" \
-              --build-name=sokar --build-number="$GITHUB_RUN_ID"
-          jf rt upload "dist-rpm/target/*.rpm" "sokar-dist-rpm/snapshots/" \
-              --build-name=sokar --build-number="$GITHUB_RUN_ID"
-          jf rt build-add-git sokar "$GITHUB_RUN_ID"
-          jf rt build-publish sokar "$GITHUB_RUN_ID"
+              --flat=true \
+              --target-props="deb.distribution=snapshots;deb.component=main;deb.architecture=amd64"
+          jf rt upload "dist-rpm/target/*.rpm" "sokar-dist-rpm/snapshots/" --flat=true
 
       # Uploaded is not the same as installable. Indexing is asynchronous, and a package with
       # missing or wrong properties is stored happily and never appears in the index - which is

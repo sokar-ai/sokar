@@ -343,6 +343,19 @@ them, so the package would be stored and never indexed. `jf rt upload --target-p
 and `jf rt build-publish` still records build-info - which was the actual reason the plugin was
 preferred, and it is not lost.
 
+**Build-info is not published, for now.** `jf rt build-publish` writes into a separate internal
+repository, `artifactory-build-info`, and a token scoped to the two distribution repositories has
+no permission there - measured, as a 403 after both uploads had already succeeded. Build-info was
+the stated reason for preferring the CLI over the Maven plugin, so this is a loss rather than a
+tidy-up: it can be restored by granting `github-build` deploy permission on that repository, and
+until then the traceability from an artifact back to its build is only what the file name and the
+repository's own timestamps carry.
+
+**`--flat=true` is not optional.** Without it `jf rt upload` carries the *source* directory into
+the target, so `dist-deb/target/*.deb` uploaded to `pool/main/s/sokar/` lands at
+`pool/main/s/sokar/dist-deb/target/...`. It uploads successfully and reports success. Found in
+the agent repository, where the same mistake put the package under `.../sokar-agent-claude/target/`.
+
 **`jf rt build-collect-env` is deliberately not used.** It publishes environment variables into
 build-info, and its default exclusion pattern - `*password*;*psw*;*secret*;*key*;*token*` -
 does not match `OSS_SONATYPE_GPG_PASSPHRASE`, which is in scope in that job. The git commit from
