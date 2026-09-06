@@ -383,7 +383,8 @@ share a name - Pi and Oh My Pi are different codebases from different authors - 
 requirement that says only "Pi" cannot be checked by anyone. The link is the identity;
 the npm package or download URL beside it is what the build actually installs.
 
-`README.md` is an index; the substance lives in `getting-started.md`, `why.md`,
+`README.md` is an index; the substance lives in `getting-started-debian.md`,
+`getting-started-fedora.md`, `why.md`,
 `your-tooling.md`, `build.md` and `agents/README.md`. `.sokar.md` is the planning
 document — gitignored, and the place where phase status, decisions and findings
 are recorded.

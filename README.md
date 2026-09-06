@@ -93,19 +93,87 @@ Why build this if Terok is so cool? See [why](why.md)
 
 ## Install
 
-```
+Everything needed to go from nothing to a running agent. Paste it into the project you want
+an agent to work on.
+
+**Debian and Ubuntu**
+
+```sh
+sudo apt install -y ca-certificates curl gnupg
 curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
   | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
 echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb snapshots main" \
   | sudo tee /etc/apt/sources.list.d/sokar.list
-sudo apt update && sudo apt install sokar sokar-agent-claude
+sudo apt update
+sudo apt install -y sokar sokar-agent-claude
+
+# The OCI hooks, once per user. The package deliberately does not do this: podman reads
+# hook descriptors per user, so a system-wide install would fire them for every container.
+sokar setup
+
+# Your credential, on the host. It never enters the container - the agent gets a
+# task-scoped phantom token, and a proxy swaps in the real key on the way out.
+sokar vault unlock
+read -rsp 'Anthropic API key: ' KEY && echo
+printf '%s' "$KEY" | sokar vault put anthropic --type api-key
+unset KEY
+
+# What this project's container is built from.
+cat > project.yml <<EOF
+project:
+  name: "$(basename "$PWD")"
+  security_class: "guarded"
+image:
+  base_image: "ubuntu:24.04"
+EOF
+
+sokar task run
 ```
 
-Fedora, the repository file and both flavours in full, and what to do after a new
-snapshot: [getting started](getting-started.md#1-install).
+**Fedora and RHEL**
+
+```sh
+sudo tee /etc/yum.repos.d/sokar.repo >/dev/null <<'EOF'
+[sokar]
+name=Sokar
+baseurl=https://fuinorg.jfrog.io/artifactory/sokar-dist-rpm/snapshots
+enabled=1
+gpgcheck=0
+EOF
+sudo dnf install -y sokar sokar-agent-claude
+
+# The OCI hooks, once per user. The package deliberately does not do this: podman reads
+# hook descriptors per user, so a system-wide install would fire them for every container.
+sokar setup
+
+# SELinux. Without this a task container is denied connectto on its own vault socket,
+# the denial is dontaudit'ed, and it looks like an agent that cannot authenticate.
+sudo /usr/share/sokar/selinux/install-selinux-policy.sh
+
+# Your credential, on the host. It never enters the container - the agent gets a
+# task-scoped phantom token, and a proxy swaps in the real key on the way out.
+sokar vault unlock
+read -rsp 'Anthropic API key: ' KEY && echo
+printf '%s' "$KEY" | sokar vault put anthropic --type api-key
+unset KEY
+
+# What this project's container is built from.
+cat > project.yml <<EOF
+project:
+  name: "$(basename "$PWD")"
+  security_class: "guarded"
+image:
+  base_image: "ubuntu:24.04"
+EOF
+
+sokar task run
+```
+
+What each line does, and what goes wrong when it is skipped:
+[Debian](getting-started-debian.md) · [Fedora](getting-started-fedora.md).
 
 ## Getting started
-See [getting started](getting-started.md).
+[Debian and Ubuntu](getting-started-debian.md) · [Fedora and RHEL](getting-started-fedora.md).
 
 ## Adding your tools to a container
 See [your tooling](your-tooling.md).

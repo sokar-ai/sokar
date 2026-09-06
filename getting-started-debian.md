@@ -1,37 +1,69 @@
-# Getting started
+# Getting started on Debian and Ubuntu
 
-By the end of this you will have an agent working inside a hardened container,
-with your real credential still on the host, and its work waiting for you to
-review before it goes anywhere.
+By the end of this you will have an agent working inside a hardened container, with your
+real credential still on the host, and its work waiting for you to review before it goes
+anywhere.
 
-Every command below was run against a real installation while writing this. Where
-something has a trap in it, the trap is named rather than left for you to find.
+On Fedora or RHEL instead? [Getting started on Fedora](getting-started-fedora.md).
+
+## The short version
+
+Paste this into the project you want an agent to work on. It is the whole of this
+document, without the explanations.
+
+```sh
+sudo apt install -y ca-certificates curl gnupg
+curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
+  | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
+echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb snapshots main" \
+  | sudo tee /etc/apt/sources.list.d/sokar.list
+sudo apt update
+sudo apt install -y sokar sokar-agent-claude
+
+# The OCI hooks, once per user. The package deliberately does not do this: podman reads
+# hook descriptors per user, so a system-wide install would fire them for every container.
+sokar setup
+
+# Your credential, on the host. It never enters the container - the agent gets a
+# task-scoped phantom token, and a proxy swaps in the real key on the way out.
+sokar vault unlock
+read -rsp 'Anthropic API key: ' KEY && echo
+printf '%s' "$KEY" | sokar vault put anthropic --type api-key
+unset KEY
+
+# What this project's container is built from.
+cat > project.yml <<EOF
+project:
+  name: "$(basename "$PWD")"
+  security_class: "guarded"
+image:
+  base_image: "ubuntu:24.04"
+EOF
+
+sokar task run
+```
+
+The rest of this page is what each of those lines does, and what goes wrong when it is
+skipped.
 
 ## Before you start
 
-**Sokar runs on Linux only.** The containment is kernel machinery — an nftables
-ruleset loaded into the container's network namespace, OCI hooks, user namespaces,
-the kernel keyring — none of which exists on macOS or Windows, where a container
-runtime would put all of it on the far side of a virtual machine.
+**Sokar runs on Linux only.** The containment is kernel machinery — an nftables ruleset
+loaded into the container's network namespace, OCI hooks, user namespaces, the kernel
+keyring — none of which exists on macOS or Windows, where a container runtime would put
+all of it on the far side of a virtual machine.
 
-Rootless podman has to work as your own user — `podman info` should succeed
-without `sudo`.
+Rootless podman has to work as your own user — `podman info` should succeed without
+`sudo`.
 
-Sokar shells out to `podman`, `nft`, `dnsmasq`, `git` and `nsenter`, so those must
-be installed on the host. The packages declare them as dependencies, so installing
-the `.deb` or `.rpm` pulls them in; if you run from a build instead, install them
-yourself.
+Sokar shells out to `podman`, `nft`, `dnsmasq`, `git` and `nsenter`. The `.deb` declares
+them as dependencies, so `apt` pulls them in; if you run from a build instead, install
+them yourself.
 
 ## 1. Install
 
-### From the package repository
-
 Two packages: `sokar` is the tool, `sokar-agent-claude` is one agent. Sokar discovers
 agents at runtime, so installing an agent needs no new release of Sokar.
-
-**Debian and Ubuntu.** The key is fetched from the repository itself and dearmored -
-`apt` wants the binary form at that path, and handing it the `.asc` fails with a
-verification error that does not mention the format:
 
 ```
 sudo apt install -y ca-certificates curl gnupg
@@ -43,43 +75,28 @@ sudo apt update
 sudo apt install sokar sokar-agent-claude
 ```
 
-**Fedora and RHEL:**
+**The key is dearmored, not the `.asc`.** `apt` wants the binary form at that path, and
+handing it the armored file fails with a verification error that never mentions the
+format.
+
+**`snapshots` is the only distribution so far.** Nothing is released yet, so that is the
+word you write; a release will publish to `stable` and you change the one line.
+
+**Reinstalling after a new snapshot.** A snapshot keeps its version string, so `apt` sees
+nothing to do even when the bytes have changed — it says `sokar is already the newest
+version` and you keep running the old binary while believing you replaced it. One flag
+covers both the already-installed and the not-yet-installed package:
 
 ```
-sudo tee /etc/yum.repos.d/sokar.repo <<'EOF'
-[sokar]
-name=Sokar
-baseurl=https://fuinorg.jfrog.io/artifactory/sokar-dist-rpm/snapshots
-enabled=1
-gpgcheck=0
-EOF
-sudo dnf install sokar sokar-agent-claude
-```
-
-**`snapshots` is the only distribution so far.** Nothing is released yet, so that word
-is what you write; a release will publish to `stable` and you change the one line.
-
-**`gpgcheck=0`, and it is not a shrug.** The repository metadata *is* signed - `apt`
-verifies it on every update, which is what the `signed-by` line is for - but the RPMs
-themselves are not signed yet. When they are, this becomes `gpgcheck=1` with a
-`gpgkey=` line pointing at the same key.
-
-**Reinstalling after a new snapshot.** A snapshot keeps its version string, so neither
-tool sees anything to do even when the bytes have changed:
-
-```
-sudo apt install --reinstall sokar sokar-agent-claude     # Debian
-sudo dnf reinstall sokar sokar-agent-claude               # Fedora
+sudo apt install --reinstall sokar sokar-agent-claude
 ```
 
 ### From a local build
 
 **An agent is built in its own repository** — Claude Code in
-[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code) — so a build here produces Sokar and no agent. Take
-the agent's package from the repository above, or build that repository too.
-
-Sokar's own package lands in `dist-deb/target`. Copy it somewhere readable first,
-then install, from the project root:
+[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code) — so a build of Sokar
+produces Sokar and no agent. Sokar's own package lands in `dist-deb/target`. Copy it
+somewhere readable first:
 
 ```
 mkdir -p /tmp/sokar-pkgs
@@ -87,48 +104,16 @@ cp dist-deb/target/sokar_*.deb /tmp/sokar-pkgs/
 sudo apt install /tmp/sokar-pkgs/*.deb
 ```
 
-or, on Fedora:
-
-```
-mkdir -p /tmp/sokar-pkgs
-cp dist-rpm/target/sokar-*.rpm /tmp/sokar-pkgs/
-sudo dnf install /tmp/sokar-pkgs/*.rpm
-```
-
-**Why the copy.** apt fetches even a local file as `_apt` — uid 42, group
-`nogroup` — and that user cannot traverse a `0750` home directory. Point it
-straight at `target/` and it says so:
+**Why the copy.** apt fetches even a local file as `_apt` — uid 42, group `nogroup` —
+and that user cannot traverse a `0750` home directory. Point it straight at `target/`
+and it says so:
 
 ```
 N: Download is performed unsandboxed as root as file '/home/you/git/sokar/dist-deb/target/sokar_0.1.0~SNAPSHOT_amd64.deb' couldn't be accessed by user '_apt'. - pkgAcquire::Run (13: Permission denied)
 ```
 
-It is a notice, not an error — apt falls back to reading the file as root and the
-install goes through. But the sandbox it drops is worth keeping, and `/tmp` costs
-nothing. dnf has no such sandbox; the copy is there so both routes read alike.
-
-**Installing again after a rebuild.** A snapshot keeps the same version string, so
-neither tool sees anything to do — apt says `sokar is already the newest version
-(0.1.0~SNAPSHOT)`, dnf says `Nothing to do`, and you keep running the old binary
-while believing you replaced it. On Debian one flag covers both the already-installed
-and the not-yet-installed package:
-
-```
-sudo apt install --reinstall /tmp/sokar-pkgs/*.deb
-```
-
-On Fedora, remove first — `dnf reinstall` exits 0 but silently skips any package
-that is not installed yet, which is how you end up with a fresh `sokar` and no agent:
-
-```
-sudo dnf remove -y sokar sokar-agent-claude
-sudo dnf install /tmp/sokar-pkgs/*.rpm
-```
-
-**Two packages, and that is the point.** `sokar` is the tool; an agent is a
-separate package that Sokar discovers at runtime. Installing an agent needs no new
-release of Sokar, and Sokar contains no reference to any agent. To build both, see
-[build](build.md).
+It is a notice, not an error — apt falls back to reading the file as root and the install
+goes through. But the sandbox it drops is worth keeping, and `/tmp` costs nothing.
 
 ## 2. Register the hooks — once per user
 
