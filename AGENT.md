@@ -362,6 +362,11 @@ rented machines - one with SELinux enforcing, one with podman 4. Before a releas
 deliberately rather than assuming a green badge covered it. A development VM is for diagnosing a
 failure quickly, not for gating a commit; nothing should depend on one existing.
 
+**A documentation-only push builds nothing.** `paths-ignore: ['**/*.md']` on push and pull
+request: nothing in the build reads a markdown file, and on `main` a run rents two machines
+and republishes. A push that mixes docs and code still builds - the filter is per push, not
+per file - and `workflow_dispatch` ignores it, so a run can always be forced.
+
 **A requirement that is done is deleted**, file and index row together, once whatever
 is worth keeping has moved into this file. They describe work to do, not work that was
 done; git history is where finished work lives.

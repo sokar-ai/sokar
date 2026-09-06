@@ -31,11 +31,17 @@
 # Tier 2 needs a real provider credential and spends money per run, so it is not here yet.
 name: Build
 
+# A push that only touches documentation builds nothing. Nothing in the build reads a
+# markdown file, and on main a run rents two machines and republishes - which is a lot to
+# spend on a typo. A push that mixes docs and code still builds: the filter is per push,
+# not per file. workflow_dispatch ignores it, so a run can always be forced.
 on:
   push:
     branches: ['**']
+    paths-ignore: ['**/*.md']
   pull_request:
     branches: ['**']
+    paths-ignore: ['**/*.md']
   workflow_dispatch:
 
 # One run per branch. Without this every push leaves its predecessor running to completion on a
