@@ -91,6 +91,19 @@ Why build this if Terok is so cool? See [why](why.md)
 </tr>
 </table>
 
+## Install
+
+```
+curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
+  | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
+echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb snapshots main" \
+  | sudo tee /etc/apt/sources.list.d/sokar.list
+sudo apt update && sudo apt install sokar sokar-agent-claude
+```
+
+Fedora, the repository file and both flavours in full, and what to do after a new
+snapshot: [getting started](getting-started.md#1-install).
+
 ## Getting started
 See [getting started](getting-started.md).
 

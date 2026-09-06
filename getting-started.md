@@ -24,6 +24,56 @@ yourself.
 
 ## 1. Install
 
+### From the package repository
+
+Two packages: `sokar` is the tool, `sokar-agent-claude` is one agent. Sokar discovers
+agents at runtime, so installing an agent needs no new release of Sokar.
+
+**Debian and Ubuntu.** The key is fetched from the repository itself and dearmored -
+`apt` wants the binary form at that path, and handing it the `.asc` fails with a
+verification error that does not mention the format:
+
+```
+sudo apt install -y ca-certificates curl gnupg
+curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
+  | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
+echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb snapshots main" \
+  | sudo tee /etc/apt/sources.list.d/sokar.list
+sudo apt update
+sudo apt install sokar sokar-agent-claude
+```
+
+**Fedora and RHEL:**
+
+```
+sudo tee /etc/yum.repos.d/sokar.repo <<'EOF'
+[sokar]
+name=Sokar
+baseurl=https://fuinorg.jfrog.io/artifactory/sokar-dist-rpm/snapshots
+enabled=1
+gpgcheck=0
+EOF
+sudo dnf install sokar sokar-agent-claude
+```
+
+**`snapshots` is the only distribution so far.** Nothing is released yet, so that word
+is what you write; a release will publish to `stable` and you change the one line.
+
+**`gpgcheck=0`, and it is not a shrug.** The repository metadata *is* signed - `apt`
+verifies it on every update, which is what the `signed-by` line is for - but the RPMs
+themselves are not signed yet. When they are, this becomes `gpgcheck=1` with a
+`gpgkey=` line pointing at the same key.
+
+**Reinstalling after a new snapshot.** A snapshot keeps its version string, so neither
+tool sees anything to do even when the bytes have changed:
+
+```
+sudo apt install --reinstall sokar sokar-agent-claude     # Debian
+sudo dnf reinstall sokar sokar-agent-claude               # Fedora
+```
+
+### From a local build
+
 A build leaves the two packages in two different modules — Sokar's own under
 `dist-deb/target`, the agent's under `agents/claude/target`. Collect them
 somewhere readable first, then install them together, from the project root:
