@@ -2,31 +2,68 @@
 
 ## Can an agent reach Maven Central, npm or PyPI while it works?
 
-**Not today, and that is a real limitation rather than a setting you have missed.**
+**Yes, if the project says so.** Declaring it is the whole mechanism:
 
-This is the case that matters most: an agent editing a Java project runs `mvn test` as it
-goes, and Maven fetches a plugin or a dependency the moment the build needs one. The same
-is true of `npm install`, `pip install`, `go get` and `cargo build`. A sandbox that cannot
-reach a package registry cannot let an agent iterate on dependencies.
+```yaml
+egress:
+  sets: [maven, git-hosting]
+  domains: ["nexus.corp.example"]     # a private mirror, if you have one
+```
 
-What a task may resolve comes from three places, and none of them is yours to set:
+`sokar shield sets` lists the names. `sets` is the ergonomic path — a set is written once and
+reviewed once, so "reaching npm" means the same thing in every project instead of each one
+re-deriving it. `domains` is the escape hatch for a host no shipped set covers.
+
+**What a task may reach comes from four places, and it is printed when the task starts:**
 
 | Source | Example |
 |---|---|
 | the agent's own `allowed_domains` | `platform.claude.com` |
 | the provider it is pointed at | `api.anthropic.com` |
 | the project's `upstream`, for an `online` project | your git host |
+| **the project's own `egress`** | `repo.maven.apache.org` |
 
-`project.yml` has no key for it, `sokar task run` has no flag for it, and the firewall opens
-nothing toward the host except the git gate's own port — so a proxy running on your machine
-is not reachable either. This is
-[requirement 0049](requirements/0049-Project-Egress.md), and it is the one gap that makes
-Sokar unusable for ordinary development until it is closed.
+**Declaring nothing reaches nothing.** An absent `egress` section is not a generous default
+that quietly widens when a release adds a set — it is deny. A project file created by
+`sokar task run` gets a starter block written into it for that reason: the common case works
+immediately, and the grant is still visible in a file you review.
 
-### What works in the meantime
+**Ports 80 and 443 only.** A declared name opens web ports at the addresses it resolves to,
+not the host. In particular it does not open ssh, so declaring `git-hosting` does not hand an
+agent a `git push` that bypasses the gate.
 
-**Seed the dependency cache when the image is built.** The image build is not governed by
-the firewall, so this fetches normally:
+**An `offline` project refuses to declare any**, and says so rather than ignoring the section.
+
+### What the sets contain, and what they cannot
+
+The host lists were taken from [Terok](https://github.com/terok-ai/terok), which solves the
+same problem, except `maven` — Terok has no Java set, so that one was measured: 193 artifacts
+resolved into an empty local repository through a logging proxy, which saw
+`repo.maven.apache.org` and, for snapshots, `central.sonatype.com`. Central's CDN answers under
+its own name, so there is no redirect to a third host.
+
+**`os-packages-fedora` is incomplete and cannot be completed.** `dnf` asks
+`mirrors.fedoraproject.org` for a mirrorlist and then fetches from whichever mirrors it names —
+arbitrary hosts that differ by region and by day. Each one raises a clearance prompt. Pin a
+baseurl in your image snippet if that matters; Debian and Ubuntu use stable CDN names and are
+covered.
+
+### Declaring a forge is worth understanding
+
+`git-hosting` makes github.com resolvable. In a `guarded` project the gate exists so an
+operator reviews what leaves, and it holds because the container has no credential for the
+upstream — not because the upstream is unreachable. Declaring a forge removes the second of
+those. Sokar says so at task start rather than refusing, because an agent legitimately clones
+dependencies from a forge.
+
+The gate is a review workflow, not a network control. An agent that finds a usable token in
+the work tree can push regardless of security class.
+
+### Seeding the image is still worth doing
+
+Declaring egress and pre-fetching dependencies solve different halves. Seeding makes a build
+start fast and work when a registry is down; the declaration is what lets an agent add a
+dependency at all. The image build is not governed by the firewall:
 
 ```yaml
 image:
@@ -39,33 +76,11 @@ image:
     RUN mvn -B -f /workspace/pom.xml dependency:go-offline
 ```
 
-That covers the dependencies and plugins the project has **at the moment the image is
-built**. It does not cover one the agent adds, a version it bumps, or a plugin a goal
-pulls in that `go-offline` did not resolve — each of those fails inside the task.
-
-**Then make the build offline on purpose**, so the failure is immediate and legible:
-
-```
-mvn -o test
-```
-
-Offline mode says `The repository system is offline but the artifact ... is not available
-in the local repository`, naming the artifact. Without `-o` Maven tries to resolve, the
-name does not exist, and you get a DNS error some way down a stack trace instead.
-
-The equivalents: `npm ci --offline`, `pip install --no-index`, `go build -mod=vendor`,
-`cargo build --offline`.
-
-**Rebuild the image when dependencies change.** `sokar task run` builds the image each
-time, so a `pom.xml` the agent already changed is picked up on the next run — which turns
-"add a dependency" into a round trip through the host rather than something the agent does
-alone. That is the cost, stated plainly.
-
-**An `offline` project is not what this is about.** Only `offline` changes the egress policy -
-`guarded` and `online` produce the same resolver configuration and the same firewall ruleset,
-and differ in whether an agent's pushes are reviewed before they reach the upstream. So
-`guarded` is already the permissive end for package registries, and it still resolves nothing
-that is not declared.
+**An `offline` project has no other option**, and there `mvn -o` is the right setting: offline
+mode says `The repository system is offline but the artifact ... is not available in the local
+repository`, naming the artifact, where a resolver failure gives you a DNS error some way down
+a stack trace. The equivalents: `npm ci --offline`, `pip install --no-index`,
+`go build -mod=vendor`, `cargo build --offline`.
 
 ## Why does an undeclared host fail silently instead of prompting me?
 
@@ -101,10 +116,23 @@ support before your first task.
 
 ## Can I use a proxy or a mirror instead?
 
-**At image build time, yes** — point the build at your mirror in the snippet, with a
-`settings.xml` for Maven or an `.npmrc` for npm. The mirror is contacted during the build,
-where there is no firewall, and an air-gapped machine needs exactly this.
+**A mirror on the network, yes** - name it in the project's `egress.domains` and it is reachable
+like any other host:
 
-**At run time, no**, including a mirror on your own machine. The firewall opens one thing
-toward the host — the git gate's address and port — and nothing else, so a repository proxy
-listening on `localhost` is as unreachable from inside a task as Maven Central is.
+```yaml
+egress:
+  domains: ["nexus.corp.example"]
+```
+
+Point the build at it as usual, with a `settings.xml` for Maven or an `.npmrc` for npm. Drop the
+`maven` set at the same time if everything is meant to go through the mirror: what is not
+declared is not reachable, which is what makes the mirror the only route rather than the
+preferred one.
+
+**A mirror on your own machine, no.** The firewall opens one thing toward the host - the git
+gate's address and port - so a repository proxy listening on `localhost` is as unreachable from
+inside a task as an undeclared registry. Give it a name the container can resolve, or run it
+somewhere the container can reach.
+
+**At image build time either works**, since the build is not governed by the firewall. An
+air-gapped machine needs exactly that.
