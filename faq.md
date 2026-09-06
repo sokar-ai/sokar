@@ -61,10 +61,11 @@ time, so a `pom.xml` the agent already changed is picked up on the next run — 
 "add a dependency" into a round trip through the host rather than something the agent does
 alone. That is the cost, stated plainly.
 
-**An `offline` project is not what this is about.** The security class decides whether the
-gate may push upstream and whether any egress set is consulted at all; a `guarded` project
-is already the permissive end for package registries, and it still resolves nothing that is
-not declared.
+**An `offline` project is not what this is about.** Only `offline` changes the egress policy -
+`guarded` and `online` produce the same resolver configuration and the same firewall ruleset,
+and differ in whether an agent's pushes are reviewed before they reach the upstream. So
+`guarded` is already the permissive end for package registries, and it still resolves nothing
+that is not declared.
 
 ## Why does an undeclared host fail silently instead of prompting me?
 

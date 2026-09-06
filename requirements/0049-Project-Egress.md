@@ -121,24 +121,39 @@ Sokar unusable for the thing it exists for. It argues for the shape:
 - **Never widened by an agent.** An agent declares what *it* needs; a project declares what
   *the project's tooling* needs. Neither may declare the other's.
 
+## Decided
+
+- **Both shapes ship together.** `sets:` for curated names, `domains:` for the private mirror
+  no shipped set can cover. They are one mechanism underneath, so the second costs parsing and
+  printing rather than firewall work, and a corporate Nexus is the case most likely to be met
+  first.
+- **Absence means nothing is reachable**, as it does for the firewall, the resolver and the
+  vault. The generous default is rejected: a grant that is invisible in the file, and that
+  widens on upgrade, is the wrong thing to have in the most dangerous key in the product.
+- **The wizard writes a starter selection**, which is what keeps that strict default usable.
+  A project created by `sokar task run` gets a commented `egress:` block rather than a missing
+  one, so the common case works immediately *and* the grant is visible in a reviewed file.
+  A hand-written `project.yml` with no key still reaches nothing.
+- **`guarded` and `online` grant identically**; `offline` refuses a declaration and says so.
+  This is what `SecurityClass` already documents - both are "curated egress sets only", and
+  the two differ in whether the git gate pushes upstream, not in what the network reaches.
+
 ## To be checked
 
-- **What a Maven build actually contacts.** Terok has no Java set, so this one is not
-  inherited: `repo.maven.apache.org` redirects to a CDN, and a real build has to be run inside
-  a task with the resolver log read afterwards - the same way the agents' `allowed_domains`
-  were found. The other sets can be taken as read and confirmed later.
+- **What a Maven build actually contacts, measured before the set is written.** Terok has no
+  Java set, so nothing here is inherited: `repo.maven.apache.org` redirects to a CDN, plugin
+  and parent-POM resolution may reach further, and the answer is to run a real build inside a
+  guarded task and read the resolver log afterwards - the same way the agents'
+  `allowed_domains` were found. The sets Terok already proved can be taken as read and
+  confirmed later. The set has to cover **snapshots as well as releases** -
+  `central.sonatype.com` serves `maven-snapshots`, and a project building against an unreleased
+  dependency reaches it rather than `repo.maven.apache.org`.
 - **Whether a set may carry more than domains.** A CDN that answers a different address per
   request is fine, because dnsmasq adds each answer as it answers. One that is reached by
   address, without a name, is not, and would need something else.
 - **Whether an undeclared name should resolve and prompt** rather than NXDOMAIN. It would
   make the failure legible and reuse the clearance path, at the cost of telling the container
   that a host exists and of turning every stray lookup into a question.
-- **Whether the default is deny or generous.** See Terok above: it grants every curated set
-  when the key is unset. The opposite default makes a first task fail for a reason the
-  operator did not choose, which is its own kind of unusable.
-- **Whether `guarded` and `online` should differ here.** They differ today only in whether
-  the gate pushes upstream. If they do not differ in what may be reached, the classes say
-  less than their names suggest.
 - Whether a set can be versioned or pinned, so "the maven set" means the same thing on two
   machines.
 
