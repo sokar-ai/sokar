@@ -169,7 +169,7 @@
                             <forceRelease>true</forceRelease>
                             <architecture>x86_64</architecture>
                             <group>Applications/System</group>
-                            <license>Apache-2.0</license>
+                            <license>GPL-3.0-or-later</license>
                             <packager>fuin.org</packager>
                             <requires>
                                 <require>sokar</require>

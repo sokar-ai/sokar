@@ -106,6 +106,9 @@ See [requirements](requirements/README.md).
 ## Building the project
 See [build](build.md).
 
+## Licence
+GNU General Public License v3.0 or later — see [LICENSE](LICENSE).
+
 -----
 
 > [!NOTE]  

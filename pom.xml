@@ -19,6 +19,18 @@
     <packaging>pom</packaging>
     <name>Sokar</name>
     <description>Sandboxing AI agents in YOLO mode using Podman and Java/GraalVM (PARENT)</description>
+
+    <!-- Overrides the LGPL block inherited from org.fuin:pom, which flatten copies into the
+         published poms of sokar-agent-api and sokar-wire. -->
+    <licenses>
+        <license>
+            <name>GPL-3.0-or-later</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0.html</url>
+            <distribution>repo</distribution>
+            <comments>GNU General Public License v3.0 or later</comments>
+        </license>
+    </licenses>
+
     <!-- Without the inherit.append.path attributes Maven appends each child's artifactId,
          so a module would advertise .../sokar-agents/sokar-agent-api/ in its published pom -
          a path that does not exist. One repository, one url. The project one belongs on
