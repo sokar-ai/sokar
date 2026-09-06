@@ -154,7 +154,14 @@ BINARIES = [
     "hooks/target/sokar-hook-nft",
     "hooks/target/sokar-hook-supervisor",
     "hooks/target/sokar-hook-reader",
+    # Packaged so that check-packages.sh still has an agent package to install and to prove
+    # 'Depends: sokar' resolves. Never published.
+    "agents/stub/target/sokar-agent-stub",
 ]
+
+# What the fetch wrote, so whoever consumes it does not restate the list above. They drifted
+# once already: an agent was removed here and the consumer kept expecting it.
+MANIFEST = "fetched.txt"
 
 
 def fetch(address: str, environment: dict[str, str], into: str) -> None:
@@ -182,6 +189,7 @@ def fetch(address: str, environment: dict[str, str], into: str) -> None:
             raise SystemExit(f"{name} did not come back from the server")
         path.chmod(0o755)
         print(f"  {name}  {path.stat().st_size // 1024} KiB")
+    (destination / MANIFEST).write_text("\n".join(BINARIES) + "\n")
 
 
 def upload(address: str, environment: dict[str, str]) -> None:

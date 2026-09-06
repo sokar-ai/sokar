@@ -177,17 +177,18 @@ jobs:
         with:
           name: native-binaries
 
+      # The list comes from the leg that sent them, not restated here - the two drifted once,
+      # and the symptom was a publish that failed after the acceptance suite had already passed.
       - name: Put the binaries where the packaging expects them
         run: |
           set -eu
-          for f in app/target/sokar daemon/target/sokard \
-                   hooks/target/sokar-hook-nft hooks/target/sokar-hook-supervisor \
-                   hooks/target/sokar-hook-reader \
-                   agents/stub/target/sokar-agent-stub; do
+          [ -s fetched.txt ] || { echo "::error::the acceptance leg sent no manifest"; exit 1; }
+          while read -r f; do
+              [ -n "$f" ] || continue
               [ -f "$f" ] || { echo "::error::$f did not arrive from the acceptance leg"; exit 1; }
               chmod 0755 "$f"
               printf '  %-46s %s\n' "$f" "$(du -h "$f" | cut -f1)"
-          done
+          done < fetched.txt
 
       # Packaging only, on modules whose binary arrived. No 'clean', or the binaries go with it.
       - name: Build the packages

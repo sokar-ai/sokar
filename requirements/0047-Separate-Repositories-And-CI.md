@@ -741,6 +741,12 @@ again.
 That is the second defect this leg has found that neither development VM could, both of them
 about podman 4 against podman 5.
 
+**The list of fetched binaries was written down twice**, and removing the agent from one did not
+remove it from the other: the publish job kept expecting a binary the acceptance leg had stopped
+sending. It failed cleanly - naming the missing file rather than building a package without it -
+but only after both legs had run. The leg now writes a manifest beside the binaries and the
+publish job reads that, so there is one list.
+
 ## Tier 2, and turning it off
 
 Tier 2 belongs to the agent repositories, but wherever it runs the shape is the same: a real
