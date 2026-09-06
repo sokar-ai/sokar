@@ -103,7 +103,20 @@ jobs:
           # Both matrix legs share GITHUB_RUN_ID, so the leg is what makes a server's label
           # unique - and the cleanup below deletes by that label.
           SOKAR_CI_LEG: ${{ matrix.os }}
-        run: python3 buildtools/ci/remote-tier1.py --os ${{ matrix.os }}
+        run: |
+          python3 buildtools/ci/remote-tier1.py --os ${{ matrix.os }} \
+              ${{ matrix.os == 'ubuntu' && '--fetch binaries' || '' }}
+
+      # Only the ubuntu leg, and only because of glibc: a native image links it dynamically, so a
+      # binary built on Fedora 44 will not start on Ubuntu 24.04, while the reverse runs
+      # everywhere. Both packages carry the same bytes, so there is one binary to get right.
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu'
+        with:
+          name: native-binaries
+          path: binaries/
+          retention-days: 1
+          if-no-files-found: error
 
       # Only what this run made. Deleting by age would catch another run's server whenever that
       # run is slower than the window, and the symptom - ssh dying part way through a build - is
@@ -145,14 +158,40 @@ jobs:
           gpg_private_key: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
 
-      # One build for both destinations: the jars Sonatype gets and the binaries the
-      # packages carry come out of the same reactor run, so they cannot disagree.
-      - name: Deploy the jars, and build the packages
+      # Jars only. Nothing native is built here any more - see the download below.
+      - name: Deploy the jars
         env:
           OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
           OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
           OSS_SONATYPE_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
-        run: ./mvnw -B clean deploy -Pcentral-sonatype-release,native,dist -s settings.xml
+        run: ./mvnw -B clean deploy -Pcentral-sonatype-release -s settings.xml
+
+      # The binaries come from the ubuntu acceptance leg rather than being rebuilt here, for two
+      # reasons. The published binary is then THE ONE THE SUITE TESTED - until now the suite
+      # exercised one build and the packages shipped another, from the same source but never the
+      # same artifact. And this runner has no musl cross-compiler, so the statically linked hooks
+      # could not be built on it at all.
+      #
+      # After the deploy above, never before: that step starts with 'clean'.
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-binaries
+
+      - name: Put the binaries where the packaging expects them
+        run: |
+          set -eu
+          for f in app/target/sokar daemon/target/sokard \
+                   hooks/target/sokar-hook-nft hooks/target/sokar-hook-supervisor \
+                   hooks/target/sokar-hook-reader \
+                   agents/claude/target/sokar-agent-claude; do
+              [ -f "$f" ] || { echo "::error::$f did not arrive from the acceptance leg"; exit 1; }
+              chmod 0755 "$f"
+              printf '  %-46s %s\n' "$f" "$(du -h "$f" | cut -f1)"
+          done
+
+      # Packaging only, on modules whose binary arrived. No 'clean', or the binaries go with it.
+      - name: Build the packages
+        run: ./mvnw -B -Pdist verify -DskipTests -pl agents/claude,dist-deb,dist-rpm
 
       # Checks the two packages against each other and installs both in a clean Debian and
       # a clean Fedora container. Before the upload, not after: a package that does not

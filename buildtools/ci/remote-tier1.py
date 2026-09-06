@@ -25,6 +25,7 @@ month, against about 3 cents for a run.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -56,6 +57,9 @@ def main() -> int:
                         help="which snapshot to boot, by its os label (default: %(default)s)")
     parser.add_argument("--snapshot", type=int, default=None,
                         help="image id; default is the newest snapshot for --os")
+    parser.add_argument("--fetch", default=None, metavar="DIR",
+                        help="copy the native binaries back into DIR before the server is "
+                             "destroyed, so what ships is what this suite just tested")
     parser.add_argument("--keep", action="store_true",
                         help="leave the server running afterwards, for debugging")
     args = parser.parse_args()
@@ -100,7 +104,7 @@ def main() -> int:
         # binary this suite exercises is the one that would ship.
         remote(address, environment,
                f"cd {REPO} && JAVA_HOME=/opt/graalvm GRAALVM_HOME=/opt/graalvm PATH=/opt/graalvm/bin:$PATH ./mvnw -B -Pnative -DskipTests package "
-               "-pl app,hooks,agents/claude -am")
+               "-pl app,daemon,hooks,agents/claude -am")
 
         print("\n-- installing as a package would --")
         # Entirely in the user's own directories, with no sudo. Sokar scans
@@ -128,7 +132,54 @@ def main() -> int:
         remote(address, environment,
                f"cd {REPO} && PATH=$HOME/.local/bin:$PATH bash buildtools/e2e-tier1.sh")
 
+        # After the suite, never before: the point of fetching is that what ships is the binary
+        # this run just exercised. Inside the context, because the server is destroyed on the
+        # way out of it.
+        if args.fetch:
+            print(f"\n-- fetching the binaries into {args.fetch} --")
+            fetch(address, environment, args.fetch)
+
     return 0
+
+
+# What both packages install. A native-image binary links glibc dynamically, so it must be built
+# on the OLDEST distribution it has to run on - which is why only the ubuntu leg is fetched from.
+# The hooks are '--static --libc=musl' and would run anywhere, but they travel with the rest.
+BINARIES = [
+    "app/target/sokar",
+    "daemon/target/sokard",
+    "hooks/target/sokar-hook-nft",
+    "hooks/target/sokar-hook-supervisor",
+    "hooks/target/sokar-hook-reader",
+    "agents/claude/target/sokar-agent-claude",
+]
+
+
+def fetch(address: str, environment: dict[str, str], into: str) -> None:
+    """
+    Copies the built binaries back, keeping their paths.
+
+    Streamed through tar over the existing ssh rather than scp, so it needs no second way of
+    presenting the key, and one round trip carries all six.
+
+    :param address: Server address.
+    :param environment: Reaches the agent holding the key.
+    :param into: Local directory to extract under.
+    """
+    destination = Path(into)
+    destination.mkdir(parents=True, exist_ok=True)
+    listed = " ".join(BINARIES)
+    stream = subprocess.run(
+        hetzner.ssh_argv(address, f"cd {REPO} && tar -c {listed}", user=BUILD_USER),
+        env={**os.environ, **environment}, capture_output=True, check=True)
+    subprocess.run(["tar", "-x", "-C", str(destination)],
+                   input=stream.stdout, check=True)
+    for name in BINARIES:
+        path = destination / name
+        if not path.is_file():
+            raise SystemExit(f"{name} did not come back from the server")
+        path.chmod(0o755)
+        print(f"  {name}  {path.stat().st_size // 1024} KiB")
 
 
 def upload(address: str, environment: dict[str, str]) -> None:

@@ -388,6 +388,40 @@ beyond `Created-By`. Left alone, a modular consumer gets a name derived from the
 does. Stating it costs one manifest entry and fixes it before anyone can depend on the derived
 one.
 
+### The published binary is the one the suite tested
+
+A first attempt published from a hosted runner, building everything there. It failed, and the
+failure was worth having: the runner has no musl cross-compiler, so the three statically linked
+hooks could not be built at all. `install-musl.sh` would have fixed it in a line and left two
+worse things in place.
+
+**The binary that shipped was never the binary that was tested.** Tier 1 built on Hetzner and
+exercised that; the publish built its own from the same source and shipped that instead. Same
+sources, different artifacts, and nothing checked that the second behaved like the first.
+
+**And it cost fifteen minutes** of a two-core runner, most of it native-image, for a build that
+had already been done twice on eight-core machines minutes earlier.
+
+So the ubuntu acceptance leg now brings its binaries home - `remote-tier1.py --fetch`, streamed
+back through the existing ssh as a tar, **after** the suite passes and before the server is
+destroyed - and the publish job downloads them and only packages. No native-image on a hosted
+runner, no musl toolchain, and what an operator installs is what tier 1 ran.
+
+**Only the ubuntu leg, and that is not arbitrary.** Both packages carry identical bytes, so
+there is exactly one binary to get right, and a native image links glibc dynamically: built on
+Fedora 44 it will not start on Ubuntu 24.04, while the reverse runs on both. The older baseline
+is the one to ship. Fedora stays the leg that proves SELinux, not the leg that compiles.
+
+Two things this changed elsewhere. The remote build was `-pl app,hooks,agents/claude` and never
+built `daemon` - which both packages install, so it had been coming from the hosted build alone.
+And an agent repository building on `ubuntu-latest` has the same glibc exposure with no warning
+when the label moves, so `sokar-claude-code` now pins `ubuntu-24.04`.
+
+**This reverses a decision recorded above**, that publishing must not come from a machine rented
+for ten minutes and destroyed. The trade is deliberate: that machine's verdict already decides
+whether the release is good, so trusting its output is a smaller step than it first appears -
+and shipping an untested artifact to avoid it was the larger risk.
+
 **Still needed before this runs green:** four repository secrets -
 `OSS_SONATYPE_USERNAME`, `OSS_SONATYPE_TOKEN`, `OSS_SONATYPE_GPG_PRIVATE_KEY`,
 `OSS_SONATYPE_GPG_PASSPHRASE`. A missing one fails the job rather than publishing an unsigned
