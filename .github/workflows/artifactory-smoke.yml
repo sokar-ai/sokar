@@ -5,6 +5,9 @@
 # This costs about twenty seconds.
 #
 # Worth keeping rather than deleting: it is also what to run after rotating the token.
+#
+# It prints no more than it must. Artifactory's own error messages name the service account,
+# which is why this repository should stay private until those logs are pruned.
 name: Artifactory smoke test
 
 on:
@@ -33,7 +36,7 @@ jobs:
                   echo "::error::JF_URL is the PLATFORM url and must not end in /artifactory"
                   exit 1 ;;
           esac
-          echo "JF_URL=$JF_URL"
+          echo "  OK    JF_URL is set and is a platform url"
 
       - uses: jfrog/setup-jfrog-cli@v5
 
@@ -121,8 +124,3 @@ jobs:
           done
           rm -f smoke.txt
           exit "$FAILED"
-
-      - name: What a consumer would point at
-        run: |
-          echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] ${JF_URL}/artifactory/${DEB_REPO} snapshots main"
-          echo "baseurl=${JF_URL}/artifactory/${RPM_REPO}/snapshots"
