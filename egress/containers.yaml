@@ -1,0 +1,16 @@
+# Image registries, for a task that builds or pulls images of its own. Auth and blob storage are
+# separate names from the registry at every one of these.
+name: containers
+label: Container registries
+domains:
+  - registry-1.docker.io
+  - auth.docker.io
+  - index.docker.io
+  - production.cloudflare.docker.com
+  - quay.io
+  - cdn01.quay.io
+  - cdn02.quay.io
+  - cdn03.quay.io
+  - ghcr.io
+  - pkg-containers.githubusercontent.com
+  - registry.fedoraproject.org

@@ -12,10 +12,30 @@ package org.fuin.sokar.core.project;
  * @param upstream Repository the work ultimately belongs to, or {@code null}. Required by an
  *        {@link SecurityClass#ONLINE} project, where the agent pushes to it directly; for the
  *        other classes it is only where an approved push is forwarded.
+ * @param limits What a task may consume.
+ * @param egress What the project's own tooling may reach.
  */
 public record Project(String name, String description, SecurityClass securityClass, String baseImage,
         @org.jspecify.annotations.Nullable String imageSnippet,
-        @org.jspecify.annotations.Nullable String upstream, Limits limits) {
+        @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress) {
+
+    /**
+     * Constructor without a declared egress.
+     *
+     * @param name Short name.
+     * @param description Human-readable description.
+     * @param securityClass How much the agent is trusted.
+     * @param baseImage Image the task image is built from.
+     * @param imageSnippet Extra container-build lines, or {@code null}.
+     * @param upstream Repository the work belongs to, or {@code null}.
+     * @param limits What a task may consume.
+     */
+    public Project(String name, String description, SecurityClass securityClass, String baseImage,
+            @org.jspecify.annotations.Nullable String imageSnippet,
+            @org.jspecify.annotations.Nullable String upstream, Limits limits) {
+        this(name, description, securityClass, baseImage, imageSnippet, upstream, limits,
+                Egress.none());
+    }
 
     /**
      * Constructor with the default limits.
@@ -69,6 +89,13 @@ public record Project(String name, String description, SecurityClass securityCla
         }
         if (baseImage.isBlank()) {
             throw new ProjectException("The base image is required");
+        }
+        if (securityClass == SecurityClass.OFFLINE && !egress.isEmpty()) {
+            // Said rather than ignored. An offline project whose declaration were quietly dropped
+            // would look configured and behave as though it were not, which is the failure this
+            // whole area exists to avoid.
+            throw new ProjectException("Project '" + name + "' is offline, so it can declare no"
+                    + " egress. Remove the 'egress' section or raise the security class.");
         }
         if (securityClass == SecurityClass.ONLINE && (upstream == null || upstream.isBlank())) {
             // An online project puts the agent's remote at the upstream itself, so without one

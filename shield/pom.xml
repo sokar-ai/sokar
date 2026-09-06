@@ -29,6 +29,11 @@
             <artifactId>sokar-wire</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+        </dependency>
+
         <!-- test -->
 
         <dependency>

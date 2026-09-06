@@ -22,6 +22,14 @@ import picocli.CommandLine.Spec;
         description = "Runs a task in a fresh container for the given project.")
 public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
+    /**
+     * Hosts whose reachability changes what the git gate is worth, matched on the registrable
+     * name so a subdomain counts too.
+     */
+    private static final java.util.List<String> FORGES = java.util.List.of("github.com",
+            "gitlab.com", "bitbucket.org", "codeberg.org", "githubusercontent.com");
+
+
     @Parameters(index = "0", arity = "0..1", paramLabel = "<task>",
             description = "Name of the task. Defaults to an interactive shell.")
     private String task = "shell";
@@ -411,6 +419,24 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     }
                 }
             }
+            // What the PROJECT's own tooling needs, as opposed to what the agent needs. Resolved
+            // here so an unknown set name stops the task rather than producing a build that
+            // cannot fetch a dependency for a reason nothing explains.
+            final java.util.Map<String, String> projectOrigins;
+            try {
+                projectOrigins = projectEgress(project, context);
+            } catch (org.fuin.sokar.shield.EgressSetException ex) {
+                err.println("sokar: " + ex.getMessage());
+                err.flush();
+                return 2;
+            }
+            projectOrigins.keySet().forEach(host -> {
+                if (!domains.contains(host)) {
+                    domains.add(host);
+                }
+            });
+            reportEgress(project, projectOrigins, out);
+
             final boolean needsRelay = serving != null
                     && serving.route().endpoint()
                             == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL;
@@ -1482,5 +1508,59 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         // Only reaps when no container is running: a start that failed fires no poststop hook.
         runner.reapOrphans(container);
         return code;
+    }
+    /**
+     * Returns the hosts the project declared, each mapped to where it came from.
+     *
+     * @param project The project.
+     * @param context Where the installed sets are found.
+     * @return Host to origin, empty when the project declared nothing.
+     */
+    private static java.util.Map<String, String> projectEgress(Project project,
+            SokarContext context) {
+        final org.fuin.sokar.core.project.Egress egress = project.egress();
+        if (egress.isEmpty()) {
+            return java.util.Map.of();
+        }
+        final org.fuin.sokar.shield.EgressSetDirectory sets = context.paths().egressSets();
+        final java.util.Map<String, String> origins =
+                new java.util.LinkedHashMap<>(sets.origins(egress.sets()));
+        // A directly named host wins the label: an operator who wrote it down should see it
+        // reported as their own decision, not as whichever set happens to contain it too.
+        egress.domains().forEach(domain -> origins.put(domain, "project"));
+        return origins;
+    }
+
+    /**
+     * Prints what the project opened, and what it costs when that includes a forge.
+     *
+     * @param project The project.
+     * @param origins Host to origin.
+     * @param out Where to report.
+     */
+    private static void reportEgress(Project project, java.util.Map<String, String> origins,
+            PrintWriter out) {
+        if (origins.isEmpty()) {
+            return;
+        }
+        final org.fuin.sokar.core.project.Egress egress = project.egress();
+        final java.util.List<String> declared = new java.util.ArrayList<>(egress.sets());
+        egress.domains().forEach(domain -> declared.add(domain + " (named directly)"));
+        out.println("egress         " + String.join(", ", declared)
+                + " - " + origins.size() + " hosts, ports 80 and 443");
+
+        // Said once, at the top, where the other origin lines are. Not refused: an agent
+        // legitimately clones dependencies from a forge.
+        final java.util.List<String> forges = origins.entrySet().stream()
+                .filter(entry -> FORGES.stream().anyMatch(forge ->
+                        entry.getKey().equals(forge) || entry.getKey().endsWith("." + forge)))
+                .map(java.util.Map.Entry::getKey)
+                .toList();
+        if (!forges.isEmpty()
+                && project.securityClass() == org.fuin.sokar.core.project.SecurityClass.GUARDED) {
+            out.println("               this project can reach " + String.join(", ", forges)
+                    + ", so the gate now rests on the container holding no credential for them");
+        }
+        out.flush();
     }
 }

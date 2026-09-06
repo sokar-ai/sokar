@@ -79,7 +79,57 @@ public final class ProjectReader {
                 required(image, "base_image", origin, "image"),
                 snippet(image, origin),
                 text(project.get("upstream")).isEmpty() ? null : text(project.get("upstream")),
-                limits(root, origin));
+                limits(root, origin),
+                egress(root, origin));
+    }
+
+    /**
+     * Reads the optional {@code egress} section.
+     *
+     * @param root The whole document.
+     * @param origin Name used in error messages.
+     * @return What the project declared, empty when it declared nothing.
+     */
+    private static Egress egress(Map<?, ?> root, String origin) {
+        final Object value = root.get("egress");
+        if (value == null) {
+            return Egress.none();
+        }
+        if (!(value instanceof Map<?, ?> egress)) {
+            throw new ProjectException(origin + ": 'egress' must be a mapping");
+        }
+        return new Egress(strings(egress.get("sets"), "egress.sets", origin),
+                strings(egress.get("domains"), "egress.domains", origin));
+    }
+
+    /**
+     * Reads a list of strings, refusing anything that is not one.
+     * <p>
+     * A scalar is refused rather than wrapped: {@code sets: maven} is a plausible typo for
+     * {@code sets: [maven]}, and accepting both would make the file's meaning depend on a detail
+     * of YAML rather than on what it says.
+     *
+     * @param value Raw value, may be {@code null}.
+     * @param key Key path used in error messages.
+     * @param origin Name used in error messages.
+     * @return The entries, empty when the key is absent.
+     */
+    private static java.util.List<String> strings(Object value, String key, String origin) {
+        if (value == null) {
+            return java.util.List.of();
+        }
+        if (!(value instanceof java.util.List<?> list)) {
+            throw new ProjectException(origin + ": '" + key + "' must be a list");
+        }
+        final java.util.List<String> found = new java.util.ArrayList<>();
+        for (final Object entry : list) {
+            if (!(entry instanceof String text) || text.isBlank()) {
+                throw new ProjectException(origin + ": '" + key + "' has an entry that is not a"
+                        + " name: " + entry);
+            }
+            found.add(text.strip());
+        }
+        return found;
     }
 
     private static Map<?, ?> section(Map<?, ?> root, String name, String origin) {

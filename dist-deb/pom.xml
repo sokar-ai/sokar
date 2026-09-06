@@ -25,6 +25,7 @@
         <hook.install.dir>/usr/libexec/sokar/hooks</hook.install.dir>
         <!-- Data files an operator can add to, not executables, so share rather than libexec. -->
         <provider.install.dir>/usr/share/sokar/providers</provider.install.dir>
+        <egress.install.dir>/usr/share/sokar/egress</egress.install.dir>
         <selinux.install.dir>/usr/share/sokar/selinux</selinux.install.dir>
         <sbom.install.dir>/usr/share/sokar/sbom</sbom.install.dir>
     </properties>
@@ -105,6 +106,17 @@
                                             <mapper>
                                                 <type>perm</type>
                                                 <prefix>${provider.install.dir}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../egress</src>
+                                            <type>directory</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${egress.install.dir}</prefix>
                                                 <filemode>644</filemode>
                                                 <user>root</user>
                                                 <group>root</group>

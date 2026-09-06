@@ -189,6 +189,113 @@ class ProjectReaderTest {
     }
 
     @Test
+    void readsWhatTheProjectMayReach() {
+
+        final Project project = read("""
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                egress:
+                  sets: [maven, node]
+                  domains: ["nexus.corp.example"]
+                image:
+                  base_image: "ubuntu:24.04"
+                """);
+
+        assertThat(project.egress().sets()).containsExactly("maven", "node");
+        assertThat(project.egress().domains()).containsExactly("nexus.corp.example");
+    }
+
+    @Test
+    void aProjectThatDeclaresNothingReachesNothing() {
+
+        // Absence is deny, not the generous default. A project file that says nothing about
+        // egress must not acquire reachability because a later release added a set.
+        assertThat(read(MINIMAL).egress().isEmpty()).isTrue();
+    }
+
+    @Test
+    void anOfflineProjectCannotDeclareEgress() {
+
+        assertThatThrownBy(() -> read("""
+                project:
+                  name: "uc"
+                  security_class: "offline"
+                egress:
+                  sets: [maven]
+                image:
+                  base_image: "ubuntu:24.04"
+                """))
+                .isInstanceOf(ProjectException.class)
+                .hasMessageContaining("offline")
+                .hasMessageContaining("no egress");
+    }
+
+    @Test
+    void refusesADomainThatWouldWriteResolverConfiguration() {
+
+        // Each domain becomes a 'server=' and an 'nftset=' line in the container's dnsmasq
+        // configuration. A value carrying a newline is not a bad host name - it is extra
+        // configuration, written by whoever can edit this file.
+        final String[] hostile = {
+                "evil.example\\nserver=/#/8.8.8.8",
+                "evil.example/../..",
+                "*.example.com",
+                "http://evil.example",
+                "evil example",
+                "UPPER.example.com" };
+
+        for (final String domain : hostile) {
+            assertThatThrownBy(() -> read("""
+                    project:
+                      name: "uc"
+                      security_class: "guarded"
+                    egress:
+                      domains: ["%s"]
+                    image:
+                      base_image: "ubuntu:24.04"
+                    """.formatted(domain)))
+                    .as("domain %s", domain)
+                    .isInstanceOf(ProjectException.class)
+                    .hasMessageContaining("Invalid egress domain");
+        }
+    }
+
+    @Test
+    void refusesASetNameThatIsNotOne() {
+
+        assertThatThrownBy(() -> read("""
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                egress:
+                  sets: ["../../etc/passwd"]
+                image:
+                  base_image: "ubuntu:24.04"
+                """))
+                .isInstanceOf(ProjectException.class)
+                .hasMessageContaining("Invalid egress set name");
+    }
+
+    @Test
+    void refusesAScalarWhereAListWasMeant() {
+
+        // 'sets: maven' is a plausible typo for 'sets: [maven]', and silently accepting it would
+        // make the file's meaning depend on YAML rather than on what it says.
+        assertThatThrownBy(() -> read("""
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                egress:
+                  sets: maven
+                image:
+                  base_image: "ubuntu:24.04"
+                """))
+                .isInstanceOf(ProjectException.class)
+                .hasMessageContaining("must be a list");
+    }
+
+    @Test
     void letsAProjectOptOutOfTheMemoryCapOnPurpose() {
         final Project project = ProjectReader.read(new java.io.StringReader("""
                 project:

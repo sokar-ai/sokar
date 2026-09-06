@@ -1,0 +1,10 @@
+# apt on a Debian or Ubuntu base image. These are CDN names that stay put, so the set covers an
+# install rather than merely starting one.
+name: os-packages-debian
+label: Debian and Ubuntu packages
+domains:
+  - deb.debian.org
+  - security.debian.org
+  - archive.ubuntu.com
+  - security.ubuntu.com
+  - ports.ubuntu.com

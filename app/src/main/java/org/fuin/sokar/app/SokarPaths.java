@@ -109,6 +109,20 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the curated egress sets to scan, the operator's own first.
+     * <p>
+     * Beside the providers and for the same reason: data an operator can add to without root and
+     * without rebuilding anything.
+     *
+     * @return Directory scanner.
+     */
+    public org.fuin.sokar.shield.EgressSetDirectory egressSets() {
+        return new org.fuin.sokar.shield.EgressSetDirectory(java.util.List.of(
+                xdg.data().resolve("egress"),
+                org.fuin.sokar.shield.EgressSetDirectory.PACKAGED));
+    }
+
+    /**
      * Returns the first location holding the hooks that is not the chosen one.
      *
      * @param chosen The directory actually in use.

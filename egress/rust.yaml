@@ -1,0 +1,8 @@
+# cargo. The sparse index, the CDN and the toolchain host are separate names.
+name: rust
+label: Rust crates
+domains:
+  - crates.io
+  - static.crates.io
+  - index.crates.io
+  - static.rust-lang.org

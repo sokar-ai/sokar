@@ -1,0 +1,7 @@
+# npm, yarn, and the Node runtime downloads a toolchain manager fetches.
+name: node
+label: Node packages
+domains:
+  - registry.npmjs.org
+  - registry.yarnpkg.com
+  - nodejs.org
