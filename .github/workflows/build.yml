@@ -124,7 +124,7 @@ jobs:
   # what is uploaded. Central rejects an unsigned artifact, so a missing key fails the job
   # rather than publishing something unusable.
   deploy:
-    name: Publish the agent API
+    name: Publish
     runs-on: ubuntu-latest
     needs: [build, tier1]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -145,9 +145,42 @@ jobs:
           gpg_private_key: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
 
-      - name: Deploy
+      # One build for both destinations: the jars Sonatype gets and the binaries the
+      # packages carry come out of the same reactor run, so they cannot disagree.
+      - name: Deploy the jars, and build the packages
         env:
           OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
           OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
           OSS_SONATYPE_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
-        run: ./mvnw -B clean deploy -Pcentral-sonatype-release -s settings.xml
+        run: ./mvnw -B clean deploy -Pcentral-sonatype-release,native,dist -s settings.xml
+
+      # Checks the two packages against each other and installs both in a clean Debian and
+      # a clean Fedora container. Before the upload, not after: a package that does not
+      # install is worth catching here rather than in an operator's apt.
+      - name: Check the packages
+        run: ./buildtools/check-packages.sh
+
+      - uses: jfrog/setup-jfrog-cli@v4
+        env:
+          JF_URL: ${{ vars.JF_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+
+      # 'snapshots' rather than 'stable' until there is a release. A consumer chooses which
+      # by the word in their sources.list, so the two never mix.
+      #
+      # The three deb.* properties are not decoration: without them Artifactory stores the
+      # file and never indexes it, apt sees nothing, and no error is reported anywhere.
+      # Setting them needs Annotate permission on the repository as well as Deploy.
+      - name: Publish the packages
+        env:
+          JF_URL: ${{ vars.JF_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+        run: |
+          set -eux
+          jf rt upload "dist-deb/target/*.deb" "sokar-dist-deb/pool/main/s/sokar/" \
+              --target-props="deb.distribution=snapshots;deb.component=main;deb.architecture=amd64" \
+              --build-name=sokar --build-number="$GITHUB_RUN_ID"
+          jf rt upload "dist-rpm/target/*.rpm" "sokar-dist-rpm/snapshots/" \
+              --build-name=sokar --build-number="$GITHUB_RUN_ID"
+          jf rt build-add-git sokar "$GITHUB_RUN_ID"
+          jf rt build-publish sokar "$GITHUB_RUN_ID"

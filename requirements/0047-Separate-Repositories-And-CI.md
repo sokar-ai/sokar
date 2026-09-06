@@ -333,9 +333,20 @@ and the project url keeps appending, which looks like the feature half-working. 
 - **The root POM has no `<name>`**, which Sonatype requires. `description`, `scm` and `url` are
   there; `licenses` and `developers` come from the `org.fuin:pom` parent.
 
-**Packages to Artifactory**, with the approach already worked out in the planning document:
-`artifactory-maven-plugin` rather than the JFrog CLI, so `mvn deploy` records build-info and a
-binary can be traced to the build that produced it. Two dedicated repositories, because Debian
+**Packages to Artifactory, with the JFrog CLI** - reversing an earlier decision. The planning
+document chose `artifactory-maven-plugin` over the CLI so that `mvn deploy` would record
+build-info. That reasoning holds for Maven artifacts and not for these: `dist-deb` and
+`dist-rpm` are `pom`-packaged modules that drop a file in `target/`, and a Debian repository
+needs a PUT to a pool path carrying `deb.distribution`, `deb.component` and `deb.architecture`
+as **matrix parameters**. The Maven plugin deploys into a Maven layout and has no notion of
+them, so the package would be stored and never indexed. `jf rt upload --target-props` sets them,
+and `jf rt build-publish` still records build-info - which was the actual reason the plugin was
+preferred, and it is not lost.
+
+**`jf rt build-collect-env` is deliberately not used.** It publishes environment variables into
+build-info, and its default exclusion pattern - `*password*;*psw*;*secret*;*key*;*token*` -
+does not match `OSS_SONATYPE_GPG_PASSPHRASE`, which is in scope in that job. The git commit from
+`build-add-git` is the traceability that was wanted; the environment is not. Two dedicated repositories, because Debian
 and RPM repositories are separate typed repositories and one key cannot serve both -
 `sokar-dist-deb` and `sokar-dist-rpm` already exist as modules. Debian needs matrix parameters
 (`deb.distribution`, `deb.component`, `deb.architecture`) or Artifactory stores the file and
