@@ -84,9 +84,14 @@ jobs:
               fi
           done
 
-      # Deploy and Annotate are separate permissions. Without Annotate an upload SUCCEEDS and
-      # the properties are dropped - and for a .deb the properties are what get it indexed, so
-      # the package lands and apt never sees it. That is the failure this job exists for.
+      # Deploy, Annotate and Delete are three separate permissions and all three are needed.
+      #
+      # Without Annotate an upload SUCCEEDS and the properties are dropped - and for a .deb the
+      # properties are what get it indexed, so the package lands and apt never sees it.
+      #
+      # Delete is needed because the snapshot packages have stable file names, so every push to
+      # main re-uploads the same path. Artifactory gates overwrite on the delete permission:
+      # without it the first publish works and every one after it returns 403.
       #
       # The probe is a .txt under a dot-directory: it carries no deb.* properties and is not a
       # package, so no indexer looks at it.
