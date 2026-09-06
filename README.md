@@ -99,11 +99,19 @@ an agent to work on.
 **Debian and Ubuntu**
 
 ```sh
+# What is needed to fetch the repository key and check it. Usually already there.
 sudo apt install -y ca-certificates curl gnupg
+
+# The key apt verifies the repository with, in the binary form apt wants at that path.
 curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
   | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
+
+# Where to get Sokar, and which key must have signed it. 'snapshots' until there is a release.
 echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb snapshots main" \
   | sudo tee /etc/apt/sources.list.d/sokar.list
+
+# Two packages: the tool, and one agent. Sokar finds agents by scanning, so an agent needs
+# no new release of Sokar - and podman, nftables and dnsmasq come along as dependencies.
 sudo apt update
 sudo apt install -y sokar sokar-agent-claude
 
@@ -126,6 +134,8 @@ sokar task run
 **Fedora and RHEL**
 
 ```sh
+# Where to get Sokar. 'snapshots' until there is a release. gpgcheck=0 because the
+# repository metadata is signed but the RPMs themselves are not yet.
 sudo tee /etc/yum.repos.d/sokar.repo >/dev/null <<'EOF'
 [sokar]
 name=Sokar
@@ -133,6 +143,9 @@ baseurl=https://fuinorg.jfrog.io/artifactory/sokar-dist-rpm/snapshots
 enabled=1
 gpgcheck=0
 EOF
+
+# Two packages: the tool, and one agent. Sokar finds agents by scanning, so an agent needs
+# no new release of Sokar - and podman, nftables and dnsmasq come along as dependencies.
 sudo dnf install -y sokar sokar-agent-claude
 
 # The OCI hooks, once per user. The package deliberately does not do this: podman reads
