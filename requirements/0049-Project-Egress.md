@@ -30,6 +30,9 @@ the case seeding cannot reach.
 - What a task may reach is printed when it starts, with where each entry came from — the
   agent, the provider, the upstream, or the project.
 - A destination deliberately refused stays distinguishable from one nobody added.
+- **Declaring a forge in a `guarded` project warns**, and the warning says what it costs: the
+  gate is a review workflow, not a network control, and it now rests on the container holding
+  no credential for that host.
 - Adding a host is a change to a file that is reviewed like any other, not a prompt answered
   once and forgotten.
 
@@ -106,6 +109,19 @@ The set contents are facts about public registries and can be reused; Terok is A
 which is compatible with this project's GPL-3.0-or-later, and it is already credited in the
 README.
 
+## What the declaration does not do
+
+The allow set is **port-aware since the ruleset gained `allowed_ports`** - a declared name
+opens 80 and 443 to the addresses it resolves to, not the host. That was measured on real
+nftables: with the previous `ip daddr @allowed_v4 accept` an agent reached port 22 on any
+declared host, which is a `git push` that never passes the gate.
+
+What remains, and cannot be fixed here: **the gate is a review workflow, not a network
+control.** In a `guarded` project it holds because the container has no credential for the
+upstream, not because the upstream is unreachable - and a declaration that names a forge takes
+away the unreachability. Hence the warning above. An agent that finds a usable token in the
+work tree can still push, in any security class, and no egress policy changes that.
+
 ## This is the most dangerous knob in the product
 
 A package registry is a code-execution channel. `mvn` downloads plugins and runs them; `npm
@@ -122,6 +138,12 @@ Sokar unusable for the thing it exists for. It argues for the shape:
   *the project's tooling* needs. Neither may declare the other's.
 
 ## Decided
+
+- **A guarded project that declares a forge gets a warning**, not a refusal. Declaring
+  `git-hosting` makes github.com resolvable in a project whose gate exists to review what
+  leaves, so the operator should be told that the gate now rests on credential absence alone.
+  Refusing would be wrong - an agent legitimately clones dependencies from a forge - so this
+  is said once, at task start, beside the other origin lines.
 
 - **Both shapes ship together.** `sets:` for curated names, `domains:` for the private mirror
   no shipped set can cover. They are one mechanism underneath, so the second costs parsing and

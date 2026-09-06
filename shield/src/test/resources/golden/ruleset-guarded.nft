@@ -15,6 +15,11 @@ table inet sokar {
         elements = { 2606:50c0::/32 }
     }
 
+    set allowed_ports {
+        type inet_service
+        elements = { 80, 443 }
+    }
+
     chain output {
         type filter hook output priority filter; policy drop;
 
@@ -28,8 +33,13 @@ table inet sokar {
         ip daddr 10.89.0.1 udp dport 53 accept
         ip daddr 10.89.0.1 tcp dport 53 accept
 
-        ip daddr @allowed_v4 accept
-        ip6 daddr @allowed_v6 accept
+        # Web ports only. The resolver and the clearance path both add a
+        # HOST here and neither can name a port, so accepting every port
+        # would grant more than either of them meant - git over ssh above
+        # all, which pushes past the gate. No udp: a client that cannot
+        # reach HTTP/3 falls back to TCP.
+        ip daddr @allowed_v4 tcp dport @allowed_ports accept
+        ip6 daddr @allowed_v6 tcp dport @allowed_ports accept
 
         # Everything that reaches this point is dropped by the chain policy.
         # It is logged first, which is what the clearance prompt is built on.

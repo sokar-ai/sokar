@@ -16,6 +16,13 @@ import org.fuin.sokar.core.project.SecurityClass;
  * <strong>The output chain drops by default.</strong> Everything else in this class widens that,
  * never narrows it, so a bug that loses a rule fails towards no connectivity rather than towards
  * an open container.
+ * <p>
+ * <strong>A name in the allow set opens web ports, not the host.</strong> Addresses reach the
+ * allow sets from two places that both name a <em>host</em> and never a port: the resolver, which
+ * adds each answer as it answers, and {@link EgressPolicy}, which adds one address when an
+ * operator approves it. Accepting every port to those addresses would grant far more than either
+ * caller meant - notably git over ssh, which would let an agent push straight past the gate. The
+ * ports are therefore matched explicitly, the way the gate and resolver rules already do.
  */
 public class NftRuleset {
 
@@ -35,6 +42,10 @@ public class NftRuleset {
 
     private final Set<String> gateEndpoints = new LinkedHashSet<>();
 
+    private final Set<String> localV4 = new LinkedHashSet<>();
+
+    private final Set<Integer> ports = new LinkedHashSet<>(List.of(80, 443));
+
     /**
      * Constructor with the project's security class.
      *
@@ -45,7 +56,7 @@ public class NftRuleset {
     }
 
     /**
-     * Allows egress to an IPv4 address or network.
+     * Allows egress to an IPv4 address or network, on the allowed ports only.
      *
      * @param cidr Address or CIDR block.
      * @return This instance.
@@ -56,7 +67,7 @@ public class NftRuleset {
     }
 
     /**
-     * Allows egress to an IPv6 address or network.
+     * Allows egress to an IPv6 address or network, on the allowed ports only.
      *
      * @param cidr Address or CIDR block.
      * @return This instance.
@@ -74,6 +85,32 @@ public class NftRuleset {
      */
     public NftRuleset resolver(String address) {
         resolvers.add(address);
+        return this;
+    }
+
+    /**
+     * Allows egress to a host-local address on every port.
+     *
+     * @param cidr Address or CIDR block inside the container's own namespace.
+     * @return This instance.
+     */
+    public NftRuleset localV4(String cidr) {
+        localV4.add(cidr);
+        return this;
+    }
+
+    /**
+     * Adds a port to the ones reachable at an allowed address.
+     * <p>
+     * The default is 80 and 443, which is what a package registry, a provider API and an https
+     * clone need. Anything beyond that is a deliberate widening and belongs in the project's own
+     * declaration rather than here.
+     *
+     * @param port TCP port.
+     * @return This instance.
+     */
+    public NftRuleset port(int port) {
+        ports.add(port);
         return this;
     }
 
@@ -120,6 +157,11 @@ public class NftRuleset {
         lines.add(elements(allowedV6));
         lines.add("    }");
         lines.add("");
+        lines.add("    set allowed_ports {");
+        lines.add("        type inet_service");
+        lines.add("        elements = { " + join(ports) + " }");
+        lines.add("    }");
+        lines.add("");
         lines.add("    chain output {");
         lines.add("        type filter hook output priority filter; policy drop;");
         lines.add("");
@@ -128,6 +170,16 @@ public class NftRuleset {
         lines.add("");
         lines.add("        # Loopback is inside the namespace, so this reaches nothing outside it.");
         lines.add("        oif \"lo\" accept");
+
+        if (!localV4.isEmpty()) {
+            lines.add("");
+            lines.add("        # Host-local addresses, on every port: these name this namespace,");
+            lines.add("        # not somewhere on the internet, so a port match would only break");
+            lines.add("        # things Sokar itself put here.");
+            for (final String cidr : localV4) {
+                lines.add("        ip daddr " + cidr + " accept");
+            }
+        }
 
         if (!gateEndpoints.isEmpty()) {
             lines.add("");
@@ -149,8 +201,13 @@ public class NftRuleset {
                 }
             }
             lines.add("");
-            lines.add("        ip daddr @allowed_v4 accept");
-            lines.add("        ip6 daddr @allowed_v6 accept");
+            lines.add("        # Web ports only. The resolver and the clearance path both add a");
+            lines.add("        # HOST here and neither can name a port, so accepting every port");
+            lines.add("        # would grant more than either of them meant - git over ssh above");
+            lines.add("        # all, which pushes past the gate. No udp: a client that cannot");
+            lines.add("        # reach HTTP/3 falls back to TCP.");
+            lines.add("        ip daddr @allowed_v4 tcp dport @allowed_ports accept");
+            lines.add("        ip6 daddr @allowed_v6 tcp dport @allowed_ports accept");
         } else {
             lines.add("");
             lines.add("        # Security class 'offline': no egress set is consulted at all.");
@@ -164,6 +221,10 @@ public class NftRuleset {
         lines.add("}");
 
         return String.join("\n", lines) + "\n";
+    }
+
+    private static String join(Set<Integer> values) {
+        return values.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(", "));
     }
 
     private static String elements(Set<String> values) {

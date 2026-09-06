@@ -277,7 +277,7 @@ public class TaskRunner {
             ruleset.gate(gateAddress, gatePort);
         }
         if (project.securityClass() != SecurityClass.OFFLINE) {
-            ruleset.allowV4("127.0.0.0/8");
+            ruleset.localV4("127.0.0.0/8");
             // The resolver runs INSIDE this namespace, so its own upstream queries are subject to
             // this ruleset. Without these rules dnsmasq answers every query with REFUSED and the
             // container looks like it has no network at all - which is what happened the first

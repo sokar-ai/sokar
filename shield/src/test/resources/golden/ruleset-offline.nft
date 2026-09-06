@@ -15,6 +15,11 @@ table inet sokar {
         # (no entries)
     }
 
+    set allowed_ports {
+        type inet_service
+        elements = { 80, 443 }
+    }
+
     chain output {
         type filter hook output priority filter; policy drop;
 
