@@ -264,9 +264,39 @@ thing an image installs is worse than none - but it is marked as fetched, not sh
    `fedora:41` has `rpm2cpio` but **no `cpio`**, so the extraction pipe produced nothing and read
    as absence. `rpm2archive -n - | tar -xO` works and needs nothing installed. A guard that
    cannot open the package it is checking passes for the wrong reason just as easily.
-6. **Then the stop conditions become code.** Compare the new SBOM against the published one:
-   a changed component set or a changed licence set stops the update and asks. This is the
-   step that makes the automation trustworthy, and it cannot be written before 1-5 exist.
+6. ~~**Then the stop conditions become code.**~~ **Done, 2026-09-06.**
+   `buildtools/compare-bills.py <built.json> <published-url>`, in all three repositories.
+
+   | exit | meaning |
+   |---|---|
+   | 0 | the same components and the same licences - publish |
+   | 1 | something changed that a person must look at |
+   | 2 | the comparison could not be made |
+
+   **The third code is the point of the thing.** A failed fetch must never read as "nothing
+   published", because that is indistinguishable from a first release - and treating a network
+   error as a first release publishes exactly the change this exists to stop. Only a genuine
+   404 means "nothing to compare"; everything else is code 2. An early version used
+   `raise SystemExit("message")`, which exits **1**, silently conflating "a person must look"
+   with "the question was never answered".
+
+   **Identity is the purl, not the name**, for the reason step 3 found: `cyclonedx-npm` strips
+   the scope, so two different packages can share a name. Components are walked rather than
+   iterated, because they nest.
+
+   **Redirects are followed.** Artifactory serves a small bill directly and offloads a large one
+   to cloud storage with a 302 - so the packages with the most to say are exactly the ones a
+   naive fetch reads as empty.
+
+   Proven against both a local server and the real Artifactory: unchanged is 0; an added,
+   removed or relicensed component is 1; a 404 is 0; an unreachable host is 2; and Pi's
+   140-component bill compares clean through the redirect, while dropping one nested component
+   from it stops with that component named.
+
+   **Not wired into the ordinary publish, deliberately.** These are the conditions under which
+   an *automated update* may not proceed. A person adding a dependency on purpose should not be
+   blocked by it, and a check that cannot fail is worse than none - so this is the tool the
+   update job will call, and the update job is what remains.
 
 ### What this does not do
 
