@@ -39,6 +39,8 @@ jobs:
           echo "  OK    JF_URL is set and is a platform url"
 
       - uses: jfrog/setup-jfrog-cli@v5
+        with:
+          disable-auto-build-publish: true
 
       - name: Artifactory answers, and the token authenticates
         run: jf rt ping

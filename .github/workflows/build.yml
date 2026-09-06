@@ -110,7 +110,7 @@ jobs:
       # Only the ubuntu leg, and only because of glibc: a native image links it dynamically, so a
       # binary built on Fedora 44 will not start on Ubuntu 24.04, while the reverse runs
       # everywhere. Both packages carry the same bytes, so there is one binary to get right.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: matrix.os == 'ubuntu'
         with:
           name: native-binaries
@@ -173,7 +173,7 @@ jobs:
       # could not be built on it at all.
       #
       # After the deploy above, never before: that step starts with 'clean'.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: native-binaries
 
@@ -199,7 +199,12 @@ jobs:
       - name: Check the packages
         run: ./buildtools/check-packages.sh
 
+      # The action publishes build-info by itself at the end of the workflow. That goes into
+      # 'artifactory-build-info', which this token cannot write, so it warns on every run about
+      # something nobody asked for.
       - uses: jfrog/setup-jfrog-cli@v5
+        with:
+          disable-auto-build-publish: true
         env:
           JF_URL: ${{ vars.JF_URL }}
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
