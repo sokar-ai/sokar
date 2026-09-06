@@ -20,5 +20,9 @@ Description: [[description]]
  them into ~/.config/containers and points podman at them. Nothing here touches
  a system-wide podman configuration.
  .
+ Where SELinux is enforcing, a task container cannot reach sokar's sockets until
+ the policy module in /usr/share/sokar/selinux is installed. "sokar doctor"
+ reports whether it is.
+ .
  This package contains no agent. Agents ship separately as sokar-agent-*
  packages, which sokar discovers by scanning /usr/libexec/sokar/agents.

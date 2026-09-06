@@ -25,6 +25,7 @@
         <hook.install.dir>/usr/libexec/sokar/hooks</hook.install.dir>
         <!-- Data files an operator can add to, not executables, so share rather than libexec. -->
         <provider.install.dir>/usr/share/sokar/providers</provider.install.dir>
+        <selinux.install.dir>/usr/share/sokar/selinux</selinux.install.dir>
     </properties>
 
     <!-- Not used for a classpath - this module produces no code. It is here so the reactor builds
@@ -158,6 +159,29 @@
                                             <mapper>
                                                 <type>perm</type>
                                                 <prefix>${hook.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <!-- Source, not a compiled module: a .pp is tied to the policy version of the machine that built it. -->
+                                        <data>
+                                            <src>${project.basedir}/../selinux/sokar_socket.te</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${selinux.install.dir}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../selinux/install-selinux-policy.sh</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${selinux.install.dir}</prefix>
                                                 <filemode>755</filemode>
                                                 <user>root</user>
                                                 <group>root</group>
