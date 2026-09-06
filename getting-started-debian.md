@@ -412,10 +412,25 @@ upstream branch; the default is `main`.
 
 ## When something is blocked
 
-Egress is default-deny, so the first time an agent reaches for a host it has not
-declared, the connection is dropped and you get a desktop notification with Allow
-and Deny. You are asked once per destination and never asked again in either
-direction, so an agent cannot keep retrying until you click the wrong thing.
+Egress is default-deny, and it fails one layer earlier than most people expect. The
+task's resolver answers **NXDOMAIN for every name that is not declared**, so an
+undeclared host does not resolve, no connection is attempted, and nothing is dropped.
+Inside the container it looks like this, and there is no prompt because there is
+nothing to ask about:
+
+```
+Could not resolve host: repo.maven.apache.org
+```
+
+The clearance prompt is for the other case: a name that *did* resolve, to an address
+the firewall does not yet allow — a bare IP address, or a declared domain whose answer
+arrived before the firewall was told. Then the connection is dropped and you get a
+desktop notification with Allow and Deny. You are asked once per destination and never
+asked again in either direction, so an agent cannot keep retrying until you click the
+wrong thing.
+
+Adding a host a task may reach is not something a project can do today — see
+[the FAQ](faq.md) for what to do instead.
 
 `--clearance` changes that for one task: `prompt` (the default), `allow`, `deny`,
 or `off`. **On a machine with no desktop session, use one of the other three** —

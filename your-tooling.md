@@ -66,7 +66,13 @@ generated `Containerfile` is left in `$XDG_DATA_HOME/sokar/build/<project>/` —
 is meant to be read.
 
 Nothing you add here escapes the rest of the model: the container still starts
-with no capabilities and `NoNewPrivs`, and the egress firewall still applies. If
-your tooling needs to reach a host the project does not allow, the connection is
-blocked and you are prompted — installing something does not widen the network.
+with no capabilities and `NoNewPrivs`, and the egress firewall still applies —
+installing something does not widen the network.
+
+**But note where the two layers differ.** These lines run at *build* time, which the
+firewall does not govern, so they can fetch from anywhere. At *run* time the task's
+resolver answers NXDOMAIN for any name that is not declared, so a tool that reaches out
+while the agent is working fails to resolve rather than being blocked and prompted about.
+Fetch what it needs here, in the build, and the running task needs no network for it —
+see [the FAQ](faq.md).
 

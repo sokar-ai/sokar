@@ -179,6 +179,9 @@ own login. Both are in the step-by-step guides, which also cover what each line 
 what goes wrong when it is skipped:
 [Debian and Ubuntu](getting-started-debian.md) · [Fedora and RHEL](getting-started-fedora.md).
 
+## Questions
+See [FAQ](faq.md).
+
 ## Adding your tools to a container
 See [your tooling](your-tooling.md).
 
