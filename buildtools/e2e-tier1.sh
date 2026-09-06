@@ -44,6 +44,7 @@ cleanup() {
     # Its own state directories too. They outlive the container - the poststop hook reaps
     # what is running, nothing removes the files - and they hold this run's dead token.
     rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar/sokar-$PROJECT-"*
+    [ -n "${STAGED_SETS:-}" ] && rm -rf "$STAGED_SETS"
     rm -rf "$WORK" "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT"
     rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT-fail"
     rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar/sokar-$PROJECT-fail-"*
@@ -142,7 +143,23 @@ image:
   snippet: |
     RUN apt-get update && apt-get install -y --no-install-recommends jq \\
         && rm -rf /var/lib/apt/lists/*
+egress:
+  sets: [maven, git-hosting]
 EOF
+
+# The sets a project names have to exist somewhere sokar looks. A packaged install puts them in
+# /usr/share/sokar/egress; this script usually runs against a BUILD TREE, where nothing has been
+# installed - so they are staged into the operator's own location, which is the other place
+# sokar scans and is exactly how an operator would add one. Removed again in cleanup.
+STAGED_SETS=""
+if ! ls /usr/share/sokar/egress/*.yaml >/dev/null 2>&1; then
+    STAGED_SETS="${XDG_DATA_HOME:-$HOME/.local/share}/sokar/egress"
+    mkdir -p "$STAGED_SETS"
+    cp "$ROOT"/egress/*.yaml "$STAGED_SETS/" 2>/dev/null || {
+        echo "no curated sets in $ROOT/egress and none installed"
+        exit 2
+    }
+fi
 
 # ------------------------------------------------------------------ the image
 echo
@@ -403,6 +420,89 @@ else
         info "fail for every user in a way that looks like a credential problem"
     fi
 fi
+
+# --------------------------------------------------------------- project egress
+# What the PROJECT declared, as opposed to what the agent needs. Checked against a real
+# container because every layer between the file and the packet has been wrong at least once:
+# the package that ships the sets, the binary that reads them, the resolver that answers for
+# them, and the firewall rule that decides which port.
+echo
+echo "-- project egress --"
+
+if [ -n "$STAGED_SETS" ]; then
+    pass "the curated sets are readable from an operator's own directory"
+    info "staged in $STAGED_SETS; a packaged install ships them in /usr/share/sokar/egress"
+elif [ "$(ls /usr/share/sokar/egress/*.yaml 2>/dev/null | wc -l)" -ge 9 ]; then
+    pass "the package installed the curated sets"
+else
+    fail "no curated sets anywhere sokar looks"
+fi
+
+if "$SOKAR" shield sets 2>/dev/null | grep -q '^maven'; then
+    pass "sokar shield sets lists them"
+else
+    fail "sokar shield sets found nothing"
+fi
+
+# A typo must stop the run before an image is built, not resolve to nothing.
+mkdir -p "$WORK/typo"
+cat > "$WORK/typo/project.yml" <<EOF
+project:
+  name: "$PROJECT-typo"
+  security_class: "guarded"
+image:
+  base_image: "ubuntu:24.04"
+egress:
+  sets: [mvn]
+EOF
+if (cd "$WORK/typo" && "$SOKAR" task run --agent "$AGENT_NAME" --dry-run 2>&1 || true) \
+        | grep -q "Unknown egress set"; then
+    pass "an unknown set name stops the run"
+else
+    fail "an unknown set name did not stop the run"
+fi
+
+# The report has to say who granted what, or an operator cannot audit it.
+if grep -qE 'repo\.maven\.apache\.org +set maven' "$START_LOG"; then
+    pass "the start report names the set that granted each host"
+else
+    fail "the start report does not name granting sets"
+    grep -A3 '^reachable' "$START_LOG" | while read -r line; do info "$line"; done
+fi
+
+if grep -q "gate now rests on this container holding no credential" "$START_LOG"; then
+    pass "a guarded project reaching a forge is warned about it"
+else
+    fail "no forge warning for a guarded project that declared git-hosting"
+fi
+
+# The declaration governs the resolver.
+if podman exec "$CONTAINER" getent hosts repo.maven.apache.org >/dev/null 2>&1; then
+    pass "a host the project declared resolves"
+else
+    fail "a host the project declared does not resolve"
+fi
+if podman exec "$CONTAINER" getent hosts pypi.org >/dev/null 2>&1; then
+    fail "an undeclared host resolved"
+else
+    pass "an undeclared host is still NXDOMAIN"
+fi
+
+# And the firewall governs the port. curl only: the container cannot install anything, which is
+# the point. 28 is a timeout - what a dropped packet looks like; 35/52/56 mean the TCP
+# connection got through and only TLS failed.
+egress_port() {
+    podman exec "$CONTAINER" sh -c \
+        "curl -s -o /dev/null --max-time 12 https://$1:$2/ ; echo \$?" 2>/dev/null
+}
+case "$(egress_port github.com 443)" in
+    0|35|52|56) pass "port 443 to a declared host is open" ;;
+    *) fail "port 443 to a declared host is not open" ;;
+esac
+case "$(egress_port github.com 22)" in
+    28|7) pass "port 22 to the same host is blocked, so no push goes around the gate" ;;
+    *) fail "port 22 to a declared host was reachable" ;;
+esac
 
 # ------------------------------------------------------------ workspace and gate
 #
