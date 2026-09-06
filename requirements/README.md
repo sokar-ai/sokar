@@ -8,12 +8,6 @@ criteria so it can be judged done or not done.
 unresolved whose answer could change what the requirement says, or whether it
 survives at all.
 
-[0049](0049-Project-Egress.md) is **implemented** and no longer in the table below. Its file is
-kept because its *To be checked* section still holds open questions about how far the mechanism
-should go - whether a set may carry more than domains, whether an undeclared name should prompt
-rather than fail to resolve, and whether a set can be pinned so it means the same thing on two
-machines.
-
 ## Work, in the order to do it
 
 | # | Requirement | What must be true | Open question |
