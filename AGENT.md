@@ -43,10 +43,9 @@ nothing else of Sokar's.
 
 ## Tests
 
-- **Descriptive method names, not `testXxx`.** 296 of 320 test methods read as
+- **Descriptive method names, not `testXxx`.** All 467 test methods read as
   sentences — `refusesADomainThatIsBothAllowedAndRefused`,
-  `readsTheDomainsAnAgentNeeds`. The `testXxx` minority is drift; do not add to
-  it.
+  `readsTheDomainsAnAgentNeeds`. There is no `testXxx` left; do not reintroduce it.
 - **Every guard must be proven to fail.** A test that has never failed is a test
   nobody has checked. When adding a rule, deliberately violate it once and watch
   it break, then keep the negative case if it can be expressed as a test. This is
