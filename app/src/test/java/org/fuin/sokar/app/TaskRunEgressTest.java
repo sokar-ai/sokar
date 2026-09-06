@@ -125,7 +125,7 @@ class TaskRunEgressTest {
                 Map.of("github.com", "set git-hosting"), List.of());
 
         assertThat(report).contains("github.com is reachable")
-                .contains("no credential for it");
+                .contains("no credential for them");
     }
 
     @Test
@@ -135,7 +135,7 @@ class TaskRunEgressTest {
         // step for a reachable forge to weaken. Warning there would be noise.
         assertThat(report(project(SecurityClass.ONLINE, Egress.none()),
                 Map.of("github.com", "set git-hosting"), List.of()))
-                .doesNotContain("no credential for it");
+                .doesNotContain("no credential for them");
     }
 
     @Test
@@ -144,5 +144,20 @@ class TaskRunEgressTest {
         assertThat(report(project(SecurityClass.GUARDED, Egress.none()),
                 Map.of("raw.githubusercontent.com", "set git-hosting"), List.of()))
                 .contains("raw.githubusercontent.com is reachable");
+    }
+
+    @Test
+    void namesOneForgeAndCountsTheRest() {
+
+        // A whole set is eight hosts, and eight names in one sentence is a line nobody reads.
+        final String report = report(project(SecurityClass.GUARDED, Egress.none()),
+                new java.util.LinkedHashMap<>() {{
+                    put("github.com", "set git-hosting");
+                    put("gitlab.com", "set git-hosting");
+                    put("codeberg.org", "set git-hosting");
+                }}, List.of());
+
+        assertThat(report).contains("github.com and 2 more forge hosts are reachable")
+                .doesNotContain("gitlab.com,");
     }
 }

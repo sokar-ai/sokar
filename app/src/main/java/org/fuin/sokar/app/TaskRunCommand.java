@@ -1601,8 +1601,13 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 .toList();
         if (!forges.isEmpty()
                 && project.securityClass() == org.fuin.sokar.core.project.SecurityClass.GUARDED) {
-            out.println("               " + String.join(", ", forges) + " is reachable, so the"
-                    + " gate now rests on this container holding no credential for it");
+            // Named, not listed: a whole set is eight hosts, and eight names in one sentence is a
+            // line nobody reads - which would defeat the point of warning at all.
+            final String what = forges.size() == 1 ? forges.get(0) + " is"
+                    : forges.get(0) + " and " + (forges.size() - 1) + " more forge host"
+                            + (forges.size() == 2 ? "" : "s") + " are";
+            out.println("               " + what + " reachable, so the gate now rests on this"
+                    + " container holding no credential for them");
         }
         out.flush();
     }

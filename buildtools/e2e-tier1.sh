@@ -465,6 +465,15 @@ fi
 # The report has to say who granted what, or an operator cannot audit it.
 if grep -qE 'repo\.maven\.apache\.org +set maven' "$START_LOG"; then
     pass "the start report names the set that granted each host"
+    # Shown on success too, not only on failure: this report is the auditable artifact of the
+    # whole feature - what a task may reach and who granted it - and a run that only proves it
+    # exists leaves nobody able to read it afterwards. One example per origin, so the output
+    # stays short however many hosts a set carries.
+    sed -n '/^reachable/,/NXDOMAIN/p' "$START_LOG" \
+        | sed -e 's/^reachable *//' -e 's/^ *//' \
+        | grep -v '^ports 80 and 443' \
+        | awk -F'  +' 'NF >= 2 && !seen[$2]++ { print $1 "  (" $2 ")" }' \
+        | while read -r line; do info "$line"; done
 else
     fail "the start report does not name granting sets"
     grep -A3 '^reachable' "$START_LOG" | while read -r line; do info "$line"; done
@@ -472,6 +481,8 @@ fi
 
 if grep -q "gate now rests on this container holding no credential" "$START_LOG"; then
     pass "a guarded project reaching a forge is warned about it"
+    grep 'gate now rests' "$START_LOG" | sed 's/^ *//' | head -1 \
+        | while read -r line; do info "$line"; done
 else
     fail "no forge warning for a guarded project that declared git-hosting"
 fi
