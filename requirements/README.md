@@ -10,19 +10,24 @@ survives at all.
 
 ## Work, in the order to do it
 
+Ordered by consequence, not by number. The first group is the shipped CLI: a defect there is
+live, and two of them can lose work or open a hole. The second is the interface, which cannot
+start before [0001](0001-Local-Daemon-API.md) and is otherwise in dependency order. The last
+group runs alongside rather than after.
+
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
-| 9 | [Task Lifecycle Control](0009-Task-Lifecycle-Control.md) | Tasks can be listed, stopped and resumed as first-class operations rather than by reaching for the container runtime. |  |
-| 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Removing a task must not silently destroy work the agent never pushed. | yes |
-| 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
-| 25 | [Pi Forge Subscription](0025-Pi-Forge-Subscription.md) | The second agent's remaining half: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
-| 44 | [Automated Agent Updates](0044-Automated-Agent-Updates.md) | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
 | 20 | [Narrow The Git Endpoint](0020-Narrow-The-Git-Endpoint.md) | The host endpoint a task clones from should not be reachable from the local network. | yes |
+| 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Removing a task must not silently destroy work the agent never pushed. | yes |
+| 9 | [Task Lifecycle Control](0009-Task-Lifecycle-Control.md) | Tasks can be listed, stopped and resumed as first-class operations rather than by reaching for the container runtime. |  |
+| 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
+| 44 | [Automated Agent Updates](0044-Automated-Agent-Updates.md) | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
+| 25 | [Pi Forge Subscription](0025-Pi-Forge-Subscription.md) | The second agent's remaining half: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
 | 1 | [Local Daemon API](0001-Local-Daemon-API.md) | Everything the interface can do is exposed by a local daemon over a private socket, so no feature depends on shelling out to the CLI. | yes |
 | 2 | [Fleet Overview](0002-Fleet-Overview.md) | One screen lists every task on the machine with its project, agent, state and age, so a person with several running tasks can see all of them at once. |  |
-| 3 | [Task State Detection](0003-Task-State-Detection.md) | Each task reports whether it is working, idle, or blocked waiting for a person, so an unattended run that has quietly stopped is visible. | yes |
 | 4 | [Clearance Prompts](0004-Clearance-Prompts.md) | Allow and deny decisions appear in the interface with enough context to answer them, and the answer reaches the waiting task. | yes |
 | 5 | [Review And Approve Work](0005-Review-And-Approve-Work.md) | Work pushed by a task is listed, diffed and approved or rejected from the interface, without dropping to a terminal. |  |
+| 3 | [Task State Detection](0003-Task-State-Detection.md) | Each task reports whether it is working, idle, or blocked waiting for a person, so an unattended run that has quietly stopped is visible. | yes |
 | 6 | [Task Log Viewer](0006-Task-Log-Viewer.md) | Every log a task produces is readable in the interface, live, with the ability to follow or search it. | yes |
 | 7 | [Attach To A Task](0007-Attach-To-A-Task.md) | A person can get an interactive shell inside a running task from the interface, in a real terminal emulator. | yes |
 | 8 | [Start A Task](0008-Start-A-Task.md) | A task can be started from the interface, choosing project, agent, mode and credential type, without typing a command. |  |
@@ -48,23 +53,27 @@ be brokered. Compared side by side in
 [0021](0021-More-Agents-Providers.md); the one chosen to be built next is
 [0025](0025-Pi-Forge-Subscription.md).
 
-| # | Entry | What it covers | Open question |
-|---|---|---|---|
-| 26 | [Agent Claude Code](0026-Agent-Claude-Code.md) | One agent: how it authenticates and whether it can be brokered. | yes |
-| 27 | [Agent Codex CLI](0027-Agent-Codex-CLI.md) | One agent: how it authenticates and whether it can be brokered. | yes |
-| 28 | [Agent Gemini CLI](0028-Agent-Gemini-CLI.md) | One agent: how it authenticates and whether it can be brokered. | yes |
-| 29 | [Agent Copilot CLI](0029-Agent-Copilot-CLI.md) | One agent: how it authenticates and whether it can be brokered. | yes |
-| 30 | [Agent Grok Build](0030-Agent-Grok-Build.md) | One agent: how it authenticates and whether it can be brokered. | yes |
-| 31 | [Agent OpenCode](0031-Agent-OpenCode.md) | One agent: how it authenticates and whether it can be brokered. | yes |
-| 32 | [Agent Pi](0032-Agent-Pi.md) | One agent: how it authenticates and whether it can be brokered. | yes |
-| 46 | [Agent Oh My Pi](0046-Agent-Oh-My-Pi.md) | One agent: a fork of a different Pi, listed so the two are not confused. | yes |
-| 33 | [Provider Anthropic](0033-Provider-Anthropic.md) | One provider: how it authenticates and whether it can be brokered. | yes |
-| 34 | [Provider OpenAI](0034-Provider-OpenAI.md) | One provider: how it authenticates and whether it can be brokered. | yes |
-| 35 | [Provider Google](0035-Provider-Google.md) | One provider: how it authenticates and whether it can be brokered. | yes |
-| 36 | [Provider GitHub Copilot](0036-Provider-GitHub-Copilot.md) | One provider: how it authenticates and whether it can be brokered. | yes |
-| 37 | [Provider xAI](0037-Provider-xAI.md) | One provider: how it authenticates and whether it can be brokered. | yes |
-| 38 | [Provider Zhipu](0038-Provider-Zhipu.md) | One provider: how it authenticates and whether it can be brokered. | yes |
-| 45 | [Provider OpenRouter](0045-Provider-OpenRouter.md) | One provider: how it authenticates and whether it can be brokered. Verified with a second agent. |  |
+**Status** is what exists today. **Shipped** means it is packaged, installable and covered by the
+acceptance suite - an open question beside a shipped entry is something still to learn about it,
+not work left to do.
+
+| # | Entry | Status | What it covers | Open question |
+|---|---|---|---|---|
+| 26 | [Agent Claude Code](0026-Agent-Claude-Code.md) | **shipped** | One agent: how it authenticates and whether it can be brokered. | yes |
+| 27 | [Agent Codex CLI](0027-Agent-Codex-CLI.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
+| 28 | [Agent Gemini CLI](0028-Agent-Gemini-CLI.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
+| 29 | [Agent Copilot CLI](0029-Agent-Copilot-CLI.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
+| 30 | [Agent Grok Build](0030-Agent-Grok-Build.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
+| 31 | [Agent OpenCode](0031-Agent-OpenCode.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
+| 32 | [Agent Pi](0032-Agent-Pi.md) | **shipped** | One agent: how it authenticates and whether it can be brokered. | yes |
+| 46 | [Agent Oh My Pi](0046-Agent-Oh-My-Pi.md) | candidate | One agent: a fork of a different Pi, listed so the two are not confused. | yes |
+| 33 | [Provider Anthropic](0033-Provider-Anthropic.md) | **shipped** | One provider: how it authenticates and whether it can be brokered. | yes |
+| 34 | [Provider OpenAI](0034-Provider-OpenAI.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |
+| 35 | [Provider Google](0035-Provider-Google.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |
+| 36 | [Provider GitHub Copilot](0036-Provider-GitHub-Copilot.md) | chosen next | One provider: how it authenticates and whether it can be brokered. | yes |
+| 37 | [Provider xAI](0037-Provider-xAI.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |
+| 38 | [Provider Zhipu](0038-Provider-Zhipu.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |
+| 45 | [Provider OpenRouter](0045-Provider-OpenRouter.md) | **shipped** | One provider: how it authenticates and whether it can be brokered. Verified with a second agent. |  |
 
 ## To be checked
 
