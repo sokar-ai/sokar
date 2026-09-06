@@ -64,30 +64,25 @@ jobs:
 
       # No signing key means no InRelease, and apt refuses the repository - with an error
       # that reads as a network problem.
-      - name: The repositories have a signing key
+      # Informational, never fatal. GET /api/repositories/<key> returns a fuller
+      # configuration to an admin than to a repository-scoped token, and jq cannot tell an
+      # absent field from a null one - so an empty answer here means "not visible", not
+      # "not configured". The UI is what settles it.
+      - name: What the API says about signing
         run: |
           set -eu
-          FAILED=0
           for repo in "$DEB_REPO" "$RPM_REPO"; do
-              key="$(jf rt curl -s -XGET "/api/repositories/$repo" \
-                  | jq -r '.primaryKeyPairRef // ""')"
+              body="$(jf rt curl -s -XGET "/api/repositories/$repo")"
+              key="$(echo "$body" | jq -r '.primaryKeyPairRef // ""')"
               if [ -n "$key" ]; then
-                  echo "  OK    $repo is signed by keypair '$key'"
-              elif [ "$repo" = "$RPM_REPO" ]; then
-                  echo "  NOTE  $repo has no keypair. dnf tolerates unsigned repodata, so this"
-                  echo "        is a warning rather than a failure."
+                  echo "  OK    $repo reports keypair '$key'"
               else
-                  echo "::error::$repo has no primary keypair, so there is no InRelease and apt will reject it. Fix: Administration -> Repositories -> $repo -> Edit -> Primary Keypair"
-                  FAILED=1
+                  echo "  ??    $repo reports no keypair. If the UI shows one, this token"
+                  echo "        simply cannot see the field. Fields it did return:"
+                  echo "$body" | jq -r 'keys[]' | tr '\n' ' ' | sed 's/^/          /'
+                  echo
               fi
           done
-          if [ "$FAILED" = 1 ]; then
-              echo "Keypairs this token can see:"
-              jf rt curl -s -XGET "/api/security/keypair" \
-                  | jq -r '.[]?.pairName // empty' | sed 's/^/  /' \
-                  || echo "  (could not list them; check Keys Management in the UI)"
-              exit 1
-          fi
 
       # Deploy and Annotate are separate permissions. Without Annotate an upload SUCCEEDS and
       # the properties are dropped - and for a .deb the properties are what get it indexed, so
