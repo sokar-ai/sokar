@@ -306,11 +306,20 @@ and the flattened `sokar-agent-api` POM was checked rather than assumed - it car
 description, url, licences, developers and scm, has no `<parent>`, and lists its three
 dependencies at resolved versions.
 
-One thing that flattening exposes and nobody has decided: the `org.fuin:pom` parent derives each
-module's `<url>` from the *artifactId* chain, so the SPI advertises
-`github.com/fuinorg/sokar/sokar-agents/sokar-agent-api/`, a path that does not exist. Central
-requires a url, not a working one, so it does not block publishing - but it is wrong, and it is
-in every POM.
+**And the url that flattening exposed is fixed.** Maven appends each child's artifactId to an
+inherited `url` and `scm`, so the SPI advertised
+`github.com/fuinorg/sokar/sokar-agents/sokar-agent-api/` - a path that does not exist, in every
+published POM. Maven 3.6.1 added attributes that turn the appending off, and the root now
+carries all four.
+
+**They are not all in the same place, which is the part that wastes an hour.**
+`child.scm.url.inherit.append.path`, `child.scm.connection.inherit.append.path` and
+`child.scm.developerConnection.inherit.append.path` are fields of `Scm`, so they go on `<scm>`.
+`child.project.url.inherit.append.path` is a field of `Model`, so it goes on **`<project>`** -
+putting it on `<url>`, where it reads naturally, is silently ignored: the scm three take effect
+and the project url keeps appending, which looks like the feature half-working. `javap` on
+`maven-model`'s `Model.class` settles it in one command. Every module's flattened POM now says
+`https://github.com/fuinorg/sokar/`.
 
 ## 4. Publishing
 
