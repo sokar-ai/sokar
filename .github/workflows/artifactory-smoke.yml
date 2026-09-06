@@ -1,0 +1,107 @@
+# Does Artifactory answer, and can this token actually do what the publish step needs?
+#
+# Manual only, and it builds nothing. The publish step is at the end of a native build, so
+# discovering there that a token lacks a permission costs a quarter of an hour per attempt.
+# This costs about twenty seconds.
+#
+# Worth keeping rather than deleting: it is also what to run after rotating the token.
+name: Artifactory smoke test
+
+on:
+  workflow_dispatch:
+
+jobs:
+
+  smoke:
+    name: Reachable, authorised, writable
+    runs-on: ubuntu-latest
+
+    env:
+      JF_URL: ${{ vars.JF_URL }}
+      JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+      DEB_REPO: sokar-dist-deb
+      RPM_REPO: sokar-dist-rpm
+
+    steps:
+      - name: The settings exist at all
+        run: |
+          set -eu
+          [ -n "${JF_URL:-}" ] || { echo "::error::variable JF_URL is not set"; exit 1; }
+          [ -n "${JF_ACCESS_TOKEN:-}" ] || { echo "::error::secret JF_ACCESS_TOKEN is not set"; exit 1; }
+          case "$JF_URL" in
+              */artifactory|*/artifactory/)
+                  echo "::error::JF_URL is the PLATFORM url and must not end in /artifactory"
+                  exit 1 ;;
+          esac
+          echo "JF_URL=$JF_URL"
+
+      - uses: jfrog/setup-jfrog-cli@v4
+
+      - name: Artifactory answers, and the token authenticates
+        run: jf rt ping
+
+      # A repository of the wrong type accepts uploads and indexes nothing.
+      - name: Both repositories exist and are the right type
+        run: |
+          set -eu
+          for pair in "$DEB_REPO:Debian" "$RPM_REPO:YUM"; do
+              repo="${pair%%:*}"; want="${pair##*:}"
+              got="$(jf rt curl -s -XGET "/api/repositories/$repo" | jq -r '.packageType // "MISSING"')"
+              if [ "$(echo "$got" | tr 'A-Z' 'a-z')" = "$(echo "$want" | tr 'A-Z' 'a-z')" ]; then
+                  echo "  OK    $repo is a $got repository"
+              else
+                  echo "::error::$repo has packageType '$got', expected '$want'"
+                  exit 1
+              fi
+          done
+
+      # No signing key means no InRelease, and apt refuses the repository - with an error
+      # that reads as a network problem.
+      - name: The Debian repository has a signing key
+        run: |
+          set -eu
+          key="$(jf rt curl -s -XGET "/api/repositories/$DEB_REPO" | jq -r '.primaryKeyPairRef // ""')"
+          if [ -n "$key" ]; then
+              echo "  OK    signed by keypair '$key'"
+          else
+              echo "::error::$DEB_REPO has no primary keypair; apt will reject an unsigned Release"
+              exit 1
+          fi
+
+      # Deploy and Annotate are separate permissions. Without Annotate an upload SUCCEEDS and
+      # the properties are dropped - and for a .deb the properties are what get it indexed, so
+      # the package lands and apt never sees it. That is the failure this job exists for.
+      #
+      # The probe is a .txt under a dot-directory: it carries no deb.* properties and is not a
+      # package, so no indexer looks at it.
+      - name: The token can write, annotate and delete
+        run: |
+          set -eu
+          echo "sokar smoke ${GITHUB_RUN_ID}" > smoke.txt
+          FAILED=0
+          for repo in "$DEB_REPO" "$RPM_REPO"; do
+              path="$repo/.smoke/${GITHUB_RUN_ID}.txt"
+
+              jf rt upload smoke.txt "$path" --flat=true >/dev/null
+              echo "  OK    $repo accepts an upload"
+
+              jf rt sp "$path" "smoke=${GITHUB_RUN_ID}" >/dev/null
+              got="$(jf rt curl -s -XGET "/api/storage/$path?properties" \
+                  | jq -r '.properties.smoke[0] // ""')"
+              if [ "$got" = "$GITHUB_RUN_ID" ]; then
+                  echo "  OK    $repo stores properties, so Annotate is granted"
+              else
+                  echo "::error::$repo dropped the property - the token lacks Annotate, and a .deb would upload and never be indexed"
+                  FAILED=1
+              fi
+
+              jf rt del "$path" --quiet >/dev/null
+              echo "  OK    $repo allows delete, so the probe left nothing behind"
+          done
+          rm -f smoke.txt
+          exit "$FAILED"
+
+      - name: What a consumer would point at
+        run: |
+          echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] ${JF_URL}/artifactory/${DEB_REPO} snapshots main"
+          echo "baseurl=${JF_URL}/artifactory/${RPM_REPO}/snapshots"
