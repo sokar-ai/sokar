@@ -45,6 +45,13 @@
 
         <plugins>
 
+            <!-- Published, so it carries a bill of its own dependencies. -->
+
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>

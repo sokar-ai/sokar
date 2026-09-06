@@ -154,10 +154,24 @@ thing an image installs is worse than none - but it is marked as fetched, not sh
    component and licence sets, a source that silently omits 16% of them is not a source.
    **Build-time generation it is**, and `syft` is not adopted even as a cross-check for now -
    it would need its own justification rather than inheriting one from this measurement.
-2. **Maven SBOMs.** `cyclonedx-maven-plugin` in the root `pluginManagement`, bound in the two
-   published modules and in whatever aggregates for the packages. Verify the artifact
-   attached to `sokar-agent-api` deploys alongside the jar under `-Pcentral-sonatype-release`,
-   which is a different code path from a local `deploy`.
+2. ~~**Maven SBOMs.**~~ **Done, 2026-09-06.** `cyclonedx-maven-plugin` 2.9.3 managed in the
+   root and bound in `sokar-wire` and `sokar-agent-api` - the two modules that publish. Test
+   and provided scope are excluded: a bill that lists junit says nothing about what an
+   operator installed.
+
+   What it produces is the closure exactly as the split left it, with licences:
+
+   ```
+   sokar-wire         GPL-3.0-or-later   1 component:  jspecify (Apache-2.0)
+   sokar-agent-api    GPL-3.0-or-later   3 components: snakeyaml, sokar-wire, jspecify
+   ```
+
+   **Verified on the CI code path, not a substitute for it.** Running
+   `deploy -Pcentral-sonatype-release` with GPG off stages five files per module into
+   `target/central-deferred` - jar, sources, javadoc, pom and `…-cyclonedx.json` - and stops
+   at a 401 for want of credentials, which is as far as it can go here. `maven-gpg-plugin`
+   now reports *signing 5 files* where it reported four, so the bill is signed with
+   everything else rather than being the one unsigned artifact.
 3. **The npm SBOM**, produced inside `build-pi-tree.sh` and carried into `pi-tree.tar.gz`, so
    the tree and its bill cannot separate.
 4. **Merge and ship.** One `sbom.cdx.json` per package, at the same path in the `.deb` and the

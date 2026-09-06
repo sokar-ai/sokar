@@ -71,6 +71,7 @@
              Kept equal to <version> above by maven-enforcer-plugin below. -->
         <sokar.version>0.1.0-SNAPSHOT</sokar.version>
         <fuin-bom.version>1.0.2</fuin-bom.version>
+        <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
         <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
         <picocli.version>4.7.7</picocli.version>
         <snakeyaml.version>2.7</snakeyaml.version>
@@ -259,6 +260,39 @@
         <pluginManagement>
 
             <plugins>
+
+                <!-- A CycloneDX bill for anything published. Managed here, bound only in the
+                     modules that publish: a native image is opaque to a scanner and an archive
+                     hides what is inside it, so what a dependency graph says at build time is
+                     the only thing that can be checked later. -->
+
+                <plugin>
+                    <groupId>org.cyclonedx</groupId>
+                    <artifactId>cyclonedx-maven-plugin</artifactId>
+                    <version>${cyclonedx-maven-plugin.version}</version>
+                    <configuration>
+                        <projectType>library</projectType>
+                        <schemaVersion>1.6</schemaVersion>
+                        <outputFormat>json</outputFormat>
+                        <outputName>${project.artifactId}-${project.version}-cyclonedx</outputName>
+                        <!-- Runtime and compile only. A bill that lists junit tells an operator
+                             nothing about what they installed. -->
+                        <includeCompileScope>true</includeCompileScope>
+                        <includeRuntimeScope>true</includeRuntimeScope>
+                        <includeProvidedScope>false</includeProvidedScope>
+                        <includeSystemScope>false</includeSystemScope>
+                        <includeTestScope>false</includeTestScope>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>cyclonedx</id>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>makeBom</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
 
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
