@@ -106,4 +106,55 @@ class ProjectWizardTest {
                 .contains("[guarded]")
                 .contains("[" + ProjectWizard.DEFAULT_BASE_IMAGE + "]");
     }
+    @Test
+    void writesAStarterEgressBlockSoTheFirstBuildWorks() {
+
+        // Absence means a task reaches nothing, so a project created here would otherwise fail its
+        // first build for a reason nobody chose. The grant is written down, not implied.
+        final String rendered = ProjectWizard.render("demo", SecurityClass.GUARDED, "ubuntu:24.04");
+
+        assertThat(rendered).contains("egress:").contains("os-packages-debian")
+                .contains("git-hosting");
+
+        final Project project = ProjectReader.read(new java.io.StringReader(rendered), "test");
+        assertThat(project.egress().sets()).containsExactly("os-packages-debian", "git-hosting");
+    }
+
+    @Test
+    void picksThePackageSetFromTheBaseImage() {
+
+        assertThat(ProjectWizard.render("demo", SecurityClass.GUARDED, "fedora:41"))
+                .contains("os-packages-fedora");
+        assertThat(ProjectWizard.render("demo", SecurityClass.GUARDED, "debian:13"))
+                .contains("os-packages-debian");
+    }
+
+    @Test
+    void writesNoEgressBlockForAnOfflineProject() {
+
+        // An offline project refuses a declaration, so a block here would produce a file the
+        // reader rejects the moment it is used - written by Sokar itself.
+        final String rendered = ProjectWizard.render("demo", SecurityClass.OFFLINE, "ubuntu:24.04");
+
+        assertThat(rendered).doesNotContain("egress");
+        assertThat(ProjectReader.read(new java.io.StringReader(rendered), "test").egress().isEmpty())
+                .isTrue();
+    }
+
+    @Test
+    void namesOnlySetsThatAreActuallyShipped() {
+
+        // A starter block naming a set that does not exist would stop the first task with
+        // "Unknown egress set", which is worse than the missing block it replaced.
+        final var shipped = new org.fuin.sokar.shield.EgressSetDirectory(
+                java.util.List.of(Path.of("..", "egress"))).all();
+
+        for (final String image : new String[] {"ubuntu:24.04", "fedora:41"}) {
+            final Project project = ProjectReader.read(new java.io.StringReader(
+                    ProjectWizard.render("demo", SecurityClass.GUARDED, image)), "test");
+            assertThat(shipped).as("sets for %s", image).containsKeys(
+                    project.egress().sets().toArray(new String[0]));
+        }
+    }
+
 }

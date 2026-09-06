@@ -9,7 +9,8 @@ import picocli.CommandLine.Command;
         mixinStandardHelpOptions = true,
         description = "Inspects the egress firewall.",
         subcommands = { ShieldReadCommand.class, ShieldWatchCommand.class,
-                ShieldDnsCommand.class, ShieldSubscribeCommand.class })
+                ShieldDnsCommand.class, ShieldSubscribeCommand.class,
+                ShieldSetsCommand.class })
 public class ShieldCommand {
 
 }

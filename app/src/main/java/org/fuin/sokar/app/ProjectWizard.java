@@ -64,6 +64,11 @@ final class ProjectWizard {
 
     /**
      * Renders a project file.
+     * <p>
+     * The egress block is written rather than left out, which is what makes the strict default
+     * usable: absence means a task reaches nothing, so a project created here would otherwise fail
+     * its first build for a reason nobody chose. Written down, the grant is visible in a file that
+     * gets reviewed like any other - which is the property the whole feature rests on.
      *
      * @param name Project name.
      * @param securityClass How much the agent is trusted.
@@ -71,6 +76,14 @@ final class ProjectWizard {
      * @return The file's content.
      */
     static String render(String name, SecurityClass securityClass, String baseImage) {
+        final String egress = securityClass == SecurityClass.OFFLINE ? "" : """
+
+                # What this project's own tooling may reach. Nothing else resolves, on ports 80
+                # and 443 only. Run 'sokar shield sets' to see the names; add the ones your build
+                # needs, and 'domains' for a private mirror.
+                egress:
+                  sets: [%s, git-hosting]
+                """.formatted(osPackages(baseImage));
         return """
                 # Written by 'sokar task run'. Everything here can be changed; see
                 # https://github.com/fuinorg/sokar#readme for what each field does.
@@ -79,7 +92,24 @@ final class ProjectWizard {
                   security_class: "%s"
                 image:
                   base_image: "%s"
-                """.formatted(name, securityClass.name().toLowerCase(Locale.ROOT), baseImage);
+                """.formatted(name, securityClass.name().toLowerCase(Locale.ROOT), baseImage)
+                + egress;
+    }
+
+    /**
+     * Returns the package set matching a base image.
+     * <p>
+     * The two families need different hosts, and which one applies is a property of the image
+     * rather than of the project - so it is chosen here instead of asked.
+     *
+     * @param baseImage Image the task image is built from.
+     * @return Set name.
+     */
+    private static String osPackages(String baseImage) {
+        final String image = baseImage.toLowerCase(Locale.ROOT);
+        return image.contains("fedora") || image.contains("rocky") || image.contains("centos")
+                || image.contains("almalinux") || image.contains("rhel")
+                        ? "os-packages-fedora" : "os-packages-debian";
     }
 
     /**
