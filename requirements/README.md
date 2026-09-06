@@ -8,12 +8,17 @@ criteria so it can be judged done or not done.
 unresolved whose answer could change what the requirement says, or whether it
 survives at all.
 
+[0049](0049-Project-Egress.md) is **implemented** and no longer in the table below. Its file is
+kept because its *To be checked* section still holds open questions about how far the mechanism
+should go - whether a set may carry more than domains, whether an undeclared name should prompt
+rather than fail to resolve, and whether a set can be pinned so it means the same thing on two
+machines.
+
 ## Work, in the order to do it
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | 9 | [Task Lifecycle Control](0009-Task-Lifecycle-Control.md) | Tasks can be listed, stopped and resumed as first-class operations rather than by reaching for the container runtime. |  |
-| 49 | [What A Project May Reach](0049-Project-Egress.md) | A project declares the hosts its tooling needs, so an agent can run a build that fetches a dependency. | yes |
 | 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Removing a task must not silently destroy work the agent never pushed. | yes |
 | 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | 25 | [Pi Forge Subscription](0025-Pi-Forge-Subscription.md) | The second agent's remaining half: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |

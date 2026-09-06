@@ -1,6 +1,15 @@
 # 0049 — What A Project May Reach
 
-**Status:** open. **Blocking:** Sokar cannot be used for ordinary development without it.
+**Status:** implemented; the acceptance criteria below are met and proven on both distributions.
+What remains is in *To be checked* - open questions about how far the mechanism should go, not
+gaps in it.
+
+Verified end to end on Fedora 41 (podman 5.8.1, SELinux enforcing) and Ubuntu 26.04
+(podman 4.9.3), from the installed `.deb` and `.rpm`: the sets install, the native binary reads
+them, a declared host resolves inside a task while an undeclared one is NXDOMAIN, port 443 to a
+declared host is open and port 22 to the same host is dropped, an unknown set name stops the run
+before an image is built, and the start report names the set that granted each host. The same
+checks run in `buildtools/e2e-tier1.sh`.
 
 An agent editing a Java project runs `mvn test` while it works, and Maven fetches a plugin or
 a dependency the moment the build needs one. `npm install`, `pip install`, `go get` and
