@@ -490,7 +490,7 @@ version line, so depending on a released API is the shape the design already wan
    `<name>`, add `flatten-maven-plugin`.~~ **Done.** 467 tests green; the agent API resolves three
    artifacts.
 4. **Publish the agent API and its closure** at a real version.
-5. **Write the stub agent** and move tier 1 onto it. This has to happen *before* an agent
+5. ~~**Write the stub agent** and move tier 1 onto it.~~ **Done.** This has to happen *before* an agent
    leaves, not after: the moment `agents/claude` is a different repository, the core's own
    acceptance suite has nothing to run, and a suite that cannot run is a suite that quietly
    stops being maintained. It is also the switch tier 2 needs - with the stub as the default,
@@ -679,6 +679,31 @@ other, so a firewall that quietly stopped working fails the run instead of going
 Seven tests, 474 in the suite. The negative control is worth keeping: run the script in a plain
 `ubuntu:24.04` and *both* names resolve, so a green run inside a task is the containment
 working rather than the script pretending.
+
+### Tier 1 drives it, and stopped naming an agent
+
+`SOKAR_E2E_AGENT` selects the agent, defaulting to `stub`; `SOKAR_E2E_AGENT=claude` points the
+same checks at the real one. Everything the suite used to hardcode is now read from the agent's
+own `describe` response - the tool's name, its prompt flag, its default provider, and the
+variables it is pointed at a proxy with. Both agents pass every check.
+
+**Three things were hardcoded that nobody had noticed**, because with one agent they were
+indistinguishable from facts:
+
+- **The tool was looked for at `~/.local/bin/<name>`.** Where an agent installs its tool is the
+  agent's business, and the two already disagree - one uses `~/.local/bin`, the other
+  `/usr/local/bin`. It is `command -v` now.
+- **The proxy variable was found by matching `*UNIX_SOCKET`**, which is Claude Code's spelling
+  rather than a rule. An agent naming its socket anything else had its *base URL* tested as a
+  socket path, which fails as "not a socket in the container" and reads like a broken mount.
+  The definition states both variables; they are read from it.
+- **`sokar agents | grep` fails under `set -o pipefail` whenever `sokar agents` exits non-zero**,
+  which is what one unusable agent installed anywhere on the machine produces - a stale build,
+  say, speaking an older protocol. Discovery then failed for a reason that had nothing to do
+  with the agent under test. The listing is captured before it is searched.
+
+None of these were reachable with a single agent in the tree. They are the cost of the split
+showing up as soon as something else drove the same code.
 
 ## Tier 2, and turning it off
 

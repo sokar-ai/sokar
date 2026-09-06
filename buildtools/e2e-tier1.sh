@@ -21,7 +21,15 @@ cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
 SOKAR="$ROOT/app/target/sokar"
-AGENT="$ROOT/agents/claude/target/sokar-agent-claude"
+
+# Which agent this suite drives. The stub lives in this repository, so the suite keeps working
+# when the real agents move to their own - and it asks for a granted name and a refused one on
+# purpose, which turns domain coverage from an observation into an assertion.
+#
+# Name another to point the same checks at it:  SOKAR_E2E_AGENT=claude buildtools/e2e-tier1.sh
+AGENT_NAME="${SOKAR_E2E_AGENT:-stub}"
+AGENT_MODULE="${SOKAR_E2E_AGENT_MODULE:-agents/$AGENT_NAME}"
+AGENT="$ROOT/$AGENT_MODULE/target/sokar-agent-$AGENT_NAME"
 WORK="$(mktemp -d)"
 PROJECT="e2e-tier1"
 CONTAINER=""
@@ -69,15 +77,19 @@ AGENT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/sokar/agents"
 mkdir -p "$AGENT_HOME"
 # Copy then rename: a plain cp over a binary that is currently executing fails with
 # "Text file busy", and a previous run's agent process may still be finishing.
-cp "$AGENT" "$AGENT_HOME/.sokar-agent-claude.tmp"
-mv -f "$AGENT_HOME/.sokar-agent-claude.tmp" "$AGENT_HOME/sokar-agent-claude"
+cp "$AGENT" "$AGENT_HOME/.sokar-agent-$AGENT_NAME.tmp"
+mv -f "$AGENT_HOME/.sokar-agent-$AGENT_NAME.tmp" "$AGENT_HOME/sokar-agent-$AGENT_NAME"
 
 echo "== Tier 1: end to end, no credentials =="
 
 # ------------------------------------------------------------------ discovery
 echo
 echo "-- discovery --"
-if "$SOKAR" agents 2>/dev/null | grep -q '^claude'; then
+# Captured first: under 'set -o pipefail' a non-zero 'sokar agents' - which is what an
+# unrelated, unusable agent installed on the machine produces - would fail this check however
+# well the grep did.
+AGENTS_LISTED="$("$SOKAR" agents 2>/dev/null || true)"
+if echo "$AGENTS_LISTED" | grep -q "^$AGENT_NAME"; then
     pass "sokar found an agent it was never linked against"
 else
     fail "sokar did not find the installed agent"
@@ -89,7 +101,14 @@ CLI_VERSION="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(s
 # back from the run rather than from the agent's own description - where it no longer appears.
 TOKEN_ENV=""
 DOMAINS="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print("\n".join(json.load(sys.stdin)["definition"]["allowedDomains"]))')"
-info "CLI version $CLI_VERSION"
+
+# Read rather than assumed, so nothing here names one agent's tool, prompt flag or provider.
+AGENT_BINARY="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["definition"]["binary"])')"
+PROMPT_FLAG="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["definition"]["headless"].get("promptFlag") or "")')"
+PROVIDER="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("default") or "")')"
+SOCKET_ENV="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("socketEnvironment") or "")')"
+BASE_URL_ENV="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("baseUrlEnvironment") or "")')"
+info "agent $AGENT_NAME, tool $AGENT_BINARY, provider ${PROVIDER:-none}, CLI version $CLI_VERSION"
 
 # ------------------------------------------------------------------ the vault
 # A vault of this run's own, never the operator's. Reading theirs made the result depend on
@@ -105,7 +124,7 @@ FAKE_CREDENTIAL="sk-ant-e2e-not-a-real-key"
 VAULT_READY=""
 if "$SOKAR" vault unlock --passphrase-command "printf e2e-tier1" >/dev/null 2>&1; then
     if printf '%s' "$FAKE_CREDENTIAL" \
-            | "$SOKAR" vault put claude --type api-key >/dev/null 2>&1; then
+            | "$SOKAR" vault put "${PROVIDER:-$AGENT_NAME}" --type api-key >/dev/null 2>&1; then
         VAULT_READY="yes"
     fi
 fi
@@ -133,7 +152,7 @@ START_LOG="$WORK/start.log"
 # then wait for it. A blocked destination is data here, not a question.
 # --agent, not "whatever is installed": another agent on the machine would otherwise decide
 # what this run measures, or refuse it outright for being ambiguous.
-if (cd "$WORK" && "$SOKAR" task run --agent claude --keep --no-attach --clearance deny \
+if (cd "$WORK" && "$SOKAR" task run --agent "$AGENT_NAME" --keep --no-attach --clearance deny \
         > "$START_LOG" 2>&1); then
     pass "task run built the image and started the container"
 else
@@ -144,15 +163,17 @@ CONTAINER="$(grep '^container ' "$START_LOG" | awk '{print $2}')"
 IMAGE="$(grep '^image ' "$START_LOG" | awk '{print $2}')"
 info "image $IMAGE, container $CONTAINER"
 
-if grep -q "^agent .*claude" "$START_LOG"; then
+if grep -q "^agent .*$AGENT_NAME" "$START_LOG"; then
     pass "the agent contributed a layer to the image"
 else
     fail "no agent layer was contributed"
 fi
 
-if podman run --rm "$IMAGE" sh -c 'test -x ~/.local/bin/claude' 2>/dev/null; then
+# command -v, not a fixed path: where an agent puts its tool is the agent's business, and two
+# of them already disagree - one installs into ~/.local/bin, another into /usr/local/bin.
+if podman run --rm "$IMAGE" sh -c "command -v '$AGENT_BINARY'" >/dev/null 2>&1; then
     pass "the agent CLI is installed in the image"
-    IN_IMAGE="$(podman run --rm "$IMAGE" sh -c '~/.local/bin/claude --version' 2>/dev/null | head -1)"
+    IN_IMAGE="$(podman run --rm "$IMAGE" sh -c "'$AGENT_BINARY' --version" 2>/dev/null | head -1)"
     if echo "$IN_IMAGE" | grep -q "$CLI_VERSION"; then
         pass "the installed CLI is the pinned version ($IN_IMAGE)"
     else
@@ -246,8 +267,11 @@ PHANTOM_VAR="$(podman exec "$CONTAINER" sh -c \
 if [ -z "$PHANTOM_VAR" ]; then
     info "no phantom token in this run, so there is nothing to redeem"
 else
-    SOCKET_VAR="$(podman exec "$CONTAINER" sh -c \
-        'env | grep -E "^[A-Z_]*(UNIX_SOCKET|BASE_URL)=" | cut -d= -f1' 2>/dev/null | head -1)"
+    # Taken from the agent's own description, not matched by name. An earlier version looked
+    # for a variable ending in UNIX_SOCKET, which is Claude Code's spelling and not a rule -
+    # an agent naming its socket anything else had its base URL tested as a socket path, which
+    # fails as "not a socket in the container" and reads like a broken mount.
+    SOCKET_VAR="${SOCKET_ENV:-$BASE_URL_ENV}"
 
     if [ -z "$SOCKET_VAR" ]; then
         fail "$PHANTOM_VAR holds a phantom token that nothing can redeem"
@@ -321,8 +345,9 @@ else
     pass "the container has a working resolver"
 
     # A short, cheap prompt. It will fail to authenticate; the connection attempts are the point.
+    # The prompt flag is the agent's own: some take it positionally, which is an empty flag.
     podman exec "$CONTAINER" sh -c \
-        'timeout 45 ~/.local/bin/claude -p hello >/dev/null 2>&1' >/dev/null 2>&1 || true
+        "timeout 45 '$AGENT_BINARY' $PROMPT_FLAG hello >/dev/null 2>&1" >/dev/null 2>&1 || true
     sleep 2
 
     # Names the agent's definition says it deliberately does not get. Without this the check
@@ -468,7 +493,7 @@ image:
   base_image: "sokar-no-such-base-image:0"
 EOF
 
-if (cd "$FAIL_DIR" && "$SOKAR" task run --agent claude --keep --no-attach --clearance deny \
+if (cd "$FAIL_DIR" && "$SOKAR" task run --agent "$AGENT_NAME" --keep --no-attach --clearance deny \
         > "$FAIL_DIR/start.log" 2>&1); then
     fail "a task with an unbuildable image reported success"
 else
