@@ -35,7 +35,7 @@ jobs:
           esac
           echo "JF_URL=$JF_URL"
 
-      - uses: jfrog/setup-jfrog-cli@v4
+      - uses: jfrog/setup-jfrog-cli@v5
 
       - name: Artifactory answers, and the token authenticates
         run: jf rt ping
@@ -44,16 +44,23 @@ jobs:
       - name: Both repositories exist and are the right type
         run: |
           set -eu
-          for pair in "$DEB_REPO:Debian" "$RPM_REPO:YUM"; do
-              repo="${pair%%:*}"; want="${pair##*:}"
-              got="$(jf rt curl -s -XGET "/api/repositories/$repo" | jq -r '.packageType // "MISSING"')"
-              if [ "$(echo "$got" | tr 'A-Z' 'a-z')" = "$(echo "$want" | tr 'A-Z' 'a-z')" ]; then
-                  echo "  OK    $repo is a $got repository"
-              else
-                  echo "::error::$repo has packageType '$got', expected '$want'"
-                  exit 1
-              fi
-          done
+          # 'rpm' is what the API reports; older Artifactory said 'yum' and parts of JFrog's
+          # own documentation still do. Accept either rather than pin to one spelling.
+          check_type() {
+              repo="$1"; shift
+              got="$(jf rt curl -s -XGET "/api/repositories/$repo" \
+                  | jq -r '.packageType // "MISSING"' | tr 'A-Z' 'a-z')"
+              for want in "$@"; do
+                  if [ "$got" = "$want" ]; then
+                      echo "  OK    $repo is a '$got' repository"
+                      return 0
+                  fi
+              done
+              echo "::error::$repo has packageType '$got', expected one of: $*"
+              return 1
+          }
+          check_type "$DEB_REPO" debian
+          check_type "$RPM_REPO" rpm yum
 
       # No signing key means no InRelease, and apt refuses the repository - with an error
       # that reads as a network problem.
