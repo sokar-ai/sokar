@@ -18,31 +18,54 @@ class StubAgentTest {
 
     private final StubAgent agent = new StubAgent();
 
-    /** The script the image build writes, as the definition renders it. */
-    private String script() {
+    /** The container-build line, exactly as the image build receives it. */
+    private String buildLine() {
         return String.join("\n", agent.definition().installAsRoot());
     }
 
-    /** Every name the script actually asks the resolver for. */
-    private List<String> lookups() {
-        return script().lines()
+    /**
+     * The script that line actually writes, produced by running it.
+     * <p>
+     * Rendered rather than parsed: the tests below then check the file an image really gets,
+     * and they keep working whatever form the line takes. An earlier version read the body out
+     * of a here-document, which was both brittle and a form podman 4 cannot build at all.
+     */
+    private String renderedScript() throws Exception {
+        final java.nio.file.Path file = java.nio.file.Files.createTempFile("stub-cli", ".sh");
+        try {
+            final String command = buildLine()
+                    .replaceFirst("^RUN ", "")
+                    .replace(StubAgent.TARGET, file.toString());
+            final Process process = new ProcessBuilder("sh", "-c", command)
+                    .redirectErrorStream(true).start();
+            final String output = new String(process.getInputStream().readAllBytes());
+            assertThat(process.waitFor())
+                    .withFailMessage("the build line did not run: %s", output).isZero();
+            return java.nio.file.Files.readString(file);
+        } finally {
+            java.nio.file.Files.deleteIfExists(file);
+        }
+    }
+
+    /** Every name the script asks the resolver for. */
+    private List<String> lookups() throws Exception {
+        return renderedScript().lines()
                 .map(String::strip)
-                .map(line -> line.replaceFirst("^if ", ""))
                 .filter(line -> line.startsWith("getent hosts "))
                 .map(line -> line.split(" ")[2])
                 .toList();
     }
 
     @Test
-    void reportsTheVersionItsDefinitionPins() {
+    void reportsTheVersionItsDefinitionPins() throws Exception {
         final String version = agent.definition().version();
 
         assertThat(version).isNotNull().isNotEqualTo("${agent.cli.version}");
-        assertThat(script()).contains("echo '" + version + " (Sokar stub agent)'");
+        assertThat(renderedScript()).contains(version + " (Sokar stub agent)");
     }
 
     @Test
-    void looksUpEveryDomainItDeclares() {
+    void looksUpEveryDomainItDeclares() throws Exception {
 
         // The lookup, not the name. An earlier version asserted the script merely mentioned each
         // domain and stayed green when the lookup was pointed at a third name, because the
@@ -65,20 +88,33 @@ class StubAgentTest {
     }
 
     @Test
-    void redeemsItsTokenThroughTheSocketTheProviderSectionNames() {
+    void redeemsItsTokenThroughTheSocketTheProviderSectionNames() throws Exception {
         final String socketVariable = agent.definition().provider().socketEnvironment();
 
         assertThat(socketVariable).isNotNull();
-        assertThat(script()).contains("--unix-socket \"$" + socketVariable + "\"");
+        assertThat(renderedScript()).contains("--unix-socket \"$" + socketVariable + "\"");
     }
 
     @Test
     void writesTheBinaryItsDefinitionSaysItIsInvokedAs() {
-        final String binary = agent.definition().binary();
+        assertThat(StubAgent.TARGET).endsWith("/" + agent.definition().binary());
+        assertThat(buildLine())
+                .contains("> " + StubAgent.TARGET)
+                .contains("chmod 0755 " + StubAgent.TARGET);
+    }
 
-        assertThat(script())
-                .contains("> /usr/local/bin/" + binary + " <<'STUB'")
-                .contains("chmod 0755 /usr/local/bin/" + binary);
+    @Test
+    void usesNoConstructPodmanFourCannotParse() {
+
+        // podman 4.9.3, which Ubuntu 24.04 ships, reads every line of a Containerfile as an
+        // instruction. A here-document fails there with `Unknown instruction: "IF"` while
+        // building fine on podman 5, which is how this reached an acceptance leg.
+        assertThat(buildLine())
+                .doesNotContain("<<")
+                .startsWith("RUN ");
+        for (final String line : agent.definition().installAsRoot()) {
+            assertThat(line.strip().isEmpty()).isFalse();
+        }
     }
 
     @Test
@@ -90,13 +126,9 @@ class StubAgentTest {
 
     @Test
     void writesAShellScriptTheShellAccepts() throws Exception {
-        final String all = script();
-        final int start = all.indexOf("<<'STUB'\n") + "<<'STUB'\n".length();
-        final String body = all.substring(start, all.indexOf("\nSTUB\n"));
-
         final java.nio.file.Path file = java.nio.file.Files.createTempFile("stub-cli", ".sh");
         try {
-            java.nio.file.Files.writeString(file, body);
+            java.nio.file.Files.writeString(file, renderedScript());
             final Process process = new ProcessBuilder("sh", "-n", file.toString())
                     .redirectErrorStream(true).start();
             final String output = new String(process.getInputStream().readAllBytes());

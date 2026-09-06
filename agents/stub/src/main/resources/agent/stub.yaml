@@ -51,45 +51,21 @@ install:
   # Written into the image, not fetched: a build that downloads nothing cannot install different
   # bytes on different days, and the suite gains no coverage from exercising curl.
   #
-  # A quoted here-document, so nothing below is expanded while the file is being written and
-  # nothing needs escaping. Plain $VAR rather than ${VAR}, because this file is Maven-filtered
-  # and ${...} is what filtering replaces.
+  # One RUN with printf, continued across lines - NOT a here-document. podman 5 parses a
+  # Containerfile heredoc; podman 4.9.3, which Ubuntu 24.04 ships, does not: it reads every line
+  # as an instruction and fails with `Unknown instruction: "IF"`. Measured, on the acceptance leg
+  # that exists for exactly that difference.
+  #
+  # No 'if' at all, so each line survives as one printf argument, and no '${...}' anywhere -
+  # this file is Maven-filtered and that is what filtering replaces.
   as_root:
-    - "RUN cat > /usr/local/bin/sokar-stub-cli <<'STUB'"
-    - "#!/bin/sh"
-    - "if [ \"$1\" = \"--version\" ]; then"
-    - "    echo '${agent.cli.version} (Sokar stub agent)'"
-    - "    exit 0"
-    - "fi"
-    - ""
-    - "# Declared and granted. The resolver answers only what the definition declares."
-    - "if getent hosts example.com >/dev/null 2>&1; then"
-    - "    echo 'stub: example.com resolved'"
-    - "else"
-    - "    echo 'stub: example.com did not resolve'"
-    - "fi"
-    - ""
-    - "# Declared as refused, and asked for on purpose. This is the half that makes domain"
-    - "# coverage an assertion: the query must appear in the resolver log as NXDOMAIN."
-    - "if getent hosts example.net >/dev/null 2>&1; then"
-    - "    echo 'stub: example.net resolved'"
-    - "else"
-    - "    echo 'stub: example.net refused'"
-    - "fi"
-    - ""
-    - "# Redeem this task's token against the provider through the proxy socket. A rejection"
-    - "# from the provider is the expected end: it proves the proxy swapped the token rather"
-    - "# than answering for itself."
-    - "if [ -S \"$SOKAR_STUB_SOCKET\" ]; then"
-    - "    curl -s --max-time 30 --unix-socket \"$SOKAR_STUB_SOCKET\" \\"
-    - "        -H \"x-api-key: $ANTHROPIC_API_KEY\" \\"
-    - "        -H 'anthropic-version: 2023-06-01' \\"
-    - "        -H 'content-type: application/json' \\"
-    - "        -X POST http://api.anthropic.com/v1/messages \\"
-    - "        -d '{\"model\":\"claude-3-5-haiku-20241022\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}'"
-    - "    echo"
-    - "else"
-    - "    echo 'stub: no proxy socket'"
-    - "fi"
-    - "STUB"
-    - "RUN chmod 0755 /usr/local/bin/sokar-stub-cli"
+    - "RUN printf '%s\\n' \\"
+    - "      '#!/bin/sh' \\"
+    - "      '[ \"$1\" = \"--version\" ] && { echo \"${agent.cli.version} (Sokar stub agent)\"; exit 0; }' \\"
+    - "      'getent hosts example.com >/dev/null 2>&1 && echo \"stub: example.com resolved\" || echo \"stub: example.com did not resolve\"' \\"
+    - "      'getent hosts example.net >/dev/null 2>&1 && echo \"stub: example.net resolved\" || echo \"stub: example.net refused\"' \\"
+    - "      '[ -S \"$SOKAR_STUB_SOCKET\" ] || { echo \"stub: no proxy socket\"; exit 0; }' \\"
+    - "      'curl -s --max-time 30 --unix-socket \"$SOKAR_STUB_SOCKET\" -H \"x-api-key: $ANTHROPIC_API_KEY\" -H \"anthropic-version: 2023-06-01\" -H \"content-type: application/json\" -X POST http://api.anthropic.com/v1/messages -d \"{}\"' \\"
+    - "      'echo' \\"
+    - "      > /usr/local/bin/sokar-stub-cli \\"
+    - "    && chmod 0755 /usr/local/bin/sokar-stub-cli"

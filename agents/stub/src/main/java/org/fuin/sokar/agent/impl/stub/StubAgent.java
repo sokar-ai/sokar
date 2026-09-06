@@ -23,6 +23,9 @@ import org.fuin.sokar.agent.api.YamlAgent;
  */
 public final class StubAgent extends YamlAgent {
 
+    /** Where {@code stub.yaml} writes the tool; {@code binary} in the definition names it. */
+    static final String TARGET = "/usr/local/bin/sokar-stub-cli";
+
     /**
      * Constructor.
      */

@@ -726,6 +726,21 @@ What it took beyond removing the module, none of it obvious from the module itse
 
 455 tests, down from 474: the 19 that moved are Claude Code's own.
 
+**And the stub's own image layer had to be rewritten, on podman 4's account.** It wrote its tool
+with a Containerfile here-document, which podman 5.8.4 builds and podman 4.9.3 - what Ubuntu
+24.04 ships - does not: podman 4 reads every line as an instruction and fails with
+`Unknown instruction: "IF"` on the script's first `if`. It was tested on one podman and called
+verified.
+
+The layer is now a single `RUN` with `printf`, continued across lines, and the script avoids
+`if` entirely so each line survives as one argument. A unit test asserts the build line contains
+no `<<`, and the other tests **render** the script by running that line rather than parsing it -
+so they check the file an image actually receives, and cannot be fooled by the form changing
+again.
+
+That is the second defect this leg has found that neither development VM could, both of them
+about podman 4 against podman 5.
+
 ## Tier 2, and turning it off
 
 Tier 2 belongs to the agent repositories, but wherever it runs the shape is the same: a real
