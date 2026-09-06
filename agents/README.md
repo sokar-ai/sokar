@@ -42,8 +42,10 @@ installs. Names are not unique in this field, and an agent that only says "Pi" o
 
 ### 1. `agents/<name>/pom.xml`
 
-Copy an existing one. The only dependency is `sokar-agent-api`. **Do not add a
-dependency on another agent** — the build will reject it.
+Copy an existing one. Two dependencies: `sokar-agent-api`, and `sokar-wire` for
+`Json`. Those are the only Sokar artifacts on Maven Central, so they are also the
+only ones an agent in its own repository can resolve. **Do not add a dependency on
+another agent** — the build will reject it.
 
 Declare **two** things:
 

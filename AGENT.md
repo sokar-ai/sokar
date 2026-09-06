@@ -17,8 +17,10 @@ is an ArchUnit test that fails the build. It was verified to bite by introducing
 If you find yourself wanting an exception, the answer is a new field in the agent
 definition YAML, not a branch in Sokar.
 
-The same rule in reverse: an agent module may depend on `sokar-agent-api` and
-nothing else of Sokar's.
+The same rule in reverse: an agent module may depend on the published SPI -
+`sokar-agent-api`, and `sokar-wire` for `Json` - and on nothing else of Sokar's.
+Those two are the only artifacts Sokar puts on Maven Central, so the rule is also
+what an agent in its own repository is *able* to resolve.
 
 ## Code
 

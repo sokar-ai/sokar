@@ -13,7 +13,7 @@
 
     <artifactId>sokar-wire</artifactId>
     <name>Sokar Wire</name>
-    <description>Sokar - Cross-boundary records (WIRE)</description>
+    <description>Sokar - Cross-boundary records, varlink and socket labelling (WIRE)</description>
 
     <properties>
         <!-- Deployed to Central. Not interesting on its own - it is deployed because
