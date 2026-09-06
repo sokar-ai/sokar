@@ -333,7 +333,22 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         out.println("task image     " + project.imageName());
         out.flush();
 
+        // Resolved here rather than at the point of use: a set name that does not exist is a
+        // mistake in the project file, and the place to report one of those is beside the other
+        // project-file errors - before an image is built, and where --dry-run can still see it.
+        final java.util.Map<String, String> projectOrigins;
+        try {
+            projectOrigins = projectEgress(project, context.paths().egressSets());
+        } catch (org.fuin.sokar.shield.EgressSetException ex) {
+            err.println("sokar: " + ex.getMessage());
+            err.flush();
+            return 2;
+        }
+
         if (dryRun) {
+            // What the project itself opens. The agent and provider are not chosen yet, so this
+            // is a preview of the file rather than the full report a real run prints.
+            reportReachable(project, projectOrigins, java.util.List.of(), out);
             return 0;
         }
 
@@ -426,17 +441,6 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     }
                     origins.putIfAbsent(host, "provider " + serving.definition().name());
                 }
-            }
-            // What the PROJECT's own tooling needs, as opposed to what the agent needs. Resolved
-            // here so an unknown set name stops the task rather than producing a build that
-            // cannot fetch a dependency for a reason nothing explains.
-            final java.util.Map<String, String> projectOrigins;
-            try {
-                projectOrigins = projectEgress(project, context.paths().egressSets());
-            } catch (org.fuin.sokar.shield.EgressSetException ex) {
-                err.println("sokar: " + ex.getMessage());
-                err.flush();
-                return 2;
             }
             projectOrigins.forEach((host, origin) -> {
                 if (!domains.contains(host)) {
