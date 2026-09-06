@@ -8,15 +8,20 @@ binary that is already there.
 ```
 agents/
 ├── api/          sokar-agent-api       the agent contract; both sides link it
-├── stub/         sokar-agent-stub      → the agent the acceptance suite drives
-└── pi/           sokar-agent-pi        → its own binary, and it ships its own CLI
+└── stub/         sokar-agent-stub      → the agent the acceptance suite drives
 ```
 
-**A shipped agent lives in its own repository.** Claude Code is
-[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code): it builds against the published contract, releases on
-its own cadence, and this repository contains no reference to it. Pi is still here
-and moves next. The stub stays: without an agent in the tree the acceptance suite
-would have nothing to drive.
+**Every shipped agent lives in its own repository**, building against the published
+contract, releasing on its own cadence, with this repository containing no reference
+to either:
+
+| Agent | Repository |
+|---|---|
+| Claude Code | [sokar-claude-code](https://github.com/fuinorg/sokar-claude-code) |
+| Pi | [sokar-pi](https://github.com/fuinorg/sokar-pi) |
+
+The stub stays. Without an agent in the tree the acceptance suite would have nothing
+to drive, and a suite that cannot run is one that quietly stops being maintained.
 
 ```
 $ sokar agents

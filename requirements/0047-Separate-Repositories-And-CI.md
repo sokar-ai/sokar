@@ -499,8 +499,10 @@ version line, so depending on a released API is the shape the design already wan
    published agent API with no checkout of this repository.~~ **Done**, and removed from this
    reactor. It builds, packages, publishes and runs its own acceptance suite in
    [sokar-claude-code](https://github.com/fuinorg/sokar-claude-code).
-7. **Split Pi.** Second on purpose: it ships a 70 MB npm tree built by `npm ci` inside a pinned
-   container, so its CI needs podman and a much longer build. One hard problem at a time.
+7. ~~**Split Pi.** Second on purpose: it ships a 70 MB npm tree built by `npm ci` inside a
+   pinned container, so its CI needs podman and a much longer build. One hard problem at a
+   time.~~ **Done**, in [sokar-pi](https://github.com/fuinorg/sokar-pi), and removed from this
+   reactor.
 8. **Then [0044](0044-Automated-Agent-Updates.md)**, which gets easier: one repository per agent
    is a natural unit for an update workflow.
 
@@ -740,6 +742,26 @@ again.
 
 That is the second defect this leg has found that neither development VM could, both of them
 about podman 4 against podman 5.
+
+### Pi followed, and cost far less
+
+Splitting Pi took a fraction of what Claude Code took, because everything it needed already
+existed: the published contract, the packaging shape, the acceptance suite, the workflow, the
+smoke test. What was genuinely Pi's own:
+
+- **`-Pdist` needs podman there**, which it does not here. Pi's package carries the tool -
+  73 MB of npm tree and a Node runtime, built by `npm ci` inside a pinned container. That is
+  why its build is minutes rather than seconds.
+- **`build-pi-tree.sh` moved with it** and left this repository entirely; it located the module
+  as `../agents/pi`, a path from a layout that no longer exists anywhere.
+- **Its acceptance run passes no `--provider`.** OpenRouter is Pi's default, and that it is
+  reached without being restated is part of what the check proves - where Claude Code has to
+  name it, being an Anthropic-dialect agent pointed elsewhere.
+- **Bumping its version is three edits, not two**, and the third is the lockfile, which is what
+  actually decides the bytes.
+
+`agents/` now holds the contract and the stub. 451 tests here; `strings app/target/sokar` finds
+neither `claude` nor `pi`, which it could not have done while either module was in the tree.
 
 **The list of fetched binaries was written down twice**, and removing the agent from one did not
 remove it from the other: the publish job kept expecting a binary the acceptance leg had stopped
