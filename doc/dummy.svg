@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="680" height="356" viewBox="0 84 680 356"
+     role="img" aria-labelledby="dummyTitle dummyDesc">
+
+  <title id="dummyTitle">Sokar for dummies</title>
+  <desc id="dummyDesc">A cartoon crash-test dummy, yellow with black joints and a
+  bullseye on its chest, sits cheerfully on the floor of a sealed container
+  hammering away at a laptop. Outside the wall a padlock hangs shut and a sulking
+  little cloud stands beside a signpost reading NXDOMAIN, unable to get in.</desc>
+
+  <!-- Every shape carries an explicit fill and stroke, and the background is
+       painted here, so the drawing keeps its colours on a white or a dark page. -->
+
+  <!-- ============ background ============ -->
+  <!-- The panel stops short of the viewBox on the right: that empty strip is the
+       gap that keeps floated text off the picture. -->
+  <rect x="2" y="86" width="636" height="352" rx="16"
+        fill="#f4f0e4" stroke="#23262b" stroke-width="3"/>
+
+  <!-- ============ ground the whole scene stands on ============ -->
+  <rect x="26" y="400" width="588" height="16" rx="6"
+        fill="#c2b79c" stroke="#23262b" stroke-width="3"/>
+
+  <!-- ============ the container ============ -->
+  <rect x="40" y="110" width="380" height="292" rx="12"
+        fill="#b7c4d1" stroke="#23262b" stroke-width="4"/>
+  <rect x="62" y="132" width="336" height="248" rx="6"
+        fill="#e9e4d6" stroke="#23262b" stroke-width="3"/>
+  <!-- interior floor -->
+  <rect x="62" y="340" width="336" height="40"
+        fill="#cdbfa3" stroke="#23262b" stroke-width="3"/>
+  <!-- a few rivets, so the walls look like they mean it -->
+  <g fill="#8b98a5" stroke="#23262b" stroke-width="2">
+    <circle cx="51" cy="140" r="5"/>
+    <circle cx="51" cy="256" r="5"/>
+    <circle cx="51" cy="372" r="5"/>
+    <circle cx="409" cy="140" r="5"/>
+    <circle cx="409" cy="372" r="5"/>
+  </g>
+
+  <!-- ============ the dummy ============ -->
+  <g stroke="#23262b" stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- legs, splayed out on the floor -->
+    <path d="M178 326 L146 360 L118 372" fill="none" stroke-width="26"/>
+    <path d="M222 326 L254 360 L282 372" fill="none" stroke-width="26"/>
+    <path d="M178 326 L146 360 L118 372" fill="none" stroke="#f2c14e" stroke-width="17"/>
+    <path d="M222 326 L254 360 L282 372" fill="none" stroke="#f2c14e" stroke-width="17"/>
+    <ellipse cx="112" cy="374" rx="15" ry="9" fill="#f2c14e" stroke-width="4"/>
+    <ellipse cx="288" cy="374" rx="15" ry="9" fill="#f2c14e" stroke-width="4"/>
+    <circle cx="146" cy="360" r="10" fill="#2b2f36" stroke-width="3"/>
+    <circle cx="254" cy="360" r="10" fill="#2b2f36" stroke-width="3"/>
+
+    <!-- torso -->
+    <rect x="160" y="240" width="80" height="92" rx="20" fill="#f2c14e" stroke-width="4"/>
+    <!-- the obligatory bullseye -->
+    <circle cx="200" cy="272" r="20" fill="#23262b" stroke-width="3"/>
+    <circle cx="200" cy="272" r="13" fill="#f4f0e4" stroke-width="3"/>
+    <circle cx="200" cy="272" r="6"  fill="#23262b" stroke-width="2"/>
+
+    <!-- neck and round, featureless head -->
+    <rect x="189" y="222" width="22" height="24" rx="8" fill="#e0af3d" stroke-width="4"/>
+    <circle cx="200" cy="196" r="35" fill="#f2c14e" stroke-width="4"/>
+    <!-- calibration marker on the temple, the way real dummies wear them -->
+    <circle cx="176" cy="188" r="7" fill="#23262b" stroke-width="3"/>
+    <path d="M170 214 Q200 224 230 212" fill="none" stroke="#e0af3d" stroke-width="3"/>
+
+    <!-- laptop on its lap, seen from behind -->
+    <rect x="172" y="296" width="56" height="32" rx="4" fill="#4a5568" stroke-width="4"/>
+    <circle cx="200" cy="312" r="7" fill="#f2c14e" stroke-width="3"/>
+    <circle cx="200" cy="312" r="3" fill="#23262b" stroke-width="0"/>
+    <path d="M166 328 L234 328 L244 342 L156 342 Z" fill="#6b7684" stroke-width="4"/>
+
+    <!-- arms, hands hammering the keyboard -->
+    <path d="M160 252 L136 296 L166 326" fill="none" stroke-width="22"/>
+    <path d="M240 252 L264 296 L234 326" fill="none" stroke-width="22"/>
+    <path d="M160 252 L136 296 L166 326" fill="none" stroke="#f2c14e" stroke-width="13"/>
+    <path d="M240 252 L264 296 L234 326" fill="none" stroke="#f2c14e" stroke-width="13"/>
+    <circle cx="160" cy="252" r="11" fill="#2b2f36" stroke-width="3"/>
+    <circle cx="240" cy="252" r="11" fill="#2b2f36" stroke-width="3"/>
+    <circle cx="136" cy="296" r="9"  fill="#2b2f36" stroke-width="3"/>
+    <circle cx="264" cy="296" r="9"  fill="#2b2f36" stroke-width="3"/>
+  </g>
+
+  <!-- typing sparks -->
+  <g stroke="#23262b" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M120 300 L110 292"/>
+    <path d="M116 314 L104 312"/>
+    <path d="M280 300 L290 292"/>
+    <path d="M284 314 L296 312"/>
+  </g>
+
+  <!-- ============ the padlock on the outside of the wall ============ -->
+  <g stroke="#23262b" stroke-linecap="round">
+    <path d="M403 250 L403 240 A 8 8 0 0 1 419 240 L419 250"
+          fill="none" stroke-width="5"/>
+    <rect x="393" y="250" width="36" height="28" rx="6" fill="#9aa5b1" stroke-width="4"/>
+    <circle cx="411" cy="262" r="4" fill="#23262b" stroke-width="0"/>
+    <path d="M411 264 L411 271" stroke-width="4"/>
+  </g>
+
+  <!-- ============ the internet, sulking outside ============ -->
+  <g stroke="#23262b" stroke-linejoin="round">
+    <path d="M472 214 C452 214 450 184 470 180 C470 154 502 146 516 163
+             C529 147 560 154 562 176 C583 179 585 210 566 214 Z"
+          fill="#c9d2dc" stroke-width="4"/>
+    <circle cx="504" cy="186" r="4" fill="#23262b" stroke-width="0"/>
+    <circle cx="534" cy="186" r="4" fill="#23262b" stroke-width="0"/>
+    <path d="M500 202 Q519 192 538 202" fill="none" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- the sign it has been reduced to holding -->
+  <rect x="514" y="294" width="12" height="108" fill="#8a7a5c" stroke="#23262b" stroke-width="3"/>
+  <rect x="450" y="246" width="140" height="52" rx="7"
+        fill="#efe9d8" stroke="#23262b" stroke-width="4"/>
+  <text x="520" y="280" text-anchor="middle"
+        font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="23" font-weight="700" letter-spacing="1" fill="#23262b">NXDOMAIN</text>
+</svg>
