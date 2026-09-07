@@ -245,8 +245,6 @@ public final class TaskLaunch {
         final String container =
                 runner.containerName(project, request.task(), String.valueOf(ProcessHandle.current().pid()));
 
-        final TaskWorkspace workspace = workspace().openWorkspace(project, !request.noGate() && !request.dryRun(), out, err);
-
         try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
 
             credentials().reportStaleCredential(select(agents), out);
@@ -262,6 +260,25 @@ public final class TaskLaunch {
                 err.flush();
                 return 69;
             }
+
+            if (request.mode() == org.fuin.sokar.wire.TaskMode.UNATTENDED) {
+                final String unavailable = wiring().unavailableFor(select(agents));
+                if (unavailable != null) {
+                    // Refused rather than warned, and refused here: nobody is watching an
+                    // unattended run, so a warning is written into an empty room and the failure
+                    // is found later by somebody who did not start it. Before the gate, the image
+                    // and the container on purpose - a refusal that left a workspace and a held
+                    // container behind would be the warning again with a different exit code.
+                    err.println("sokar: " + unavailable);
+                    err.println("sokar: nothing was created; an unattended run cannot ask anybody,"
+                            + " so it is refused rather than started to fail");
+                    err.flush();
+                    return 69;
+                }
+            }
+
+            final TaskWorkspace workspace = workspace().openWorkspace(project,
+                    !request.noGate() && !request.dryRun(), out, err);
 
             final org.fuin.sokar.runtime.ImageLayers layers;
             try {

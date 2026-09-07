@@ -58,6 +58,13 @@ cleanup() {
     # already holds the ref this run pushes, so the push fails as a non-fast-forward and
     # reads as a broken gate.
     rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/mirrors/$PROJECT.git"
+    # Both only exist if the locked-vault refusal failed to refuse. Removed so a failing run does
+    # not poison the next one: a container left by a failed run is still there when the next run
+    # looks for one, which reports a failure that already happened rather than the one being
+    # measured - it cost a confusing red on this very check.
+    rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/mirrors/$PROJECT-nocred.git"
+    podman ps -a --format '{{.Names}}' 2>/dev/null | grep "^sokar-$PROJECT-nocred-" \
+        | while read -r stale; do podman rm -f "$stale" >/dev/null 2>&1; done
     :
 }
 trap cleanup EXIT
@@ -830,6 +837,73 @@ else
         fi
     fi
 fi
+
+# ------------------------------------------ an unattended run with a locked vault
+#
+# The one case where Sokar refuses instead of warning. An unattended run that cannot authenticate
+# is certain to be wasted and nobody is watching it, so the failure would be found later by
+# somebody who did not start it - and they would find a workspace and a held container to clear up
+# as well.
+#
+# Two things are measured, and the second is the one that makes the refusal worth having: that it
+# refuses, and that it created NOTHING while doing so. A refusal that still left a gate mirror
+# behind would be the old warning with a different exit code.
+echo
+echo "-- an unattended run with a locked vault --"
+
+REFUSED_PROJECT="$PROJECT-nocred"
+REFUSED_MIRROR="${XDG_DATA_HOME:-$HOME/.local/share}/sokar/mirrors/$REFUSED_PROJECT.git"
+
+cat > "$WORK/nocred-project.yml" <<EOF
+project:
+  name: "$REFUSED_PROJECT"
+  security_class: "guarded"
+image:
+  base_image: "ubuntu:24.04"
+EOF
+
+# A project of its own, so "nothing was created" is a question about a name nothing has touched.
+rm -rf "$REFUSED_MIRROR"
+
+# Drop the cached passphrase. The vault file stays exactly where it was and still holds the
+# credential - which is the whole point: what is missing is the ability to read it, not the
+# credential.
+"$SOKAR" vault lock >/dev/null 2>&1 || "$SOKAR" vault unlock --forget >/dev/null 2>&1 || true
+
+REFUSED_LOG="$WORK/nocred-run.log"
+REFUSED_CODE=0
+(cd "$WORK" && "$SOKAR" task run nocredrun --project nocred-project.yml --agent "$AGENT_NAME" \
+        --clearance deny -P "say hello and stop" > "$REFUSED_LOG" 2>&1) || REFUSED_CODE=$?
+
+if [ "$REFUSED_CODE" -eq 0 ]; then
+    fail "an unattended run started with a locked vault; it should have been refused"
+elif ! grep -q "the vault is locked" "$REFUSED_LOG"; then
+    # Refused for some other reason is not this check passing. Before this was measured the same
+    # situation reported "the vault holds no credential", which sent somebody to store one they
+    # already had.
+    fail "the run was refused but not for the locked vault; see $REFUSED_LOG"
+else
+    pass "an unattended run is refused when the vault is locked"
+    info "$(grep 'the vault is locked' "$REFUSED_LOG" | head -1)"
+fi
+
+if [ -d "$REFUSED_MIRROR" ]; then
+    fail "the refused run left a gate mirror at $REFUSED_MIRROR"
+else
+    pass "the refusal created no workspace"
+fi
+
+if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -q "nocredrun"; then
+    fail "the refused run left a container behind"
+    podman ps -a --format '{{.Names}}' | grep "nocredrun" | while read -r c; do
+        info "left behind: $c"
+    done
+else
+    pass "the refusal created no container"
+fi
+
+# Put the vault back the way this suite set it up, so anything added after this still has one.
+"$SOKAR" vault unlock --passphrase-command "printf e2e-tier1" >/dev/null 2>&1 || true
 
 echo
 if [ "$FAILURES" -eq 0 ]; then

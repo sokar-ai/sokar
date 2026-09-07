@@ -181,6 +181,35 @@ final class CredentialWiring {
         return null;
     }
 
+    /**
+     * Says why an unattended run could not authenticate, or {@code null} when it could.
+     * <p>
+     * Only for a run nobody is watching. An unattended task that cannot authenticate is certain to
+     * be wasted, and the person who finds the wreckage is not the one who started it - so this is
+     * what lets the launcher refuse before anything is created rather than warn into an empty
+     * room. The interactive modes keep the warning: somebody is right there and may be starting a
+     * shell without caring whether the agent can authenticate at all.
+     * <p>
+     * An agent that takes no brokered credential answers {@code null}: there is nothing that could
+     * be missing, and refusing it would stop a task that was never going to authenticate anyway.
+     *
+     * @param agent The agent, or {@code null} when none is installed.
+     * @return The reason, or {@code null} when there is nothing in the way.
+     */
+    @Nullable
+    String unavailableFor(org.fuin.sokar.agent.api.@Nullable InstalledAgent agent) {
+        if (agent == null) {
+            return null;
+        }
+        final SelectedProvider selection = choice.provider(agent);
+        final org.fuin.sokar.agent.api.ProviderRoute route =
+                selection == null ? null : selection.route();
+        if (route == null || choice.tokenVariable(agent) == null) {
+            return null;
+        }
+        return credentialUnavailable(context.readableCredentials(), choice.credentialName(agent));
+    }
+
     @Nullable
     CredentialPlumbing startVault(org.fuin.sokar.agent.api.InstalledAgent agent,
             String container, PrintWriter out, PrintWriter err) {
