@@ -85,7 +85,7 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
 ./mvnw -Pnative,dist clean verify             # + .deb and .rpm
 ```
 
-See [build.md](build.md). Three things that will bite:
+See [build.md](doc/build.md). Three things that will bite:
 
 - **Packaging binds to `verify`, not `package`.** native-image binds to
   `package`, and an inherited plugin runs before the module's own — so at

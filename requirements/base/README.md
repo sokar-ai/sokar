@@ -27,7 +27,7 @@ feature.
 ## What was here and is finished
 
 Five requirements have been met and retired. Their files are gone; what each measured is in
-[AGENT.md](../../doc/AGENT.md), where it will be read again:
+[AGENT.md](../../AGENT.md), where it will be read again:
 
 - **The local daemon API.** `sokard` serves the domain over an owner-only varlink socket, and the
   CLI and the daemon reach it through the same objects, so neither can grow a behaviour the other
