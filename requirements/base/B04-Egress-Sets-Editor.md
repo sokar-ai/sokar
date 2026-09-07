@@ -1,6 +1,8 @@
 # B04 — Egress Sets Editor
 
-**Status:** open
+**Status:** the editor is built and every acceptance criterion below holds through the CLI. What
+is left is a question about *when* a change applies, and a second surface: no daemon method
+exposes any of this, so an interface cannot reach it.
 
 Editing what a task may reach is the highest-consequence configuration in the
 product. It should be legible: which destinations are allowed, where each came from,
@@ -23,8 +25,8 @@ The mechanism this is an interface over is built and verified on both distributi
 - **A declared name opens ports 80 and 443 only**, so "what a change would open" has a port
   dimension that is already fixed and does not need to be offered.
 
-What is missing is editing: a way to change the declaration, see what a change adds or removes
-before it is saved, and be refused when the security class forbids it.
+What was missing was editing - a way to change the declaration, see what a change adds or removes
+before it is saved, and be refused when the security class forbids it. That is below.
 
 ## Acceptance
 
@@ -36,6 +38,46 @@ before it is saved, and be refused when the security class forbids it.
 - **A guarded project that reaches a forge is shown what it costs**, as the CLI does: the gate
   then rests on the container holding no credential for that host rather than on the host being
   unreachable.
+
+## Built, 2026-09-07
+
+`sokar shield egress` shows and changes what a project may reach.
+
+**Shown through the same composition a run uses.** `EgressReport.compose` puts the agent's grants,
+the provider's host and the project's own declaration together, first grant wins, and both the
+task launcher and this command call it. It was two loops for a while, which is how the CLI and the
+interface come to disagree about what is open - the second vocabulary this requirement warned
+against would have appeared inside one binary first.
+
+**A change is reported in hosts, not in set names.** A set is a name for several hosts, and an
+operator adding one is entitled to see them:
+
+```
+opens          repo.maven.apache.org  set maven
+               central.sonatype.com   set maven
+               repo1.maven.org        set maven
+               nexus.corp.example     project
+written        project.yml
+               applies to the next task, not to one already running
+```
+
+`--dry-run` prints exactly that and writes nothing. Adding a forge to a guarded project prints
+what it costs at the moment the edit is made, in the words the run already used - and not again on
+a later edit, because a warning repeated when nothing changed is one an operator learns to skip.
+
+**The file is edited, not rewritten.** `project.yml` is the one file in this product a person
+writes by hand and a colleague reviews in a diff. Reading it into a model and dumping it back
+would be four lines and would throw away every comment, the key order and the quoting somebody
+chose. So the two keys are replaced where they stand, a block list is normalised to the flow form
+the wizard writes, an empty declaration takes the whole block away rather than leaving a bare
+`egress:` that reads as configured, and any line the editor does not understand is a line it does
+not touch.
+
+**Two refusals, both before anything is written.** A set this machine does not have is refused
+with the command that lists the real names - written, it would name something no task could
+resolve, and every run would fail on it rather than this one command. And the result is parsed by
+the project reader itself before it reaches the disk, which is where an `offline` project is
+refused in the words that requirement already chose.
 
 ## Notes
 
@@ -51,8 +93,15 @@ for.
 
 ## To be checked
 
-- Does a change apply to a running task, or only to the next one? Editing what a
-  running agent may reach is a different and larger question than editing a project.
+- **No daemon method exposes any of this**, so an interface cannot show what a project may reach
+  or change it, and it may not shell out to the CLI. The composition and the edit are both in
+  `app`, where the daemon can already reach them; what has to be decided is what a method that
+  edits a file *by path* means when the client is on another machine and has no filesystem there.
+- Does a change apply to a running task, or only to the next one? The editor says it applies to
+  the next one, which is what the code does: a container's ruleset and resolver are built when it
+  starts. Whether they *should* be changeable underneath a running agent is the larger question,
+  and it is the same one the clearance path answers with "only by adding an address to the live
+  set".
 - **Whether a set may carry more than domains.** A CDN that answers a different address per
   request is fine, because dnsmasq adds each answer as it answers. One that is reached by
   address, without a name, is not, and would need something else - which would change what the

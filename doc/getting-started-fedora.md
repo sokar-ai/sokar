@@ -291,7 +291,18 @@ sokar shield sets --verbose    # and the hosts themselves
 ```
 
 Add what your build needs — `maven`, `node`, `python`, `rust`, `go`, `containers` — and, for a
-host no set covers, name it directly:
+host no set covers, name it directly. Either edit the file, or let Sokar do it and tell you what
+the change opens in hosts rather than in set names:
+
+```sh
+sokar shield egress                              # what this project may reach, and who decided
+sokar shield egress --add-set maven --dry-run    # the hosts it would open, writing nothing
+sokar shield egress --add-set maven --add-domain nexus.corp.example
+```
+
+It edits those two keys and leaves the rest of your file — comments included — where it was. A set
+this machine does not have is refused rather than written, and the change applies to the next task,
+not to one already running. By hand it looks like this:
 
 ```yaml
 egress:

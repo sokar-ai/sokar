@@ -148,6 +148,12 @@ See [build.md](doc/build.md). Three things that will bite:
   `PhantomToken.toString` both abbreviate because tokens end up in log lines by accident - and
   `gate serve` then wrote `token.value()` into `gate.log`, which the daemon streams to whatever is
   tailing it. Print the token, not its value.
+- **`project.yml` is edited as text, never round-tripped through a YAML model.** It is the one
+  file here a person writes by hand and a colleague reads in a diff, and a load-and-dump throws
+  away every comment, the key order and the quoting they chose. `EgressEdit` replaces the two keys
+  where they stand and leaves any line it does not understand alone; the result is parsed by
+  `ProjectReader` before it is written, so a surgical edit that produced something the reader
+  refuses fails at the edit rather than at the next task.
 - **A rootless container's agent user is a subordinate uid on the host.** It
   cannot open a `0600` socket the host user owns; the connection simply fails.
   Sokar does not pass `--userns=keep-id` (that would mean pinning the agent's uid,

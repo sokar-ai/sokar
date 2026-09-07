@@ -1,7 +1,9 @@
 package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
+import org.fuin.sokar.agent.api.InstalledAgent;
 import org.fuin.sokar.core.project.Project;
+import org.jspecify.annotations.Nullable;
 
 /**
  * What a task may reach, and where each destination came from.
@@ -53,9 +55,90 @@ final class EgressReport {
      * @param selected The chosen agent, or {@code null}.
      * @return Hosts, empty when the agent names none.
      */
-    static java.util.List<String> refused(
-            org.fuin.sokar.agent.api.InstalledAgent selected) {
+    static java.util.List<String> refused(@Nullable InstalledAgent selected) {
         return selected == null ? java.util.List.of() : selected.definition().refusedDomains();
+    }
+
+    /**
+     * What may be reached, and who granted each host.
+     *
+     * @param domains Hosts the resolver will answer for, in the order the sources were consulted.
+     * @param origins The same hosts, each mapped to the source that granted it.
+     */
+    record Reachable(java.util.List<String> domains, java.util.Map<String, String> origins) {
+    }
+
+    /**
+     * Puts the three sources together, first grant wins.
+     * <p>
+     * One implementation because two callers need the same answer: the run that builds the
+     * resolver configuration from it, and the editor that shows what a project may reach without
+     * starting anything. Two would drift, and the one that drifted would be the one nobody was
+     * watching.
+     *
+     * @param selected The chosen agent, or {@code null} when the task has none.
+     * @param serving The provider serving it, or {@code null}.
+     * @param projectOrigins What the project itself declared, from {@link #projectEgress}.
+     * @return The hosts and their origins.
+     */
+    static Reachable compose(@Nullable InstalledAgent selected,
+            @Nullable SelectedProvider serving,
+            java.util.Map<String, String> projectOrigins) {
+
+        final java.util.List<String> domains = new java.util.ArrayList<>(selected == null
+                ? java.util.List.of() : selected.definition().allowedDomains());
+        final java.util.Map<String, String> origins = new java.util.LinkedHashMap<>();
+        if (selected != null) {
+            selected.definition().allowedDomains().forEach(host ->
+                    origins.putIfAbsent(host, "agent " + selected.definition().name()));
+        }
+        // The provider's own host, which the agent no longer restates. It has to be here or the
+        // firewall denies it: measured, one agent contacts the provider before it starts and
+        // quits when it cannot, whatever the credential is.
+        if (serving != null) {
+            for (final String host : serving.definition().domains()) {
+                if (!domains.contains(host)) {
+                    domains.add(host);
+                }
+                origins.putIfAbsent(host, "provider " + serving.definition().name());
+            }
+        }
+        projectOrigins.forEach((host, origin) -> {
+            if (!domains.contains(host)) {
+                domains.add(host);
+            }
+            origins.putIfAbsent(host, origin);
+        });
+        return new Reachable(java.util.List.copyOf(domains), java.util.Map.copyOf(origins));
+    }
+
+    /**
+     * Returns the sentence that says what reaching a forge costs, or {@code null}.
+     * <p>
+     * Said wherever a forge becomes reachable - at the top of a run, and when an edit opens one -
+     * because that is the moment the gate stops being a wall and becomes a convention.
+     *
+     * @param project The project.
+     * @param origins Hosts and their origins.
+     * @return The sentence, or {@code null} when no forge is open or the class does not care.
+     */
+    @Nullable
+    static String forgeNote(Project project, java.util.Map<String, String> origins) {
+        final java.util.List<String> forges = origins.keySet().stream()
+                .filter(host -> FORGES.stream().anyMatch(forge ->
+                        host.equals(forge) || host.endsWith("." + forge)))
+                .toList();
+        if (forges.isEmpty()
+                || project.securityClass() != org.fuin.sokar.core.project.SecurityClass.GUARDED) {
+            return null;
+        }
+        // Named, not listed: a whole set is eight hosts, and eight names in one sentence is a line
+        // nobody reads - which would defeat the point of warning at all.
+        final String what = forges.size() == 1 ? forges.get(0) + " is"
+                : forges.get(0) + " and " + (forges.size() - 1) + " more forge host"
+                        + (forges.size() == 2 ? "" : "s") + " are";
+        return what + " reachable, so the gate now rests on this container holding no credential"
+                + " for them";
     }
 
     /**
@@ -97,19 +180,9 @@ final class EgressReport {
 
         // Said once, here, where the grants are. Not refused: an agent legitimately clones
         // dependencies from a forge.
-        final java.util.List<String> forges = origins.keySet().stream()
-                .filter(host -> FORGES.stream().anyMatch(forge ->
-                        host.equals(forge) || host.endsWith("." + forge)))
-                .toList();
-        if (!forges.isEmpty()
-                && project.securityClass() == org.fuin.sokar.core.project.SecurityClass.GUARDED) {
-            // Named, not listed: a whole set is eight hosts, and eight names in one sentence is a
-            // line nobody reads - which would defeat the point of warning at all.
-            final String what = forges.size() == 1 ? forges.get(0) + " is"
-                    : forges.get(0) + " and " + (forges.size() - 1) + " more forge host"
-                            + (forges.size() == 2 ? "" : "s") + " are";
-            out.println("               " + what + " reachable, so the gate now rests on this"
-                    + " container holding no credential for them");
+        final String forges = forgeNote(project, origins);
+        if (forges != null) {
+            out.println("               " + forges);
         }
         out.flush();
     }

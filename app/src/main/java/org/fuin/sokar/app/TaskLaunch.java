@@ -242,37 +242,19 @@ public final class TaskLaunch {
                     workspace == null ? 0 : workspace.port(), null, null);
 
             java.util.Map<String, String> environmentCache = new java.util.LinkedHashMap<>();
-            final java.util.List<String> domains = new java.util.ArrayList<>(selected == null
-                    ? java.util.List.of() : selected.definition().allowedDomains());
-            // Every destination carries where it came from, so the report at the end of this can
-            // answer "who decided this" rather than only "what is open".
-            final java.util.Map<String, String> origins = new java.util.LinkedHashMap<>();
-            if (selected != null) {
-                selected.definition().allowedDomains().forEach(host ->
-                        origins.putIfAbsent(host, "agent " + selected.definition().name()));
-            }
 
             // An agent that can only address a URL still gets the broker on its socket: only the
             // listening end moves into the container's namespace, and that is a relay started
             // after the container exists.
             final SelectedProvider serving = credentials().provider(selected);
-            // The provider's own host, which the agent no longer restates. It has to be here or
-            // the firewall denies it: measured, Claude Code contacts the provider before it
-            // starts and quits when it cannot, whatever the credential is.
-            if (serving != null) {
-                for (final String host : serving.definition().domains()) {
-                    if (!domains.contains(host)) {
-                        domains.add(host);
-                    }
-                    origins.putIfAbsent(host, "provider " + serving.definition().name());
-                }
-            }
-            projectOrigins.forEach((host, origin) -> {
-                if (!domains.contains(host)) {
-                    domains.add(host);
-                }
-                origins.putIfAbsent(host, origin);
-            });
+            // Every destination carries where it came from, so the report at the end of this can
+            // answer "who decided this" rather than only "what is open". The same composition the
+            // egress editor shows, from the same method.
+            final EgressReport.Reachable reachable =
+                    EgressReport.compose(selected, serving, projectOrigins);
+            final java.util.List<String> domains = new java.util.ArrayList<>(reachable.domains());
+            final java.util.Map<String, String> origins =
+                    new java.util.LinkedHashMap<>(reachable.origins());
 
             final boolean needsRelay = serving != null
                     && serving.route().endpoint()
@@ -412,10 +394,26 @@ public final class TaskLaunch {
         return layers;
     }
 
-    private org.fuin.sokar.agent.api.InstalledAgent select(
-            org.fuin.sokar.agent.api.InstalledAgents agents) {
-        if (request.agentName() != null) {
-            return agents.require(request.agentName());
+    @Nullable
+    private InstalledAgent select(InstalledAgents agents) {
+        return select(agents, request.agentName());
+    }
+
+    /**
+     * Picks the agent a command should work with.
+     * <p>
+     * Shared with the egress editor, which has to show what the same agent would be granted: two
+     * rules for "which agent" would differ exactly when several are installed, which is when it
+     * matters.
+     *
+     * @param agents What is installed.
+     * @param agentName Value of {@code --agent}, or {@code null}.
+     * @return The agent, or {@code null} when none is installed.
+     */
+    @Nullable
+    static InstalledAgent select(InstalledAgents agents, @Nullable String agentName) {
+        if (agentName != null) {
+            return agents.require(agentName);
         }
         if (agents.size() == 1) {
             return agents.all().getFirst();
