@@ -17,7 +17,7 @@ import picocli.CommandLine.Model.CommandSpec;
         description = "Runs AI agent tasks inside hardened, rootless containers.",
         subcommands = { TaskCommand.class, ShieldCommand.class, VaultCommand.class,
                 GateCommand.class, AgentsCommand.class, SetupCommand.class, DoctorCommand.class,
-                PanicCommand.class })
+                PanicCommand.class, DaemonCommand.class })
 public class SokarCli implements Callable<Integer> {
 
     @Spec

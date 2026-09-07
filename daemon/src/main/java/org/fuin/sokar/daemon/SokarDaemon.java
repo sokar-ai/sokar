@@ -168,6 +168,13 @@ public final class SokarDaemon {
             }
         });
 
+        server.method("Logs", (parameters, replies) -> {
+            // Listed, not guessed: which files a task has depends on what it started, and a client
+            // that knew the names would open an empty viewer for one that never existed.
+            replies.last(Map.of("logs", new TaskInventory(context).logs(text(parameters, "task"))
+                    .stream().map(TaskInventory.Log::asMap).toList()));
+        });
+
         server.method("Tail", (parameters, replies) -> {
             final Path log = logOf(context, text(parameters, "task"), text(parameters, "log"));
             if (log == null) {
@@ -717,7 +724,7 @@ public final class SokarDaemon {
      */
     public static void main(final String[] args) {
         final SokarContext context = SokarContext.real();
-        final Path socket = context.paths().xdg().runtime().resolve(SOCKET);
+        final Path socket = context.paths().daemonSocket();
         try (VarlinkServer server = serving(context, socket)) {
             System.out.println("sokard listening on " + socket);
             System.out.flush();

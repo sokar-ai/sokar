@@ -98,6 +98,71 @@ public final class TaskInventory {
     }
 
     /**
+     * One log a task has written.
+     *
+     * @param name File name, which is what {@code Tail} takes.
+     * @param bytes How large it is now.
+     * @param at When it was last written, ISO-8601.
+     */
+    public record Log(String name, long bytes, String at) {
+
+        /**
+         * Returns this log as plain values, for a caller that has to put it on a wire.
+         *
+         * @return The log.
+         */
+        public Map<String, Object> asMap() {
+            final Map<String, Object> map = new LinkedHashMap<>();
+            map.put("name", name);
+            map.put("bytes", bytes);
+            map.put("at", at);
+            return map;
+        }
+    }
+
+    /**
+     * Returns the logs one task has, newest content first.
+     * <p>
+     * <strong>Listed rather than guessed.</strong> Which files a task has depends on what it
+     * started - a task with no gate has no {@code gate.log}, one run with {@code --clearance off}
+     * has no {@code clearance.log} - so a client that knew the names would be showing an empty
+     * viewer for a file that was never going to exist, and would never show one added by a later
+     * release. Same rule as the prompt key: derive nothing at the far end that this end knows.
+     *
+     * @param container Container name.
+     * @return The logs, alphabetical, empty when the task has no state directory left.
+     */
+    public List<Log> logs(String container) {
+        final Path state = context.paths().containerState(container);
+        if (!org.fuin.sokar.runtime.ContainerName.isSokar(container)
+                || !Files.isDirectory(state)) {
+            return List.of();
+        }
+        try (Stream<Path> files = Files.list(state)) {
+            return files.filter(file -> file.getFileName().toString().endsWith(".log"))
+                    .filter(Files::isRegularFile)
+                    .sorted()
+                    .map(TaskInventory::describe)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+        } catch (java.io.IOException ex) {
+            // A directory that vanished while being read is a task somebody removed, which is not
+            // this method's problem to report.
+            return List.of();
+        }
+    }
+
+    @Nullable
+    private static Log describe(Path file) {
+        try {
+            return new Log(file.getFileName().toString(), Files.size(file),
+                    Files.getLastModifiedTime(file).toInstant().toString());
+        } catch (java.io.IOException ex) {
+            return null;
+        }
+    }
+
+    /**
      * Counts the helper processes a task's state directory records as alive.
      */
     private long helpersOf(String container) {

@@ -183,6 +183,19 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the socket the daemon serves on.
+     * <p>
+     * Named here rather than in the daemon, because the CLI has to find the same file: it is what
+     * {@code sokar daemon connect} bridges to, and a second spelling of this path is a client that
+     * connects to nothing on a machine where the daemon is running perfectly.
+     *
+     * @return The daemon's socket.
+     */
+    public Path daemonSocket() {
+        return xdg.runtime().resolve("sokard.sock");
+    }
+
+    /**
      * Returns the directory holding the runtime state of one container.
      *
      * @param container Container name.

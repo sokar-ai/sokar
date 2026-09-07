@@ -160,6 +160,63 @@ class SokarDaemonTest {
     }
 
     @Test
+    void listsTheLogsATaskActuallyHas(@TempDir Path dir) throws Exception {
+
+        // Which files exist depends on what the task started, so a client that held a list of
+        // names would open an empty viewer for one that was never going to be there.
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+        Files.writeString(state.resolve("gate.log"), "a line\n");
+        Files.writeString(state.resolve("task.log"), "another\n");
+        Files.writeString(state.resolve("watcher.pid"), "4711");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Logs",
+                        Map.of("task", "sokar-uc-shell-1"));
+
+                assertThat((List<?>) reply.get("logs")).hasSize(2);
+                assertThat(String.valueOf(reply.get("logs")))
+                        .contains("gate.log").contains("task.log")
+                        .as("only logs, and the size a viewer needs")
+                        .doesNotContain("watcher.pid");
+                assertThat(((Map<?, ?>) ((List<?>) reply.get("logs")).getFirst()).get("bytes"))
+                        .isNotNull();
+            }
+        });
+    }
+
+    @Test
+    void listsNoLogsForATaskThatIsGone(@TempDir Path dir) throws Exception {
+
+        // Removal takes the state directory with it. Empty rather than an error: the task existed,
+        // and asking about it is not a mistake a client should have to handle.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThat((List<?>) client.call(SokarDaemon.INTERFACE + ".Logs",
+                        Map.of("task", "sokar-uc-shell-1")).get("logs")).isEmpty();
+            }
+        });
+    }
+
+    @Test
+    void listsNoLogsForSomethingThatIsNotATask(@TempDir Path dir) throws Exception {
+
+        // The same refusal Tail makes: a name Sokar did not create is not something to read files
+        // out of, whatever it points at.
+        final Path state = dir.resolve("run/sokar/not-sokar-at-all");
+        Files.createDirectories(state);
+        Files.writeString(state.resolve("secrets.log"), "nothing to see\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThat((List<?>) client.call(SokarDaemon.INTERFACE + ".Logs",
+                        Map.of("task", "not-sokar-at-all")).get("logs")).isEmpty();
+            }
+        });
+    }
+
+    @Test
     void tailsALogAsItIsWritten(@TempDir Path dir) throws Exception {
 
         // A client that polls lags a prompt that expires, which is why these exist at all.

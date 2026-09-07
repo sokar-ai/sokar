@@ -145,6 +145,16 @@ type PendingPush (
   at: string
 )
 
+# One log a task has written.
+type Log (
+  # Pass this to Tail unchanged.
+  name: string,
+  # How large it is now.
+  bytes: int,
+  # When it was last written, ISO-8601.
+  at: string
+)
+
 # A connection a task tried to make and was stopped for.
 #
 # This is the one event with a deadline. The task is blocked while it waits, and the watcher
@@ -311,6 +321,15 @@ method Resume(task: string) -> (
 # Reads one of a task's log files, and with "more" follows it as it is written.
 #
 # The log name is checked against the files that are there rather than resolved as a path.
+# Which logs a task has.
+#
+# Ask rather than assume: what a task writes depends on what it started - a task with no gate
+# has no gate.log, one run with --clearance off has no clearance.log - so a client holding a
+# list of names would show an empty viewer for a file that was never going to exist, and would
+# never show one a later release adds. Empty for a task whose state directory is gone, which is
+# what removal does.
+method Logs(task: string) -> (logs: []Log)
+
 method Tail(
   # Container name.
   task: string,
