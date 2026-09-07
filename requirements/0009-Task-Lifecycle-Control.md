@@ -1,9 +1,10 @@
 # 0009 — Task Lifecycle Control
 
 **Status:** the CLI half is done — `task list`, `task stop` and `task resume`, verified
-end to end on a real container, including the edges. The API half waits on
-[0001](0001-Local-Daemon-API.md), which does not exist yet, and is the only acceptance
-criterion below that is not met.
+end to end on a real container, including the edges. The API half has begun:
+[0001](0001-Local-Daemon-API.md) now serves `List` over the daemon's socket, from the same
+`TaskInventory` the CLI prints, so those two cannot drift. `Stop` and `Resume` are not there yet,
+and that is the whole of what stands between this requirement and done.
 
 Today a task can be started and nothing else. Stopping one means finding its
 container by name and using the runtime directly, which is both undiscoverable and

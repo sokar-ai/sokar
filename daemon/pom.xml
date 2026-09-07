@@ -24,6 +24,14 @@
             <artifactId>sokar-app</artifactId>
         </dependency>
 
+        <!-- test -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-testing</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <profiles>
