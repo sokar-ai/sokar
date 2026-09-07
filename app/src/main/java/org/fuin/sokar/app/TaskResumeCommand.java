@@ -92,6 +92,14 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
             if (!phase.equals(helper.phase())) {
                 continue;
             }
+            // One that is still alive is not started again: every helper of a given name writes
+            // the same pid file, so a second one would leave the first named by nothing and
+            // reapable by nothing. Counted as started, because it is running - which is what the
+            // caller is about to report.
+            if (TaskLifecycle.alive(state.resolve(helper.name() + ".pid"))) {
+                started++;
+                continue;
+            }
             List<String> command = helper.command();
             if ("watcher".equals(helper.name()) && pid > 0) {
                 command = withPid(command, pid);
@@ -184,6 +192,22 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
             err.println("sokar: there is no container " + container + " to resume");
             err.flush();
             return 69;
+        }
+
+        // A container that is already up has nothing to resume, and starting its helpers a second
+        // time is not harmless: each one writes the same pid file, so the earlier process is no
+        // longer named by anything and nothing reaps it. Measured - two resumes of a running task
+        // left two 'shield watch' processes re-parented to init, which 'task stop' then reported
+        // as "4 of 4 stopped" while they went on running. Symmetrical with stopping a task that
+        // has already gone: doing it twice is not an error, it is simply already done.
+        if (context.podman().sokarTasks().stream()
+                .anyMatch(task -> task.name().equals(container) && task.running())) {
+            out.println("running   " + container + " is already up; nothing to resume");
+            if (Files.isDirectory(state)) {
+                out.println("logs      " + state);
+            }
+            out.flush();
+            return 0;
         }
 
         if (recorded.helpers().isEmpty()) {

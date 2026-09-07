@@ -84,6 +84,26 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void aStoppedTaskStaysInsideItsColumn(@TempDir Path dir) throws IOException {
+
+        // The runtime's longest phrase is twice the width of the column, and it ran into the
+        // helper count: the row stopped being a table exactly when a task had been stopped,
+        // which is when an operator is reading this to find the name to resume.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143) Less than a second ago\n");
+        stateOf("sokar-uc-shell-1");
+
+        assertThat(execute(context, "task", "list")).isZero();
+
+        final String row = out.toString().lines().filter(line -> line.startsWith("sokar-uc"))
+                .findFirst().orElseThrow();
+        assertThat(row).contains("Exited (143)").doesNotContain("Less than");
+        // The helper count still starts where the header says it does.
+        assertThat(row.indexOf("0")).isEqualTo(out.toString().lines().findFirst().orElseThrow()
+                .indexOf("HELPERS"));
+    }
+
+    @Test
     void saysSoWhenThereAreNoTasks(@TempDir Path dir) {
 
         runner.answering("ps", "");
@@ -241,6 +261,27 @@ class TaskLifecycleCommandsTest {
         // Asserted positively as well: without this the test passes when resume fails early.
         assertThat(out.toString()).contains("started   sokar-uc-shell-1");
         assertThat(out.toString()).doesNotContain("rebuilt");
+    }
+
+    @Test
+    void resumingATaskThatIsAlreadyUpStartsNothing(@TempDir Path dir) throws Exception {
+
+        // Measured on a real container: two resumes of a running task left two 'shield watch'
+        // processes re-parented to init. Each helper of a given name writes the same pid file,
+        // so the second one leaves the first named by nothing, and 'task stop' then reported
+        // "4 of 4 stopped" while they went on running.
+        final SokarContext context = context(dir);
+        runner.answering("container inspect", "4711");
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        final Path state = stateOf("sokar-uc-shell-1");
+        new TaskHelpers(java.util.List.of(new TaskHelpers.Helper("watcher",
+                java.util.List.of("sleep", "30"), java.util.Map.of(), TaskHelpers.AFTER)))
+                .writeTo(state);
+
+        assertThat(execute(context, "task", "resume", "sokar-uc-shell-1")).isZero();
+
+        assertThat(out.toString()).contains("already up; nothing to resume");
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman start"));
     }
 
     @Test

@@ -1,8 +1,9 @@
 # 0009 — Task Lifecycle Control
 
 **Status:** the CLI half is done — `task list`, `task stop` and `task resume`, verified
-end to end on a real container. The API half waits on [0001](0001-Local-Daemon-API.md),
-which does not exist yet.
+end to end on a real container, including the edges. The API half waits on
+[0001](0001-Local-Daemon-API.md), which does not exist yet, and is the only acceptance
+criterion below that is not met.
 
 Today a task can be started and nothing else. Stopping one means finding its
 container by name and using the runtime directly, which is both undiscoverable and
@@ -35,6 +36,24 @@ three things unit tests could not:
   container held a deleted inode, and every request through it went nowhere while the
   same request from the host was answered. Helpers now record whether they must be up
   before the container or need the running container, and are started in that order.
+
+Measured again on 2026-09-07, driving a real container, which found two more:
+
+- **Resuming a task that was already running started its helpers a second time.** Every
+  helper of a given name writes the same pid file, so the second one left the first named by
+  nothing: two resumes left two `shield watch` processes re-parented to init, and the later
+  `task stop` reported `helpers 4 of 4 stopped` while they went on running. A running task now
+  answers `already up; nothing to resume` and starts nothing, which is the mirror of stopping
+  a task that has already gone. A recorded helper that is still alive is not started again
+  either, which covers the half-running case a crash leaves.
+- **A stopped task did not fit its own table.** The runtime's longest phrase,
+  `Exited (143) Less than a second ago`, is twice the width of the `STATE` column and ran into
+  the helper count - exactly when an operator is reading `task list` to find the name to
+  resume. The exit code is kept and the age dropped.
+
+The edges hold: stopping a task that never existed says so and exits zero, a name Sokar did
+not create is refused, resuming something absent fails with a reason, and a stopped task is
+listed rather than hidden.
 
 Resuming keeps the image the task has, and says when the project's image has been
 rebuilt since. Upgrading silently would discard whatever the agent installed in the

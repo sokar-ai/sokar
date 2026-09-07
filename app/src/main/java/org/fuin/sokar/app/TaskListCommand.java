@@ -90,10 +90,30 @@ public class TaskListCommand implements Callable<Integer>, SokarFactory.ContextA
                     task.name(),
                     sidecar == null ? "-" : sidecar.project(),
                     sidecar == null ? "-" : sidecar.securityClass(),
-                    task.state(),
+                    state(task.state()),
                     helpersOf(task.name()));
         }
         out.flush();
         return 0;
+    }
+
+    /**
+     * Returns the runtime's state, short enough to stay in its column.
+     * <p>
+     * The runtime writes a phrase, and its longest - {@code Exited (143) Less than a second ago} -
+     * is twice the width of the column, so it ran into the helper count and the row stopped being
+     * a table. The age is what gets dropped: this is a list of what exists and whether it is up,
+     * and {@code task list} is how an operator finds the name to stop or resume.
+     *
+     * @param state What the runtime called it.
+     * @return The state, at most as wide as its column.
+     */
+    private static String state(String state) {
+        // 'Exited (143) Less than a second ago' and 'Exited (0) 2 minutes ago' both carry an age
+        // this table has no room for, and the exit code is the part worth keeping: it is how a
+        // task that was stopped is told apart from one that died.
+        final int code = state.startsWith("Exited (") ? state.indexOf(')') : -1;
+        final String shortened = code > 0 ? state.substring(0, code + 1) : state;
+        return shortened.length() <= 18 ? shortened : shortened.substring(0, 17) + "…";
     }
 }
