@@ -1,6 +1,8 @@
 # B12 — Changing What Running Work May Reach
 
-**Status:** open
+**Status:** decided, half built. The smaller half - a task saying whether anything is enforcing
+its egress - is done. The three questions the larger half turned on were settled on 2026-09-07 and
+are recorded below.
 
 `SetEgress` edits what a project's *next* task may reach. There is nothing that changes what the
 task in front of somebody is allowed to reach right now, and a container's ruleset and resolver
@@ -106,17 +108,53 @@ raises no prompt. The gate has nothing to do with egress. The one asymmetry is t
 own record does not know about such a host, which costs nothing: that record exists to avoid asking
 twice.
 
+## Decided, 2026-09-07
+
+### One method, and it must be told how far the change goes
+
+**A new method for the running task, taking the scope as a required value**: this run, or this run
+and the project file. `SetEgress` stays exactly as it is, for the case where no task is running.
+
+Two separate methods were rejected for one reason: somebody who means both would make two calls,
+and the second can fail after the first succeeded. That leaves the run widened and the file not,
+which is precisely the state this requirement says nobody may be left guessing about. One call can
+report what it changed because one call did all of it.
+
+The scope is required rather than defaulted, because the acceptance says neither is the silent
+default - and a `?bool` that defaults to run-only is a silent default wearing a parameter's
+clothes.
+
+### An offline project is refused, exactly as the editor refuses it
+
+`REFUSED_BY_CLASS`, the same outcome `SetEgress` already answers with. The class is the project's
+promise that its tasks reach nothing; a run that can step around it at will makes the promise
+worth nothing, and the way out already exists and is visible - raise the class in the file and
+start a task. An interface can hide the action entirely for such a task rather than offering
+something that will be refused.
+
+### The clearance watcher puts the address in the firewall, as it already does
+
+The name is recorded as approved for this run and the resolver is extended; the first connection
+is still dropped, the watcher sees it, looks the address up to the name in the resolver's log -
+which it already does today, to show an operator something they can recognise - finds it approved
+and allows it without asking anybody. From then on the host is open.
+
+The cost is one dropped packet and a retry, which is exactly what every clearance decision costs
+today. The alternative - Sokar resolving the name itself and writing the answers straight into the
+set - was rejected because Sokar's answer and the container's can differ: a CDN, GeoDNS or plain
+round-robin leaves an address open that the container never receives while the one it does receive
+stays blocked. That failure reads as "the grant did not work" and is miserable to find.
+
+**What this needs first**: the generated resolver configuration has to put its `server=` lines in a
+`servers-file`, because that is the only part dnsmasq re-reads on `SIGHUP`. The `nftset=` lines
+stay in the main file - a servers-file may contain nothing else - which is exactly why the firewall
+half goes through the watcher rather than through dnsmasq.
+
 ## To be checked
 
-- **Is a live change one action or two?** Changing the running task and changing the project file
-  are different intentions — *"this run needs it"* against *"this project needs it"* — and an
-  interface has to offer them as different things. Whether that is one method with a flag or two
-  methods decides what the interface can honestly say it did.
-- **May an `offline` project be widened at all while running?** The standing editor already
-  refuses with `REFUSED_BY_CLASS`. Whether that refusal is the same one here, or whether a running
-  task is stricter still, decides whether the interface offers the action at all for such a task.
-- **May a live widening restart the container's resolver?** Only visible after measuring: adding a
-  name means restarting dnsmasq inside the running namespace, which is a short window where the
-  container resolves nothing and any lookup in flight fails. The alternative is to allow live
-  widening by address only - no restart, and useless for the case that motivated this, since the
-  host somebody wants to add is a name.
+- **What narrowing means for what is already open.** The acceptance asks for narrowing as well as
+  widening, and the two are not symmetrical: taking a name out of the resolver stops it resolving,
+  and does nothing about the addresses already in the firewall set - the clearance path only ever
+  adds. Removing them is possible (`nft delete element`) and it is the first thing in this product
+  that would take a grant away from a running container, so it wants deciding rather than
+  assuming.
