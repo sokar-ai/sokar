@@ -1,8 +1,15 @@
 # 0046 — Agent Oh My Pi
 
-**Status:** built, in [sokar-omp](https://github.com/fuinorg/sokar-omp), and short of one
-acceptance criterion. Everything up to the provider rejecting a deliberately fake key is
-measured; a valid key returning 200 is not, because nobody here has an OpenRouter account.
+**Status:** built, in [sokar-omp](https://github.com/fuinorg/sokar-omp), and every acceptance
+criterion is met and measured - including the last one, with a real credential.
+
+The acceptance suite it was missing now exists there: `buildtools/acceptance.sh` driven by
+`buildtools/ci/remote-acceptance.py`, and a matrix of `ubuntu` and `fedora` on rented machines,
+installing from the package repository rather than a build tree. Run whole on Fedora 44 against
+the installed `.rpm` with a real OpenRouter key: the packages install, `sokar` discovers the agent
+it was never linked against, **the agent authenticated against OpenRouter and completed a
+prompt**, the container held no credential but the task-scoped token, and the key appeared in no
+log the run produced.
 
 Support Oh My Pi as a packaged agent.
 
@@ -52,8 +59,12 @@ scratch, because the packaging work is already done in a shape it shares.
 - **Answered: the cadence diverges hard.** 617 npm versions to Pi's 0.85.0, three releases on
   three consecutive days. Nothing in [0044](0044-Automated-Agent-Updates.md) can be shared with
   Pi on the grounds of them being the same project.
-- Whether a valid credential completes the path. It needs an account nobody here has, and it is
-  the one criterion between this and done.
+- ~~Whether a valid credential completes the path.~~ - answered: it does. Measured with a real
+  key against `z-ai/glm-4.6`, which is what the acceptance leg pins.
+- **The fetched CLI is not in the package's bill of materials.** The bill names this adapter's
+  four dependencies; the 200 MB binary the package downloads is pinned by the digest upstream
+  publishes and recorded in the agent definition instead. Whether a bill should cover something
+  fetched at build time, and what it could honestly say about it, is not settled here.
 
 ## Built, 2026-09-07
 
