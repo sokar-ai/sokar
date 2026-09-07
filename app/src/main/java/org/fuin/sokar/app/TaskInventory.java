@@ -143,7 +143,10 @@ public final class TaskInventory {
                 sidecar == null ? null : sidecar.securityClass(),
                 summary.state(), summary.running(), helpersOf(summary.name()),
                 profile == null ? null : profile.agent(),
-                profile == null ? null : profile.mode().wire(),
+                // The enum's own name, like every other enum on the wire. The lower-case form
+                // is the on-disk spelling and stops at the file: a client reading the contract
+                // sees SHELL, AGENT, UNATTENDED and must get those.
+                profile == null ? null : profile.mode().name(),
                 profile == null ? null : profile.prompt(),
                 profile == null ? null : profile.branch(),
                 summary.since(),

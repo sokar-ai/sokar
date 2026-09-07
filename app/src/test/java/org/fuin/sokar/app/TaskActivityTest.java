@@ -66,7 +66,8 @@ class TaskActivityTest {
 
         assertThat(only(context)).satisfies(task -> {
             assertThat(task.agent()).isEqualTo("example");
-            assertThat(task.mode()).isEqualTo("unattended");
+            // The wire spelling, which is the enum's own name - not the on-disk lower case.
+            assertThat(task.mode()).isEqualTo("UNATTENDED");
             assertThat(task.prompt()).isEqualTo("fix the parser");
             assertThat(task.branch()).isEqualTo("refs/sokar/incoming/shell");
             assertThat(task.clearance()).isEqualTo("prompt");

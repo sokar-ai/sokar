@@ -109,8 +109,11 @@ type Task (
   # Agent running in it, by the name Agents reports. "" when it has none, or when the task was
   # started by a Sokar that did not record it.
   agent: string,
-  # How somebody is meant to be involved. "" when nothing recorded it.
-  mode: Mode,
+  # How somebody is meant to be involved: SHELL, AGENT or UNATTENDED, spelled as Mode spells
+  # them. A string rather than the Mode type because it has a fourth state the type does not: ""
+  # for a task started before this field existed, where nothing recorded one and inventing an
+  # answer would be worse than admitting there is none.
+  mode: string,
   # What an unattended task was asked to do. Kept after it has finished, because "what was this
   # asked to do" is a question people have about a task that is over. "" for the other modes.
   prompt: string,
