@@ -7,9 +7,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.fuin.sokar.app.SokarContext;
+import org.fuin.sokar.app.GateSupport;
 import org.fuin.sokar.app.TaskControl;
 import org.fuin.sokar.app.TaskInventory;
 import org.fuin.sokar.clearance.ClearanceService;
+import org.fuin.sokar.core.project.Project;
+import org.fuin.sokar.gate.GitGate;
 import org.fuin.sokar.runtime.ContainerName;
 import org.fuin.sokar.wire.varlink.VarlinkClient;
 import org.fuin.sokar.wire.varlink.VarlinkException;
@@ -167,6 +170,159 @@ public final class SokarDaemon {
             }
         });
 
+        // ------------------------------------------------------------------ inventory
+        //
+        // Read-only answers about the machine, so an interface never shells out to the CLI to
+        // find out what is installed or what is waiting.
+
+        server.method("Agents", (parameters, replies) -> {
+            // Each agent is a process this starts and handshakes with, so it is closed again:
+            // leaving them running would leak one per call.
+            try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
+                final List<Map<String, Object>> found = agents.all().stream().map(agent -> {
+                    final Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("name", agent.name());
+                    entry.put("label", agent.definition().label());
+                    entry.put("binary", agent.definition().binary());
+                    entry.put("version", agent.definition().version() == null
+                            ? "" : agent.definition().version());
+                    entry.put("from", agent.executable().toString());
+                    entry.put("allowedDomains", agent.definition().allowedDomains());
+                    return entry;
+                }).toList();
+                // What could not be asked matters as much as what could: an agent that fails to
+                // describe itself is installed and unusable, and silence would read as absent.
+                replies.last(Map.of("agents", found, "failures", agents.failures()));
+            }
+        });
+
+        server.method("Credentials", (parameters, replies) -> {
+            // Names, types and lengths - never a value. The vault is read only if the passphrase
+            // is already in the kernel keyring: a daemon has no terminal to ask at, and a call
+            // that blocked on a prompt nobody can see would hang the interface.
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("vault", context.vault().path().toString());
+            answer.put("exists", context.vault().exists());
+            final List<Map<String, Object>> entries = context.credentials().entrySet().stream()
+                    .map(entry -> {
+                        final Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("name", entry.getKey());
+                        row.put("type", entry.getValue().type() == null
+                                ? "" : entry.getValue().type());
+                        row.put("characters", entry.getValue().value().length());
+                        return row;
+                    }).toList();
+            answer.put("credentials", entries);
+            // Empty because it is locked and empty because it holds nothing are different things
+            // an interface has to show apart.
+            answer.put("readable", !context.vault().exists() || !entries.isEmpty()
+                    || !context.credentials().isEmpty());
+            replies.last(answer);
+        });
+
+        // ----------------------------------------------------------------------- the gate
+        //
+        // The one crossing where work leaves the machine. These are thin over GitGate, which is
+        // what the CLI drives too, so an approval means the same thing from either.
+
+        server.method("Pending", (parameters, replies) -> {
+            final GitGate gate = gate(parameters);
+            final java.time.Instant now = java.time.Instant.now();
+            final List<Map<String, Object>> waiting = gate.pendingDetail().stream().map(push -> {
+                final Map<String, Object> row = new LinkedHashMap<>();
+                row.put("name", push.name());
+                row.put("commit", push.commit());
+                row.put("subject", push.subject());
+                row.put("waiting", push.lagText(now));
+                row.put("at", push.at().toString());
+                return row;
+            }).toList();
+            replies.last(Map.of("mirror", gate.mirror().toString(),
+                    "mode", gate.mode().name().toLowerCase(),
+                    "seededFrom", gate.seededFrom() == null ? "" : gate.seededFrom(),
+                    "pending", waiting));
+        });
+
+        server.method("Review", (parameters, replies) -> {
+            final GitGate gate = gate(parameters);
+            final String name = text(parameters, "name");
+            final String against = text(parameters, "against");
+            replies.last(Map.of("diff", gate.review(name, against.isEmpty() ? null : against),
+                    "log", gate.log(name, against.isEmpty() ? null : against)));
+        });
+
+        server.method("Approve", (parameters, replies) -> {
+            // The single call that sends anything anywhere, and it makes the caller name where.
+            final GitGate gate = gate(parameters);
+            final String branch = text(parameters, "branch");
+            if (branch.isEmpty()) {
+                throw new VarlinkException(INTERFACE + ".BranchRequired",
+                        Map.of("name", text(parameters, "name")));
+            }
+            gate.approve(text(parameters, "name"), branch);
+            replies.last(Map.of("forwarded", text(parameters, "name"), "branch", branch));
+        });
+
+        server.method("Reject", (parameters, replies) -> {
+            final GitGate gate = gate(parameters);
+            gate.reject(text(parameters, "name"));
+            replies.last(Map.of("rejected", text(parameters, "name")));
+        });
+
+        // ------------------------------------------------------------------ starting a task
+        //
+        // The one call that runs the CLI rather than calling into it, and the reason is written
+        // down rather than glossed: 'task run' is seven hundred lines that build an image, mint a
+        // token, install hooks, start four helpers in a fixed order and can hand over a terminal.
+        // Extracting that the way stop and resume were extracted is the right end state; doing it
+        // hastily to a command that is the whole product is not. Spawning it is behaviour parity
+        // by construction - it *is* the same code - at the cost of parsing one line of its output
+        // for the container name.
+        //
+        // Started detached and never waited on as a child: a task must outlive whoever asked for
+        // it, which is the property that lets this daemon be restarted while tasks run.
+
+        server.method("Start", (parameters, replies) -> {
+            final List<String> command = startCommand(parameters);
+            final Process run;
+            try {
+                run = new ProcessBuilder(command).redirectErrorStream(true).start();
+            } catch (java.io.IOException ex) {
+                throw new VarlinkException(INTERFACE + ".CannotStart",
+                        Map.of("message", String.valueOf(ex.getMessage())));
+            }
+            String container = "";
+            final List<String> output = new java.util.ArrayList<>();
+            try (java.io.BufferedReader lines = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(run.getInputStream(),
+                            java.nio.charset.StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = lines.readLine()) != null) {
+                    output.add(line);
+                    if (line.startsWith("container ")) {
+                        container = line.substring("container ".length()).trim();
+                    }
+                    // Streamed as it happens: building an image takes minutes, and an interface
+                    // showing nothing for that long is indistinguishable from one that hung.
+                    if (replies.streaming()) {
+                        replies.more(Map.of("line", line));
+                    }
+                }
+            }
+            final int code;
+            try {
+                code = run.waitFor();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                // The client left while the task was still starting. The run keeps going - it is
+                // not this process's child to cancel - and 'List' will show it.
+                throw new VarlinkException(INTERFACE + ".Interrupted",
+                        Map.of("container", container));
+            }
+            replies.last(Map.of("container", container, "exitCode", code,
+                    "output", replies.streaming() ? List.of() : output));
+        });
+
         // ------------------------------------------------------------- clearance prompts
         //
         // Every running task already serves its own prompts on its own socket - the watcher's
@@ -223,6 +379,91 @@ public final class SokarDaemon {
         });
 
         return server;
+    }
+
+    /**
+     * Builds the {@code task run} command one call asks for.
+     * <p>
+     * Always {@code --no-attach}: nobody is at a terminal on the far end of a socket, and the
+     * attaching path replaces the process it runs in. Everything else is passed only when the
+     * caller named it, so the CLI's own defaults stay the defaults - a value repeated here would
+     * be a second place for them to drift.
+     *
+     * @param parameters The call's parameters.
+     * @return The command to run.
+     */
+    private static List<String> startCommand(Map<String, Object> parameters) {
+
+        final List<String> command = new java.util.ArrayList<>(List.of(sokar(), "task", "run"));
+        final String task = text(parameters, "task");
+        if (!task.isEmpty()) {
+            command.add(task);
+        }
+        command.add("--no-attach");
+        for (final String option : List.of("project", "agent", "provider", "credential-type",
+                "prompt", "model", "clearance", "upstream", "shell")) {
+            final String value = text(parameters, option);
+            if (!value.isEmpty()) {
+                command.add("--" + option);
+                command.add(value);
+            }
+        }
+        for (final String option : List.of("token-hours", "minutes", "max-turns")) {
+            if (parameters.get(option) instanceof Number number) {
+                command.add("--" + option);
+                command.add(String.valueOf(number.intValue()));
+            }
+        }
+        if (flag(parameters, "keep")) {
+            command.add("--keep");
+        }
+        if (flag(parameters, "dry-run")) {
+            command.add("--dry-run");
+        }
+        return List.copyOf(command);
+    }
+
+    /**
+     * Returns the CLI beside this binary, or the one on the path.
+     * <p>
+     * Beside first: a local build and a packaged install can both be present, and a daemon that
+     * reached for whichever came first on {@code PATH} could start tasks with a different build
+     * of Sokar than the one answering the socket.
+     *
+     * @return Path or name to run.
+     */
+    private static String sokar() {
+        final java.util.Optional<String> self = ProcessHandle.current().info().command();
+        if (self.isPresent()) {
+            final Path beside = Path.of(self.get()).toAbsolutePath().getParent()
+                    .resolve("sokar");
+            if (Files.isExecutable(beside)) {
+                return beside.toString();
+            }
+        }
+        return "sokar";
+    }
+
+    /**
+     * Returns the gate of the project a call names.
+     * <p>
+     * The project file is a path the caller gives, the way it gives one to the CLI: a gate
+     * belongs to a project rather than to a task, and this daemon serves whatever projects the
+     * operator has. Reading it fails loudly rather than answering about the wrong gate.
+     *
+     * @param parameters The call's parameters.
+     * @return The gate, initialised.
+     */
+    private static GitGate gate(Map<String, Object> parameters) {
+        final String file = text(parameters, "project");
+        if (file.isEmpty()) {
+            throw new VarlinkException(INTERFACE + ".ProjectRequired", Map.of());
+        }
+        final Project project = GateSupport.project(Path.of(file));
+        final String upstream = text(parameters, "upstream");
+        final GitGate gate = GateSupport.gate(project, upstream.isEmpty() ? null : upstream);
+        gate.initialise();
+        return gate;
     }
 
     /**

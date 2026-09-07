@@ -371,6 +371,47 @@ class SokarDaemonTest {
     }
 
     @Test
+    void listsWhatTheVaultHoldsWithoutItsValues(@TempDir Path dir) throws Exception {
+
+        // 0012 in one assertion: an interface must be able to show what is stored without ever
+        // displaying, logging or copying a value.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Credentials", Map.of());
+                assertThat(reply).containsKey("vault").containsKey("credentials")
+                        .containsEntry("exists", false);
+                assertThat(String.valueOf(reply)).doesNotContain("value");
+            }
+        });
+    }
+
+    @Test
+    void aGateCallWithoutAProjectIsRefused(@TempDir Path dir) throws Exception {
+
+        // A gate belongs to a project, and answering about the wrong one is worse than refusing.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Pending", Map.of()))
+                        .isInstanceOf(VarlinkException.class);
+            }
+        });
+    }
+
+    @Test
+    void approvingWithoutABranchIsRefused(@TempDir Path dir) throws Exception {
+
+        // The single call that sends anything anywhere makes the caller name where.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Approve",
+                        Map.of("project", "project.yml", "name", "shell")))
+                        .isInstanceOf(VarlinkException.class);
+            }
+        });
+    }
+
+    @Test
     void theSocketIsOwnerOnly(@TempDir Path dir) throws Exception {
 
         // The whole access-control story: no listener on any interface, and the filesystem

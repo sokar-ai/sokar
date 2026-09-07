@@ -47,8 +47,11 @@ as the calls: a client that polls will lag a prompt that expires.
   the daemon call; the commands now render what it returns and decide nothing. Measured over the
   socket against a real container, refusals included.
 - ~~Clearance prompts as a call.~~ - built, and the round trip is measured.
-- The rest of the surface: starting a task, the gate's review commands, the vault, the agent
-  inventory. Each is a call the interface will need and none of them exists yet.
+- ~~The rest of the surface.~~ - built: `Start`, `Agents`, `Credentials`, `Pending`, `Review`,
+  `Approve`, `Reject`.
+- **`TaskRunCommand` is still seven hundred lines of decision inside a picocli class**, which is
+  why `Start` spawns the CLI instead of calling into it. Extracting it the way `TaskControl` was
+  extracted is the work this leaves behind.
 - ~~Killing the daemon while a task runs is not demonstrated.~~ - demonstrated: `SIGKILL` to
   `sokard` left the task up with all four of its helpers, still listed by the CLI.
 
@@ -108,6 +111,31 @@ container:    the connection then succeeded
 That is the whole loop: a dropped packet became a question, the answer crossed two processes, the
 live nftables set changed, and the task got through. The acceptance suite still passes, so the
 watcher's own behaviour is unchanged for a task nobody is watching.
+
+## The rest of the surface, built 2026-09-07
+
+`Agents` lists what is installed, with what each may reach and what failed to describe itself -
+an agent that cannot answer is installed and unusable, and silence would read as absent.
+`Credentials` answers with names, types and lengths and **never a value**, reading the vault only
+if its passphrase is already in the kernel keyring: a daemon has no terminal to ask at, and a call
+that blocked on a prompt nobody can see would hang the interface. `Pending`, `Review`, `Approve`
+and `Reject` are thin over `GitGate`, the same object the CLI drives, and `Approve` refuses
+without a branch because it is the one call that sends anything anywhere. `GateSupport` became
+public for that: a second way of resolving which mirror a project's work waits in is how an
+approval comes to mean two things.
+
+**`Start` spawns `sokar task run` rather than calling into it, and that is a deliberate stopgap.**
+The alternative was extracting seven hundred lines that build an image, mint a token, install
+hooks, start four helpers in a fixed order and can hand over a terminal - the right end state, but
+not something to do hastily to the command that is the whole product. Spawning is behaviour parity
+by construction, at the cost of reading one line of its output for the container name. It streams
+the run's output as it happens, because building an image takes minutes and an interface showing
+nothing for that long is indistinguishable from one that hung.
+
+Measured on Fedora 44: a task started through the socket, streamed twelve lines of progress,
+appeared in `List`, pushed work that `Pending` then listed with its commit and subject and
+`Review` returned as a diff - **and survived `SIGKILL` of the daemon that started it**. That last
+one is the property spawning could have broken, so it was measured rather than assumed.
 
 ## To be checked
 
