@@ -209,8 +209,8 @@ type InstallArtifact (
   reason: string
 )
 
-# An installed agent binary that never runs, because an earlier location holds one of the same
-# file name.
+# An installed agent binary that never runs: either an earlier location holds one of the same
+# file name, or another binary claimed the same declared name first.
 type ShadowedAgent (
   # The binary that is installed and not in use.
   path: string,
@@ -403,11 +403,11 @@ method Agents() -> (
   agents: []Agent,
   # Binaries that are installed and could not be asked what they are, by file name. An agent
   # that fails to describe itself is unusable, and leaving it out would read as not installed.
-  # Also where a name collision lands: two binaries both calling themselves the same thing.
+  # A name collision is NOT here: nothing is broken in that case, one copy runs.
   failures: [string]string,
-  # Binaries installed under a file name an earlier location already holds. These are never
-  # started, so they have no Agent entry - which is why they are reported separately rather than
-  # as a flag on one.
+  # Binaries that are installed and never run. Two causes, one consequence: an earlier location
+  # holds the same file name, or another binary claimed the same declared name first. Neither has
+  # an Agent entry to carry a flag, which is why this is a list rather than a field on one.
   shadowed: []ShadowedAgent
 )
 

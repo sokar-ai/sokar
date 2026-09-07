@@ -338,14 +338,21 @@ public final class SokarDaemon {
                 // Which copy of a shadowed name runs is a rule, and it lives in AgentDirectory
                 // with the scan that implements it. Reported separately because a shadowed binary
                 // is never started and so has no agent entry to carry a flag.
-                final List<Map<String, Object>> hidden =
-                        context.paths().agentDirectory().shadowedBy().entrySet().stream()
-                                .map(pair -> {
-                                    final Map<String, Object> row = new LinkedHashMap<>();
-                                    row.put("path", pair.getKey().toString());
-                                    row.put("usedInstead", pair.getValue().toString());
-                                    return row;
-                                }).toList();
+                // Two ways a binary ends up installed and never run, and one list: an earlier
+                // location holds the same FILE NAME, or another binary claimed the same DECLARED
+                // NAME first. Different causes, identical consequence, and an interface has one
+                // thing to say about both - so they are not split into two fields nobody asked
+                // for.
+                final Map<Path, Path> never =
+                        new LinkedHashMap<>(context.paths().agentDirectory().shadowedBy());
+                never.putAll(agents.ignored());
+                final List<Map<String, Object>> hidden = never.entrySet().stream()
+                        .map(pair -> {
+                            final Map<String, Object> row = new LinkedHashMap<>();
+                            row.put("path", pair.getKey().toString());
+                            row.put("usedInstead", pair.getValue().toString());
+                            return row;
+                        }).toList();
                 // What could not be asked matters as much as what could: an agent that fails to
                 // describe itself is installed and unusable, and silence would read as absent.
                 replies.last(Map.of("agents", found, "failures", agents.failures(),

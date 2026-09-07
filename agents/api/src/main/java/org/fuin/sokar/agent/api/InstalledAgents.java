@@ -25,6 +25,8 @@ public class InstalledAgents implements AutoCloseable {
 
     private final Map<String, String> failures = new LinkedHashMap<>();
 
+    private final Map<Path, Path> ignored = new LinkedHashMap<>();
+
     /**
      * Starts every agent found in a directory.
      *
@@ -35,11 +37,21 @@ public class InstalledAgents implements AutoCloseable {
         for (final Path executable : directory.executables()) {
             try {
                 final InstalledAgent agent = new InstalledAgent(executable, socketDirectory);
-                final InstalledAgent clash = agents.put(agent.name(), agent);
-                if (clash != null) {
-                    clash.close();
-                    failures.put(agent.name(), "two binaries both call themselves '" + agent.name()
-                            + "': " + clash.executable() + " and " + executable);
+                final InstalledAgent running = agents.putIfAbsent(agent.name(), agent);
+                if (running != null) {
+                    // The FIRST one found wins, not the last. It used to be the last, which
+                    // silently inverted the rule the rest of this class is built on: locations are
+                    // searched most specific first, so overwriting meant a packaged agent beat the
+                    // operator's own copy of the same name - the opposite of what every other
+                    // precedence in Sokar does, and invisible when wrong, because both copies look
+                    // plausible and the difference only shows up as a run behaving unlike the
+                    // version somebody read on screen.
+                    agent.close();
+                    // NOT a failure. The agent works - one copy of it is running - so calling this
+                    // unusable would be false, and it used to make 'sokar agents' exit non-zero on
+                    // a machine where nothing was wrong. It belongs with the other binary that is
+                    // installed and never runs.
+                    ignored.put(executable, running.executable());
                 }
             } catch (AgentException ex) {
                 failures.put(executable.getFileName().toString(), ex.getMessage());
@@ -98,6 +110,25 @@ public class InstalledAgents implements AutoCloseable {
      *
      * @return File name to reason.
      */
+    /**
+     * Returns binaries that never run because another one claimed their name first.
+     * <p>
+     * Distinct from {@link #failures()} on purpose: these are not broken, and the agent they
+     * declare is running. What is wrong is only that somebody installed a second copy and cannot
+     * see which one they are getting - the failure that is invisible when it happens, because both
+     * copies look plausible and the difference shows up as a run behaving unlike the version on
+     * screen.
+     * <p>
+     * The first one found wins, and locations are searched most specific first, so the operator's
+     * own copy beats a packaged one. That is a rule rather than scan order, which is why it can be
+     * reported at all.
+     *
+     * @return Binary that is ignored, to the one that runs instead.
+     */
+    public Map<Path, Path> ignored() {
+        return java.util.Collections.unmodifiableMap(ignored);
+    }
+
     public Map<String, String> failures() {
         return Map.copyOf(failures);
     }

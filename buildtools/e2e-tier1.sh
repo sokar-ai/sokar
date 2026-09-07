@@ -109,6 +109,52 @@ else
     fail "sokar did not find the installed agent"
 fi
 
+# Two binaries under different file names both calling themselves the same agent. This is not
+# the shadowing rule - that is one file name in two locations - and it used to resolve the other
+# way round: the LAST one scanned overwrote the first, so a packaged agent beat the operator's
+# own copy, inverting the precedence every other part of Sokar follows. Wrong invisibly, because
+# both copies look plausible and the only symptom is a run behaving unlike the version on screen.
+#
+# --directory prepends a location, so the copy in here is the one found first and must be the one
+# that runs.
+COLLIDING="$WORK/extra-agents"
+mkdir -p "$COLLIDING"
+cp "$AGENT" "$COLLIDING/sokar-agent-zz-$AGENT_NAME"
+
+COLLISION_CODE=0
+COLLISION="$("$SOKAR" agents --directory "$COLLIDING" 2>&1)" || COLLISION_CODE=$?
+
+# Asserted on the FROM column - the binary that actually runs - and NOT on the "ignored" line.
+# The first version of this check read the message instead, and passed unchanged when the rule was
+# mutated back to last-wins: the message is built from the losing side and stayed identical while
+# the register held the other copy. A check that reads what a thing SAYS about itself cannot catch
+# it saying the wrong thing.
+RUNNING_FROM="$(echo "$COLLISION" | awk -v n="$AGENT_NAME" '$1 == n {print $NF}' | head -1)"
+
+if [ -z "$RUNNING_FROM" ]; then
+    fail "no agent named $AGENT_NAME is listed at all"
+elif [ "$RUNNING_FROM" = "$COLLIDING/sokar-agent-zz-$AGENT_NAME" ]; then
+    pass "the copy found first is the one that runs"
+    info "runs $RUNNING_FROM"
+else
+    fail "the wrong copy runs: $RUNNING_FROM, not $COLLIDING/sokar-agent-zz-$AGENT_NAME"
+fi
+
+if echo "$COLLISION" | grep -q "^ignored .*$AGENT_HOME/sokar-agent-$AGENT_NAME$"; then
+    pass "the copy that does not run is named, with the one that does"
+else
+    fail "the ignored copy was not reported: $(echo "$COLLISION" | grep '^ignored ' | head -1)"
+fi
+
+# Nothing here is broken - one copy of the agent is running - so this must not look like a
+# failure to anything reading the exit code. It used to exit 1, which is how a machine where
+# everything worked reported an error.
+if [ "$COLLISION_CODE" -eq 0 ]; then
+    pass "a name collision is not reported as a failed command"
+else
+    fail "'sokar agents' exited $COLLISION_CODE over a collision, though the agent runs"
+fi
+
 DESCRIBE="$("$AGENT" describe 2>/dev/null)"
 CLI_VERSION="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["definition"]["version"])')"
 # Which variable carries the token is the PROVIDER's fact now, not the agent's, so it is read

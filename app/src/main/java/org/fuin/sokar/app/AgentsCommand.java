@@ -123,6 +123,16 @@ public class AgentsCommand implements Callable<Integer> {
                 out.flush();
             }
 
+            // On standard output and not an error: nothing here is broken. A second binary
+            // claiming a name that is already taken means the agent runs and somebody cannot see
+            // which copy they are getting - worth saying, and not worth a non-zero exit on a
+            // machine where everything works.
+            agents.ignored().forEach((hidden, running) -> {
+                out.println("ignored   " + hidden);
+                out.println("          " + running + " claimed the same name first and runs");
+            });
+            out.flush();
+
             // Reported rather than thrown: one broken package must not make the machine look as
             // though it has no agents.
             for (final Map.Entry<String, String> failure : agents.failures().entrySet()) {
