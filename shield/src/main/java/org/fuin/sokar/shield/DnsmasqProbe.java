@@ -12,8 +12,8 @@ import java.util.Locale;
  * <strong>A dnsmasq without it fails silently.</strong> The configuration is accepted, names still
  * resolve, and every declared host is then dropped by the firewall - which looks like a network
  * fault, or like a clearance prompt that will not stop coming. That is why this is probed and
- * reported by {@code sokar doctor} rather than discovered by an operator. Terok probes the same
- * capability for the same reason.
+ * reported by {@code sokar doctor} rather than discovered by an operator - a trap well known
+ * enough that comparable tools probe for the same capability.
  */
 public final class DnsmasqProbe {
 

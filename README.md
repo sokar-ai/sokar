@@ -55,7 +55,7 @@ Supervise agents from a Flutter client — wherever they run :construction:
 > Sokar is inspired by [Terok AI](https://github.com/terok-ai/terok) — not a fork and not a port, but it owes that
 project a great deal: the architecture, and a lot of hard-won knowledge about how podman, nftables and D-Bus actually
 behave. Big kudos to its developers. If you are more at home in Python, use it. It's a cool project!
-Why build this if Terok is so cool? See [why](doc/why.md)
+Why build this rather than use it? See [why](doc/why.md)
 
 ## Supported providers and agents
 

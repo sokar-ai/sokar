@@ -219,8 +219,8 @@ See [build.md](build.md). Three things that will bite:
   and it puts agent-controlled content on the host: `.git/hooks` runs on the next host-side
   git command, and `.git/config` can point `core.pager`, `core.fsmonitor` or an alias at
   anything, so `git status` in that directory is enough to run whatever the agent wrote.
-  Terok takes that option and names the directory `workspace-dangerous`; its own warning is
-  the argument against it. **The same rule forbids reading a workspace from the host to
+  Another project in this space takes that option and calls the directory
+  `workspace-dangerous`; its own warning is the argument against it. **The same rule forbids reading a workspace from the host to
   check it**, which is why the check below is a note rather than a look.
 - **Nothing can ask a stopped container what it holds.** `podman exec` needs a running one,
   and removing a task is exactly when nobody is running it. The census is therefore written
@@ -294,13 +294,14 @@ See [build.md](build.md). Three things that will bite:
 - **A hook failure reaches the operator only if the hook writes it down.** The
   runtime reports an exit code and discards the hook's stderr, so `Hook.execute`
   logs the reason to `hooks.log` as well.
-- **Terok is the reference when something is unclear.** Sibling checkouts live in
-  `../../terok-ai/`: `terok`, `terok-sandbox`, `terok-executor`, `terok-shield`,
-  `terok-clearance`, `terok-util`. It has already hit most of these problems.
-  Read it for *what* to do, never for prose or code to copy — Sokar is a
-  ground-up rewrite, and Apache-2.0 attribution is taken seriously here. Note
-  also where Terok has *not* solved something: its Claude OAuth proxy is
-  experimental and off by default, and its Copilot authentication is broken.
+- **Prior art in this space has usually hit the problem first.** Where something is
+  unclear, look at how others solved it — and read it for *what* to do, never for
+  prose or code to copy: Sokar is a ground-up rewrite and Apache-2.0 attribution is
+  taken seriously here. Note where they have *not* solved something either; a gap in
+  somebody else's implementation is as informative as a solution, and cheaper to find
+  than to rediscover. Which projects, where their checkouts are, and what each has
+  already answered is a working note rather than product documentation: `.AGENT.md`
+  in the repository root, gitignored like every dotfile here.
 
 - **A provider is data; an agent is code.** An agent needs a binary because it has behaviour
   that cannot be expressed as data - a stream formatter, first-run setup, one CLI's quirks. A

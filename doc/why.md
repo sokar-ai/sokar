@@ -1,4 +1,6 @@
-# Why build this if Terok is so cool?
+# Why build this rather than use the project that inspired it?
+
+The acknowledgement is in the [README](../README.md); this is the rest of the answer.
 
 - **It's Java** — Sorry, I'm a Java developer and Python is not my world. Fixes and enhancements are simply easier for
   me here.

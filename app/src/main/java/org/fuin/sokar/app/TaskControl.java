@@ -16,9 +16,9 @@ import org.jspecify.annotations.Nullable;
  * Stopping and resuming a task, decided once for every caller.
  * <p>
  * The CLI renders what these return and the daemon serialises it, the way both already share
- * {@link TaskInventory}. [0001] asks the CLI and the interface to reach identical behaviour
- * through the same calls, and these two operations are where a second implementation would hurt
- * most: they refuse things. A refusal that exists in one caller and not the other is a task
+ * {@link TaskInventory}. The CLI and the interface have to reach identical behaviour through the
+ * same calls, and these two operations are where a second implementation would hurt most: they
+ * refuse things. A refusal that exists in one caller and not the other is a task
  * removed with work in it.
  * <p>
  * Nothing here prints. What happened is returned, including the parts that read as failures, so

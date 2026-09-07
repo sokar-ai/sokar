@@ -12,8 +12,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * Builds a gate for a project file, so the gate commands do not each repeat it.
  * <p>
- * Public because the daemon serves the gate as well: [0001] asks the CLI and the interface to
- * reach identical behaviour through the same calls, and a second way of resolving which mirror a
+ * Public because the daemon serves the gate as well. The CLI and the interface have to reach
+ * identical behaviour through the same calls, and a second way of resolving which mirror a
  * project's work is waiting in is how an approval comes to mean two things.
  */
 public final class GateSupport {

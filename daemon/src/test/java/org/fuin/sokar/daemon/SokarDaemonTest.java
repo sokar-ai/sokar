@@ -373,7 +373,7 @@ class SokarDaemonTest {
     @Test
     void listsWhatTheVaultHoldsWithoutItsValues(@TempDir Path dir) throws Exception {
 
-        // 0012 in one assertion: an interface must be able to show what is stored without ever
+        // The whole credential promise in one assertion: what is stored can be shown without ever
         // displaying, logging or copying a value.
         serving(dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {

@@ -15,10 +15,10 @@ import org.jspecify.annotations.Nullable;
  * Starting a task: from reading the project file to a container that is up, wired and firewalled.
  * <p>
  * Lifted out of {@code TaskRunCommand} after the six wirings, so that starting a task is something
- * the domain does rather than something a CLI class does. [0001] asks the CLI and the interface to
- * reach identical behaviour through the same calls, and this was the last operation where they did
- * not: the daemon had to spawn the CLI and read a line of its output, because running the command
- * was the only way to start a task.
+ * the domain does rather than something a CLI class does. The CLI and the interface have to reach
+ * identical behaviour through the same calls, and this was the last operation where they did not:
+ * the daemon had to spawn the CLI and read a line of its output, because running the command was
+ * the only way to start a task.
  * <p>
  * <strong>The caller is handed the running task inside this class's own resource scope.</strong>
  * The installed agents are processes this opens and closes, and the paths that follow a start -

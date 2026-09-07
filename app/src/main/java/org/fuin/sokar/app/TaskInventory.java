@@ -14,10 +14,10 @@ import org.jspecify.annotations.Nullable;
  * What tasks exist on this machine, as data rather than as a printed table.
  * <p>
  * The CLI renders this and the daemon serialises it, so that "what tasks are there" is answered in
- * one place. [0001] asks for the interface and the CLI to reach identical behaviour through the
- * same calls; two implementations of the same question are how a feature comes to exist in one and
- * not the other, and how they come to disagree about something an operator is reading to decide
- * what to stop.
+ * one place. The interface and the CLI have to reach identical behaviour through the same calls;
+ * two implementations of the same question are how a feature comes to exist in one and not the
+ * other, and how they come to disagree about something an operator is reading to decide what to
+ * stop.
  * <p>
  * The container runtime knows the containers; only Sokar knows which project and security class
  * each belongs to. Both come from the task's own state directory rather than from the container

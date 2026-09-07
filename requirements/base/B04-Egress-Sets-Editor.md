@@ -42,11 +42,12 @@ before it is saved, and be refused when the security class forbids it.
 The distinction between "deliberately refused" and "never declared" must survive into
 the interface; they look identical to the firewall and mean opposite things.
 
-The set contents came from [Terok](https://github.com/terok-ai/terok), except `maven`, which was
-measured: 193 artifacts resolved into an empty local repository through a logging proxy, which
-saw `repo.maven.apache.org` and, for snapshots, `central.sonatype.com`. Terok also has a chooser
-that writes the key rather than making an operator author host lists, which is roughly the shape
-this requirement is asking for.
+The set contents were adapted from the project acknowledged in the
+[README](../../README.md), except `maven`, which was measured here: 193 artifacts resolved into
+an empty local repository through a logging proxy, which saw `repo.maven.apache.org` and, for
+snapshots, `central.sonatype.com`. That project also has a chooser that writes the key rather
+than making an operator author host lists, which is roughly the shape this requirement is asking
+for.
 
 ## To be checked
 

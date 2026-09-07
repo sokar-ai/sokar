@@ -35,6 +35,13 @@ The rest of this document is that sentence, unpacked.
 > **Linux only.** The parts that do the sealing are features of the Linux kernel.
 > They do not exist on macOS or Windows, so Sokar does not run there.
 
+> **Podman 5 or newer.** Podman is the program that makes the sealed rooms. Older
+> versions cannot connect your machine's own loopback into a room, and without that
+> the in-tray your agent hands work to would have to sit on your local network, where
+> other machines could reach it. Sokar refuses to start rather than run with less than
+> it promises. Ubuntu 24.04 ships podman 4 and always will, so on that release you need
+> a newer one; Fedora, Debian 13 and Ubuntu 25.10 or later are fine.
+
 ## 3. The words you need
 
 | Word | What it means here |
@@ -280,10 +287,12 @@ and you can add a private one that will never be published.
 
 ### 6.6 It tells you when the machine is not ready
 
-`sokar doctor` checks the pieces Sokar depends on and reports on them. One check is
-worth knowing about by name: **`dnsmasq nftset`**. Without that capability, declared
-domains resolve but nothing connects, and there is no error explaining why. If doctor
-reports anything but `yes` there, fix that before your first task.
+`sokar doctor` checks the pieces Sokar depends on and reports on them. Two checks are
+worth knowing by name. **`podman`** must be version 5 or newer, for the reason in the
+box near the top — doctor says so plainly if it is not. And **`dnsmasq nftset`**:
+without that capability, declared domains resolve but nothing connects, and there is
+no error explaining why. If doctor reports anything but `yes` there, fix it before your
+first task.
 
 ## 7. What Sokar does *not* do
 

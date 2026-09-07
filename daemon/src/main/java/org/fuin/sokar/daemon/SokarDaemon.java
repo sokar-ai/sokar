@@ -288,7 +288,7 @@ public final class SokarDaemon {
             // Into the domain, not out to a subprocess. Until TaskLaunch existed this spawned
             // 'sokar task run' and read one line of its output for the container name, because
             // running the command was the only way to start a task. Now the CLI and this call
-            // the same object, which is what [0001] asks for - and there is no output to parse,
+            // the same object, so neither can grow a behaviour the other lacks - and there is
             // because the name comes back as a value.
             final java.io.StringWriter collected = new java.io.StringWriter();
             final PrintWriter sink = replies.streaming()

@@ -36,8 +36,9 @@ agent a `git push` that bypasses the gate.
 
 ### What the sets contain, and what they cannot
 
-The host lists were taken from [Terok](https://github.com/terok-ai/terok), which solves the
-same problem, except `maven` — Terok has no Java set, so that one was measured: 193 artifacts
+The host lists were adapted from the project acknowledged in the
+[README](../README.md), which solves the same problem — except `maven`, which it has
+no set for, so that one was measured here: 193 artifacts
 resolved into an empty local repository through a logging proxy, which saw
 `repo.maven.apache.org` and, for snapshots, `central.sonatype.com`. Central's CDN answers under
 its own name, so there is no redirect to a third host.

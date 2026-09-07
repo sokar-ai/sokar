@@ -8,7 +8,7 @@ import java.util.Optional;
 /**
  * Tries each passphrase source in turn and returns the first answer.
  * <p>
- * Terok ships five tiers. C3's analysis is that they overlap heavily and that
+ * Comparable tools ship five tiers. The analysis here is that they overlap heavily and that
  * {@code passphrase-command} alone covers every password manager worth naming, so Sokar starts
  * with two and adds more when someone asks for one. Shipping fewer tiers is not a limitation here
  * but the point: every tier is another way for the passphrase to end up somewhere unexpected.
