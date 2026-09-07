@@ -591,6 +591,12 @@ request: nothing in the build reads a markdown file, and on `main` a run rents t
 and republishes. A push that mixes docs and code still builds - the filter is per push, not
 per file - and `workflow_dispatch` ignores it, so a run can always be forced.
 
+**Everything in the repository is written in English** - code, comments, requirements,
+documentation, commit messages - whatever language the conversation that produced it happened in.
+The spelling rule above is the detail; this is the rule. A repository that switches language
+halfway strands every reader who does not share the author's first one, and the people most likely
+to read a security tool's reasoning are not all German speakers.
+
 **A requirement that is done is deleted**, file and index row together, once whatever
 is worth keeping has moved into this file. They describe work to do, not work that was
 done; git history is where finished work lives.

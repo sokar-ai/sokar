@@ -80,10 +80,60 @@ into the image. Both vendors support a server installed by hand.
 branch out of the mirror into your own checkout - is the convenient one.** That is the shape of the
 accident this requirement is about: it is not carelessness, it is the only path that works.
 
+## And it leaves the gate saying something untrue
+
+Found by asking what a hand push does to the state, which is a different question from what it does
+to the upstream. `approve` is two operations:
+
+```
+git push <upstream> refs/sokar/incoming/<name>:refs/heads/<branch>
+git update-ref -d refs/sokar/incoming/<name>
+```
+
+The delete is what empties the queue. A push made by hand does the first and not the second, so the
+ref stays, and:
+
+- **`gate pending` lists the work as waiting for review, permanently.** A queue that always has
+  something in it is a queue nobody reads, and then the one entry that really is waiting does not
+  stand out.
+- **`reject` afterwards writes down the opposite of the truth.** Somebody tidying up marks it
+  discarded while the code is on the upstream. Of the three consequences this is the dangerous one:
+  the record now says the work was thrown away.
+- **A later `approve` fails as a non-fast-forward** if anything was rebased before the hand push,
+  with a git error that does not say why.
+
+There is a fix for this half that does not depend on preventing anything: the mirror knows the
+upstream URL, so `pending` can ask whether an incoming ref is already reachable from the upstream
+branch and say **already upstream** instead of **waiting**. That turns a wrong state into a true
+one even when nobody could be stopped.
+
+### Three ways to notice, and they are not equal
+
+**Watching the operator's checkout** is possible and partial. A successful push updates the
+remote-tracking ref, and git writes `update by push` into its reflog, which inotify can see; the
+project registry already knows one `project.yml` path per project, so there is somewhere to point
+a watcher. What it cannot see is every other clone: the same person pushing from a laptop, a
+colleague, CI, or the forge's own web editor. A guard that is right about one directory and blind
+to the rest teaches people to trust it, which is worse than not having it.
+
+**Asking the upstream** sees all of those, because it asks about the thing everyone shares. One
+fetch in the mirror and one reachability test per pending ref, at the moment somebody looks -
+no watcher, no daemon, nothing running between times. It costs the network, and it is the truth
+rather than an inference from a local side effect.
+
+**The pre-push hook knows first.** Where the guard above is installed, it is standing exactly at
+the moment the push happens - so besides refusing, it can record. Somebody who confirms and pushes
+anyway can leave the gate's state correct on the way past, which is the only version of this where
+nothing is ever briefly wrong.
+
+The three compose in that order of reliability, and only the last two are worth building.
+
 ## Acceptance
 
 - Work that reached the upstream without passing the gate is **prevented or reported**, not
   silently possible.
+- The gate never describes work as waiting for review when it is already upstream, and never
+  records it as discarded when it is not.
 - The guard recognises agent work by something the agent actually leaves behind, not by where a
   branch happens to be.
 - A person who means it can still do it. **This is protection against an accident, not against the

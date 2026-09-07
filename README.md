@@ -185,6 +185,10 @@ own login. Both are in the step-by-step guides, which also cover what each line 
 what goes wrong when it is skipped:
 [Debian and Ubuntu](doc/getting-started-debian.md) · [Fedora and RHEL](doc/getting-started-fedora.md).
 
+## What each security class actually does
+See [the three security classes](doc/security-classes.md) — one picture each for `offline`,
+`guarded` and `online`: who is involved, how work gets in and out, and where somebody reads it.
+
 ## Not sure what any of that meant
 See [Sokar for dummies](doc/sokar-for-dummies.md) — the hardening and the features explained point by point, assuming no prior knowledge.
 
