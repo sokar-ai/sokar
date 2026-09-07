@@ -65,7 +65,7 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
 
 ## Tests
 
-- **Descriptive method names, not `testXxx`.** All 683 test methods read as
+- **Descriptive method names, not `testXxx`.** All 687 test methods read as
   sentences — `refusesADomainThatIsBothAllowedAndRefused`,
   `readsTheDomainsAnAgentNeeds`. There is no `testXxx` left; do not reintroduce it.
 - **Every guard must be proven to fail.** A test that has never failed is a test
@@ -73,6 +73,16 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
   it break, then keep the negative case if it can be expressed as a test. This is
   how the ArchUnit rule, the FFM metadata check, the domain-coverage check, the
   git-gate firewall rule and the package freshness rule were all validated.
+- **Watch the RIGHT thing fail.** Breaking the rule is only half of it. The agent
+  name-collision check survived its own mutation: it asserted the "ignored"
+  message, which is built from the losing side and stayed word-for-word identical
+  while the register held the other copy. It was testing the reporter, not the
+  behavior. Assert on what the system DOES - which binary the `FROM` column names,
+  which container exists, what a host can reach - never on what it says about
+  itself. Two sibling near-misses the same day: a grep that matched the fixture's
+  own name (a task called `lockedrun`, greped for "locked"), and a test for a
+  state a constructor forbids. If a mutation leaves a check green, the check is
+  the thing that is broken.
 - **Test observable behavior**, not internals: the generated ruleset, the
   packaged file list, what a container can actually reach.
 - A test that needs podman belongs in `buildtools/e2e-tier1.sh`, not in surefire.

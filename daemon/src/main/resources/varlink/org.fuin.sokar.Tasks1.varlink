@@ -334,7 +334,12 @@ type Project (
   # How many of those are up. A project with none is the ordinary case - between tasks, or after
   # one was stopped and can still be resumed - so both numbers are given rather than one being
   # inferred from the other. This list is every project, not only the busy ones.
-  running: int
+  running: int,
+  # Whether a task image for this project exists, so work can start here without building one
+  # first. That is the whole claim: it does NOT say the image still matches the project file as
+  # it stands now. A project that has never run answers false, which is a normal state and not a
+  # fault - it means the first task here will spend minutes building before anything happens.
+  prepared: bool
 )
 
 # One log a task has written.

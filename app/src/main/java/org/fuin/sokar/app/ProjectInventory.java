@@ -48,7 +48,33 @@ public final class ProjectInventory {
      *        rather than one being inferred from the other.
      */
     public record Summary(String name, @Nullable String securityClass, @Nullable String file,
-            @Nullable String mirror, int pending, int tasks, int running) {
+            @Nullable String mirror, int pending, int tasks, int running, boolean prepared) {
+
+        /**
+         * Constructor for a project whose image has not been looked for yet.
+         *
+         * @param name Project name.
+         * @param securityClass How much the agent is trusted, or {@code null} when unrecorded.
+         * @param file Path of the project file, or {@code null}.
+         * @param mirror The gate's mirror, or {@code null}.
+         * @param pending Pushes waiting for review.
+         * @param tasks How many tasks it has.
+         * @param running How many of those are up.
+         */
+        Summary(String name, @Nullable String securityClass, @Nullable String file,
+                @Nullable String mirror, int pending, int tasks, int running) {
+            this(name, securityClass, file, mirror, pending, tasks, running, false);
+        }
+
+        /**
+         * Returns this project with its image state filled in.
+         *
+         * @param built Whether an image for it exists.
+         * @return A copy.
+         */
+        Summary prepared(boolean built) {
+            return new Summary(name, securityClass, file, mirror, pending, tasks, running, built);
+        }
 
         /**
          * Returns this project as plain values, for a caller that has to put it on a wire.
@@ -65,6 +91,9 @@ public final class ProjectInventory {
             map.put("pending", pending);
             map.put("tasks", tasks);
             map.put("running", running);
+            // Whether a task can start here without building an image first. Not a claim that the
+            // image matches the project file as it stands now - only that one is there.
+            map.put("prepared", prepared);
             return map;
         }
     }
@@ -120,8 +149,13 @@ public final class ProjectInventory {
         files.keySet().stream().filter(name -> !found.containsKey(name)).forEach(name ->
                 found.put(name, new Summary(name, null, fileOf(files, name), null, 0, 0, 0)));
 
+        // Asked once for every project rather than once per project: 'podman image exists' is a
+        // subprocess, and this list is re-read after every task start and every approval.
+        final java.util.Set<String> images = context.podman().sokarImages();
+
         return found.values().stream()
                 .sorted(java.util.Comparator.comparing(Summary::name))
+                .map(summary -> summary.prepared(images.contains("sokar/" + summary.name())))
                 .toList();
     }
 

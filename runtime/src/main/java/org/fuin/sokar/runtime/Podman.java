@@ -9,6 +9,7 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import org.fuin.sokar.core.process.Command;
 import org.fuin.sokar.core.process.CommandResult;
@@ -364,6 +365,23 @@ public class Podman {
                 .filter(name -> !name.isEmpty())
                 .filter(ContainerName::isSokar)
                 .toList();
+    }
+
+    /**
+     * Lists the project images Sokar has built, by name.
+     * <p>
+     * One call rather than {@link #hasImage} per project. Anything reporting on every project asks
+     * this once: a subprocess per project is a cost nothing on screen explains, and the interface
+     * re-asks for the project list after every task start and every approval.
+     *
+     * @return Image names, as {@code sokar/<project>}, possibly empty.
+     */
+    public Set<String> sokarImages() {
+        return runner.run(podman("images", "--format", "{{.Repository}}"))
+                .standardOutput().lines()
+                .map(String::strip)
+                .filter(name -> name.startsWith("sokar/"))
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 
     /**

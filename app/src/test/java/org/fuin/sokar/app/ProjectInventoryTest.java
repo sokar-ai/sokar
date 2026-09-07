@@ -52,6 +52,61 @@ class ProjectInventoryTest {
     }
 
     @Test
+    void saysAProjectWithAnImageCanStartWorkWithoutBuildingOne(@TempDir Path dir)
+            throws IOException {
+
+        final SokarContext context = context(dir);
+        mirror("uc");
+        runner.answering("images", "sokar/uc\nsokar/other\nubuntu\n");
+
+        assertThat(new ProjectInventory(context).projects()).singleElement()
+                .satisfies(project -> assertThat(project.prepared()).isTrue());
+    }
+
+    @Test
+    void saysAProjectWithNoImageWillHaveToBuildOneFirst(@TempDir Path dir) throws IOException {
+
+        // A normal state, not a fault: it means the first task here spends minutes building
+        // before anything happens, which is worth showing before somebody presses start.
+        final SokarContext context = context(dir);
+        mirror("uc");
+        runner.answering("images", "sokar/somethingelse\nubuntu\n");
+
+        assertThat(new ProjectInventory(context).projects()).singleElement()
+                .satisfies(project -> assertThat(project.prepared()).isFalse());
+    }
+
+    @Test
+    void doesNotMistakeAnImageWhoseNameMerelyStartsTheSame(@TempDir Path dir) throws IOException {
+
+        // 'sokar/uc-staging' is a different project. Matching on a prefix would mark a project
+        // ready that has never been built, and the first task would then spend minutes doing
+        // what an interface said was already done.
+        final SokarContext context = context(dir);
+        mirror("uc");
+        runner.answering("images", "sokar/uc-staging\n");
+
+        assertThat(new ProjectInventory(context).projects()).singleElement()
+                .satisfies(project -> assertThat(project.prepared()).isFalse());
+    }
+
+    @Test
+    void asksPodmanForImagesOnceHoweverManyProjectsThereAre(@TempDir Path dir) throws IOException {
+
+        // The cost the interface cannot see. It re-reads this list after every task start and
+        // every approval, so a subprocess per project would turn ordinary use into a stall
+        // nothing on screen explains.
+        final SokarContext context = context(dir);
+        for (final String name : java.util.List.of("one", "two", "three", "four")) {
+            mirror(name);
+        }
+        runner.answering("images", "sokar/one\n");
+
+        assertThat(new ProjectInventory(context).projects()).hasSize(4);
+        assertThat(runner.lines().stream().filter(line -> line.contains("image"))).hasSize(1);
+    }
+
+    @Test
     void findsAProjectByItsMirrorAlone(@TempDir Path dir) throws IOException {
 
         // The mirror outlives every task, so it is the only durable list of names there is.
