@@ -55,7 +55,7 @@ Supervise agents from a Flutter client — wherever they run :construction:
 > Sokar is inspired by [Terok AI](https://github.com/terok-ai/terok) — not a fork and not a port, but it owes that
 project a great deal: the architecture, and a lot of hard-won knowledge about how podman, nftables and D-Bus actually
 behave. Big kudos to its developers. If you are more at home in Python, use it. It's a cool project!
-Why build this if Terok is so cool? See [why](why.md)
+Why build this if Terok is so cool? See [why](doc/why.md)
 
 ## Supported providers and agents
 
@@ -183,13 +183,16 @@ sokar task run
 by hand — an API key from your provider's console, or a subscription token from the agent's
 own login. Both are in the step-by-step guides, which also cover what each line above does and
 what goes wrong when it is skipped:
-[Debian and Ubuntu](getting-started-debian.md) · [Fedora and RHEL](getting-started-fedora.md).
+[Debian and Ubuntu](doc/getting-started-debian.md) · [Fedora and RHEL](doc/getting-started-fedora.md).
+
+## Not sure what any of that meant
+See [Sokar for dummies](doc/sokar-for-dummies.md) — the hardening and the features explained point by point, assuming no prior knowledge.
 
 ## Questions
-See [FAQ](faq.md).
+See [FAQ](doc/faq.md).
 
 ## Adding your tools to a container
-See [your tooling](your-tooling.md).
+See [your tooling](doc/your-tooling.md).
 
 ## Adding a new agent
 See [Onboarding a new agent](agents/README.md#onboarding-a-new-agent)
@@ -198,7 +201,7 @@ See [Onboarding a new agent](agents/README.md#onboarding-a-new-agent)
 See [requirements](requirements/README.md).
 
 ## Building the project
-See [build](build.md).
+See [build](doc/build.md).
 
 ## Licence
 GNU General Public License v3.0 or later — see [LICENSE](LICENSE).

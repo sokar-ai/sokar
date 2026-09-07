@@ -572,6 +572,39 @@ if podman exec "$CONTAINER" sh -c 'test -d /workspace/.git' 2>/dev/null; then
             | while read -r line; do info "    $line"; done
     fi
 
+    # The endpoint the agent pushes to must not be an endpoint anything else can reach. The
+    # token was the only defence while the gate bound every interface; the bind is the second.
+    GATE_PORT="$(grep '^gate ' "$START_LOG" | sed -n 's|.*:\([0-9]\+\)/.*|\1|p' | head -1)"
+    if [ -n "$GATE_PORT" ]; then
+        # Java binds a dual-stack socket, so loopback reads as [::ffff:127.0.0.1] here.
+        if ss -ltnH "sport = :$GATE_PORT" \
+                | grep -qE '(127\.0\.0\.1|\[::1\]|\[::ffff:127\.0\.0\.1\]):'"$GATE_PORT"; then
+            pass "the gate listens on loopback only"
+        elif ss -ltnH "sport = :$GATE_PORT" | grep -q .; then
+            fail "the gate is bound where the local network can reach it"
+            ss -ltnH "sport = :$GATE_PORT" | while read -r line; do info "  $line"; done
+            grep '^sokar:' "$START_LOG" 2>/dev/null | while read -r line; do info "  $line"; done
+        else
+            fail "nothing is listening on the gate port $GATE_PORT"
+        fi
+
+        # And measured from off the loopback, because a bind is what was assumed last time.
+        # This machine's own routable address stands in for another machine: a packet to it
+        # leaves the loopback, which is the whole question.
+        LAN_ADDRESS="$(ip -4 -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
+        if [ -n "$LAN_ADDRESS" ]; then
+            if timeout 5 bash -c "echo > /dev/tcp/$LAN_ADDRESS/$GATE_PORT" 2>/dev/null; then
+                fail "the gate answers on $LAN_ADDRESS, so the local network can reach it"
+            else
+                pass "the gate does not answer on this machine's network address"
+            fi
+        else
+            info "no routable address on this machine, so the network check was skipped"
+        fi
+    else
+        fail "the start log does not say what port the gate is on"
+    fi
+
     if [ "$PUSHED" -eq 0 ]; then
         if (cd "$WORK" && "$SOKAR" gate pending 2>/dev/null) \
                 | grep -q "e2e: work from the agent"; then

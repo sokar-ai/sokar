@@ -508,7 +508,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
             if (workspace != null) {
                 if (workspace.gated()) {
-                    startGate(runner, workspace, container, out, err);
+                    startGate(runner, workspace, wiring.gateAddress(), container, out, err);
                 }
                 prepareWorkspace(runner, workspace, container, out, err);
             }
@@ -924,7 +924,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         return null;
     }
 
-    private void startGate(TaskRunner runner, TaskWorkspace workspace, String container,
+    private void startGate(TaskRunner runner, TaskWorkspace workspace,
+            @org.jspecify.annotations.Nullable String gateAddress, String container,
             PrintWriter out, PrintWriter err) {
 
         final java.nio.file.Path state = context.paths().containerState(container);
@@ -932,11 +933,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 ProcessHandle.current().info().command().orElse("sokar"),
                 "gate", "serve",
                 "--project", projectFile.toAbsolutePath().toString(),
-                // Reachable from the LAN, which is not what anyone would want, but a loopback
-                // bind is measurably unreachable from the container here. Narrowing it needs
-                // pasta's --map-host-loopback, which cannot be passed this way. Every request
-                // carries a per-task token, which is what actually keeps this shut.
-                "--address", "0.0.0.0",
+                "--address", gateBind(gateAddress, err),
                 "--port", String.valueOf(workspace.port()),
                 "--pid-file", state.resolve("gate.pid").toString());
 
@@ -956,7 +953,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                             java.util.Map.Entry::getKey, java.util.Map.Entry::getValue))),
                     TaskHelpers.AFTER);
             out.println("gate      " + workspace.url(project(out, err)));
-            final String mismatch = gateReachability(runner, container);
+            final String mismatch = gateAddress == null ? null
+                    : gateReachability(runner, container, gateAddress);
             if (mismatch != null) {
                 err.println("sokar: " + mismatch);
                 err.flush();
@@ -966,6 +964,44 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.println("sokar: could not start the git gate: " + ex.getMessage());
             err.flush();
         }
+    }
+
+    /**
+     * Returns the address the git gate binds.
+     * <p>
+     * Loopback wherever that works, so the endpoint an agent pushes to is not on the operator's
+     * network at all. It works because {@link org.fuin.sokar.runtime.LoopbackMapping} tells pasta
+     * to send the container's address for this host to the host's loopback - which podman only
+     * does under pasta, and ignores in silence under slirp4netns.
+     * <p>
+     * The fallback binds every interface rather than refusing to run: an unreachable gate breaks
+     * the task, while a reachable one still needs the per-task token every request carries. It is
+     * said out loud, because that is a difference an operator should know about their machine.
+     *
+     * @param gateAddress Address the container reaches this host at, as podman answered it.
+     * @param err Where the fallback is reported.
+     * @return Address to bind.
+     */
+    private String gateBind(@org.jspecify.annotations.Nullable String gateAddress,
+            PrintWriter err) {
+
+        final String mapped = org.fuin.sokar.runtime.ContainerSpec.HOST_LOOPBACK;
+        final java.util.Optional<String> rootless = context.podman().rootlessNetworkCmd();
+        final boolean pasta =
+                rootless.filter(org.fuin.sokar.runtime.LoopbackMapping.PASTA::equals).isPresent();
+        if (pasta && mapped.equals(gateAddress)) {
+            return "127.0.0.1";
+        }
+        final String reason = pasta
+                ? "a container reaches this host at " + gateAddress + ", not " + mapped
+                        + ", which is the address pasta was told to map"
+                : "podman connects a rootless container with "
+                        + rootless.orElse("something it will not name")
+                        + ", and only pasta can map the host's loopback";
+        err.println("sokar: the git gate is bound to every interface and is reachable from this"
+                + " machine's network: " + reason + "; the per-task token is what keeps it shut");
+        err.flush();
+        return "0.0.0.0";
     }
 
     /**
@@ -1006,7 +1042,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * @param container Container name.
      * @return {@code null} if the gate is reachable, otherwise a message saying why not.
      */
-    private String gateReachability(TaskRunner runner, String container) {
+    private String gateReachability(TaskRunner runner, String container, String gateAddress) {
         try {
             final java.nio.file.Path out = java.nio.file.Files.createTempFile("sokar-hosts", "");
             try {
@@ -1016,7 +1052,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 if (code != 0) {
                     return null;
                 }
-                return TaskWorkspace.verify(java.nio.file.Files.readString(out));
+                return TaskWorkspace.verify(java.nio.file.Files.readString(out), gateAddress);
             } finally {
                 java.nio.file.Files.deleteIfExists(out);
             }

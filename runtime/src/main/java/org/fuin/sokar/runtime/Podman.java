@@ -29,6 +29,8 @@ public class Podman {
 
     private final String executable;
 
+    private final @Nullable Path networkConfiguration;
+
     /**
      * Constructor using the {@code podman} on the path.
      *
@@ -45,8 +47,22 @@ public class Podman {
      * @param executable Program name or path.
      */
     public Podman(CommandRunner runner, String executable) {
+        this(runner, executable, null);
+    }
+
+    /**
+     * Constructor with the network configuration Sokar's own containers are started with.
+     *
+     * @param runner Runs the commands.
+     * @param executable Program name or path.
+     * @param networkConfiguration File {@link LoopbackMapping} is written to, or {@code null} to
+     *        start containers with podman's configuration untouched.
+     */
+    public Podman(CommandRunner runner, String executable,
+            @Nullable Path networkConfiguration) {
         this.runner = runner;
         this.executable = executable;
+        this.networkConfiguration = networkConfiguration;
     }
 
     private Command podman(String... arguments) {
@@ -160,11 +176,54 @@ public class Podman {
 
     /**
      * Starts a created container.
+     * <p>
+     * This is where {@link LoopbackMapping} has to be applied - podman builds the pasta command
+     * line here and nowhere else - and it is applied to every start rather than to the one in
+     * {@code task run}, so that a task resumed later comes up with the same networking as one
+     * that never stopped. A gate the container cannot reach only shows up as a push that hangs.
      *
      * @param container Container name or id.
      */
     public void start(String container) {
-        runner.runOrFail(podman("start", container));
+        runner.runOrFail(withNetworkConfiguration(podman("start", container)));
+    }
+
+    /**
+     * Returns the command with Sokar's own network configuration in its environment, writing that
+     * configuration first.
+     * <p>
+     * Written on every start rather than once at setup: the file belongs to this build of Sokar,
+     * and an operator who upgraded would otherwise keep whatever the older one left behind.
+     *
+     * @param command Command to run.
+     * @return The command, unchanged when there is no configuration to apply.
+     */
+    private Command withNetworkConfiguration(Command command) {
+        if (networkConfiguration == null) {
+            return command;
+        }
+        LoopbackMapping.write(networkConfiguration);
+        return new Command(command.arguments(), command.workingDirectory(),
+                Map.of(LoopbackMapping.VARIABLE, networkConfiguration.toString()),
+                command.input());
+    }
+
+    /**
+     * Returns how podman connects a rootless container to the network.
+     * <p>
+     * Asked rather than assumed, because it decides whether the git gate can bind loopback only:
+     * {@link LoopbackMapping} is a pasta option, and podman ignores it under slirp4netns without
+     * saying so.
+     *
+     * @return {@code pasta} or {@code slirp4netns}, or empty when podman cannot be asked.
+     */
+    public Optional<String> rootlessNetworkCmd() {
+        final CommandResult result =
+                runner.run(podman("info", "--format", "{{.Host.RootlessNetworkCmd}}"));
+        if (!result.successful() || result.trimmedOutput().isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(result.trimmedOutput());
     }
 
     /**

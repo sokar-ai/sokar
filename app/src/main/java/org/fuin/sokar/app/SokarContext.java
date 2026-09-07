@@ -142,7 +142,8 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
      * @return Podman.
      */
     public org.fuin.sokar.runtime.Podman podman() {
-        return new org.fuin.sokar.runtime.Podman(runner);
+        return new org.fuin.sokar.runtime.Podman(runner, "podman",
+                paths.networkConfiguration());
     }
 
     /**

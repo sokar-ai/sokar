@@ -145,14 +145,22 @@ See [build.md](build.md). Three things that will bite:
 - **A shell in a directory a `clean` build removed defeats every command.** It
   cannot be detected in advance: the check would be the file operation that
   fails. `SokarCli` catches it and says so in one line.
-- **The git gate binds every interface, and that is not yet fixable.** A loopback
-  bind is unreachable from a rootless container (measured: connection refused).
-  pasta's `--map-host-loopback` makes `127.0.0.1` reachable at `169.254.1.2` and
-  works - but passing it as `--network pasta:<options>` replaces podman's own
-  pasta defaults, and `e2e-tier1` then reports **open egress** with the ruleset
-  still loaded. The per-task token is what keeps the gate shut. The next thing to
-  try is `pasta_options` in the `containers.conf` drop-in `sokar setup` already
-  writes, which adds to podman's defaults instead of replacing them.
+- **The git gate binds loopback, and only one of three ways of asking for it is
+  right.** A rootless container cannot reach the host's loopback until pasta is
+  told to map it there. Passing `--network pasta:--map-host-loopback,...`
+  **replaces** podman's own pasta defaults: `e2e-tier1` then reports **open
+  egress** with the ruleset still loaded. `pasta_options` in the `containers.conf`
+  drop-in keeps those defaults but applies to every container the operator runs.
+  What Sokar does is the same setting in a `CONTAINERS_CONF_OVERRIDE` file, for
+  the `podman start` it runs itself - defaults kept, other containers untouched
+  (`LoopbackMapping`). **Only `start` reads it**; setting it on `create` does
+  nothing and says nothing, and the symptom is a push that hangs. Under
+  slirp4netns podman ignores it in silence, so `task run` asks
+  (`podman info -f {{.Host.RootlessNetworkCmd}}`), binds every interface and says
+  why. **`task resume` replays the gate command it recorded**, so a task first run
+  under pasta comes back bound to `127.0.0.1` even if podman has since been switched
+  to slirp4netns, and the push then hangs. Deciding the bind again on resume would
+  contradict the recorded-command design that makes resume reconstructible at all.
 - **`dnsmasq --nftset` is load-bearing, and its absence is silent.** It is what
   makes a declared domain reachable rather than merely resolvable. A dnsmasq
   compiled without it accepts the config and opens nothing. `sokar doctor` probes
@@ -388,9 +396,11 @@ share a name - Pi and Oh My Pi are different codebases from different authors - 
 requirement that says only "Pi" cannot be checked by anyone. The link is the identity;
 the npm package or download URL beside it is what the build actually installs.
 
-`README.md` is an index; the substance lives in `getting-started-debian.md`,
-`getting-started-fedora.md`, `faq.md`, `why.md`,
-`your-tooling.md`, `build.md` and `agents/README.md`. `.sokar.md` is the planning
+`README.md` in the root is an index; the substance lives in `doc/` —
+`getting-started-debian.md`, `getting-started-fedora.md`, `faq.md`, `why.md`,
+`your-tooling.md`, `sokar-for-dummies.md`, `build.md` and this file — plus
+`agents/README.md`. `README.md` is the only markdown file in the root, so a new
+document goes in `doc/` and is linked from the index. `.sokar.md` is the planning
 document — gitignored, and the place where phase status, decisions and findings
 are recorded.
 

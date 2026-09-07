@@ -74,7 +74,7 @@ class TaskWorkspaceTest {
                 """;
 
         // When & Then
-        assertThat(TaskWorkspace.verify(hosts)).isNull();
+        assertThat(TaskWorkspace.verify(hosts, "169.254.1.2")).isNull();
     }
 
     @Test
@@ -84,10 +84,21 @@ class TaskWorkspaceTest {
         final String hosts = "10.0.2.2\thost.containers.internal\n";
 
         // When
-        final String result = TaskWorkspace.verify(hosts);
+        final String result = TaskWorkspace.verify(hosts, "169.254.1.2");
 
         // Then
         assertThat(result).contains("10.0.2.2").contains("firewalled off");
+    }
+
+    @Test
+    void acceptsWhateverAddressTheRulesetWasOpenedFor() {
+
+        // Under slirp4netns a container reaches the host at its LAN address, and sokar asks
+        // podman rather than assuming. Comparing against the constant instead reported the gate
+        // as firewalled off on every such machine while the push worked - measured on Ubuntu.
+        final String hosts = "192.168.122.174\thost.containers.internal\n";
+
+        assertThat(TaskWorkspace.verify(hosts, "192.168.122.174")).isNull();
     }
 
     @Test
@@ -97,7 +108,7 @@ class TaskWorkspaceTest {
         final String hosts = "127.0.0.1\tlocalhost\n";
 
         // When
-        final String result = TaskWorkspace.verify(hosts);
+        final String result = TaskWorkspace.verify(hosts, "169.254.1.2");
 
         // Then
         assertThat(result).contains("no host.containers.internal entry");
@@ -114,6 +125,6 @@ class TaskWorkspaceTest {
                 """;
 
         // When & Then
-        assertThat(TaskWorkspace.verify(hosts)).isNull();
+        assertThat(TaskWorkspace.verify(hosts, "169.254.1.2")).isNull();
     }
 }

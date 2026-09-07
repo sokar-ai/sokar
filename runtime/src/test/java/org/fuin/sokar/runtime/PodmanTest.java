@@ -48,6 +48,42 @@ class PodmanTest {
     }
 
     @Test
+    void startsAContainerWithSokarsOwnNetworkConfiguration(@TempDir Path directory) {
+
+        // The mapping that lets the git gate bind loopback. On 'start' and nowhere else: podman
+        // builds the pasta command line there, and setting it on 'create' does nothing at all.
+        final Path configuration = directory.resolve("containers.conf");
+        new Podman(runner, "podman", configuration).start("sokar-uc-1");
+
+        assertThat(runner.only("start").environment())
+                .containsEntry(LoopbackMapping.VARIABLE, configuration.toString());
+        assertThat(configuration).content().contains("--map-host-loopback");
+    }
+
+    @Test
+    void leavesPodmansConfigurationAloneWhenThereIsNoneToApply() {
+
+        podman.start("sokar-uc-1");
+
+        // Scoped on purpose: the operator's other containers must not gain a route to their own
+        // loopback because Sokar is installed.
+        assertThat(runner.only("start").environment()).doesNotContainKey(LoopbackMapping.VARIABLE);
+    }
+
+    @Test
+    void asksHowPodmanConnectsARootlessContainer() {
+
+        // Decides whether the gate can bind loopback: podman ignores a pasta option under
+        // slirp4netns without saying so, and the symptom would be a push that hangs.
+        runner.answering("info", "pasta\n");
+        assertThat(podman.rootlessNetworkCmd()).contains("pasta");
+
+        final FakeCommandRunner silent = new FakeCommandRunner();
+        silent.answering("info", "");
+        assertThat(new Podman(silent).rootlessNetworkCmd()).isEmpty();
+    }
+
+    @Test
     void readsTheVersionInAnExplicitFormat() {
 
         runner.answering("version", "5.7.0");

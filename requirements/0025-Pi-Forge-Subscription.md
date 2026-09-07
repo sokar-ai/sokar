@@ -66,9 +66,10 @@ container -> host loopback via 169.254.1.2 : refused
 container -> its own 127.0.0.1             : refused
 ```
 
-A host-side listener is therefore either unreachable or bound to every interface, which is
-the unsolved problem in [0020](0020-Narrow-The-Git-Endpoint.md) and not one to repeat. The
-endpoint has to be served **inside the container's network namespace**.
+A host-side listener is therefore either unreachable or bound to every interface. The git gate
+had the same problem and was solved by mapping the host's loopback into the containers Sokar
+starts itself, but a broker is not a gate: it carries the operator's real credential, so it is
+served **inside the container's network namespace** and never listens on the host at all.
 
 ## Design, as built
 

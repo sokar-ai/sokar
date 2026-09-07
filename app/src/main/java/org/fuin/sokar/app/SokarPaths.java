@@ -195,6 +195,19 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file podman is pointed at when Sokar starts a container.
+     * <p>
+     * Under the runtime directory rather than beside podman's own configuration: it applies to
+     * Sokar's containers alone, so it has no business outliving the session or being read by a
+     * container the operator starts.
+     *
+     * @return Network configuration file.
+     */
+    public Path networkConfiguration() {
+        return xdg.runtime().resolve("containers.conf");
+    }
+
+    /**
      * Returns the build context directory for a project's image.
      *
      * @param project Project name.

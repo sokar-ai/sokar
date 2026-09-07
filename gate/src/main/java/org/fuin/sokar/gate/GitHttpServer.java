@@ -21,11 +21,12 @@ import java.util.Set;
  * a great deal of code with a great deal of room to be subtly wrong; the git binaries are already
  * on the host and are the reference implementation.
  * <p>
- * <strong>Reachable from the operator's LAN while a task runs.</strong> It binds every interface,
- * because a loopback bind is unreachable from a rootless container here - measured. What keeps it
- * shut is the per-task token every request must carry, not the bind. Narrowing this needs pasta's
- * {@code --map-host-loopback}, which podman only accepts in a way that discards its own pasta
- * defaults and silently opens egress.
+ * <strong>Bound to loopback while a task runs</strong>, so nothing on the operator's network can
+ * reach it. A rootless container can still get in because Sokar starts its own containers with
+ * {@code org.fuin.sokar.runtime.LoopbackMapping}, which points pasta's address for this host at
+ * the host's loopback. Where podman cannot do that - slirp4netns - {@code task run} falls back to
+ * binding every interface and says so. The per-task token every request must carry is the defence
+ * that holds either way.
  */
 public class GitHttpServer implements AutoCloseable {
 

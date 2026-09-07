@@ -93,7 +93,7 @@ a system-wide podman configuration.
 
 Agents are not part of it. They ship as separate `sokar-agent-*` packages that
 depend on `sokar` and install into `/usr/libexec/sokar/agents`, which `sokar`
-scans at runtime — see [the agent guide](agents/README.md).
+scans at runtime — see [the agent guide](../agents/README.md).
 
 A snapshot build produces `0.1.0~SNAPSHOT`, with a tilde, because both dpkg and
 rpm sort `~` below everything; left as `-SNAPSHOT` it would sort *above* the

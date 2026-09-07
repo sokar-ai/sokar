@@ -36,7 +36,7 @@ public class TaskRunner {
      * @param paths Where files go.
      */
     public TaskRunner(CommandRunner runner, SokarPaths paths) {
-        this.podman = new Podman(runner);
+        this.podman = new Podman(runner, "podman", paths.networkConfiguration());
         this.paths = paths;
     }
 

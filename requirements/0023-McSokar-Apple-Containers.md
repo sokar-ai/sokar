@@ -43,6 +43,11 @@ other is the normal case, not an edge case.
   than discovered by a user.
 - Whether a host socket can be mounted into a container, which is how the credential
   proxy and the signing agent work today. Without it, both need a different shape.
+- **Whether the host's loopback can be mapped into a container.** On Linux the git gate binds
+  `127.0.0.1` and is reachable from a task only because pasta is told to send the container's
+  address for the host there. Without an equivalent, the endpoint a task pushes to is either
+  unreachable or on the operator's network, and that has to be said out loud rather than left
+  to look like the same guarantee.
 - Whether the two backends can share one contract without it degrading to the
   weaker platform's capabilities everywhere.
 - How much is genuinely shared. If it turns out to be only the contract and the

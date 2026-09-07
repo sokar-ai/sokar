@@ -3,7 +3,7 @@
 By the end of this you will have an agent working inside a hardened container, with your
 real credential still on the host, and its work waiting for you to review before it goes
 anywhere. For the whole thing as one block to paste, see
-[the README](README.md#getting-started).
+[the README](../README.md#getting-started).
 
 On Fedora or RHEL instead? [Getting started on Fedora](getting-started-fedora.md).
 
@@ -312,11 +312,12 @@ process limit.
 **What the gate is**, since the classes are defined in terms of it: a bare mirror
 of your repository on your own machine, at
 `~/.local/share/sokar/mirrors/<project>.git`, served to the container over HTTP.
-Every request must carry a per-task token, which is what keeps it shut: while a
-task runs the port is bound on all interfaces, so it is reachable from your local
-network. Narrowing that is an open problem — see [AGENT.md](AGENT.md). The container's `origin` points at that mirror
-rather than at your real remote, and a push lands in `refs/sokar/incoming/<task>`,
-where it waits for you.
+Every request must carry a per-task token, and the port is bound on `127.0.0.1`, so
+nothing on your local network can reach it at all — the container gets in because
+Sokar maps your machine's loopback into the containers it starts itself. Where podman
+cannot do that, `task run` binds every interface instead and says so on that run's
+output. The container's `origin` points at that mirror rather than at your real
+remote, and a push lands in `refs/sokar/incoming/<task>`, where it waits for you.
 
 `security_class` is one of:
 

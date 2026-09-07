@@ -17,10 +17,11 @@ import org.fuin.sokar.gate.TaskToken;
  * It never sees the upstream and never holds a credential for it: a push reaches
  * {@code refs/sokar/incoming/}, where nothing reads it but the operator.
  * <p>
- * <strong>The gate binds to all interfaces, not loopback.</strong> A task container has its own
- * network namespace, so its loopback is not the host's - binding to 127.0.0.1 would make the gate
- * unreachable from the only thing that needs it. The firewall rule generated alongside is what
- * keeps that from being an opening: the container may reach this port and nothing else.
+ * <strong>The gate binds loopback.</strong> A task container has its own network namespace, so
+ * its loopback is not the host's; what bridges the two is
+ * {@link org.fuin.sokar.runtime.LoopbackMapping}, which Sokar applies to the containers it starts
+ * itself. The firewall rule generated alongside narrows it further: the container may reach this
+ * port on this address and nothing else.
  */
 public class TaskWorkspace {
 
@@ -247,8 +248,8 @@ public class TaskWorkspace {
      * threw {@link java.net.UnknownHostException} on every run, the gate rule was silently left
      * out of the ruleset, and every push from a task hung until it timed out.
      * <p>
-     * Because this is assumed rather than discovered, {@link #verify(String)} checks it against
-     * what the container actually sees, once the container is up.
+     * Because this is assumed rather than discovered, {@link #verify(String, String)} checks the
+     * address that was actually used against what the container sees, once the container is up.
      *
      * @return Address of the host as seen from inside a task container.
      */
@@ -257,13 +258,19 @@ public class TaskWorkspace {
     }
 
     /**
-     * Checks the assumption behind {@link #gateAddress()} against a running container.
+     * Checks the address the firewall was opened for against what a running container sees.
+     * <p>
+     * The expected address is passed in rather than read from {@link #gateAddress()}: that is
+     * only the fallback for a podman that cannot be asked, and comparing against it reported a
+     * gate as firewalled off on every machine where podman answers something else - while the
+     * push it warned about worked.
      *
      * @param hosts Content of the container's {@code /etc/hosts}.
+     * @param expected Address the ruleset was told to open.
      * @return {@code null} if the mapping is as expected, otherwise a message naming the
      *         difference.
      */
-    public static String verify(String hosts) {
+    public static String verify(String hosts, String expected) {
         for (final String line : hosts.split("\n")) {
             final String entry = line.strip();
             if (entry.isEmpty() || entry.startsWith("#")) {
@@ -272,9 +279,9 @@ public class TaskWorkspace {
             final String[] fields = entry.split("\\s+");
             for (int i = 1; i < fields.length; i++) {
                 if (containerVisibleHost().equals(fields[i])) {
-                    return GATE_ADDRESS.equals(fields[0]) ? null
+                    return expected.equals(fields[0]) ? null
                             : "the container reaches this host at " + fields[0] + ", not "
-                                    + GATE_ADDRESS + "; the git gate is firewalled off";
+                                    + expected + "; the git gate is firewalled off";
                 }
             }
         }

@@ -17,7 +17,6 @@ group runs alongside rather than after.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
-| 20 | [Narrow The Git Endpoint](0020-Narrow-The-Git-Endpoint.md) | The host endpoint a task clones from should not be reachable from the local network. | yes |
 | 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Removing a task must not silently destroy work the agent never pushed. | yes |
 | 9 | [Task Lifecycle Control](0009-Task-Lifecycle-Control.md) | Tasks can be listed, stopped and resumed as first-class operations rather than by reaching for the container runtime. |  |
 | 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
@@ -36,7 +35,7 @@ group runs alongside rather than after.
 | 12 | [Credential Management](0012-Credential-Management.md) | Credentials are stored and listed from the interface without ever displaying, logging or copying a value. |  |
 | 13 | [Egress Sets Editor](0013-Egress-Sets-Editor.md) | The destinations a project may reach can be read and edited in the interface, with the effect of a change visible before it is applied. | yes |
 | 14 | [Project Setup Wizard](0014-Project-Setup-Wizard.md) | A new project can be described, checked and made runnable from the interface, including the parts that are easy to get wrong. |  |
-| 15 | [Health And Diagnostics](0015-Health-And-Diagnostics.md) | The interface reports whether the machine can actually run a task, naming anything missing or misconfigured. |  |
+| 15 | [Health And Diagnostics](0015-Health-And-Diagnostics.md) | The interface reports whether the machine can actually run a task, naming anything missing or misconfigured. | yes |
 | 16 | [Repository Context](0016-Repository-Context.md) | Each task shows what it has done to the repository: branch, commits, files changed, and whether anything is waiting for review. |  |
 | 17 | [Remote Access](0017-Remote-Access.md) | The interface can drive tasks on another machine over an encrypted tunnel, without the daemon ever binding a network port. | yes |
 | 18 | [Mobile Client](0018-Mobile-Client.md) | A phone can monitor tasks, answer decisions and stop a run, sharing the codebase with the desktop interface. | yes |
@@ -86,9 +85,6 @@ in detail, because each one changes what gets built rather than only how:
   ([0017](0017-Remote-Access.md)). It decides the transport posture, whether
   [0010](0010-Notifications.md) is achievable away from the machine, and how much of
   [0018](0018-Mobile-Client.md) is real.
-- Whether the untried approach in [0020](0020-Narrow-The-Git-Endpoint.md) works. The
-  last attempt reported success while silently disabling outbound filtering, so this
-  one is verified by the acceptance suite or not at all.
 - Whether the guarantees can be re-derived at all on the second platform in
   [0023](0023-McSokar-Apple-Containers.md). It decides whether that project offers
   the same product or a weaker one wearing the same name, and it also constrains how
