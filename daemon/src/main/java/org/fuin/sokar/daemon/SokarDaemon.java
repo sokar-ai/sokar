@@ -13,6 +13,7 @@ import org.fuin.sokar.app.TaskControl;
 import org.fuin.sokar.app.TaskLaunch;
 import org.fuin.sokar.app.EgressControl;
 import org.fuin.sokar.app.ProjectInventory;
+import org.fuin.sokar.app.RunningEgress;
 import org.fuin.sokar.app.TaskInventory;
 import org.fuin.sokar.clearance.ClearanceService;
 import org.fuin.sokar.core.project.Project;
@@ -211,6 +212,27 @@ public final class SokarDaemon {
             answer.put("opens", hosts(effect.opens()));
             answer.put("closes", hosts(effect.closes()));
             answer.put("cost", effect.cost() == null ? "" : effect.cost());
+            answer.put("detail", effect.detail() == null ? "" : effect.detail());
+            replies.last(answer);
+        });
+
+        server.method("WidenTask", (parameters, replies) -> {
+            // The scope is read without a default on purpose: "this run only" and "this run and
+            // the project" are different intentions, and a client that did not say which one it
+            // meant must not have one chosen for it.
+            final String scope = text(parameters, "scope");
+            if (scope.isEmpty()) {
+                throw new VarlinkException(INTERFACE + ".ScopeRequired", Map.of());
+            }
+            final RunningEgress.Effect effect = new RunningEgress(context).widen(
+                    text(parameters, "task"), strings(parameters, "domains"),
+                    "RUN_AND_PROJECT".equalsIgnoreCase(scope)
+                            ? RunningEgress.Scope.RUN_AND_PROJECT : RunningEgress.Scope.RUN,
+                    flag(parameters, "dryRun"));
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("outcome", effect.outcome().name());
+            answer.put("opens", effect.opens());
+            answer.put("persisted", effect.persisted());
             answer.put("detail", effect.detail() == null ? "" : effect.detail());
             replies.last(answer);
         });

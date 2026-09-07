@@ -54,6 +54,16 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
             description = "Agent whose own grants to include. Default: the only one installed.")
     private String agentName;
 
+    @Option(names = "--task", paramLabel = "<name>",
+            description = "Change what this RUNNING task may reach, rather than the project file."
+                    + " Takes effect without stopping it.")
+    private String task;
+
+    @Option(names = "--also-project",
+            description = "With --task: write the same names into the project file as well, so the"
+                    + " next task starts with them.")
+    private boolean alsoProject;
+
     @Option(names = "--dry-run",
             description = "Shows what the change would do and writes nothing.")
     private boolean dryRun;
@@ -80,7 +90,78 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
         if (change.isEmpty()) {
             return show(control, out, err);
         }
+        if (task != null) {
+            return widen(out, err);
+        }
         return change(control.apply(projectFile, change, dryRun), out, err);
+    }
+
+    /**
+     * Gives a task that is already running somewhere new to reach.
+     * <p>
+     * A separate path from the file edit because it is a different intention - "this run needs it"
+     * rather than "this project needs it" - and the answer says which of the two happened. Only
+     * names: a set is a name for several hosts and would need the resolver told about each, which
+     * is the same operation repeated rather than a different one, and nobody has asked for it.
+     *
+     * @param out Where to report.
+     * @param err Where to report a refusal.
+     * @return Exit code.
+     */
+    private int widen(PrintWriter out, PrintWriter err) {
+
+        if (!addSets.isEmpty() || !removeSets.isEmpty() || !removeDomains.isEmpty()) {
+            err.println("sokar: --task takes --add-domain only; a running task cannot be narrowed"
+                    + " and sets are not granted one host at a time");
+            err.flush();
+            return 2;
+        }
+
+        final RunningEgress.Effect effect = new RunningEgress(context).widen(task, addDomains,
+                alsoProject ? RunningEgress.Scope.RUN_AND_PROJECT : RunningEgress.Scope.RUN,
+                dryRun);
+
+        switch (effect.outcome()) {
+            case NOT_RUNNING, REFUSED_BY_CLASS, FAILED -> {
+                err.println("sokar: " + effect.detail());
+                err.flush();
+                return effect.outcome() == RunningEgress.Outcome.FAILED ? 70 : 2;
+            }
+            case NO_CHANGE -> {
+                out.println("no change      this run already reaches that");
+                out.flush();
+                return 0;
+            }
+            default -> {
+                // Widened, previewed, or widened without the file. All three print what they open.
+            }
+        }
+
+        String label = "opens";
+        for (final String name : effect.opens()) {
+            out.printf("%-14s %s%n", label, name);
+            label = "";
+        }
+        if (effect.outcome() == RunningEgress.Outcome.PREVIEWED) {
+            out.println("dry run        nothing was written");
+            out.flush();
+            return 0;
+        }
+        out.println("granted        to " + task + ", from its next attempt");
+        // Said every time, because it is what the operator is about to see: the connection that
+        // just failed is not retried by Sokar, and the packet that was dropped is gone.
+        out.println("               the attempt that was refused is not retried - the agent's next"
+                + " one goes through");
+        if (effect.persisted()) {
+            out.println("written        " + projectFile + " as well");
+        } else if (effect.outcome() == RunningEgress.Outcome.NO_PROJECT_FILE) {
+            err.println("sokar: " + effect.detail());
+            err.flush();
+            out.flush();
+            return 0;
+        }
+        out.flush();
+        return 0;
     }
 
     /**

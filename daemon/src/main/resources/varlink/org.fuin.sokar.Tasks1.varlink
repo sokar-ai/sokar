@@ -220,6 +220,37 @@ type EgressHost (
   origin: string
 )
 
+# How far a change to a running task goes. There is no default: "this run only" and "this run
+# and the project file" are different intentions, and a client that did not say which it meant
+# must not have one picked for it.
+type Scope (
+  # The running task, and nothing else. The project file is untouched and the next task will
+  # ask again - a resumed task loses it too, because its ruleset and resolver are rebuilt from
+  # what is on disk.
+  RUN,
+  # The running task, and the project file, so the next task starts with it.
+  RUN_AND_PROJECT
+)
+
+# What became of widening a running task.
+type WidenOutcome (
+  # Applied to the running task. persisted says whether the file was written too.
+  WIDENED,
+  # What it would do, having changed nothing.
+  PREVIEWED,
+  # Every name was already granted to this run.
+  NO_CHANGE,
+  # No such task, or it is not up. Nothing can be changed in a container that is gone.
+  NOT_RUNNING,
+  # The project is offline, so its tasks reach nothing and this is not a way around that.
+  REFUSED_BY_CLASS,
+  # The run WAS widened and the project file was not, because nothing knows where it is. Not a
+  # failure: the task can now reach the host, and detail says why the file was not written.
+  NO_PROJECT_FILE,
+  # The run could not be widened at all. detail says why.
+  FAILED
+)
+
 # What became of a change to a project's egress.
 type EgressOutcome (
   # Applied and written to the project file.
@@ -516,6 +547,39 @@ method SetEgress(
   detail: string
 )
 
+# Gives a task that is already running somewhere new to reach.
+#
+# The alternative is to stop the run and start another one, which throws away a workspace, a gate
+# token, commits that never reached the gate and an agent halfway through something - to add one
+# host. This changes it in place: the resolver is told without being restarted, and the name is
+# recorded so the clearance watcher lets it through without asking anybody.
+#
+# Names only. A set is a name for several hosts and granting one would be the same operation
+# repeated; narrowing a running task is not offered at all, because taking a grant away from a
+# container that already has it is a different thing and is not decided yet.
+#
+# **The attempt that was already refused is not retried.** The packet was dropped; whether the
+# agent tries again is the agent's business. An interface may say the host is now reachable and
+# must not say that the request which just failed will now succeed.
+method WidenTask(
+  # Container name, from Task.name.
+  task: string,
+  # Host names to grant. A grant covers what is under it, as the resolver does.
+  domains: []string,
+  # Required. RUN or RUN_AND_PROJECT.
+  scope: Scope,
+  # Stop before changing anything and report what would happen.
+  dryRun: ?bool
+) -> (
+  outcome: WidenOutcome,
+  # The names it grants, in the order they were asked for.
+  opens: []string,
+  # Whether the project file was written as well. Always false for RUN.
+  persisted: bool,
+  # Why it was refused, or what could not be written. "" when nothing went wrong.
+  detail: string
+)
+
 # Every project this machine knows about, alphabetically.
 #
 # The list is assembled from what is durable: the gate mirrors, the tasks that exist, and the
@@ -632,6 +696,9 @@ error NoClearance(task: string)
 
 # A gate method was called without naming a project file.
 error ProjectRequired()
+
+# WidenTask was called without saying how far the change goes.
+error ScopeRequired()
 
 # Approve was called without a branch to push to.
 error BranchRequired(name: string)

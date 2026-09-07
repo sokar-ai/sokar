@@ -195,6 +195,64 @@ class SokarDaemonTest {
     }
 
     @Test
+    void widensARunningTaskWithoutStoppingIt(@TempDir Path dir) throws Exception {
+
+        // The whole point: an agent an hour into a run needs a host nobody declared, and the
+        // alternative is to throw the run away to change a line in a file.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1788500000\t0\n");
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+        new org.fuin.sokar.wire.Sidecar(org.fuin.sokar.wire.Sidecar.VERSION, "uc", "guarded",
+                state.resolve("r.nft").toString(), state.resolve("dns.conf").toString(),
+                "/usr/bin/sokar", state.toString()).writeTo(state.resolve("sidecar.json"));
+        Files.writeString(state.resolve(org.fuin.sokar.shield.DnsPolicy.SERVERS_FILE),
+                "server=/declared.test/192.0.2.53\n");
+        Files.writeString(state.resolve("dnsmasq.pid"), "4711");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+
+                final Map<String, Object> preview = client.call(
+                        SokarDaemon.INTERFACE + ".WidenTask",
+                        Map.of("task", "sokar-uc-shell-1", "domains", List.of("docs.example.test"),
+                                "scope", "RUN", "dryRun", true));
+                assertThat(preview.get("outcome")).isEqualTo("PREVIEWED");
+                assertThat(Files.readString(
+                        state.resolve(org.fuin.sokar.shield.DnsPolicy.SERVERS_FILE)))
+                        .doesNotContain("docs.example.test");
+
+                final Map<String, Object> done = client.call(
+                        SokarDaemon.INTERFACE + ".WidenTask",
+                        Map.of("task", "sokar-uc-shell-1", "domains", List.of("docs.example.test"),
+                                "scope", "RUN"));
+                assertThat(done.get("outcome")).isEqualTo("WIDENED");
+                assertThat(done.get("persisted")).isEqualTo(false);
+                assertThat(Files.readString(
+                        state.resolve(org.fuin.sokar.shield.DnsPolicy.SERVERS_FILE)))
+                        .contains("server=/docs.example.test/192.0.2.53");
+                assertThat(org.fuin.sokar.wire.GrantedNames.all(state))
+                        .containsExactly("docs.example.test");
+            }
+        });
+    }
+
+    @Test
+    void refusesToWidenWithoutBeingToldHowFar(@TempDir Path dir) throws Exception {
+
+        // "This run only" and "this run and the project" are different intentions. A client that
+        // did not say which it meant must not have one picked for it.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".WidenTask",
+                        Map.of("task", "sokar-uc-shell-1",
+                                "domains", List.of("docs.example.test"))))
+                        .isInstanceOf(VarlinkException.class)
+                        .hasMessageContaining("ScopeRequired");
+            }
+        });
+    }
+
+    @Test
     void listsTheEgressSetsAChooserWouldOffer(@TempDir Path dir) throws Exception {
 
         // Without this an interface cannot offer a chooser, and an operator is back to authoring

@@ -1,8 +1,9 @@
 # B12 — Changing What Running Work May Reach
 
-**Status:** decided, half built. The smaller half - a task saying whether anything is enforcing
-its egress - is done. The three questions the larger half turned on were settled on 2026-09-07 and
-are recorded below.
+**Status:** built for widening; narrowing is the one thing left, and it is the open question
+below. A task says what enforces its egress, and a running task can be given a name to reach
+without being stopped - from the CLI and over the socket, with the scope stated rather than
+assumed.
 
 `SetEgress` edits what a project's *next* task may reach. There is nothing that changes what the
 task in front of somebody is allowed to reach right now, and a container's ruleset and resolver
@@ -149,6 +150,34 @@ stays blocked. That failure reads as "the grant did not work" and is miserable t
 `servers-file`, because that is the only part dnsmasq re-reads on `SIGHUP`. The `nftset=` lines
 stay in the main file - a servers-file may contain nothing else - which is exactly why the firewall
 half goes through the watcher rather than through dnsmasq.
+
+## Built, 2026-09-07
+
+**The resolver is told, not restarted.** The generated configuration now keeps its `server=` lines
+in a `servers-file`, which is the only part dnsmasq re-reads on `SIGHUP`. Measured against real
+dnsmasq with the configuration Sokar actually generates: a name answered `NXDOMAIN`, a line was
+appended and the process signalled, and the same process then answered with real addresses. No
+restart, and no window in which the container resolves nothing.
+
+**The firewall is not told at all.** A `servers-file` may hold nothing but `server=` lines, so the
+`nftset=` mapping cannot be added later - which is why the granted name goes into a file the
+clearance watcher reads instead. The first connection is still dropped; the watcher looks the
+address up to the name in the resolver's log, finds it granted, and allows it without asking
+anybody. The audit record says `source: granted`, because "allowed without being asked" and
+"allowed by somebody" are different events.
+
+**One method, and it must be told how far the change goes.** `WidenTask(task, domains, scope,
+dryRun)` over the socket, `sokar shield egress --task <name> --add-domain <host>` on the command
+line, `--also-project` for the other scope. A call that does not say arrives as `ScopeRequired`
+rather than as a default.
+
+**Both surfaces answer with what happened, including the half-state.** Widening the run and
+failing to write the project file answers `NO_PROJECT_FILE` with the run genuinely widened - not a
+failure, because reporting one would leave somebody believing nothing had changed while the task
+can now reach the host.
+
+**Neither surface pretends the refused attempt is retried.** Both say the host is reachable from
+the agent's next attempt. The packet that was dropped is gone.
 
 ## To be checked
 
