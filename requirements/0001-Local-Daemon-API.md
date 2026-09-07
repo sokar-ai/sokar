@@ -42,7 +42,7 @@ as the calls: a client that polls will lag a prompt that expires.
 
 ## Still to build
 
-- ~~`Stop` and `Resume`~~ - built, and [0009](0009-Task-Lifecycle-Control.md) is done with them.
+- ~~`Stop` and `Resume`~~ - built, and they finished task lifecycle control, which is retired.
   Their logic moved out of the picocli command classes into `TaskControl`, which both the CLI and
   the daemon call; the commands now render what it returns and decide nothing. Measured over the
   socket against a real container, refusals included.

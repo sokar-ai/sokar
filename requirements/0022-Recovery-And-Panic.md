@@ -14,4 +14,4 @@ everything immediately without caring why.
 
 ## Notes
 
-Depends on [0009](0009-Task-Lifecycle-Control.md).
+Builds on the lifecycle operations that already exist - `task list`, `task stop` and `task resume`, and the same three over the daemon's socket.

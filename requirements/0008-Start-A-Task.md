@@ -15,4 +15,4 @@ way that looks exactly like a wrong key.
 
 ## Notes
 
-Depends on [0009](0009-Task-Lifecycle-Control.md) for anything beyond starting.
+Starting is all this covers: listing, stopping and resuming already exist, in the CLI and over the daemon's socket.

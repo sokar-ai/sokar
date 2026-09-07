@@ -214,6 +214,23 @@ See [build.md](build.md). Three things that will bite:
   reports the four states apart (registered, never installed, naming binaries that are
   gone, shadowed by a later drop-in); `doctor` exits 69 for any but the first, and a task
   refuses to start.
+- **Take the helper census before stopping anything.** Stopping a container fires the
+  poststop hook, which reaps the helpers and deletes their pid files - so a count taken
+  afterwards has nothing left to count. Measured: it reported none while stopping five.
+- **A bind-mounted socket is bound to the file that existed when the container started.**
+  A helper that replaces its socket a moment later leaves the container holding a deleted
+  inode: every request through it goes nowhere while the same request from the host is
+  answered. Helpers therefore record whether they must be up *before* the container or need
+  the *running* container, and are started in that order.
+- **Every helper of a given name writes the same pid file**, so starting a second one leaves
+  the first named by nothing and reapable by nothing. Measured: two resumes of an already
+  running task left two `shield watch` processes re-parented to init, and the later
+  `task stop` reported "4 of 4 stopped" while they went on running. A running task now
+  answers `already up; nothing to resume`, and a recorded helper that is still alive is not
+  started twice.
+- **The runtime's state is a phrase, not a word.** `Exited (143) Less than a second ago` is
+  twice the width of the column it was printed in, and ran into the next one - in the very
+  listing an operator reads to find the name of the task to resume.
 - **No hook fires for a container that never started.** The poststop hook reaps every
   helper the state directory records a pid for, which covers a container that ran. A
   refused ruleset or an image that will not build leaves the credential proxy, gate and

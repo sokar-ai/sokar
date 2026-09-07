@@ -94,5 +94,4 @@ of the two.
   the runtime's own command, so the note is a defence for `sokar task stop --purge` only.
 - Whether the same argument covers what the agent installed *in* the container -
   packages, caches, a built toolchain - which is lost with it today, and is why
-  [0009](0009-Task-Lifecycle-Control.md) keeps the old image on resume rather than
-  upgrading it.
+  resuming keeps the old image rather than upgrading it.
