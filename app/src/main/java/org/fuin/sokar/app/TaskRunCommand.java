@@ -113,6 +113,24 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         this.context = context;
     }
 
+    /**
+     * Returns how somebody is meant to be involved in this task.
+     * <p>
+     * Derived here, once, from what was asked for: a prompt means nobody is expected to be
+     * watching, and otherwise it is whichever session was asked to be attached. Written down at
+     * start rather than re-derived later, because a task that has finished no longer has flags to
+     * derive it from.
+     *
+     * @return The mode.
+     */
+    private org.fuin.sokar.wire.TaskMode mode() {
+        if (prompt != null) {
+            return org.fuin.sokar.wire.TaskMode.UNATTENDED;
+        }
+        return "shell".equals(attach) ? org.fuin.sokar.wire.TaskMode.SHELL
+                : org.fuin.sokar.wire.TaskMode.AGENT;
+    }
+
     @Override
     public Integer call() {
 
@@ -123,7 +141,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         // daemon builds the same request and gets the same behaviour without running a CLI.
         final TaskLaunch launch = new TaskLaunch(context, new TaskLaunch.Request(task, projectFile,
                 agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
-                clearance, keep));
+                clearance, keep, mode(), prompt));
 
         return launch.launch(out, err, running -> {
 

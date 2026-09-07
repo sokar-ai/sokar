@@ -160,6 +160,41 @@ class SokarDaemonTest {
     }
 
     @Test
+    void redrawsWhenTheWorkChangesWithoutTheContainerChanging(@TempDir Path dir) throws Exception {
+
+        // The one transition that matters and the runtime cannot see: a task that starts waiting
+        // for an answer is still "Up 4 minutes". A watcher comparing only the container would
+        // never redraw it.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1788500000\t0\n");
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final List<Map<String, Object>> answers = new CopyOnWriteArrayList<>();
+                final Thread reader = Thread.ofVirtual().start(() -> {
+                    try {
+                        client.callMore(SokarDaemon.INTERFACE + ".Watch", Map.of(), answers::add);
+                    } catch (RuntimeException ex) {
+                        // Ends with the connection.
+                    }
+                });
+
+                waitFor(() -> !answers.isEmpty());
+                Files.writeString(state.resolve(org.fuin.sokar.wire.Waiting.FILE),
+                        "api.example.test:443");
+
+                waitFor(() -> answers.stream()
+                        .anyMatch(answer -> String.valueOf(answer).contains("WAITING")));
+                assertThat(String.valueOf(answers.getLast()))
+                        .contains("api.example.test:443");
+
+                reader.interrupt();
+            }
+        });
+    }
+
+    @Test
     void listsTheEgressSetsAChooserWouldOffer(@TempDir Path dir) throws Exception {
 
         // Without this an interface cannot offer a chooser, and an operator is back to authoring

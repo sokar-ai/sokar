@@ -623,7 +623,13 @@ public final class SokarDaemon {
                 : state.split(" ")[0];
         return String.join("\u0000", task.name(), String.valueOf(task.project()),
                 String.valueOf(task.securityClass()), settled, String.valueOf(task.running()),
-                String.valueOf(task.helpers()));
+                String.valueOf(task.helpers()),
+                // What the work is doing changes without the container changing at all - a task
+                // that starts waiting for an answer looks identical to the runtime - so a watcher
+                // that did not compare this would never redraw the one transition that matters.
+                String.valueOf(task.activity()), String.valueOf(task.waitingFor()),
+                String.valueOf(task.agent()), String.valueOf(task.mode()),
+                String.valueOf(task.branch()));
     }
 
     /**
@@ -721,7 +727,15 @@ public final class SokarDaemon {
                 flag(parameters, "dryRun"),
                 text(parameters, "clearance").isEmpty() ? "prompt"
                         : text(parameters, "clearance"),
-                flag(parameters, "keep"));
+                flag(parameters, "keep"),
+                // The same vocabulary the CLI uses, taken from the caller rather than guessed at:
+                // a task started over the socket is as much a shell, a session or an unattended
+                // run as one started at the machine, and it has to say which afterwards.
+                org.fuin.sokar.wire.TaskMode.parse(text(parameters, "mode"),
+                        empty(parameters, "prompt") == null
+                                ? org.fuin.sokar.wire.TaskMode.SHELL
+                                : org.fuin.sokar.wire.TaskMode.UNATTENDED),
+                empty(parameters, "prompt"));
     }
 
     /**

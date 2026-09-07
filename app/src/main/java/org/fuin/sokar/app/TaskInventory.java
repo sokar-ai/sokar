@@ -34,9 +34,18 @@ public final class TaskInventory {
      * @param state The runtime's own words, such as {@code Up 4 minutes}.
      * @param running Whether the runtime says it is up.
      * @param helpers How many recorded helper processes are alive.
+     * @param agent Agent running in it, or {@code null} when it has none or nothing recorded one.
+     * @param mode How somebody is meant to be involved, or {@code null} when nothing recorded it.
+     * @param prompt What an unattended task was asked to do, or {@code null}.
+     * @param branch Ref its work goes to, or {@code null} when it has no gate.
+     * @param since When its current state began, ISO-8601, or empty when the runtime cannot say.
+     * @param activity What the work is doing, as against what the container is doing.
+     * @param waitingFor What it is waiting to be told, when it is waiting.
      */
     public record Task(String name, @Nullable String project, @Nullable String securityClass,
-            String state, boolean running, long helpers) {
+            String state, boolean running, long helpers, @Nullable String agent,
+            @Nullable String mode, @Nullable String prompt, @Nullable String branch,
+            String since, Activity activity, @Nullable String waitingFor) {
 
         /**
          * Returns this task as plain values, for a caller that has to put it on a wire.
@@ -52,9 +61,50 @@ public final class TaskInventory {
             map.put("state", state);
             map.put("running", running);
             map.put("helpers", helpers);
+            map.put("agent", agent == null ? "" : agent);
+            map.put("mode", mode == null ? "" : mode);
+            map.put("prompt", prompt == null ? "" : prompt);
+            map.put("branch", branch == null ? "" : branch);
+            map.put("since", since);
+            map.put("activity", activity.name());
+            map.put("waitingFor", waitingFor == null ? "" : waitingFor);
             return map;
         }
     }
+
+    /**
+     * What the work in a task is doing, as against what its container is doing.
+     * <p>
+     * {@code running} answers the container's question. This answers the one an operator actually
+     * has, and the two are not the same: a task blocked on a question nobody saw and a task
+     * grinding through a build are both running.
+     */
+    public enum Activity {
+
+        /** Its container is not up. Stopped, finished or dead - all three are gone. */
+        DEAD,
+
+        /** Waiting for a person to answer something. Said by the thing that asked, not guessed. */
+        WAITING,
+
+        /** Producing output. */
+        WORKING,
+
+        /** Up, producing nothing, and not waiting for anybody as far as anything can tell. */
+        IDLE,
+
+        /**
+         * Up, and nothing here can see what it is doing.
+         * <p>
+         * A task somebody attached a terminal to writes its work to that terminal, not to a file
+         * this can read. Reported as its own value rather than as idle: a state that is silently
+         * wrong is worse than one that says it does not know.
+         */
+        UNKNOWN
+    }
+
+    /** How long a task's own log may be quiet before the work is called idle rather than busy. */
+    private static final java.time.Duration QUIET = java.time.Duration.ofSeconds(60);
 
     private final SokarContext context;
 
@@ -78,10 +128,57 @@ public final class TaskInventory {
 
     private Task describe(ContainerSummary summary) {
         final Sidecar sidecar = sidecarOf(summary.name());
+        final Path state = context.paths().containerState(summary.name());
+        final org.fuin.sokar.wire.TaskProfile profile =
+                org.fuin.sokar.wire.TaskProfile.readFrom(state);
+        final String waitingFor = summary.running()
+                ? org.fuin.sokar.wire.Waiting.about(state) : null;
         return new Task(summary.name(),
                 sidecar == null ? null : sidecar.project(),
                 sidecar == null ? null : sidecar.securityClass(),
-                summary.state(), summary.running(), helpersOf(summary.name()));
+                summary.state(), summary.running(), helpersOf(summary.name()),
+                profile == null ? null : profile.agent(),
+                profile == null ? null : profile.mode().wire(),
+                profile == null ? null : profile.prompt(),
+                profile == null ? null : profile.branch(),
+                summary.since(),
+                activityOf(summary, state, waitingFor),
+                waitingFor);
+    }
+
+    /**
+     * Works out what the task's work is doing.
+     * <p>
+     * In this order on purpose. A container that is down is dead whatever else is lying about in
+     * its directory; a task that says it is waiting is waiting, because the thing that asked said
+     * so; and only then does anything look at output, which is the one signal that needs a clock -
+     * so it decides between working and idle and never between waiting and anything.
+     *
+     * @param summary What the runtime says.
+     * @param state The task's state directory.
+     * @param waitingFor What it is waiting to be told, or {@code null}.
+     * @return What the work is doing.
+     */
+    private static Activity activityOf(ContainerSummary summary, Path state,
+            @Nullable String waitingFor) {
+        if (!summary.running()) {
+            return Activity.DEAD;
+        }
+        if (waitingFor != null) {
+            return Activity.WAITING;
+        }
+        final Path log = state.resolve("task.log");
+        if (!Files.isRegularFile(log)) {
+            // Nothing here can see what it is doing: an attached session writes to a terminal.
+            return Activity.UNKNOWN;
+        }
+        try {
+            return Files.getLastModifiedTime(log).toInstant()
+                    .isAfter(java.time.Instant.now().minus(QUIET))
+                    ? Activity.WORKING : Activity.IDLE;
+        } catch (java.io.IOException ex) {
+            return Activity.UNKNOWN;
+        }
     }
 
     /**

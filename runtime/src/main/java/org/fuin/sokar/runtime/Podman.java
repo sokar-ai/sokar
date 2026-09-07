@@ -429,14 +429,45 @@ public class Podman {
     public List<ContainerSummary> sokarTasks() {
         // A tab rather than a space: the state is a phrase ("Up 4 minutes"), so anything the
         // state itself can contain cannot be the separator.
-        return runner.runOrFail(podman("ps", "--all", "--format", "{{.Names}}\t{{.Status}}"))
+        return runner.runOrFail(podman("ps", "--all", "--format",
+                        "{{.Names}}\t{{.Status}}\t{{.StartedAt}}\t{{.ExitedAt}}"))
                 .standardOutput().lines()
                 .map(String::strip)
                 .filter(line -> !line.isEmpty())
-                .map(line -> line.split("\t", 2))
+                .map(line -> line.split("\t", 4))
                 .filter(parts -> ContainerName.isSokar(parts[0]))
-                .map(parts -> new ContainerSummary(parts[0], parts.length > 1 ? parts[1] : ""))
+                .map(parts -> new ContainerSummary(parts[0], parts.length > 1 ? parts[1] : "",
+                        since(parts)))
                 .toList();
+    }
+
+    /**
+     * Returns when the container's current state began, as an instant.
+     * <p>
+     * The state that matters is the current one: a running container has been up since it started,
+     * a stopped one has been down since it exited. Both come from {@code ps} rather than from an
+     * inspect per task, which would be one call per row of a list an interface redraws.
+     * <p>
+     * <strong>Both fields can be nonsense.</strong> A container that was created and never started
+     * answers {@code -62135596800} - Go's zero time, the year 1 - and podman renders it as
+     * "Exited (0) 292 years ago". Measured on a machine with one such container left over from a
+     * failed start. Anything at or below zero is treated as "the runtime did not say".
+     *
+     * @param parts The ps line, split.
+     * @return ISO-8601 instant, or empty.
+     */
+    private static String since(String[] parts) {
+        final boolean up = parts.length > 1 && parts[1].startsWith("Up");
+        final int field = up ? 2 : 3;
+        if (parts.length <= field) {
+            return "";
+        }
+        try {
+            final long seconds = Long.parseLong(parts[field].strip());
+            return seconds <= 0 ? "" : java.time.Instant.ofEpochSecond(seconds).toString();
+        } catch (NumberFormatException ex) {
+            return "";
+        }
     }
 
     /**

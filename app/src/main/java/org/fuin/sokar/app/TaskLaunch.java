@@ -48,7 +48,30 @@ public final class TaskLaunch {
     public record Request(String task, Path projectFile, @Nullable String agentName,
             @Nullable String providerName, @Nullable String credentialType, int tokenHours,
             @Nullable String upstream, boolean noGate, boolean dryRun, String clearance,
-            boolean keep) {
+            boolean keep, org.fuin.sokar.wire.TaskMode mode, @Nullable String prompt) {
+
+        /**
+         * Constructor for a request that does not say how somebody is involved.
+         *
+         * @param task Task name.
+         * @param projectFile Project file.
+         * @param agentName Agent to use, or {@code null} for the only one installed.
+         * @param providerName Provider to use, or {@code null} for the agent's own.
+         * @param credentialType Credential kind, or {@code null} for the stored one.
+         * @param tokenHours How long the phantom token is accepted.
+         * @param upstream Upstream for the gate, or {@code null}.
+         * @param noGate Whether to run without a workspace and gate.
+         * @param dryRun Whether to report rather than start.
+         * @param clearance What to do with a blocked connection.
+         * @param keep Whether the container survives the run.
+         */
+        public Request(String task, Path projectFile, @Nullable String agentName,
+                @Nullable String providerName, @Nullable String credentialType, int tokenHours,
+                @Nullable String upstream, boolean noGate, boolean dryRun, String clearance,
+                boolean keep) {
+            this(task, projectFile, agentName, providerName, credentialType, tokenHours, upstream,
+                    noGate, dryRun, clearance, keep, org.fuin.sokar.wire.TaskMode.SHELL, null);
+        }
     }
 
     /**
@@ -331,6 +354,10 @@ public final class TaskLaunch {
 
             clearance().startClearance(runner, project, container, out, err);
             writeResumeRecord(container, err);
+            // What only this moment knows: which agent, how somebody is meant to be involved,
+            // what it was asked to do, and which ref its work goes to. None of it can be
+            // recovered from a running container afterwards.
+            writeProfile(container, selected, environmentCache.get("SOKAR_TASK_REF"), err);
 
             // The task is up. What happens next - run the agent to completion, attach a
             // terminal, or simply say so - is the caller's, and it happens inside this scope
@@ -347,6 +374,31 @@ public final class TaskLaunch {
             err.println("sokar: " + ex);
             err.flush();
             return cleanUp(runner, container, 70, out);
+        }
+    }
+
+    /**
+     * Writes down what this task is, for anything that asks about it later.
+     * <p>
+     * Never fails the run. A task that cannot describe itself is worse than one that can, and far
+     * better than one that did not start.
+     *
+     * @param container Container name.
+     * @param selected The agent, or {@code null} when the task has none.
+     * @param branch Ref the work goes to, or {@code null}.
+     * @param err Where a failure to record is reported.
+     */
+    private void writeProfile(String container, @Nullable InstalledAgent selected,
+            @Nullable String branch, PrintWriter err) {
+        try {
+            new org.fuin.sokar.wire.TaskProfile(org.fuin.sokar.wire.TaskProfile.VERSION,
+                    selected == null ? null : selected.definition().name(),
+                    request.mode(), request.prompt(), branch,
+                    java.time.Instant.now().toString())
+                    .writeTo(context.paths().containerState(container));
+        } catch (java.io.IOException ex) {
+            err.println("sokar: could not record what this task is: " + ex.getMessage());
+            err.flush();
         }
     }
 

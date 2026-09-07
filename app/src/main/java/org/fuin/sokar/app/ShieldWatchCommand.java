@@ -120,7 +120,20 @@ public class ShieldWatchCommand implements Callable<Integer> {
             final ClearanceJournal record = new ClearanceJournal(journalPath());
 
             final ClearanceHub hub = new ClearanceHub(project, task,
-                    ((ClearancePrompt) prompt)::ask,
+                    // Wrapped so the task can say it is waiting for a person. Written when the
+                    // question is put and removed when it is answered, which is the work's own
+                    // signal - a quiet task is not a waiting one, and anything inferred from a
+                    // clock would be wrong in the direction that costs the most.
+                    request -> {
+                        final org.fuin.sokar.wire.Waiting waiting =
+                                new org.fuin.sokar.wire.Waiting(socketPath().getParent());
+                        waiting.asking(request.destination());
+                        try {
+                            return ((ClearancePrompt) prompt).ask(request);
+                        } finally {
+                            waiting.answered();
+                        }
+                    },
                     address -> {
                         try {
                             policy.allow(address);

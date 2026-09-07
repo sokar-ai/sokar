@@ -56,6 +56,37 @@ interface org.fuin.sokar.Tasks1
 
 # ---------------------------------------------------------------------------- types
 
+# What the work in a task is doing, as against what its container is doing.
+#
+# "running" answers the container's question. This answers the one an operator has, and they are
+# not the same: a task blocked on a question nobody saw and a task grinding through a build are
+# both running: true, and that difference is the one that costs an afternoon.
+type Activity (
+  # Its container is not up. Stopped, finished or dead - all three are gone.
+  DEAD,
+  # Waiting for a person to answer something, said by the thing that asked rather than guessed
+  # from how long it has been quiet. waitingFor says what about.
+  WAITING,
+  # Producing output.
+  WORKING,
+  # Up, producing nothing, and not waiting for anybody as far as anything can tell.
+  IDLE,
+  # Up, and nothing on this side can see what it is doing - a task somebody attached a terminal
+  # to writes its work to that terminal. Its own value rather than "idle", because a state that
+  # is silently wrong is worse than one that says it does not know.
+  UNKNOWN
+)
+
+# How a person is meant to be involved in a task.
+type Mode (
+  # A terminal in the container, driven by hand.
+  SHELL,
+  # The agent's own session, attached, with a person working through it.
+  AGENT,
+  # Started with a prompt and left to run. Nobody is expected to be watching.
+  UNATTENDED
+)
+
 # One task on this machine, running or not.
 #
 # A task is a container plus the helpers Sokar started beside it. Both halves matter: a
@@ -74,7 +105,25 @@ type Task (
   # Whether the runtime says it is up.
   running: bool,
   # How many recorded helper processes are alive.
-  helpers: int
+  helpers: int,
+  # Agent running in it, by the name Agents reports. "" when it has none, or when the task was
+  # started by a Sokar that did not record it.
+  agent: string,
+  # How somebody is meant to be involved. "" when nothing recorded it.
+  mode: Mode,
+  # What an unattended task was asked to do. Kept after it has finished, because "what was this
+  # asked to do" is a question people have about a task that is over. "" for the other modes.
+  prompt: string,
+  # Ref its work goes to, such as refs/sokar/incoming/shell. "" when it has no gate.
+  branch: string,
+  # When the current state began, ISO-8601: a running task since it started, a stopped one since
+  # it exited. "" when the runtime could not say - a container that was created and never started
+  # has no honest answer. This is what "idle for forty minutes" is arithmetic on; state is not.
+  since: string,
+  # What the work is doing, beside state rather than instead of it.
+  activity: Activity,
+  # What it is waiting to be told, when activity is WAITING. "" otherwise.
+  waitingFor: string
 )
 
 # What became of a Stop or a Resume.
@@ -322,7 +371,14 @@ method Start(
   # What to do with a blocked connection: prompt, allow, deny or off. Default: "prompt".
   clearance: ?string,
   # Keeps the container after it exits.
-  keep: ?bool
+  keep: ?bool,
+  # How somebody is meant to be involved, recorded on the task and answered by List and Watch.
+  # Default: UNATTENDED when a prompt is given, SHELL otherwise - so a caller that gives a prompt
+  # need not repeat itself, and one that gives neither gets the honest answer for a container
+  # nobody is attached to.
+  mode: ?Mode,
+  # What an unattended task is asked to do. Recorded on the task and kept after it finishes.
+  prompt: ?string
 ) -> (
   # One line of output. Set on every reply while continues is true, and only then.
   line: ?string,
