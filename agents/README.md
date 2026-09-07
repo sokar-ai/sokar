@@ -193,6 +193,32 @@ for the same reason the code lives here.
   distinguish "the provider rejected your key" from "the agent never used the
   proxy", and those have completely different fixes
 
+### The build every agent repository carries
+
+**An agent repository builds, publishes and then proves the published packages on rented
+machines.** Three jobs, and the third is the one that is easy to leave out and the only one that
+answers the question an operator actually has:
+
+- **build** — unit tests, the native binary, the `.deb` and the `.rpm`. On a pinned
+  `ubuntu-24.04` runner, never `ubuntu-latest`: a native image links glibc dynamically, so it must
+  be compiled against the oldest glibc it has to run on. 24.04 is no longer a machine Sokar runs
+  on - it needs podman 5, which 24.04 will never ship - but it is still where the binary should be
+  compiled, because one built there starts anywhere a newer Sokar does.
+- **publish** — the packages to Artifactory, and a check that they are *indexed* rather than
+  merely stored. A `.deb` uploaded without `deb.distribution`, `deb.component` and
+  `deb.architecture` is accepted and never appears in the index, with no error anywhere.
+- **acceptance** — a matrix of `ubuntu` and `fedora` on rented Hetzner machines, installing
+  **from the package repository** rather than from a build tree, driven by
+  `buildtools/ci/remote-acceptance.py` and `buildtools/acceptance.sh`. Ubuntu **26.04** and Fedora
+  44: the two differ in package format and security module, and both have podman 5. The server is
+  destroyed in a `finally`, and `buildtools/ci/sweep.py --mine` deletes what a killed run left.
+
+Everything before the third job proves the code is right; only the third proves that what an
+operator installs is right, and the two have been different before - a package carrying a stale
+binary, a package whose dependency would not resolve. Its tier-2 half needs a real credential and
+is skipped without one, so a fork or a revoked key loses coverage rather than turning the build
+red with no information.
+
 ### What you do *not* have to write
 
 No native-image metadata. `ServiceLoader` classes are resolved by native-image on

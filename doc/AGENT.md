@@ -421,6 +421,15 @@ agent implements so Sokar can call in. "SPI" names only the second half and read
 as though the first is not there. Say **the agent API**, or **the agent contract**
 where the point is that both sides share it.
 
+**Every agent repository carries the same three-job build.** Build and unit tests on a pinned
+`ubuntu-24.04` runner - the oldest glibc a native image must run against, and still the right
+place to compile even though Sokar no longer runs there, since 24.04 will never have podman 5.
+Then publish to Artifactory with a check that the package is *indexed* and not merely stored. Then
+an **acceptance matrix on rented Hetzner machines**, `ubuntu` and `fedora`, installing from the
+package repository rather than from a build tree. The third job is the one that gets left out and
+the only one that proves what an operator installs; `agents/README.md` states it in full, and
+`sokar-pi` and `sokar-omp` are the worked examples.
+
 **Every agent and provider names its upstream project by link, and an implemented one
 carries a `README.md` in its own directory that opens with that link.** Two projects can
 share a name - Pi and Oh My Pi are different codebases from different authors - and a
