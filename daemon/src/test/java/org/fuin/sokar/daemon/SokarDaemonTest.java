@@ -160,6 +160,94 @@ class SokarDaemonTest {
     }
 
     @Test
+    void answersWhatAProjectMayReachAndChangesIt(@TempDir Path dir) throws Exception {
+
+        // The pair that makes the egress editor reachable from an interface. Driven over the wire
+        // because that is the half that was missing; what the edit does to the file is covered
+        // where the edit lives.
+        final Path sets = dir.resolve("data/sokar/egress");
+        Files.createDirectories(sets);
+        Files.writeString(sets.resolve("maven.yaml"),
+                "name: maven\nlabel: Maven\ndomains:\n  - repo.maven.apache.org\n");
+        final Path projectFile = Files.writeString(dir.resolve("project.yml"), """
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                """);
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+
+                assertThat((List<?>) client.call(SokarDaemon.INTERFACE + ".Egress",
+                        Map.of("project", projectFile.toString())).get("hosts")).isEmpty();
+
+                final Map<String, Object> preview = client.call(
+                        SokarDaemon.INTERFACE + ".SetEgress",
+                        Map.of("project", projectFile.toString(),
+                                "addSets", List.of("maven"), "dryRun", true));
+                assertThat(preview.get("outcome")).isEqualTo("PREVIEWED");
+                assertThat(String.valueOf(preview.get("opens")))
+                        .contains("repo.maven.apache.org").contains("set maven");
+
+                // A preview writes nothing, which is the whole of its promise.
+                assertThat(Files.readString(projectFile)).doesNotContain("egress");
+
+                assertThat(client.call(SokarDaemon.INTERFACE + ".SetEgress",
+                        Map.of("project", projectFile.toString(), "addSets", List.of("maven")))
+                        .get("outcome")).isEqualTo("CHANGED");
+                assertThat(Files.readString(projectFile)).contains("sets: [maven]");
+
+                assertThat((List<?>) client.call(SokarDaemon.INTERFACE + ".Egress",
+                        Map.of("project", projectFile.toString())).get("hosts")).hasSize(1);
+            }
+        });
+    }
+
+    @Test
+    void refusesASetTheMachineDoesNotHaveOverTheWire(@TempDir Path dir) throws Exception {
+
+        // Written, the file would name something no task on this machine could resolve, and every
+        // run would fail on it rather than this one call.
+        final Path projectFile = Files.writeString(dir.resolve("project.yml"), """
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                """);
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> answer = client.call(
+                        SokarDaemon.INTERFACE + ".SetEgress",
+                        Map.of("project", projectFile.toString(),
+                                "addSets", List.of("nonesuch")));
+
+                assertThat(answer.get("outcome")).isEqualTo("NO_SUCH_SET");
+                assertThat(String.valueOf(answer.get("detail"))).contains("nonesuch");
+                assertThat(Files.readString(projectFile)).doesNotContain("egress");
+            }
+        });
+    }
+
+    @Test
+    void refusesToEditWithoutAProjectFile(@TempDir Path dir) throws Exception {
+
+        // The same refusal the gate methods make: a path is the caller's to give, and one it did
+        // not give cannot be guessed at.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".SetEgress",
+                        Map.of("addSets", List.of("maven"))))
+                        .isInstanceOf(VarlinkException.class)
+                        .hasMessageContaining("ProjectRequired");
+            }
+        });
+    }
+
+    @Test
     void listsTheProjectsThisMachineKnowsAbout(@TempDir Path dir) throws Exception {
 
         // The method that makes the gate reachable from an interface: every gate call takes a

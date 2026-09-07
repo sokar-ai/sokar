@@ -145,6 +145,35 @@ type PendingPush (
   at: string
 )
 
+# A host a task may reach, and who granted it.
+type EgressHost (
+  host: string,
+  # "agent <name>", "provider <name>", "set <name>", "project" or "upstream". The first grant
+  # wins, so a host in both a set and an agent's list is reported as the agent's.
+  origin: string
+)
+
+# What became of a change to a project's egress.
+type EgressOutcome (
+  # Applied and written to the project file.
+  CHANGED,
+  # What it would do. Nothing was written, because dryRun was set.
+  PREVIEWED,
+  # The file already said that. Nothing was written.
+  NO_CHANGE,
+  # A named set is not installed on this machine, so the file would name nothing real. Nothing
+  # was written; detail says which.
+  NO_SUCH_SET,
+  # The project's security class forbids declaring egress at all - an offline project declares
+  # nothing. detail says so in the words the project reader uses.
+  REFUSED_BY_CLASS,
+  # The project file could not be read. detail says why.
+  UNREADABLE,
+  # The change was right and the file could not be written. detail says why; opens and closes
+  # still describe what it would have done.
+  NOT_WRITTEN
+)
+
 # A project this machine knows about.
 #
 # Not something Sokar creates: a project is somebody's directory with a project.yml in it, and
@@ -347,6 +376,56 @@ method Resume(task: string) -> (
 # Reads one of a task's log files, and with "more" follows it as it is written.
 #
 # The log name is checked against the files that are there rather than resolved as a path.
+# What a project may reach, and who granted each host.
+#
+# The agent's own hosts and its provider's are included, because what an operator wants to know
+# is what a task will reach and half of it is not in the project file. Which agent that is
+# follows the same rule a run does: the one named, or the only one installed.
+method Egress(
+  # Path of the project file, from Projects.file.
+  project: string,
+  # Agent whose grants to include. Default: the only one installed.
+  agent: ?string
+) -> (
+  hosts: []EgressHost,
+  # Hosts an agent declares it asks for and is deliberately not given. Distinguishable from a
+  # host nobody added, which is the distinction the firewall itself cannot make.
+  refused: []string
+)
+
+# Changes what a project may reach, or says what a change would do.
+#
+# The highest-consequence edit in the product, so it answers in hosts rather than in set names: a
+# set is a name for several hosts and whoever adds one is entitled to see them. The project file
+# is edited in place - comments, key order and quoting survive - and the result is parsed by the
+# reader that would have to read it later before anything is written.
+#
+# Nothing here applies to a task that is already running: a container's ruleset and resolver are
+# built when it starts.
+method SetEgress(
+  # Path of the project file, from Projects.file.
+  project: string,
+  # Curated sets to declare. A set this machine does not have is refused rather than written.
+  addSets: ?[]string,
+  removeSets: ?[]string,
+  # Hosts to declare directly, for a mirror no set covers.
+  addDomains: ?[]string,
+  removeDomains: ?[]string,
+  # Stop before writing and report what would have happened.
+  dryRun: ?bool
+) -> (
+  outcome: EgressOutcome,
+  # Hosts the change adds, with the origin that grants each. In the order they were granted.
+  opens: []EgressHost,
+  # Hosts it takes away.
+  closes: []EgressHost,
+  # What reaching a forge costs a guarded project, when this change opens one and the project
+  # did not already reach one. "" otherwise - said once, when it becomes true.
+  cost: string,
+  # Why it was refused, or what could not be written. "" when nothing went wrong.
+  detail: string
+)
+
 # Every project this machine knows about, alphabetically.
 #
 # The list is assembled from what is durable: the gate mirrors, the tasks that exist, and the

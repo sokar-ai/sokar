@@ -16,14 +16,14 @@ feature.
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
-| B04 | [Egress Sets Editor](B04-Egress-Sets-Editor.md) | What a project may reach is readable and editable, with the effect of a change visible before it is applied. | yes |
+| B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | yes |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | yes |
 | B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
 
 ## What was here and is finished
 
-Nine requirements have been met and retired. Their files are gone; what each measured is in
+Ten requirements have been met and retired. Their files are gone; what each measured is in
 [AGENT.md](../../AGENT.md), where it will be read again:
 
 - **The local daemon API.** `sokard` serves the domain over an owner-only varlink socket, and the
@@ -41,6 +41,14 @@ Nine requirements have been met and retired. Their files are gone; what each mea
   passphrase is verified before it is cached, and `sokar vault lock` drops it again without
   restarting anything - saying, when a task is running, what it cannot reach. What the sweep found
   and this did not own became the requirement below it, and is also done.
+- **The egress sets editor.** `sokar shield egress` shows what a project may reach with the origin
+  of every host - through the same composition a task run uses, so the CLI and an interface cannot
+  come to disagree about what is open - and changes it, reporting the effect in hosts rather than
+  in set names. The project file is edited in place, comments and all, and the result is parsed by
+  the project reader before anything is written, which is where an offline project is refused. The
+  daemon serves both halves through `Egress` and `SetEgress`, taking the project path `Projects`
+  hands out. What it left is not about editing at all: it is
+  [B10](B10-What-An-Egress-Set-Can-Express.md).
 - **Secrets off the command line.** Every variable a container is given is now named on podman's
   command line without its value, which podman copies from Sokar's own environment: an argument
   list is world-readable and an environment is not. It covered the git gate's token and the

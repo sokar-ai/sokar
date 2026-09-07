@@ -1,20 +1,14 @@
 package org.fuin.sokar.app;
 
-import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.StringReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.core.project.ProjectException;
 import org.fuin.sokar.core.project.ProjectReader;
-import org.fuin.sokar.shield.EgressSetDirectory;
 import org.fuin.sokar.shield.EgressSetException;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -28,10 +22,8 @@ import picocli.CommandLine.Spec;
  * decided it, and what a change would add or take away <em>in hosts</em> rather than in set names.
  * A set is a name for eight hosts, and an operator adding one is entitled to see the eight.
  * <p>
- * Editing goes through the file rather than around it. The declaration lives in {@code
- * project.yml}, gets reviewed in a diff like anything else, and is what a colleague reads to know
- * what a task may reach - so this rewrites those two keys in place and leaves the rest of the file
- * alone.
+ * The deciding is {@link EgressControl}'s, which the daemon calls too. This class is the terminal:
+ * it turns a request into words and an exit code, and decides nothing.
  */
 @Command(name = "egress",
         mixinStandardHelpOptions = true,
@@ -81,148 +73,84 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
 
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
+        final EgressControl control = new EgressControl(context);
+        final EgressControl.Change change =
+                new EgressControl.Change(addSets, removeSets, addDomains, removeDomains);
 
-        final Project project;
-        final String original;
-        try {
-            project = ProjectReader.read(projectFile);
-            original = Files.readString(projectFile, StandardCharsets.UTF_8);
-        } catch (ProjectException ex) {
-            err.println("sokar: " + ex.getMessage());
-            err.flush();
-            return 2;
-        } catch (IOException ex) {
-            err.println("sokar: cannot read " + projectFile + ": " + ex.getMessage());
-            err.flush();
-            return 2;
+        if (change.isEmpty()) {
+            return show(control, out, err);
         }
-
-        final EgressSetDirectory sets = context.paths().egressSets();
-
-        if (addSets.isEmpty() && removeSets.isEmpty()
-                && addDomains.isEmpty() && removeDomains.isEmpty()) {
-            return show(project, sets, out, err);
-        }
-        return change(project, original, sets, out, err);
+        return change(control.apply(projectFile, change, dryRun), out, err);
     }
 
     /**
      * Prints what the project may reach today.
      *
-     * @param project The project.
-     * @param sets Where the installed sets are found.
+     * @param control What answers it.
      * @param out Where to report.
-     * @param err Where to report a set the project names and this machine does not have.
+     * @param err Where to report a project file or a set this machine cannot resolve.
      * @return Exit code.
      */
-    private int show(Project project, EgressSetDirectory sets, PrintWriter out, PrintWriter err) {
-
-        final Map<String, String> declared;
+    private int show(EgressControl control, PrintWriter out, PrintWriter err) {
         try {
-            declared = EgressReport.projectEgress(project, sets);
-        } catch (EgressSetException ex) {
+            final Project project = ProjectReader.read(projectFile);
+            out.println("project        " + project.name());
+            out.println("security class " + project.securityClass().name().toLowerCase(
+                    java.util.Locale.ROOT));
+            EgressReport.reportReachable(project, control.reachable(projectFile, agentName),
+                    control.refused(agentName), out);
+            out.println("declared in    " + projectFile);
+            out.flush();
+            return 0;
+        } catch (ProjectException | EgressSetException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();
             return 2;
         }
-
-        out.println("project        " + project.name());
-        out.println("security class " + project.securityClass().name().toLowerCase(
-                java.util.Locale.ROOT));
-
-        // The agent and its provider too, through the same composition a run uses: what an
-        // operator wants to know is what the task will reach, and half of it is not in this file.
-        try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
-            final org.fuin.sokar.agent.api.InstalledAgent selected =
-                    TaskLaunch.select(agents, agentName);
-            final SelectedProvider serving = selected == null ? null
-                    : SelectedProvider.choose(context.providers(), selected.definition(), null);
-            EgressReport.reportReachable(project,
-                    EgressReport.compose(selected, serving, declared).origins(),
-                    EgressReport.refused(selected), out);
-        } catch (RuntimeException ex) {
-            err.println("sokar: " + ex.getMessage());
-            err.flush();
-            return 2;
-        }
-        out.println("declared in    " + projectFile);
-        out.flush();
-        return 0;
     }
 
     /**
-     * Applies the requested change, after saying what it does.
+     * Prints what a change did, or why it did nothing.
      *
-     * @param project The project as it is now.
-     * @param original The file as it is now.
-     * @param sets Where the installed sets are found.
+     * @param effect What the domain decided.
      * @param out Where to report.
      * @param err Where to report a refusal.
      * @return Exit code.
      */
-    private int change(Project project, String original, EgressSetDirectory sets, PrintWriter out,
-            PrintWriter err) {
+    private int change(EgressControl.Effect effect, PrintWriter out, PrintWriter err) {
 
-        final List<String> wantedSets = edited(project.egress().sets(), addSets, removeSets);
-        final List<String> wantedDomains =
-                edited(project.egress().domains(), addDomains, removeDomains);
-
-        for (final String name : addSets) {
-            if (!sets.all().containsKey(name)) {
-                // Refused here rather than written and discovered at the next run: the file would
-                // name something this machine cannot resolve, and every task would fail on it.
-                err.println("sokar: no egress set '" + name + "' is installed."
-                        + " Run 'sokar shield sets' to see the names.");
+        switch (effect.outcome()) {
+            case UNREADABLE, REFUSED_BY_CLASS, NO_SUCH_SET -> {
+                err.println("sokar: " + effect.detail()
+                        + (effect.outcome() == EgressControl.Outcome.NO_SUCH_SET
+                                ? ". Run 'sokar shield sets' to see the names." : ""));
                 err.flush();
                 return 2;
             }
+            case NO_CHANGE -> {
+                out.println("no change      the file already says that");
+                out.flush();
+                return 0;
+            }
+            default -> {
+                // Everything below, which all print what the change does first.
+            }
         }
 
-        final String updated = EgressEdit.withEgress(original, wantedSets, wantedDomains);
-        final Project after;
-        try {
-            // Parsed by the reader that would have to read it later, before anything is written.
-            // This is also where an offline project is refused: it may declare no egress at all,
-            // and the reader already says so in the words the operator needs.
-            after = ProjectReader.read(new StringReader(updated), projectFile.toString());
-        } catch (ProjectException ex) {
-            err.println("sokar: " + ex.getMessage());
+        report(effect, out);
+
+        if (effect.cost() != null) {
+            out.println("cost           " + effect.cost());
+        }
+        if (effect.outcome() == EgressControl.Outcome.NOT_WRITTEN) {
+            err.println("sokar: " + effect.detail());
             err.flush();
-            return 2;
+            return 70;
         }
-
-        final Map<String, String> before;
-        final Map<String, String> now;
-        try {
-            before = EgressReport.projectEgress(project, sets);
-            now = EgressReport.projectEgress(after, sets);
-        } catch (EgressSetException ex) {
-            err.println("sokar: " + ex.getMessage());
-            err.flush();
-            return 2;
-        }
-
-        report(before, now, out);
-
-        // At the moment it becomes true, not only when a task next starts: this is the edit that
-        // turns the gate from a wall into a convention, and it is worth saying while it is being
-        // made.
-        final String forges = EgressReport.forgeNote(after, now);
-        if (forges != null && EgressReport.forgeNote(project, before) == null) {
-            out.println("cost           " + forges);
-        }
-
-        if (dryRun) {
+        if (effect.outcome() == EgressControl.Outcome.PREVIEWED) {
             out.println("dry run        nothing was written");
             out.flush();
             return 0;
-        }
-        try {
-            Files.writeString(projectFile, updated, StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            err.println("sokar: cannot write " + projectFile + ": " + ex.getMessage());
-            err.flush();
-            return 70;
         }
         out.println("written        " + projectFile);
         // The change applies to the next task. A container's ruleset and resolver are built when
@@ -235,57 +163,22 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
     /**
      * Prints the hosts a change opens and closes.
      *
-     * @param before Hosts and origins as they are.
-     * @param now Hosts and origins as they would be.
+     * @param effect What the change does.
      * @param out Where to report.
      */
-    private static void report(Map<String, String> before, Map<String, String> now,
-            PrintWriter out) {
-
-        final Map<String, String> added = new LinkedHashMap<>(now);
-        before.keySet().forEach(added::remove);
-        final Map<String, String> removed = new LinkedHashMap<>(before);
-        now.keySet().forEach(removed::remove);
-
-        if (added.isEmpty() && removed.isEmpty()) {
-            out.println("no change      the file already says that");
-            return;
-        }
-        final int width = java.util.stream.Stream.concat(added.keySet().stream(),
-                        removed.keySet().stream())
+    private static void report(EgressControl.Effect effect, PrintWriter out) {
+        final int width = java.util.stream.Stream.concat(effect.opens().keySet().stream(),
+                        effect.closes().keySet().stream())
                 .mapToInt(String::length).max().orElse(0);
         String label = "opens";
-        for (final Map.Entry<String, String> entry : added.entrySet()) {
+        for (final Map.Entry<String, String> entry : effect.opens().entrySet()) {
             out.printf("%-14s %-" + width + "s  %s%n", label, entry.getKey(), entry.getValue());
             label = "";
         }
         label = "closes";
-        for (final Map.Entry<String, String> entry : removed.entrySet()) {
+        for (final Map.Entry<String, String> entry : effect.closes().entrySet()) {
             out.printf("%-14s %-" + width + "s  %s%n", label, entry.getKey(), entry.getValue());
             label = "";
         }
-    }
-
-    /**
-     * Returns the list with the additions appended and the removals gone.
-     * <p>
-     * Order is the file's own, and an addition goes at the end: rewriting the order of a list
-     * somebody wrote would make the diff say more than the change did.
-     *
-     * @param current What the file names.
-     * @param additions What to add, ignored when already there.
-     * @param removals What to take out, ignored when not there.
-     * @return The wanted list.
-     */
-    private static List<String> edited(List<String> current, List<String> additions,
-            List<String> removals) {
-        final List<String> wanted = new ArrayList<>(current);
-        additions.forEach(value -> {
-            if (!wanted.contains(value)) {
-                wanted.add(value);
-            }
-        });
-        wanted.removeAll(removals);
-        return List.copyOf(wanted);
     }
 }

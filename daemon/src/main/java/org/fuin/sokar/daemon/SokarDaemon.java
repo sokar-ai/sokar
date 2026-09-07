@@ -11,6 +11,7 @@ import org.fuin.sokar.app.SokarContext;
 import org.fuin.sokar.app.GateSupport;
 import org.fuin.sokar.app.TaskControl;
 import org.fuin.sokar.app.TaskLaunch;
+import org.fuin.sokar.app.EgressControl;
 import org.fuin.sokar.app.ProjectInventory;
 import org.fuin.sokar.app.TaskInventory;
 import org.fuin.sokar.clearance.ClearanceService;
@@ -167,6 +168,37 @@ public final class SokarDaemon {
                 }
                 sleep(WATCH_INTERVAL);
             }
+        });
+
+        server.method("Egress", (parameters, replies) -> {
+            final Path file = projectFile(parameters);
+            final EgressControl egress = new EgressControl(context);
+            // Absent, not empty: a ?string that was not sent arrives as "" here, and an empty
+            // agent name is not a request for the default - it is a request for an agent called
+            // nothing, which is refused. Measured over the wire on the first call.
+            final String agent = text(parameters, "agent");
+            final String named = agent.isEmpty() ? null : agent;
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("hosts", hosts(egress.reachable(file, named)));
+            answer.put("refused", egress.refused(named));
+            replies.last(answer);
+        });
+
+        server.method("SetEgress", (parameters, replies) -> {
+            final EgressControl.Effect effect = new EgressControl(context).apply(
+                    projectFile(parameters),
+                    new EgressControl.Change(strings(parameters, "addSets"),
+                            strings(parameters, "removeSets"),
+                            strings(parameters, "addDomains"),
+                            strings(parameters, "removeDomains")),
+                    flag(parameters, "dryRun"));
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("outcome", effect.outcome().name());
+            answer.put("opens", hosts(effect.opens()));
+            answer.put("closes", hosts(effect.closes()));
+            answer.put("cost", effect.cost() == null ? "" : effect.cost());
+            answer.put("detail", effect.detail() == null ? "" : effect.detail());
+            replies.last(answer);
         });
 
         server.method("Projects", (parameters, replies) -> {
@@ -425,6 +457,50 @@ public final class SokarDaemon {
         } catch (java.io.IOException ex) {
             throw new IllegalStateException("Cannot read the interface description", ex);
         }
+    }
+
+    /**
+     * Returns hosts and their origins as a client reads them.
+     *
+     * @param origins Host to origin.
+     * @return One entry per host, in the order they were granted.
+     */
+    private static List<Map<String, Object>> hosts(Map<String, String> origins) {
+        return origins.entrySet().stream()
+                .map(entry -> Map.<String, Object>of("host", entry.getKey(),
+                        "origin", entry.getValue()))
+                .toList();
+    }
+
+    /**
+     * Returns a list of strings a call carried, empty when it carried none.
+     *
+     * @param parameters What the call carried.
+     * @param name Parameter to read.
+     * @return The values, never {@code null}.
+     */
+    private static List<String> strings(Map<String, Object> parameters, String name) {
+        if (!(parameters.get(name) instanceof List<?> values)) {
+            return List.of();
+        }
+        return values.stream().map(String::valueOf).toList();
+    }
+
+    /**
+     * Returns the project file a call names, refusing a call that names none.
+     * <p>
+     * The same rule the gate methods follow: a path the caller gives, which it got from
+     * {@code Projects} rather than invented.
+     *
+     * @param parameters What the call carried.
+     * @return The project file.
+     */
+    private static Path projectFile(Map<String, Object> parameters) {
+        final String file = text(parameters, "project");
+        if (file.isEmpty()) {
+            throw new VarlinkException(INTERFACE + ".ProjectRequired", Map.of());
+        }
+        return Path.of(file);
     }
 
     /**

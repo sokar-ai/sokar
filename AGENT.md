@@ -148,6 +148,10 @@ See [build.md](doc/build.md). Three things that will bite:
   `PhantomToken.toString` both abbreviate because tokens end up in log lines by accident - and
   `gate serve` then wrote `token.value()` into `gate.log`, which the daemon streams to whatever is
   tailing it. Print the token, not its value.
+- **An unmodifiable map is not a copied one.** `Map.copyOf` loses insertion order, and the egress
+  report is read in the order its sources were consulted - the agent's hosts, then its provider's,
+  then the project's, grouped by the set that granted them. A report whose order changes between
+  runs cannot be diffed against yesterday's. Wrap a `LinkedHashMap` instead.
 - **A registry that two processes write is a directory of files, not one document.** The project
   registry began as a single JSON file, which meant read-modify-write: 24 concurrent starts kept
   one entry and lost 23, measured, and both writers went through the same temporary file so the

@@ -109,7 +109,11 @@ final class EgressReport {
             }
             origins.putIfAbsent(host, origin);
         });
-        return new Reachable(java.util.List.copyOf(domains), java.util.Map.copyOf(origins));
+        // Unmodifiable, not copied into a hash map: this is read in the order the sources were
+        // consulted - the agent's own hosts, then its provider's, then the project's - and a
+        // report whose order changes between runs is one nobody can diff against yesterday's.
+        return new Reachable(java.util.List.copyOf(domains),
+                java.util.Collections.unmodifiableMap(origins));
     }
 
     /**

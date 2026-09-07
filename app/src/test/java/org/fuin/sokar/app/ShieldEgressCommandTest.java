@@ -151,7 +151,7 @@ class ShieldEgressCommandTest {
         assertThat(execute(context(dir), "shield", "egress", "-p", file.toString(),
                 "--add-set", "nonesuch")).isEqualTo(2);
 
-        assertThat(err.toString()).contains("no egress set 'nonesuch' is installed")
+        assertThat(err.toString()).contains("Unknown egress set 'nonesuch'")
                 .contains("sokar shield sets");
         assertThat(Files.readString(file)).doesNotContain("egress");
     }
@@ -216,6 +216,22 @@ class ShieldEgressCommandTest {
                 "--add-set", "maven")).isZero();
 
         assertThat(out.toString()).doesNotContain("cost");
+    }
+
+    @Test
+    void listsHostsInTheOrderTheirSourceWasConsulted(@TempDir Path dir) throws IOException {
+
+        // A report whose order changes between runs cannot be diffed against yesterday's, and
+        // these are grouped by the set that granted them so an operator can see what a set is.
+        installSets(dir);
+        final Path file = project(dir, "guarded", "");
+
+        assertThat(execute(context(dir), "shield", "egress", "-p", file.toString(),
+                "--add-set", "maven", "--dry-run")).isZero();
+
+        final String report = out.toString();
+        assertThat(report.indexOf("repo.maven.apache.org"))
+                .isLessThan(report.indexOf("central.sonatype.com"));
     }
 
     @Test
