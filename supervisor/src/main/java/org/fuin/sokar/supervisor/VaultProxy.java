@@ -69,6 +69,25 @@ public class VaultProxy implements AutoCloseable, Runnable {
     /** Largest request body accepted, in bytes. */
     private static final int BODY_LIMIT = 32 * 1024 * 1024;
 
+    /**
+     * A credential in an answer, as a JSON field rather than as text.
+     * <p>
+     * The negative lookbehind is what keeps a model talking *about* OAuth from being mistaken
+     * for a provider handing one over: inside a JSON string the quotes arrive escaped, so a
+     * completion containing {@code \"refresh_token\":} does not match while a real token
+     * response does.
+     */
+    private static final java.util.regex.Pattern CREDENTIAL_FIELD =
+            java.util.regex.Pattern.compile(
+                    "(?<!\\\\)\"(access_token|refresh_token|id_token)\"\\s*:");
+
+    /** How much of an answer is examined before any of it is passed on, in bytes. */
+    private static final int PEEK = 8192;
+
+    /** Marks a request as asking the provider to renew a credential. */
+    private static final java.util.regex.Pattern REFRESH_GRANT =
+            java.util.regex.Pattern.compile("grant_type[\"'=:\\s]+refresh_token");
+
     private final Path socket;
 
     private final String upstream;
@@ -234,6 +253,21 @@ public class VaultProxy implements AutoCloseable, Runnable {
         }
         final String real = ((TokenExchange.Granted) result).credential();
 
+        if (body.length > 0 && REFRESH_GRANT.matcher(
+                new String(body, StandardCharsets.UTF_8)).find()) {
+            // Refused here rather than upstream: forwarding it would attach the real credential
+            // to a request whose answer is a new one, and the provider may rotate what Sokar
+            // holds as a side effect of a question nobody wanted asked.
+            log.accept(head.method() + " " + head.target() + " -> 403 renewal refused");
+            out.write(HttpHead.response(403, "Forbidden",
+                    "{\"type\":\"error\",\"error\":{\"type\":\"permission_error\","
+                    + "\"message\":\"sokar: this task's credential cannot be renewed from"
+                    + " inside the container; the token it holds is minted per task and ends"
+                    + " with it\"}}"));
+            out.flush();
+            return;
+        }
+
         final HttpResponse<InputStream> response;
         try {
             response = http.send(reissue(head, body, real),
@@ -331,8 +365,50 @@ public class VaultProxy implements AutoCloseable, Runnable {
         return !name.startsWith(":") && !HOP_BY_HOP.contains(name.toLowerCase(Locale.ROOT));
     }
 
+    /**
+     * Reads the start of an answer, so it can be judged before any of it is handed over.
+     * <p>
+     * Bounded and then streamed: a completion arrives as a long stream of events, and buffering
+     * all of it to look at the first line would make every answer wait for its last byte. A
+     * credential response is small and says what it is within the first bytes.
+     *
+     * @param body The upstream body.
+     * @return What was read, which is all there was when the answer is shorter than the bound.
+     * @throws IOException If the stream fails.
+     */
+    private static byte[] peek(InputStream body) throws IOException {
+        final byte[] buffer = new byte[PEEK];
+        int filled = 0;
+        while (filled < PEEK) {
+            final int read = body.read(buffer, filled, PEEK - filled);
+            if (read < 0) {
+                break;
+            }
+            filled += read;
+        }
+        return java.util.Arrays.copyOf(buffer, filled);
+    }
+
     private void writeResponse(OutputStream out, HttpResponse<InputStream> response)
             throws IOException {
+
+        final InputStream upstreamBody = response.body();
+        final byte[] first = peek(upstreamBody);
+        if (CREDENTIAL_FIELD.matcher(new String(first, StandardCharsets.UTF_8)).find()) {
+            // The one exchange whose answer is itself a credential. Measured with a stub
+            // provider: the container received access_token and refresh_token verbatim, which
+            // is the single thing the phantom token exists to prevent. What the provider did
+            // upstream cannot be undone from here - it may already have rotated - so this stops
+            // the answer rather than the act, and says so plainly.
+            upstreamBody.close();
+            log.accept("answer withheld: it carried a credential");
+            out.write(HttpHead.response(403, "Forbidden",
+                    "{\"type\":\"error\",\"error\":{\"type\":\"permission_error\","
+                    + "\"message\":\"sokar: the provider answered with a credential, which"
+                    + " this container may not have; nothing was passed on\"}}"));
+            out.flush();
+            return;
+        }
 
         final StringBuilder head = new StringBuilder("HTTP/1.1 ")
                 .append(response.statusCode()).append(" \r\n");
@@ -349,7 +425,14 @@ public class VaultProxy implements AutoCloseable, Runnable {
         out.write(head.toString().getBytes(StandardCharsets.UTF_8));
         out.flush();
 
-        try (InputStream body = response.body()) {
+        try (InputStream body = upstreamBody) {
+            if (first.length > 0) {
+                out.write((Integer.toHexString(first.length) + "\r\n")
+                        .getBytes(StandardCharsets.UTF_8));
+                out.write(first);
+                out.write("\r\n".getBytes(StandardCharsets.UTF_8));
+                out.flush();
+            }
             final byte[] buffer = new byte[8192];
             int read;
             while ((read = body.read(buffer)) != -1) {

@@ -129,6 +129,62 @@ class VaultProxyTest {
     }
 
     @Test
+    void withholdsAnAnswerThatCarriesACredential(@TempDir Path dir) throws IOException {
+
+        // Renewal is the one exchange whose answer is itself a credential. Measured before this
+        // existed: the container received access_token and refresh_token verbatim, which is the
+        // single thing the phantom token exists to prevent.
+        final Path socket = dir.resolve("vault.sock");
+        responseBody.set("{\"access_token\":\"sk-live-RENEWED\",\"refresh_token\":\"rt-8b2\"}");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "GET /v1/whatever HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n\r\n");
+
+            assertThat(response).startsWith("HTTP/1.1 403");
+            assertThat(response).contains("answered with a credential");
+            assertThat(response).doesNotContain("sk-live-RENEWED").doesNotContain("rt-8b2");
+        }
+    }
+
+    @Test
+    void anAnswerThatMerelyTalksAboutTokensIsPassedOn(@TempDir Path dir) throws IOException {
+
+        // The false positive worth avoiding: an agent asking a model about OAuth gets those very
+        // words back. Inside a JSON string the quotes arrive escaped, which is what tells the two
+        // apart - a completion is not a credential.
+        final Path socket = dir.resolve("vault.sock");
+        responseBody.set("{\"content\":[{\"text\":\"Send {\\\"refresh_token\\\": ...} to renew.\"}]}");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "GET /v1/messages HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n\r\n");
+
+            assertThat(response).startsWith("HTTP/1.1 200");
+            assertThat(response).contains("to renew.");
+        }
+    }
+
+    @Test
+    void refusesARenewalBeforeItReachesTheProvider(@TempDir Path dir) throws IOException {
+
+        // Refused on the way out, not on the way back: forwarding it would attach the real
+        // credential to a request whose answer is a new one, and the provider may rotate what
+        // Sokar holds as a side effect.
+        final Path socket = dir.resolve("vault.sock");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "POST /v1/oauth/token HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n"
+                    + "content-length: 30\r\n\r\n{\"grant_type\":\"refresh_token\"}");
+
+            assertThat(response).startsWith("HTTP/1.1 403");
+            assertThat(response).contains("cannot be renewed from inside the container");
+            assertThat(received).isEmpty();
+        }
+    }
+
+    @Test
     void putsTheRealCredentialInTheDeclaredHeader(@TempDir Path dir) throws IOException {
 
         // Given

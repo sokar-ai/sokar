@@ -85,6 +85,48 @@ already out of time when the container started.
 This does nothing for a credential that decays on the host while no task is running, which
 is the case recorded above and still the harder half.
 
+## Built, 2026-09-07
+
+**A renewal's answer is itself a credential, and it was being handed to the container.** The
+broker attaches the real credential on the way out and returned the provider's answer verbatim on
+the way back, so an agent that renewed over the provider's own endpoint would have been given a
+live credential - the one thing the phantom token exists to prevent. Measured against a stub
+provider: the container received `{"access_token":"sk-live-RENEWED-9f3","refresh_token":"rt-live-8b2"}`
+unchanged. Latent rather than live, because no supported provider renews today.
+
+Two blocks, one in each direction:
+
+- **A request asking for a renewal is refused before it is forwarded.** A body carrying
+  `grant_type=refresh_token` gets 403 and a sentence saying the task's token is minted per task
+  and ends with it. Refused on the way out on purpose: forwarding it would attach the real
+  credential to a request whose answer is a new one, and the provider may rotate what Sokar holds
+  as a side effect of a question nobody wanted asked.
+- **An answer that carries a credential is withheld.** The start of every answer is examined
+  before any of it is passed on; a JSON `access_token`, `refresh_token` or `id_token` field stops
+  it with 403. Bounded and then streamed, because a completion arrives as a long series of events
+  and buffering all of it would make every answer wait for its last byte.
+
+The distinction that keeps this from firing on ordinary work: inside a JSON string the quotes
+arrive escaped, so a model *talking about* OAuth does not match while a token response does. Both
+directions and that false positive are covered by tests, and the acceptance suite still passes on
+Fedora 44.
+
+This is a guard, not the answer. It enforces "the real credential is never in the container,
+including during renewal" and turns a silent credential hand-over into a refusal that says what
+it is. The agent still cannot renew. **The broker doing the renewal itself is the chosen answer**
+- the vault holding the renewal ticket, the broker going to the provider, the container never
+seeing anything but its phantom token - and it waits for a provider that actually expires, since
+building it now would mean proving it against a stub and nothing else.
+
+## Decided
+
+**The vault keeps serving its stored copy** rather than reading the host agent's live credential
+at task start. The decay recorded above is real, and the staleness warning is what answers it: it
+turns a confusing authentication failure into an instruction, before the failure appears. Reading
+live would end that decay for credentials an agent already holds on this machine, at the price of
+a live read in the path of every task and a new failure mode when that read fails - and it would
+make a task depend on the vendor's own tool being logged in.
+
 ## To be checked
 
 - **Which credential kinds actually expire in practice**, and over what period. A
@@ -97,12 +139,6 @@ is the case recorded above and still the harder half.
   provider directly, ignoring the endpoint it was given.
 - Whether an agent can be told its credential does not expire, and whether that is
   honoured or merely recorded.
-- **Whether the broker should read the host's credential at task start** rather than
-  serve a copy stored earlier. It would end the decay for every credential an agent
-  already holds on this machine, and would make the vault the place for credentials
-  with no host agent - a service key, a signing key, a machine with no login - rather
-  than the primary store. It also moves a live read into the path of every task,
-  which is a cost and a new failure mode.
 - Whether an agent that accepts a credential **by reference to an environment
   variable** sidesteps this entirely. If the stored value is a pointer rather than a
   token, there may be nothing for the agent to consider expired.
