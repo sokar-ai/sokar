@@ -37,24 +37,96 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
      * Reports whether the installed dnsmasq can populate the firewall's allow set.
      * <p>
      * Without {@code --nftset} a declared domain resolves and is then dropped: names work, nothing
-     * connects, and the cause is invisible. The failure is silent, so it is asked about here
-     * rather than left to be discovered.
+     * connects, and the cause is invisible. A version number does not answer this - the option is
+     * a build-time choice - so the binary is asked what it was compiled with.
      *
-     * @return A line describing the state.
+     * @return The probe.
      */
-    private static String nftSetSupport() {
+    private Probe nftSetSupport() {
+        final String name = "dnsmasq nftset";
+        final String install = "install a dnsmasq built with nftset support"
+                + " (Fedora and Debian both ship one)";
         try {
-            final CommandResult result = new ProcessCommandRunner(java.time.Duration.ofSeconds(10))
+            final CommandResult result = context.runner()
                     .run(org.fuin.sokar.core.process.Command.of(DnsmasqProbe.versionCommand()));
             if (!result.successful()) {
-                return "unknown - dnsmasq did not run (declared domains will not be reachable)";
+                return Probe.unknown(name, "dnsmasq did not run, so declared domains may not be"
+                        + " reachable", install);
             }
             return DnsmasqProbe.supportsNftSet(result.standardOutput())
-                    ? "yes"
-                    : "NO - this dnsmasq cannot open the firewall for declared domains";
+                    ? Probe.ok(name, "yes")
+                    : Probe.missing(name,
+                            "this dnsmasq cannot open the firewall for declared domains", install);
         } catch (RuntimeException ex) {
-            return "unknown - dnsmasq is not installed";
+            return Probe.missing(name, "dnsmasq is not installed, so no declared domain resolves",
+                    install);
         }
+    }
+
+    /**
+     * Reports a binary a task needs and the version it answers with.
+     * <p>
+     * By name, because each of these fails somewhere else entirely: without {@code nft} a
+     * container comes up with no ruleset, and without {@code git} the gate has no mirror to serve.
+     *
+     * @param name What to report it as.
+     * @param program The binary.
+     * @param consequence What breaks without it, for the line that says so.
+     * @return The probe.
+     */
+    private Probe binary(String name, String program, String consequence) {
+        try {
+            final CommandResult result = context.runner()
+                    .run(org.fuin.sokar.core.process.Command.of(program, "--version"));
+            if (!result.successful()) {
+                return Probe.missing(name, program + " is installed but did not run: "
+                        + result.standardError().strip(), "check the installation of " + program);
+            }
+            return Probe.ok(name, result.trimmedOutput().lines().findFirst().orElse("unknown")
+                    .replace(program + " ", "").replace("version ", ""));
+        } catch (RuntimeException ex) {
+            return Probe.missing(name, "not installed, so " + consequence,
+                    "install " + program);
+        }
+    }
+
+    /**
+     * Reports how podman connects a rootless container, which decides where the git gate can bind.
+     * <p>
+     * Only pasta can map the host's loopback into the container. Under anything else the gate
+     * binds every interface and sits on the operator's network with nothing but its per-task token
+     * in front of it - which works, and is worth knowing.
+     *
+     * @return The probe.
+     */
+    private Probe rootlessNetwork() {
+        final String name = "rootless network";
+        final java.util.Optional<String> backend = context.podman().rootlessNetworkCmd();
+        if (backend.isEmpty()) {
+            return Probe.unknown(name, "podman did not say which backend it uses",
+                    "run 'podman info --format {{.Host.RootlessNetworkCmd}}' and check podman is"
+                            + " working");
+        }
+        if (org.fuin.sokar.runtime.LoopbackMapping.PASTA.equals(backend.get())) {
+            return Probe.ok(name, backend.get());
+        }
+        return Probe.degraded(name, backend.get() + " cannot map the host's loopback, so the git"
+                + " gate binds every interface and is reachable from this machine's network",
+                "install passt and let podman use pasta, or accept that the per-task token is what"
+                        + " keeps the gate shut");
+    }
+
+    /**
+     * Reports whether a passphrase can be cached for the session.
+     *
+     * @return The probe.
+     */
+    private static Probe keyring() {
+        final String name = "keyring";
+        return org.fuin.sokar.vault.KernelKeyring.available()
+                ? Probe.ok(name, "available")
+                : Probe.degraded(name, "libkeyutils is missing, so no passphrase can be cached and"
+                        + " every vault command asks again", "install keyutils");
     }
 
     /**
@@ -65,14 +137,19 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
      *
      * @return A line describing the state.
      */
-    private String hookRegistration() {
+    private Probe hookRegistration() {
+        final String name = "hooks registered";
         return switch (context.hooks().registration()) {
-            case ACTIVE -> "registered";
-            case MISSING -> "NOT REGISTERED - a task would run with no firewall; run 'sokar setup'";
-            case DANGLING -> "BROKEN - the descriptors name hook binaries that are not installed;"
-                    + " run 'sokar setup' again";
-            case SHADOWED -> "IGNORED - another containers.conf.d drop-in sorts after Sokar's and"
-                    + " points hooks_dir at " + context.hooks().effectiveHooksDirectories();
+            case ACTIVE -> Probe.ok(name, "registered");
+            case MISSING -> Probe.missing(name, "a task would run with no firewall at all",
+                    "run 'sokar setup'");
+            case DANGLING -> Probe.missing(name,
+                    "the descriptors name hook binaries that are not installed",
+                    "run 'sokar setup' again");
+            case SHADOWED -> Probe.missing(name,
+                    "another containers.conf.d drop-in sorts after Sokar's and points hooks_dir at "
+                            + context.hooks().effectiveHooksDirectories(),
+                    "remove that drop-in or make it sort before Sokar's");
         };
     }
 
@@ -84,15 +161,16 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
      *
      * @return A line describing the state.
      */
-    private String socketPolicy() {
+    private Probe socketPolicy() {
+        final String name = "selinux policy";
         if (!SocketContext.selinuxPresent()) {
-            return "not needed - this machine does not run SELinux";
+            return Probe.ok(name, "not needed - this machine does not run SELinux");
         }
         if (SocketContext.available()) {
-            return "installed";
+            return Probe.ok(name, "installed");
         }
-        return "MISSING - a task cannot reach the vault proxy; install it with "
-                + context.paths().selinuxInstaller();
+        return Probe.missing(name, "a task cannot reach the vault proxy",
+                context.paths().selinuxInstaller());
     }
 
     /**
@@ -105,26 +183,39 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
     }
 
     /**
-     * Reports binaries that are installed and never run, and says nothing when none are.
+     * Reports binaries that are installed and never run, naming what hides each one.
+     * <p>
+     * Both halves are the finding. "This copy is unused" sends an operator looking for the one
+     * that is used; found on a real machine as yesterday's build in the data directory, silently
+     * winning over the packaged one. Nothing is printed when nothing is shadowed - a line that is
+     * always there is a line nobody reads.
      *
      * @param out Where to write.
      */
     private void printShadowed(PrintWriter out) {
 
-        final java.util.List<java.nio.file.Path> shadowed = new java.util.ArrayList<>();
+        final java.util.List<java.nio.file.Path[]> hidden = new java.util.ArrayList<>();
         final java.nio.file.Path hooks = context.paths().shadowedHookBinaries();
         if (hooks != null) {
-            shadowed.add(hooks);
+            hidden.add(new java.nio.file.Path[] { hooks, context.paths().binaryDirectory() });
         }
-        shadowed.addAll(context.paths().agentDirectory().shadowed());
-        if (shadowed.isEmpty()) {
+        final org.fuin.sokar.agent.api.AgentDirectory agents = context.paths().agentDirectory();
+        final java.util.List<java.nio.file.Path> used = agents.executables();
+        for (final java.nio.file.Path shadowed : agents.shadowed()) {
+            used.stream()
+                    .filter(winner -> winner.getFileName().equals(shadowed.getFileName()))
+                    .findFirst()
+                    .ifPresent(winner ->
+                            hidden.add(new java.nio.file.Path[] { shadowed, winner }));
+        }
+        if (hidden.isEmpty()) {
             return;
         }
         out.println();
-        for (int i = 0; i < shadowed.size(); i++) {
-            out.println((i == 0 ? "not used " : "         ") + shadowed.get(i));
+        for (final java.nio.file.Path[] pair : hidden) {
+            out.println("not used " + pair[0]);
+            out.println("         hidden by " + pair[1]);
         }
-        out.println("         installed, but a copy of your own is used instead");
     }
 
     /**
@@ -136,9 +227,34 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
      *
      * @return The version, with what is wrong with it when something is.
      */
-    private String podmanVersion() {
+    private Probe podmanVersion() {
+        final String name = "podman";
         final java.util.Optional<String> tooOld = context.podman().unsupportedVersion();
-        return tooOld.isPresent() ? "NO - " + tooOld.get() : context.podman().version();
+        return tooOld.isPresent()
+                ? Probe.missing(name, tooOld.get(), "install podman 5 or newer")
+                : Probe.ok(name, context.podman().version());
+    }
+
+    /**
+     * Every external thing a task depends on, in the order an operator would work through them.
+     * <p>
+     * Package-private so the list itself can be checked - that each failure carries an action, and
+     * that nothing was dropped - without reading the printed page.
+     *
+     * @return The probes.
+     */
+    java.util.List<Probe> probes() {
+        return java.util.List.of(
+                podmanVersion(),
+                hookRegistration(),
+                rootlessNetwork(),
+                nftSetSupport(),
+                binary("nft", "nft", "a container comes up with no firewall ruleset"),
+                binary("git", "git", "the gate has no mirror to serve and no push can be reviewed"),
+                binary("nsenter", "nsenter", "nothing can enter a container's network namespace,"
+                        + " so a clearance decision cannot be applied to a running task"),
+                keyring(),
+                socketPolicy());
     }
 
     @Override
@@ -159,10 +275,16 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         printShadowed(out);
 
         out.println();
-        out.println("podman              " + podmanVersion());
-        out.println("hooks registered    " + hookRegistration());
-        out.println("dnsmasq nftset      " + nftSetSupport());
-        out.println("selinux policy      " + socketPolicy());
+        final java.util.List<Probe> probes = probes();
+        for (final Probe probe : probes) {
+            out.printf("%-19s %s%s%n", probe.name(),
+                    probe.healthy() ? "" : probe.state().name() + " - ", probe.detail());
+            if (!probe.healthy()) {
+                // Indented under the line it belongs to: an operator reading this is looking for
+                // the one thing to do, and a list of findings without them is a list of worries.
+                out.println("                    -> " + probe.action());
+            }
+        }
 
         out.println();
         out.println("dumpable            " + ProcessHardening.dumpable());
@@ -172,12 +294,10 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
 
         out.flush();
 
-        // Hooks that will not run are the one thing here that makes a machine unsafe rather than
-        // merely odd: a container starts without its firewall and nothing else says so. A podman
-        // too old to support is the other: no task will start at all.
-        if (context.hooks().registration()
-                != org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE
-                || context.podman().unsupportedVersion().isPresent()) {
+        // Anything missing means a task will fail, or run without something it needs and say
+        // nothing - hooks that never load a firewall being the worst of them. Degraded and unknown
+        // do not fail the command: the machine works, and the report says how well.
+        if (probes.stream().anyMatch(probe -> probe.state() == Probe.State.MISSING)) {
             return 69;
         }
 

@@ -148,6 +148,11 @@ See [build.md](doc/build.md). Three things that will bite:
   `PhantomToken.toString` both abbreviate because tokens end up in log lines by accident - and
   `gate serve` then wrote `token.value()` into `gate.log`, which the daemon streams to whatever is
   tailing it. Print the token, not its value.
+- **A diagnostic that names no next action is not a diagnostic.** `sokar doctor` reports each
+  dependency as a `Probe`, and the record's constructor refuses any state but `OK` without one -
+  the line somebody forgets is the line an operator is reading at their worst moment. `UNKNOWN` is
+  a state of its own for the same reason: every dependency here is invisible until a task behaves
+  strangely, so a probe that guesses well cannot be told from one that works.
 - **`project.yml` is edited as text, never round-tripped through a YAML model.** It is the one
   file here a person writes by hand and a colleague reads in a diff, and a load-and-dump throws
   away every comment, the key order and the quoting they chose. `EgressEdit` replaces the two keys

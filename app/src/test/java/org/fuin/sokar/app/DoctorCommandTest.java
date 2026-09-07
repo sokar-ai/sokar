@@ -1,6 +1,7 @@
 package org.fuin.sokar.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -56,6 +57,66 @@ class DoctorCommandTest {
     }
 
     @Test
+    void everyFailureNamesTheOneThingToDoAboutIt(@TempDir Path dir) {
+
+        // The rule this report lives or dies by, checked over the whole list rather than trusted
+        // per line. Nothing is faked here, so which probes fail depends on the machine - what is
+        // asserted is that whichever ones do, they say what to do.
+        final DoctorCommand doctor = new DoctorCommand();
+        doctor.setContext(context(dir, dir.resolve("bin"), dir.resolve("libexec-hooks"),
+                dir.resolve("agents")));
+
+        assertThat(doctor.probes()).isNotEmpty().allSatisfy(probe ->
+                assertThat(probe.healthy() || !probe.action().isBlank()).isTrue());
+    }
+
+    @Test
+    void refusesAProbeThatFailsWithNothingToDoAboutIt() {
+
+        // Enforced in the type, because the line somebody forgets is the line an operator is
+        // reading at their worst moment.
+        assertThatThrownBy(() -> new Probe("nft", Probe.State.MISSING, "not installed", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("names no next action");
+    }
+
+    @Test
+    void probesEveryExternalDependencyByName(@TempDir Path dir) {
+
+        // Each of these fails somewhere far from itself: no ruleset, no mirror, no cached
+        // passphrase, a name that resolves and then does not connect.
+        final DoctorCommand doctor = new DoctorCommand();
+        doctor.setContext(context(dir, dir.resolve("bin"), dir.resolve("libexec-hooks"),
+                dir.resolve("agents")));
+
+        assertThat(doctor.probes()).extracting(Probe::name)
+                .contains("podman", "hooks registered", "rootless network", "dnsmasq nftset",
+                        "nft", "git", "nsenter", "keyring", "selinux policy");
+    }
+
+    @Test
+    void saysWhenABackendCannotMapTheHostsLoopback(@TempDir Path dir) {
+
+        // It works, and the git gate ends up on the operator's network with only its per-task
+        // token in front of it. Degraded rather than missing: the machine runs tasks.
+        final FakeCommandRunner runner = new FakeCommandRunner()
+                .answering("RootlessNetworkCmd", "slirp4netns\n");
+        final XdgPaths xdg = XdgPaths.of(name -> null, dir);
+        final DoctorCommand doctor = new DoctorCommand();
+        doctor.setContext(new SokarContext(runner,
+                new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0));
+
+        assertThat(doctor.probes())
+                .filteredOn(probe -> "rootless network".equals(probe.name()))
+                .singleElement()
+                .satisfies(probe -> {
+                    assertThat(probe.state()).isEqualTo(Probe.State.DEGRADED);
+                    assertThat(probe.detail()).contains("binds every interface");
+                    assertThat(probe.action()).contains("passt");
+                });
+    }
+
+    @Test
     void namesWhereTheHooksAndAgentsComeFrom(@TempDir Path dir) throws IOException {
 
         final Path hooks = Files.createDirectory(dir.resolve("bin"));
@@ -93,8 +154,10 @@ class DoctorCommandTest {
         final String report = doctor(
                 context(dir, own, packaged, Files.createDirectory(dir.resolve("agents"))));
 
+        // Both halves: an operator told only that a copy is unused goes looking for the one that
+        // is used.
         assertThat(report).contains("not used " + packaged);
-        assertThat(report).contains("a copy of your own is used instead");
+        assertThat(report).contains("hidden by " + own);
     }
 
     @Test
@@ -109,5 +172,7 @@ class DoctorCommandTest {
                 context(dir, dir.resolve("bin"), dir.resolve("libexec-hooks"), packagedAgents));
 
         assertThat(report).contains("not used " + theirs);
+        assertThat(report).contains("hidden by "
+                + dir.resolve(".local/share/sokar/agents").resolve(AGENT));
     }
 }
