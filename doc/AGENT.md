@@ -214,6 +214,29 @@ See [build.md](build.md). Three things that will bite:
   reports the four states apart (registered, never installed, naming binaries that are
   gone, shadowed by a later drop-in); `doctor` exits 69 for any but the first, and a task
   refuses to start.
+- **A task's workspace is inside its container, and it stays there on purpose.** Mounting a
+  host directory at `/workspace` would let an operator open the work with ordinary tools -
+  and it puts agent-controlled content on the host: `.git/hooks` runs on the next host-side
+  git command, and `.git/config` can point `core.pager`, `core.fsmonitor` or an alias at
+  anything, so `git status` in that directory is enough to run whatever the agent wrote.
+  Terok takes that option and names the directory `workspace-dangerous`; its own warning is
+  the argument against it. **The same rule forbids reading a workspace from the host to
+  check it**, which is why the check below is a note rather than a look.
+- **Nothing can ask a stopped container what it holds.** `podman exec` needs a running one,
+  and removing a task is exactly when nobody is running it. The census is therefore written
+  into the state directory on the way down, while it is still knowable, and read back by
+  whoever removes the task later; it cannot go stale, because a stopped container's
+  filesystem does not change. A stopped task with no note at all is refused rather than
+  guessed at. Measured before this existed: a task stopped first and purged afterwards was
+  removed silently, with its unpushed commit, reporting success.
+- **A rescue that pushed nothing must not report success**, because the caller removes a
+  container on the strength of that answer. In a repository with no initial commit the push
+  asked for `HEAD` before it committed, printed `nothing to push`, exited zero, and the
+  container was removed as rescued while the mirror never saw a ref. Commit first, and exit
+  non-zero when there is genuinely nothing.
+- **The guard covers `sokar task stop --purge` and nothing else.** A `podman rm` typed
+  directly, or a tidy-up script, still destroys a workspace without a word: nothing Sokar
+  writes can stop the runtime's own command.
 - **Take the helper census before stopping anything.** Stopping a container fires the
   poststop hook, which reaps the helpers and deletes their pid files - so a count taken
   afterwards has nothing left to count. Measured: it reported none while stopping five.

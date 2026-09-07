@@ -22,11 +22,13 @@ alongside rather than after.
 
 Both of the entries that could lose work or open a hole have since been closed and retired -
 the git endpoint that sat on the local network, and the cleanup command that destroyed work
-while reporting success. What is left in the first group is smaller than that.
+while reporting success. Their files are gone; what they measured is in
+[AGENT.md](../doc/AGENT.md), and the one question the second left behind - what the agent
+installed *inside* a container, which is lost with it and warns nobody - is now part of
+[0022](0022-Recovery-And-Panic.md). What is left in the first group is smaller than that.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
-| 43 | [Workspace Outlives Its Container](0043-Workspace-Outlives-Its-Container.md) | Removing a task must not silently destroy work the agent never pushed. | yes |
 | 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | 44 | [Automated Agent Updates](0044-Automated-Agent-Updates.md) | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
 | 25 | [Pi Forge Subscription](0025-Pi-Forge-Subscription.md) | The second agent's remaining half: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
@@ -48,7 +50,7 @@ while reporting success. What is left in the first group is smaller than that.
 | 17 | [Remote Access](0017-Remote-Access.md) | The interface can drive tasks on another machine over an encrypted tunnel, without the daemon ever binding a network port. | yes |
 | 18 | [Mobile Client](0018-Mobile-Client.md) | A phone can monitor tasks, answer decisions and stop a run, sharing the codebase with the desktop interface. | yes |
 | 19 | [Task Templates](0019-Task-Templates.md) | Common jobs are startable as named templates carrying their own prompt and settings, rather than retyped each time. |  |
-| 22 | [Recovery And Panic](0022-Recovery-And-Panic.md) | A task that has gone wrong can be isolated for inspection, and everything can be stopped at once. |  |
+| 22 | [Recovery And Panic](0022-Recovery-And-Panic.md) | A task that has gone wrong can be isolated for inspection, and everything can be stopped at once. | yes |
 | 21 | [More Agents Providers](0021-More-Agents-Providers.md) | Which agents and providers exist, how each authenticates, and whether it can be brokered at all. | yes |
 | 39 | [Providers As Packages](0039-Providers-As-Packages.md) | A provider is declared once and reused, rather than restated inside every agent that reaches it. | yes |
 | 23 | [McSokar Apple Containers](0023-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
