@@ -44,6 +44,12 @@ cleanup() {
     # Its own state directories too. They outlive the container - the poststop hook reaps
     # what is running, nothing removes the files - and they hold this run's dead token.
     rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar/sokar-$PROJECT-"*
+    # The daemon this script starts, and the two tasks the unattended section leaves. Killed
+    # before the state directories go, or the poststop hook races the removal.
+    [ -n "${SOKARD_PID:-}" ] && kill "$SOKARD_PID" 2>/dev/null
+    for leftover in ${UNATTENDED_CONTAINERS:-}; do
+        podman rm -f "$leftover" >/dev/null 2>&1
+    done
     [ -n "${STAGED_SETS:-}" ] && rm -rf "$STAGED_SETS"
     rm -rf "$WORK" "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT"
     rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/build/$PROJECT-fail"
@@ -733,6 +739,96 @@ if podman exec "$CONTAINER" sh -c 'cd /workspace \
     fi
 else
     fail "could not create unpushed work in the workspace"
+fi
+
+# ------------------------------------------------------------ an unattended run
+#
+# Everything above ran the agent with 'podman exec', which measures the agent. This measures the
+# two ways a person or an interface actually starts one: 'task run -P' and the daemon's Start with
+# a prompt. They share a single method, and "they share a method" is an argument rather than a
+# measurement - the daemon's half was returning "started" for a run nobody performed until the
+# method moved, and nothing here would have noticed.
+#
+# The agent authenticates with the same fake credential as above and fails. That is not what is
+# measured: what is measured is that something ran at all and its output was kept.
+echo
+echo "-- an unattended run --"
+
+UNATTENDED_CONTAINERS=""
+RUN_LOG="$WORK/unattended.log"
+
+# Same project, so the image is the one already built; a second project would rebuild every layer
+# for nothing.
+if (cd "$WORK" && "$SOKAR" task run headless --agent "$AGENT_NAME" --keep --clearance deny \
+        -P "say hello and stop" > "$RUN_LOG" 2>&1); then
+    :
+fi
+HEADLESS_STATE="$(grep '^sidecar ' "$RUN_LOG" | awk '{print $2}' | xargs dirname 2>/dev/null)"
+HEADLESS_CONTAINER="$(basename "${HEADLESS_STATE:-none}")"
+[ "$HEADLESS_CONTAINER" != "none" ] && UNATTENDED_CONTAINERS="$HEADLESS_CONTAINER"
+
+if [ -s "$HEADLESS_STATE/task.log" ]; then
+    pass "task run -P ran the agent and kept its output"
+    info "$(wc -c < "$HEADLESS_STATE/task.log") bytes at $HEADLESS_STATE/task.log"
+else
+    fail "task run -P produced no agent output at $HEADLESS_STATE/task.log"
+fi
+
+# The same thing over the socket. Not a second implementation: the point is that this path calls
+# the one that the line above proved works.
+SOKARD="$ROOT/daemon/target/sokard"
+SOCKET_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sokar"
+
+if [ ! -x "$SOKARD" ]; then
+    info "no sokard binary at $SOKARD; the daemon half of this check needs -Pnative"
+elif printf '{"method":"org.varlink.service.GetInfo","parameters":{}}\0' \
+        | timeout 5 "$SOKAR" daemon connect 2>/dev/null | grep -q 'vendor'; then
+    # Somebody else's daemon is answering there. Taking it over would stop their tasks being
+    # answerable to them.
+    #
+    # Asked rather than looked for: the socket FILE outlives the process that made it - nothing
+    # unlinks it on SIGTERM, and the next server unlinks it before binding - so testing for the
+    # file skipped this whole check after any earlier run. Measured: the check was silently not
+    # running, which is worse than a check that fails.
+    info "a daemon is already answering on $SOCKET_DIR/sokard.sock; not starting a second one"
+else
+    "$SOKARD" > "$WORK/sokard.log" 2>&1 &
+    SOKARD_PID=$!
+    for _ in $(seq 50); do
+        [ -S "$SOCKET_DIR/sokard.sock" ] && break
+        sleep 0.2
+    done
+
+    if [ ! -S "$SOCKET_DIR/sokard.sock" ]; then
+        fail "sokard did not bind its socket; see $WORK/sokard.log"
+    else
+        pass "sokard is listening on its own socket"
+
+        # One varlink call, framed the way the wire frames it, through the bridge that exists for
+        # exactly this: no client library in a shell script.
+        printf '{"method":"org.fuin.sokar.Tasks1.Start","parameters":{"task":"viadaemon","project":"%s","agent":"%s","prompt":"say hello and stop","clearance":"deny","keep":true}}\0' \
+            "$WORK/project.yml" "$AGENT_NAME" \
+            | "$SOKAR" daemon connect > "$WORK/daemon-start.json" 2>"$WORK/daemon-start.err"
+
+        DAEMON_REPLY="$(tr '\0' '\n' < "$WORK/daemon-start.json" | grep -m1 'exitCode' || true)"
+        DAEMON_CONTAINER="$(echo "$DAEMON_REPLY" \
+            | grep -oE '"container":"[^"]*"' | cut -d'"' -f4 || true)"
+        [ -n "$DAEMON_CONTAINER" ] \
+            && UNATTENDED_CONTAINERS="$UNATTENDED_CONTAINERS $DAEMON_CONTAINER"
+
+        if [ -z "$DAEMON_REPLY" ]; then
+            fail "the daemon answered nothing to Start; see $WORK/daemon-start.err"
+        elif echo "$DAEMON_REPLY" | grep -q '"exitCode":69'; then
+            # 69 is "a prompt needs an agent, and none is installed" - which is what this call
+            # answered for as long as Start recorded the prompt and ran nothing.
+            fail "the daemon refused the run for want of an agent, though one is installed"
+        elif [ -s "$SOCKET_DIR/$DAEMON_CONTAINER/task.log" ]; then
+            pass "the daemon ran the agent too, not only the container"
+            info "$(wc -c < "$SOCKET_DIR/$DAEMON_CONTAINER/task.log") bytes at $SOCKET_DIR/$DAEMON_CONTAINER/task.log"
+        else
+            fail "the daemon started $DAEMON_CONTAINER and produced no agent output"
+        fi
+    fi
 fi
 
 echo

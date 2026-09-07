@@ -169,6 +169,11 @@ See [build.md](doc/build.md). Three things that will bite:
   a client passes back a path this machine gave it. A recorded file that has moved is reported as
   absent rather than as a path nothing can read: a call made with it would fail in a way that looks
   like a fault in the daemon.
+- **A unix socket file outlives the process that made it.** Nothing unlinks it on SIGTERM, and
+  the next server unlinks it before binding - so a check written as "is the socket file there?"
+  answers yes for a daemon that died hours ago. The acceptance suite's daemon section skipped
+  itself that way and reported success; it now asks `org.varlink.service.GetInfo` through
+  `sokar daemon connect` and believes the answer, not the file.
 - **A stdio bridge to the daemon must copy bytes, not lines.** `sokar daemon connect` exists so
   that `ssh host sokar daemon connect` speaks varlink down the ssh session with no socket file on
   the client. Frames are NUL-separated JSON and a stream is answered over time, so it flushes on
