@@ -629,7 +629,7 @@ public final class SokarDaemon {
                 // that did not compare this would never redraw the one transition that matters.
                 String.valueOf(task.activity()), String.valueOf(task.waitingFor()),
                 String.valueOf(task.agent()), String.valueOf(task.mode()),
-                String.valueOf(task.branch()));
+                String.valueOf(task.branch()), String.valueOf(task.clearance()));
     }
 
     /**

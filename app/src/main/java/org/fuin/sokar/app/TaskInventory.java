@@ -41,11 +41,15 @@ public final class TaskInventory {
      * @param since When its current state began, ISO-8601, or empty when the runtime cannot say.
      * @param activity What the work is doing, as against what the container is doing.
      * @param waitingFor What it is waiting to be told, when it is waiting.
+     * @param clearance What it does with a blocked connection, or {@code null} when nothing
+     *        recorded it. {@code off} means nothing asks and nothing is refused, which is the one
+     *        state that has to be visible wherever the task is listed.
      */
     public record Task(String name, @Nullable String project, @Nullable String securityClass,
             String state, boolean running, long helpers, @Nullable String agent,
             @Nullable String mode, @Nullable String prompt, @Nullable String branch,
-            String since, Activity activity, @Nullable String waitingFor) {
+            String since, Activity activity, @Nullable String waitingFor,
+            @Nullable String clearance) {
 
         /**
          * Returns this task as plain values, for a caller that has to put it on a wire.
@@ -68,6 +72,7 @@ public final class TaskInventory {
             map.put("since", since);
             map.put("activity", activity.name());
             map.put("waitingFor", waitingFor == null ? "" : waitingFor);
+            map.put("clearance", clearance == null ? "" : clearance);
             return map;
         }
     }
@@ -143,7 +148,8 @@ public final class TaskInventory {
                 profile == null ? null : profile.branch(),
                 summary.since(),
                 activityOf(summary, state, waitingFor),
-                waitingFor);
+                waitingFor,
+                profile == null ? null : profile.clearance());
     }
 
     /**

@@ -394,7 +394,7 @@ public final class TaskLaunch {
             new org.fuin.sokar.wire.TaskProfile(org.fuin.sokar.wire.TaskProfile.VERSION,
                     selected == null ? null : selected.definition().name(),
                     request.mode(), request.prompt(), branch,
-                    java.time.Instant.now().toString())
+                    java.time.Instant.now().toString(), request.clearance())
                     .writeTo(context.paths().containerState(container));
         } catch (java.io.IOException ex) {
             err.println("sokar: could not record what this task is: " + ex.getMessage());

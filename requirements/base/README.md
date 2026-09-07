@@ -13,12 +13,13 @@ is.
 
 Ordered by consequence, not by number; the number is only the file's identity. The first is live
 on somebody's machine today. The last is a second platform, which is a project rather than a
-feature. B11 came from the interface, which is short of fields rather than of methods, and it
-sits first because four of its requirements are waiting on it.
+feature. B11 and B12 came from the interface, which is short of fields rather than of methods:
+B11 is built, and B12 is what F17 is still waiting on.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | yes |
+| B12 | [Changing What Running Work May Reach](B12-Changing-What-Running-Work-May-Reach.md) | What a running task may reach can be widened or narrowed without restarting it, and a task says whether enforcement is on. | yes |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |

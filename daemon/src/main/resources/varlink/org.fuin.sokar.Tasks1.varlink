@@ -123,7 +123,15 @@ type Task (
   # What the work is doing, beside state rather than instead of it.
   activity: Activity,
   # What it is waiting to be told, when activity is WAITING. "" otherwise.
-  waitingFor: string
+  waitingFor: string,
+  # What this task does with a blocked connection: "prompt", "allow", "deny" or "off" - the value
+  # Start was given. "" when nothing recorded it, which is every task started before this field
+  # existed.
+  #
+  # "off" is the one to mark wherever the task appears: nothing asks and nothing is refused, so
+  # the firewall is loaded and no decision is ever put to anybody. It is a state somebody chose,
+  # and an interface that shows it like any other run is hiding the choice.
+  clearance: string
 )
 
 # What became of a Stop or a Resume.

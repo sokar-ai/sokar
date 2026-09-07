@@ -62,14 +62,28 @@ class TaskActivityTest {
         final SokarContext context = context(dir);
         final Path state = task("sokar-uc-shell-1", "Up 4 minutes", "1788500000", "0");
         new TaskProfile(TaskProfile.VERSION, "example", TaskMode.UNATTENDED, "fix the parser",
-                "refs/sokar/incoming/shell", "2026-09-07T10:00:00Z").writeTo(state);
+                "refs/sokar/incoming/shell", "2026-09-07T10:00:00Z", "prompt").writeTo(state);
 
         assertThat(only(context)).satisfies(task -> {
             assertThat(task.agent()).isEqualTo("example");
             assertThat(task.mode()).isEqualTo("unattended");
             assertThat(task.prompt()).isEqualTo("fix the parser");
             assertThat(task.branch()).isEqualTo("refs/sokar/incoming/shell");
+            assertThat(task.clearance()).isEqualTo("prompt");
         });
+    }
+
+    @Test
+    void saysWhenNothingIsEnforcingItsEgress(@TempDir Path dir) throws IOException {
+
+        // The most consequential state a task can be in - nothing asks and nothing is refused -
+        // and until it was recorded nothing an interface listed could mark it.
+        final SokarContext context = context(dir);
+        final Path state = task("sokar-uc-shell-1", "Up 4 minutes", "1788500000", "0");
+        new TaskProfile(TaskProfile.VERSION, "example", TaskMode.UNATTENDED, "go",
+                null, "2026-09-07T10:00:00Z", "off").writeTo(state);
+
+        assertThat(only(context).clearance()).isEqualTo("off");
     }
 
     @Test

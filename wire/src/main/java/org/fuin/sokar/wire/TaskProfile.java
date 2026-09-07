@@ -30,12 +30,18 @@ import org.jspecify.annotations.Nullable;
  *        because "what was this asked to do" is a question people have about a task that is over.
  * @param branch Ref the task's work goes to, or {@code null} when it has no gate.
  * @param startedAt When the task was started, ISO-8601.
+ * @param clearance What the task does with a blocked connection: {@code prompt}, {@code allow},
+ *        {@code deny} or {@code off}. The most consequential state a task can be in is {@code off}
+ *        - nothing asks and nothing is refused - and until this was recorded it was invisible:
+ *        nothing an interface listed could mark it, because nothing told the interface it was
+ *        true.
  */
 public record TaskProfile(int version, @Nullable String agent, TaskMode mode,
-        @Nullable String prompt, @Nullable String branch, String startedAt) {
+        @Nullable String prompt, @Nullable String branch, String startedAt,
+        @Nullable String clearance) {
 
-    /** Current schema version. */
-    public static final int VERSION = 1;
+    /** Current schema version. Bumped to 2 when the clearance mode was added. */
+    public static final int VERSION = 2;
 
     /** Name of the file in a task's state directory. */
     public static final String FILE = "task.json";
@@ -54,6 +60,7 @@ public record TaskProfile(int version, @Nullable String agent, TaskMode mode,
         document.put("prompt", prompt == null ? "" : prompt);
         document.put("branch", branch == null ? "" : branch);
         document.put("startedAt", startedAt);
+        document.put("clearance", clearance == null ? "" : clearance);
         final Path file = stateDirectory.resolve(FILE);
         Files.writeString(file, Json.write(document), StandardCharsets.UTF_8);
         // A prompt is the operator's own words and may name anything they were working on; the
@@ -86,7 +93,8 @@ public record TaskProfile(int version, @Nullable String agent, TaskMode mode,
                     text(document, "prompt"),
                     text(document, "branch"),
                     document.get("startedAt") == null ? ""
-                            : String.valueOf(document.get("startedAt")));
+                            : String.valueOf(document.get("startedAt")),
+                    text(document, "clearance"));
         } catch (IOException | RuntimeException ex) {
             // A half-written file from a start that was killed. A task nobody can describe is
             // still a task somebody may need to stop.
