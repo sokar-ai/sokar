@@ -190,7 +190,10 @@ Some details worth knowing:
 - `sokar vault remove <name>` deletes an entry. Removing one that is not there is
   not an error, so a cleanup script can run twice.
 - `unlock` caches the passphrase in the kernel keyring for the rest of the
-  session, so you type it once. `sokar vault unlock --forget` clears it.
+  session, so you type it once. `sokar vault lock` drops it again, and the next
+  command asks. Locking needs nothing restarted, but it does not reach a task that
+  is already running: its proxy read the credential when it started and holds it
+  until the task stops. `sokar vault lock` says so when any task is up.
 - When a vault already exists, `unlock` opens it before caching and refuses a
   passphrase that does not fit, so a typo fails there rather than at the next
   command.
@@ -211,13 +214,13 @@ Some details worth knowing:
 Start again:
 
 ```
-sokar vault unlock --forget
+sokar vault lock
 mv ~/.local/share/sokar/vault.bin ~/.local/share/sokar/vault.bin.old
 sokar vault unlock
 printf '%s' 'sk-ant-your-real-key' | sokar vault put anthropic
 ```
 
-`--forget` first, or a cached passphrase keeps being used ahead of anything you
+Lock first, or a cached passphrase keeps being used ahead of anything you
 type. Move the file rather than deleting it, in case the passphrase comes back to
 you; nothing else reads it, and you can delete it once the new vault works.
 

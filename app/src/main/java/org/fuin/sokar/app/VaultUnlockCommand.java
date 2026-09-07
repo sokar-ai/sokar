@@ -26,7 +26,8 @@ import picocli.CommandLine.Spec;
         description = "Caches the vault passphrase in the kernel keyring for this session.")
 public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
-    @Option(names = "--forget", description = "Removes the cached passphrase instead.")
+    @Option(names = "--forget",
+            description = "Removes the cached passphrase instead. The same as 'vault lock'.")
     private boolean forget;
 
     @Option(names = "--passphrase-command", paramLabel = "<command>",
@@ -53,6 +54,12 @@ public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.Conte
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
+        if (forget) {
+            // One implementation, under both names: an operator who locks through the older flag
+            // must be told the same thing about the tasks that are still running.
+            return VaultLockCommand.lock(context, out);
+        }
+
         if (!KernelKeyring.available()) {
             err.println("sokar: libkeyutils is not available, so the passphrase cannot be cached");
             err.flush();
@@ -60,12 +67,6 @@ public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.Conte
         }
 
         final KernelKeyring keyring = new KernelKeyring(context.paths().vaultKeyringKey());
-
-        if (forget) {
-            out.println(keyring.forget() ? "forgotten" : "nothing was cached");
-            out.flush();
-            return 0;
-        }
 
         final var runner = new ProcessCommandRunner();
         final PassphraseTiers tiers = new PassphraseTiers(

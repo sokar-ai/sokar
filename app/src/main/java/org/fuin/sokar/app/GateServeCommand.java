@@ -98,7 +98,9 @@ public class GateServeCommand implements Callable<Integer> {
                 out.println("mode      " + gate.mode().name().toLowerCase());
                 out.println("url       http://" + address + ":" + server.port() + "/"
                         + project.name() + ".git");
-                out.println("token     " + token.value());
+                // Abbreviated: this line goes to gate.log, which the daemon streams to whatever
+                // is tailing it. The container is given the token through its environment.
+                out.println("token     " + token.abbreviate());
                 out.flush();
 
                 if (seconds > 0) {

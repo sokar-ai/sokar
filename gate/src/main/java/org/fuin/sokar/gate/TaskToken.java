@@ -53,9 +53,22 @@ public record TaskToken(String value) {
                 ("sokar:" + value).getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Returns enough of the token to recognise it, and not enough to push with it.
+     * <p>
+     * A log is the one place a token gets away with being written down: it is streamed to
+     * whatever is tailing it, read by whoever is debugging, and pasted into bug reports. Printing
+     * it in full defeated {@link #toString()}, which exists for exactly that reason.
+     *
+     * @return The first characters, followed by an ellipsis.
+     */
+    public String abbreviate() {
+        return value.substring(0, Math.min(4, value.length())) + "...";
+    }
+
     @Override
     public String toString() {
         // Tokens end up in log lines and exception messages by accident. This makes that harmless.
-        return "TaskToken[" + value.substring(0, Math.min(4, value.length())) + "...]";
+        return "TaskToken[" + abbreviate() + "]";
     }
 }

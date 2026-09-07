@@ -132,6 +132,14 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
                     + value.secret().length() + " characters) from " + directory);
             out.flush();
 
+            // The same check 'vault put' makes. An agent's own file is the likelier source of a
+            // real credential, but a half-written or logged-out one still reads as a success here.
+            final String suspicious = new VaultEntry(value.secret(), value.type()).suspicious();
+            if (suspicious != null) {
+                err.println("sokar: check what was imported - " + suspicious);
+                err.flush();
+            }
+
             final String reason = selection == null ? null
                     : selection.route().unbrokerableReason(value.type());
             if (reason != null) {

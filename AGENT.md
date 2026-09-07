@@ -122,6 +122,24 @@ See [build.md](doc/build.md). Three things that will bite:
   that were all HTTP 200. `VaultProxy.forwardable` drops anything starting with a
   colon. A relay built on an HTTP/1.1-only client cannot hit this, which is why it
   is specific to this rewrite.
+- **A secret goes in through standard input or a file, never an argument.** `/proc/<pid>/cmdline`
+  is world-readable and `/proc` is mounted without `hidepid` on both supported distributions,
+  measured; `/proc/<pid>/environ` is owner-only. `vault put` reads the value from stdin for that
+  reason. The rule is not kept on the way out yet - a container's variables reach it as
+  `podman --env NAME=VALUE` - which is what B09 is for.
+- **Verify a passphrase before caching it.** A wrong one accepted now fails at the next command,
+  where it reads as a corrupt store rather than as a typo. `vault unlock` opens the vault first and
+  caches nothing when it cannot. Nothing to verify against on a first run, which is also the run
+  that sets the passphrase.
+- **Locking is a verb, and it does not reach a running task.** `sokar vault lock` drops the cached
+  passphrase; a task that is already up read its credential when its proxy started and holds it in
+  that process's memory until the task stops. The command says so when any task is running, because
+  an operator who believes otherwise has locked nothing they think they locked. `unlock --forget`
+  is the same operation under its older name and goes through the same code.
+- **A token printed in full defeats the type that hides it.** `TaskToken.toString` and
+  `PhantomToken.toString` both abbreviate because tokens end up in log lines by accident - and
+  `gate serve` then wrote `token.value()` into `gate.log`, which the daemon streams to whatever is
+  tailing it. Print the token, not its value.
 - **A rootless container's agent user is a subordinate uid on the host.** It
   cannot open a `0600` socket the host user owns; the connection simply fails.
   Sokar does not pass `--userns=keep-id` (that would mean pinning the agent's uid,
