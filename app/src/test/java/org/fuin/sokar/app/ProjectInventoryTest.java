@@ -107,6 +107,67 @@ class ProjectInventoryTest {
     }
 
     @Test
+    void reportsAProjectNothingHasMeasuredAsNeverCheckedRatherThanUpToDate(@TempDir Path dir)
+            throws IOException {
+
+        final SokarContext context = context(dir);
+        mirror("uc");
+
+        assertThat(new ProjectInventory(context).projects()).singleElement()
+                .satisfies(project -> {
+                    assertThat(project.asMap()).containsEntry("behindReason", "NEVER_CHECKED");
+                    assertThat(project.asMap()).containsEntry("behindMeasured", "");
+                });
+    }
+
+    @Test
+    void reportsWhatWasMeasuredWithTheMomentItWasTaken(@TempDir Path dir) throws IOException {
+
+        // The age is not decoration. Without it a number has to be presented as though it were
+        // current, and a stale answer that looks fresh is worse than a stale one.
+        final SokarContext context = context(dir);
+        mirror("uc");
+        new UpstreamRecords(context.paths().upstreamRecords()).put("uc",
+                new org.fuin.sokar.gate.UpstreamDistance.Distance(3,
+                        java.time.Instant.parse("2026-09-07T17:44:30Z"),
+                        org.fuin.sokar.gate.UpstreamDistance.Reason.MEASURED, null));
+
+        assertThat(new ProjectInventory(context).projects()).singleElement()
+                .satisfies(project -> assertThat(project.asMap())
+                        .containsEntry("behind", 3)
+                        .containsEntry("behindMeasured", "2026-09-07T17:44:30Z")
+                        .containsEntry("behindReason", "MEASURED"));
+    }
+
+    @Test
+    void nothingOnTheListingPathCanMeasureAnUpstream() {
+
+        // Checked statically, not by watching a fake runner. The first version of this test
+        // asserted that no "fetch" reached the injected runner - and a mutation that measured with
+        // a runner of its own sailed straight past it, because the fake never saw the call. What
+        // has to be true is that this code cannot reach the network AT ALL, whichever runner it
+        // builds, and that is a question about which methods it may call.
+        //
+        // The whole reason the measuring lives on a timer: this list is re-read after every task
+        // start and every approval, so a fetch hidden in it would turn ordinary use of the
+        // interface into traffic nothing on screen accounts for.
+        final com.tngtech.archunit.core.domain.JavaClasses classes =
+                new com.tngtech.archunit.core.importer.ClassFileImporter()
+                        .importPackages("org.fuin.sokar.app");
+
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
+                .that().haveSimpleName("ProjectInventory")
+                .or().haveSimpleName("TaskInventory")
+                .should().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate
+                        .describe("measures an upstream over the network",
+                                target -> target.getTarget().getOwner().getName()
+                                        .equals("org.fuin.sokar.gate.UpstreamDistance")))
+                .because("listing projects must never reach the network; measuring happens on a"
+                        + " timer in UpstreamWatch and is only read back here")
+                .check(classes);
+    }
+
+    @Test
     void findsAProjectByItsMirrorAlone(@TempDir Path dir) throws IOException {
 
         // The mirror outlives every task, so it is the only durable list of names there is.

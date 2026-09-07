@@ -196,6 +196,18 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the directory recording each project's last measured distance from its upstream.
+     * <p>
+     * Beside the registry and shaped the same way, for the same reason: written from a timer while
+     * every listing reads it, so one file per project is a race that cannot happen.
+     *
+     * @return The directory.
+     */
+    public Path upstreamRecords() {
+        return xdg.data().resolve("upstream");
+    }
+
+    /**
      * Returns the socket the daemon serves on.
      * <p>
      * Named here rather than in the daemon, because the CLI has to find the same file: it is what

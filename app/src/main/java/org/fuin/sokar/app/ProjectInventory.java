@@ -48,7 +48,8 @@ public final class ProjectInventory {
      *        rather than one being inferred from the other.
      */
     public record Summary(String name, @Nullable String securityClass, @Nullable String file,
-            @Nullable String mirror, int pending, int tasks, int running, boolean prepared) {
+            @Nullable String mirror, int pending, int tasks, int running, boolean prepared,
+            org.fuin.sokar.gate.UpstreamDistance.Distance behind) {
 
         /**
          * Constructor for a project whose image has not been looked for yet.
@@ -63,7 +64,8 @@ public final class ProjectInventory {
          */
         Summary(String name, @Nullable String securityClass, @Nullable String file,
                 @Nullable String mirror, int pending, int tasks, int running) {
-            this(name, securityClass, file, mirror, pending, tasks, running, false);
+            this(name, securityClass, file, mirror, pending, tasks, running, false,
+                    org.fuin.sokar.gate.UpstreamDistance.Distance.neverChecked());
         }
 
         /**
@@ -73,7 +75,19 @@ public final class ProjectInventory {
          * @return A copy.
          */
         Summary prepared(boolean built) {
-            return new Summary(name, securityClass, file, mirror, pending, tasks, running, built);
+            return new Summary(name, securityClass, file, mirror, pending, tasks, running, built,
+                    behind);
+        }
+
+        /**
+         * Returns this project with its last measured upstream distance filled in.
+         *
+         * @param distance What was last measured.
+         * @return A copy.
+         */
+        Summary behind(org.fuin.sokar.gate.UpstreamDistance.Distance distance) {
+            return new Summary(name, securityClass, file, mirror, pending, tasks, running,
+                    prepared, distance);
         }
 
         /**
@@ -94,6 +108,15 @@ public final class ProjectInventory {
             // Whether a task can start here without building an image first. Not a claim that the
             // image matches the project file as it stands now - only that one is there.
             map.put("prepared", prepared);
+            // Three fields, not one. A bare number would have to be shown as though it were
+            // current, and the only thing worse than a stale answer is a stale answer that looks
+            // fresh - so the age travels with it, and the reason says whether there is a number
+            // at all.
+            map.put("behind", behind.behind());
+            map.put("behindMeasured",
+                    behind.measured() == null ? "" : behind.measured().toString());
+            map.put("behindReason", behind.reason().name());
+            map.put("behindDetail", behind.detail() == null ? "" : behind.detail());
             return map;
         }
     }
@@ -152,10 +175,15 @@ public final class ProjectInventory {
         // Asked once for every project rather than once per project: 'podman image exists' is a
         // subprocess, and this list is re-read after every task start and every approval.
         final java.util.Set<String> images = context.podman().sokarImages();
+        // Read, never measured: measuring reaches the network, and this list is re-read after
+        // every task start and every approval. What is read here was measured on a timer and
+        // carries the moment it was taken.
+        final UpstreamRecords upstream = new UpstreamRecords(context.paths().upstreamRecords());
 
         return found.values().stream()
                 .sorted(java.util.Comparator.comparing(Summary::name))
-                .map(summary -> summary.prepared(images.contains("sokar/" + summary.name())))
+                .map(summary -> summary.prepared(images.contains("sokar/" + summary.name()))
+                        .behind(upstream.get(summary.name())))
                 .toList();
     }
 

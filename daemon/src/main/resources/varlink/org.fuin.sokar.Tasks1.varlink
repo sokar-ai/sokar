@@ -339,7 +339,30 @@ type Project (
   # first. That is the whole claim: it does NOT say the image still matches the project file as
   # it stands now. A project that has never run answers false, which is a normal state and not a
   # fault - it means the first task here will spend minutes building before anything happens.
-  prepared: bool
+  prepared: bool,
+  # Commits the upstream has that this project's mirror does not. MEANINGLESS unless
+  # behindReason is MEASURED - it is 0 for every other reason, and 0 there does not mean up to
+  # date. Never render this number without behindMeasured beside it.
+  behind: int,
+  # When 'behind' was measured, RFC 3339. "" when it never was.
+  #
+  # Not optional decoration. The daemon measures on a timer, because a reply field that fetched
+  # would make this list occasionally take thirty seconds for reasons nothing on screen explains
+  # - so what you get is a number with an age, and the only thing worse than a stale answer is a
+  # stale answer that looks fresh.
+  behindMeasured: string,
+  # Why 'behind' is what it is. New values may appear; render an unrecognised one rather than
+  # throwing, by the same rule as every other enumeration here.
+  #
+  #   MEASURED       the number is real, and behindMeasured says when it was taken
+  #   NEVER_CHECKED  nothing has looked yet. NOT the same as being up to date
+  #   NO_UPSTREAM    the mirror was created empty, so there is nothing to be behind
+  #   OFFLINE        the project reaches nothing by class, so asking would break that promise
+  #   FAILED         looking failed; behindDetail says what git said
+  behindReason: string,
+  # What went wrong, for FAILED. "" otherwise. Prose for a person - never parsed, and never
+  # rendered as a number.
+  behindDetail: string
 )
 
 # One log a task has written.

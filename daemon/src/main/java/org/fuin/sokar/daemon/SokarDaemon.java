@@ -953,8 +953,20 @@ public final class SokarDaemon {
     public static void main(final String[] args) {
         final SokarContext context = SokarContext.real();
         final Path socket = context.paths().daemonSocket();
-        try (VarlinkServer server = serving(context, socket)) {
+        // Started here and not in serving(): this is the one thing the daemon does that reaches
+        // the network on its own, and nothing in a test should do that by existing.
+        final java.time.Duration every =
+                org.fuin.sokar.app.UpstreamWatch.interval(System::getenv);
+        try (VarlinkServer server = serving(context, socket);
+                org.fuin.sokar.app.UpstreamWatch upstream =
+                        new org.fuin.sokar.app.UpstreamWatch(context, every)) {
+            upstream.start();
             System.out.println("sokard listening on " + socket);
+            System.out.println(every.isZero() || every.isNegative()
+                    ? "not measuring how far projects are behind upstream ("
+                            + org.fuin.sokar.app.UpstreamWatch.INTERVAL_VARIABLE + "=0)"
+                    : "measuring how far projects are behind upstream every "
+                            + every.toMinutes() + " minutes");
             System.out.flush();
             server.run();
         } catch (RuntimeException ex) {
