@@ -68,7 +68,7 @@ final class ClearanceWiring {
                 state.resolve(org.fuin.sokar.wire.ReaderEvents.FILE);
 
         final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
-                ProcessHandle.current().info().command().orElse("sokar"),
+                SokarBinary.path(),
                 "shield", "watch",
                 // What the prompt shows. A container name carries a pid and identifies nothing
                 // an operator recognises; project and task are what they chose.

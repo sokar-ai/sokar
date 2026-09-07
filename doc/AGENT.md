@@ -243,6 +243,13 @@ See [build.md](build.md). Three things that will bite:
   watcher *follows the file* that hook appends to, and that path reached the hub without ever
   reaching a subscriber. A client subscribed to a live task saw nothing at all while the log
   beside it recorded the decisions. Both ways in now call `ClearanceService.publish`.
+- **A task's helpers are `sokar` re-invoked, so never ask `ProcessHandle.current()` for the
+  path.** The gate, the credential broker, the relay and the clearance watcher are all the CLI
+  with different arguments. Inside `sokard` - or anything else that is not `sokar` - that
+  question answers with the wrong binary, and the container comes up with helpers missing and
+  nothing saying so: measured, a daemon-started task had no gate and no clearance watcher while
+  reporting that it had started. `SokarBinary.path()` is the one answer; it prefers the running
+  process when that is itself `sokar`, so a local build still shadows a packaged one.
 - **Take the helper census before stopping anything.** Stopping a container fires the
   poststop hook, which reaps the helpers and deletes their pid files - so a count taken
   afterwards has nothing left to count. Measured: it reported none while stopping five.

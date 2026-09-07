@@ -198,7 +198,7 @@ public class TaskRunner {
      *         happens under a JVM and is why the hooks check the file before using it.
      */
     private String sokarBinary() {
-        return ProcessHandle.current().info().command().orElse("sokar");
+        return SokarBinary.path();
     }
 
     private org.fuin.sokar.shield.DnsPolicy dnsPolicyFor(Project project,

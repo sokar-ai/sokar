@@ -4,11 +4,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.io.PrintWriter;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.fuin.sokar.app.SokarContext;
 import org.fuin.sokar.app.GateSupport;
 import org.fuin.sokar.app.TaskControl;
+import org.fuin.sokar.app.TaskLaunch;
 import org.fuin.sokar.app.TaskInventory;
 import org.fuin.sokar.clearance.ClearanceService;
 import org.fuin.sokar.core.project.Project;
@@ -283,44 +285,31 @@ public final class SokarDaemon {
         // it, which is the property that lets this daemon be restarted while tasks run.
 
         server.method("Start", (parameters, replies) -> {
-            final List<String> command = startCommand(parameters);
-            final Process run;
-            try {
-                run = new ProcessBuilder(command).redirectErrorStream(true).start();
-            } catch (java.io.IOException ex) {
-                throw new VarlinkException(INTERFACE + ".CannotStart",
-                        Map.of("message", String.valueOf(ex.getMessage())));
-            }
-            String container = "";
-            final List<String> output = new java.util.ArrayList<>();
-            try (java.io.BufferedReader lines = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(run.getInputStream(),
-                            java.nio.charset.StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = lines.readLine()) != null) {
-                    output.add(line);
-                    if (line.startsWith("container ")) {
-                        container = line.substring("container ".length()).trim();
-                    }
+            // Into the domain, not out to a subprocess. Until TaskLaunch existed this spawned
+            // 'sokar task run' and read one line of its output for the container name, because
+            // running the command was the only way to start a task. Now the CLI and this call
+            // the same object, which is what [0001] asks for - and there is no output to parse,
+            // because the name comes back as a value.
+            final java.io.StringWriter collected = new java.io.StringWriter();
+            final PrintWriter sink = replies.streaming()
                     // Streamed as it happens: building an image takes minutes, and an interface
                     // showing nothing for that long is indistinguishable from one that hung.
-                    if (replies.streaming()) {
-                        replies.more(Map.of("line", line));
-                    }
-                }
-            }
-            final int code;
-            try {
-                code = run.waitFor();
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                // The client left while the task was still starting. The run keeps going - it is
-                // not this process's child to cancel - and 'List' will show it.
-                throw new VarlinkException(INTERFACE + ".Interrupted",
-                        Map.of("container", container));
-            }
-            replies.last(Map.of("container", container, "exitCode", code,
-                    "output", replies.streaming() ? List.of() : output));
+                    ? new PrintWriter(new StreamingWriter(replies), true)
+                    : new PrintWriter(collected, true);
+
+            final java.util.concurrent.atomic.AtomicReference<String> started =
+                    new java.util.concurrent.atomic.AtomicReference<>("");
+            final int code = new TaskLaunch(context, request(parameters))
+                    .launch(sink, sink, running -> {
+                        started.set(running.container());
+                        // No terminal on the far end of a socket, so this is the --no-attach
+                        // path: the task is up, and the client is told so.
+                        return 0;
+                    });
+            sink.flush();
+            replies.last(Map.of("container", started.get(), "exitCode", code,
+                    "output", replies.streaming() ? List.of()
+                            : List.of(collected.toString().split("\n", -1))));
         });
 
         // ------------------------------------------------------------- clearance prompts
@@ -379,69 +368,6 @@ public final class SokarDaemon {
         });
 
         return server;
-    }
-
-    /**
-     * Builds the {@code task run} command one call asks for.
-     * <p>
-     * Always {@code --no-attach}: nobody is at a terminal on the far end of a socket, and the
-     * attaching path replaces the process it runs in. Everything else is passed only when the
-     * caller named it, so the CLI's own defaults stay the defaults - a value repeated here would
-     * be a second place for them to drift.
-     *
-     * @param parameters The call's parameters.
-     * @return The command to run.
-     */
-    private static List<String> startCommand(Map<String, Object> parameters) {
-
-        final List<String> command = new java.util.ArrayList<>(List.of(sokar(), "task", "run"));
-        final String task = text(parameters, "task");
-        if (!task.isEmpty()) {
-            command.add(task);
-        }
-        command.add("--no-attach");
-        for (final String option : List.of("project", "agent", "provider", "credential-type",
-                "prompt", "model", "clearance", "upstream", "shell")) {
-            final String value = text(parameters, option);
-            if (!value.isEmpty()) {
-                command.add("--" + option);
-                command.add(value);
-            }
-        }
-        for (final String option : List.of("token-hours", "minutes", "max-turns")) {
-            if (parameters.get(option) instanceof Number number) {
-                command.add("--" + option);
-                command.add(String.valueOf(number.intValue()));
-            }
-        }
-        if (flag(parameters, "keep")) {
-            command.add("--keep");
-        }
-        if (flag(parameters, "dry-run")) {
-            command.add("--dry-run");
-        }
-        return List.copyOf(command);
-    }
-
-    /**
-     * Returns the CLI beside this binary, or the one on the path.
-     * <p>
-     * Beside first: a local build and a packaged install can both be present, and a daemon that
-     * reached for whichever came first on {@code PATH} could start tasks with a different build
-     * of Sokar than the one answering the socket.
-     *
-     * @return Path or name to run.
-     */
-    private static String sokar() {
-        final java.util.Optional<String> self = ProcessHandle.current().info().command();
-        if (self.isPresent()) {
-            final Path beside = Path.of(self.get()).toAbsolutePath().getParent()
-                    .resolve("sokar");
-            if (Files.isExecutable(beside)) {
-                return beside.toString();
-            }
-        }
-        return "sokar";
     }
 
     /**
@@ -614,6 +540,97 @@ public final class SokarDaemon {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new VarlinkException("interrupted");
+        }
+    }
+
+    /**
+     * Turns a call's parameters into a launch request.
+     * <p>
+     * Only what the caller named is taken; everything else keeps the value the record was
+     * declared with, so the CLI's defaults stay the only defaults. Restating them here would be
+     * a second place for them to drift.
+     *
+     * @param parameters The call's parameters.
+     * @return What to start.
+     */
+    private static TaskLaunch.Request request(Map<String, Object> parameters) {
+        final String task = text(parameters, "task");
+        final String project = text(parameters, "project");
+        return new TaskLaunch.Request(
+                task.isEmpty() ? "shell" : task,
+                Path.of(project.isEmpty() ? "project.yml" : project),
+                empty(parameters, "agent"), empty(parameters, "provider"),
+                empty(parameters, "credential-type"),
+                parameters.get("token-hours") instanceof Number hours ? hours.intValue() : 8,
+                empty(parameters, "upstream"), flag(parameters, "no-gate"),
+                flag(parameters, "dry-run"),
+                text(parameters, "clearance").isEmpty() ? "prompt"
+                        : text(parameters, "clearance"),
+                flag(parameters, "keep"));
+    }
+
+    /**
+     * Reads an optional string parameter as {@code null} rather than as the empty string.
+     *
+     * @param parameters The call's parameters.
+     * @param name Parameter to read.
+     * @return Its value, or {@code null} when it was not given.
+     */
+    private static @org.jspecify.annotations.Nullable String empty(Map<String, Object> parameters,
+            String name) {
+        final String value = text(parameters, name);
+        return value.isEmpty() ? null : value;
+    }
+
+    /**
+     * Sends whatever the launch prints as it prints it.
+     * <p>
+     * A writer rather than a collected string, because the point of streaming is that the client
+     * sees the image build while it happens.
+     */
+    private static final class StreamingWriter extends java.io.Writer {
+
+        private final VarlinkServer.Replies replies;
+
+        private final StringBuilder line = new StringBuilder();
+
+        /** Set once the client has gone, after which this stops trying to reach it. */
+        private boolean gone;
+
+        StreamingWriter(VarlinkServer.Replies replies) {
+            this.replies = replies;
+        }
+
+        @Override
+        public void write(char[] buffer, int offset, int length) {
+            line.append(buffer, offset, length);
+            int end;
+            while ((end = line.indexOf("\n")) >= 0) {
+                final String complete = line.substring(0, end);
+                line.delete(0, end + 1);
+                if (gone) {
+                    continue;
+                }
+                try {
+                    replies.more(Map.of("line", complete));
+                } catch (java.io.IOException ex) {
+                    // The client left mid-build. Measured: throwing here aborted the launch and
+                    // no container was ever created - a task cancelled because whoever asked for
+                    // it closed a window. The start is not this connection's to cancel, so this
+                    // stops reporting and lets it finish; 'List' shows it afterwards.
+                    gone = true;
+                }
+            }
+        }
+
+        @Override
+        public void flush() {
+            // Lines are sent as they complete; a partial one waits for its newline.
+        }
+
+        @Override
+        public void close() {
+            // Nothing to release: the connection belongs to the server.
         }
     }
 

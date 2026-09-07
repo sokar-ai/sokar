@@ -96,7 +96,7 @@ final class CredentialWiring {
         final java.nio.file.Path state = context.paths().containerState(container);
         final java.util.List<String> command = org.fuin.sokar.shield.EgressPolicy.inNamespace(
                 pid.get(), java.util.List.of(
-                        ProcessHandle.current().info().command().orElse("sokar"),
+                        SokarBinary.path(),
                         "vault", "relay",
                         "--listen", String.valueOf(TaskWiring.VAULT_PORT),
                         "--socket", socket.toString(),
@@ -192,7 +192,7 @@ final class CredentialWiring {
         // acceptable for something that answers with a credential. Entering the namespace is how
         // the ruleset and the resolver already get there.
         final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
-                ProcessHandle.current().info().command().orElse("sokar"),
+                SokarBinary.path(),
                 "vault", "serve",
                 "--socket", socket.toString()));
         command.addAll(java.util.List.of(
@@ -303,7 +303,7 @@ final class CredentialWiring {
         final java.nio.file.Path state = context.paths().containerState(container);
         final java.nio.file.Path socket = state.resolve("ssh-agent.sock");
         final java.util.List<String> command = java.util.List.of(
-                ProcessHandle.current().info().command().orElse("sokar"),
+                SokarBinary.path(),
                 "vault", "agent",
                 "--socket", socket.toString(),
                 "--pid-file", state.resolve("ssh-agent.pid").toString());

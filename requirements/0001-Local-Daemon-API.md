@@ -49,9 +49,9 @@ as the calls: a client that polls will lag a prompt that expires.
 - ~~Clearance prompts as a call.~~ - built, and the round trip is measured.
 - ~~The rest of the surface.~~ - built: `Start`, `Agents`, `Credentials`, `Pending`, `Review`,
   `Approve`, `Reject`.
-- **`TaskRunCommand` is still seven hundred lines of decision inside a picocli class**, which is
-  why `Start` spawns the CLI instead of calling into it. Extracting it the way `TaskControl` was
-  extracted is the work this leaves behind.
+- ~~`TaskRunCommand` is seven hundred lines of decision inside a picocli class.~~ - lifted into
+  `TaskLaunch`, and `Start` now calls into the domain. The command is 298 lines: its options, and
+  what to do with a task once it is up.
 - ~~Killing the daemon while a task runs is not demonstrated.~~ - demonstrated: `SIGKILL` to
   `sokard` left the task up with all four of its helpers, still listed by the CLI.
 
@@ -124,13 +124,25 @@ without a branch because it is the one call that sends anything anywhere. `GateS
 public for that: a second way of resolving which mirror a project's work waits in is how an
 approval comes to mean two things.
 
-**`Start` spawns `sokar task run` rather than calling into it, and that is a deliberate stopgap.**
-The alternative was extracting seven hundred lines that build an image, mint a token, install
-hooks, start four helpers in a fixed order and can hand over a terminal - the right end state, but
-not something to do hastily to the command that is the whole product. Spawning is behaviour parity
-by construction, at the cost of reading one line of its output for the container name. It streams
-the run's output as it happens, because building an image takes minutes and an interface showing
-nothing for that long is indistinguishable from one that hung.
+**`Start` calls `TaskLaunch` directly.** It began as a spawn of `sokar task run` - behaviour
+parity at the cost of parsing a line of output - and that stopgap is gone: the command and the
+daemon now build the same `TaskLaunch.Request` and get the same code. The container name comes
+back as a value rather than as text to parse, and the run's output still streams as it happens,
+because building an image takes minutes and an interface showing nothing for that long is
+indistinguishable from one that hung.
+
+Lifting it out found two defects that spawning had hidden, both measured on a real task:
+
+- **A task started through the daemon had no gate and no clearance watcher.** Every helper is
+  `sokar` re-invoked with different arguments, and each one asked `ProcessHandle.current()` for
+  the path - which inside `sokard` is a binary with no such command. The container came up, the
+  task looked started, and nothing said that two of its four helpers were missing. `SokarBinary`
+  now answers that question in one place: the running process when it is itself `sokar`, so a
+  local build still shadows a packaged one, otherwise the `sokar` beside it, otherwise the path.
+- **A client that stopped reading cancelled the task it had asked for.** Streaming the output
+  through a writer that threw when the connection closed aborted the launch mid-way, leaving no
+  container at all - a task cancelled because somebody closed a window. The start is not the
+  connection's to cancel; reporting stops and the launch finishes.
 
 Measured on Fedora 44: a task started through the socket, streamed twelve lines of progress,
 appeared in `List`, pushed work that `Pending` then listed with its commit and subject and

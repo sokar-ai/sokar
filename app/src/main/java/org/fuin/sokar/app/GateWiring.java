@@ -46,7 +46,7 @@ final class GateWiring {
 
         final java.nio.file.Path state = context.paths().containerState(container);
         final java.util.List<String> command = java.util.List.of(
-                ProcessHandle.current().info().command().orElse("sokar"),
+                SokarBinary.path(),
                 "gate", "serve",
                 "--project", projectFile.toAbsolutePath().toString(),
                 "--address", gateBind(gateAddress, err),
