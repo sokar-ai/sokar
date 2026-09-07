@@ -72,6 +72,9 @@ public class Podman {
         return Command.of(all);
     }
 
+    /** Oldest podman Sokar runs on. */
+    public static final int MINIMUM_MAJOR = 5;
+
     /**
      * Returns the podman version.
      *
@@ -79,6 +82,43 @@ public class Podman {
      */
     public String version() {
         return runner.runOrFail(podman("version", "--format", "{{.Client.Version}}")).trimmedOutput();
+    }
+
+    /**
+     * Tells whether this podman is one Sokar supports.
+     * <p>
+     * podman 4 is refused rather than run with less than the guarantees Sokar describes. It has no
+     * pasta, so the host's loopback cannot be mapped into a container and the git gate has to bind
+     * every interface - the endpoint a task pushes to then sits on the operator's network, held
+     * shut by the per-task token alone. Carrying two networking paths, only one of which keeps the
+     * property the documentation states, is worse than naming the version this needs. Ubuntu 24.04
+     * LTS ships 4.9.3, so this is a real refusal and not a theoretical one.
+     *
+     * @return Empty when the version is supported, otherwise what to say about it.
+     */
+    public Optional<String> unsupportedVersion() {
+        final CommandResult result =
+                runner.run(podman("version", "--format", "{{.Client.Version}}"));
+        if (!result.successful()) {
+            return Optional.of("podman does not answer 'podman version'; Sokar needs podman "
+                    + MINIMUM_MAJOR + " or newer");
+        }
+        final String reported = result.trimmedOutput();
+        final int dot = reported.indexOf('.');
+        try {
+            if (Integer.parseInt(dot < 0 ? reported : reported.substring(0, dot))
+                    >= MINIMUM_MAJOR) {
+                return Optional.empty();
+            }
+        } catch (NumberFormatException ex) {
+            // A version that cannot be read is not a version that can be trusted to be new
+            // enough, and saying which one was found is what makes that reviewable.
+            return Optional.of("podman reports '" + reported + "', which is not a version Sokar"
+                    + " can read; it needs podman " + MINIMUM_MAJOR + " or newer");
+        }
+        return Optional.of("podman " + reported + " is too old; Sokar needs podman "
+                + MINIMUM_MAJOR + " or newer, because older ones cannot map this host's loopback"
+                + " into a container and the git gate would sit on your local network");
     }
 
     /**

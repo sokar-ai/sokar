@@ -84,6 +84,26 @@ class PodmanTest {
     }
 
     @Test
+    void refusesAPodmanTooOldToKeepThePromises() {
+
+        // podman 4 has no pasta, so the host's loopback cannot be mapped into a container and the
+        // git gate would bind every interface. Ubuntu 24.04 LTS ships 4.9.3 in universe and a
+        // stable release never changes major version, so this is refused rather than degraded.
+        runner.answering("version", "4.9.3");
+        assertThat(podman.unsupportedVersion()).get().asString()
+                .contains("4.9.3").contains("podman 5 or newer");
+
+        final FakeCommandRunner five = new FakeCommandRunner();
+        five.answering("version", "5.8.1");
+        assertThat(new Podman(five).unsupportedVersion()).isEmpty();
+
+        // A version that cannot be read is not one that can be trusted to be new enough.
+        final FakeCommandRunner odd = new FakeCommandRunner();
+        odd.answering("version", "podman-next");
+        assertThat(new Podman(odd).unsupportedVersion()).get().asString().contains("podman-next");
+    }
+
+    @Test
     void readsTheVersionInAnExplicitFormat() {
 
         runner.answering("version", "5.7.0");

@@ -139,6 +139,11 @@ See [build.md](build.md). Three things that will bite:
   without the base-URL variable the agent falls back to its own compiled-in
   endpoint. Both must be set. Residual DNS lookups for the provider are *not*
   evidence of a bypass — check the proxy's request log, which exists for this.
+- **The snapshot builder names the modules it warms `~/.m2` with**, and one of them
+  (`agents/claude`) moved to its own repository. Maven then refuses before compiling
+  anything, so the warm-up produces *no output at all* and the only message is the
+  builder's own "failed with exit code 1". Every snapshot build failed that way,
+  whatever the image, until it was pointed at `agents/stub`.
 - **A local build shadows a packaged one and says nothing** - hooks and agents
   alike, by design, so either can be tried without uninstalling. That is how an
   install of today's package leaves yesterday's firewall hooks running.
@@ -252,6 +257,14 @@ a `finally`. `buildtools/ci/` holds the driver (`remote-tier1.py`), the API help
 (`hetzner.py`) and the leak sweeper (`sweep.py`). **The snapshot *builder* is not in the
 repository** - it lives beside it, so the image cannot currently be rebuilt by anyone else. That
 is a gap, not a decision.
+
+The Ubuntu leg runs **26.04**, not 24.04. 24.04 ships podman 4.9.3 and always will - podman is
+in `universe` and a stable release does not change major versions - and Sokar now refuses podman
+4, so a 24.04 machine could not run the suite at all. Mixing a newer release's podman into 24.04
+was measured and is not an option either: it upgrades libc6 2.39 to 2.43 and 154 other packages,
+which is a dist-upgrade wearing a 24.04 label. The cost of the move is that the published binary
+is built against a newer glibc, because a native image links it dynamically and FFM rules out a
+static one.
 
 What the images contain: GraalVM 25.0.2 pinned by its published digest, the musl cross-toolchain
 and a musl-built zlib, `gcc`/`glibc-devel`/`zlib-devel`, podman with `ubuntu:24.04` and

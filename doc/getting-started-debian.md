@@ -17,6 +17,14 @@ all of it on the far side of a virtual machine.
 Rootless podman has to work as your own user — `podman info` should succeed without
 `sudo`.
 
+**Podman 5 or newer is required, and Ubuntu 24.04 LTS cannot provide it.** 24.04 ships
+podman 4.9.3 in `universe`, and a stable Ubuntu release never changes a package's major
+version — so it will still be 4.9.3 in 2029. Podman 4 has no `pasta`, which is what maps
+this machine's loopback into a container; without it the git gate a task pushes to would
+have to bind every interface and would sit on your local network. Sokar refuses to start a
+task rather than run with less than it promises, and `sokar doctor` says so. Ubuntu 25.10
+and 26.04 ship podman 5, as do current Fedora and Debian 13.
+
 Sokar shells out to `podman`, `nft`, `dnsmasq`, `git` and `nsenter`. The `.deb` declares
 them as dependencies, so `apt` pulls them in; if you run from a build instead, install
 them yourself.

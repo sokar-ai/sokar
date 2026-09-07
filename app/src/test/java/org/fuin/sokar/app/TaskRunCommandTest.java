@@ -44,6 +44,9 @@ class TaskRunCommandTest {
 
     private SokarContext context(Path dir, boolean hooksInstalled) throws IOException {
         root = dir;
+        // A machine Sokar will run on. Without this the fake answers nothing to 'podman version',
+        // which is indistinguishable from a podman too old to support - and every run refuses.
+        runner.answering("podman version", "5.8.1");
         final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
             case "XDG_CONFIG_HOME" -> dir.resolve("config").toString();
             case "XDG_DATA_HOME" -> dir.resolve("data").toString();
@@ -107,7 +110,9 @@ class TaskRunCommandTest {
 
         assertThat(code).isEqualTo(69);
         assertThat(err.toString()).contains("run 'sokar setup' first");
-        assertThat(runner.invocations()).isEmpty();
+        // Asking podman its version comes first and reads nothing else; what must not happen is
+        // a container existing without the hooks that give it a firewall.
+        assertThat(runner.lines()).allMatch(line -> line.startsWith("podman version"));
     }
 
     @Test

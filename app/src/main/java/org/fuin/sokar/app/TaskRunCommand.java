@@ -352,6 +352,18 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return 0;
         }
 
+        final java.util.Optional<String> tooOld = context.podman().unsupportedVersion();
+        if (tooOld.isPresent()) {
+            // Refused rather than run with less than the guarantees Sokar describes. podman 4 has
+            // no pasta, so the git gate cannot bind loopback and the endpoint a task pushes to
+            // sits on the operator's network. Ubuntu 24.04 LTS ships 4.9.3 and never will ship
+            // anything newer - podman is in universe, and a stable release does not change major
+            // versions - so this is a real refusal, and the way out is a newer distribution.
+            err.println("sokar: " + tooOld.get());
+            err.flush();
+            return 69;
+        }
+
         final org.fuin.sokar.runtime.HookInstaller.Registration hooks =
                 context.hooks().registration();
         if (hooks != org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE) {
