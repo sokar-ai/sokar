@@ -160,6 +160,32 @@ class SokarDaemonTest {
     }
 
     @Test
+    void listsTheEgressSetsAChooserWouldOffer(@TempDir Path dir) throws Exception {
+
+        // Without this an interface cannot offer a chooser, and an operator is back to authoring
+        // host lists by hand - which is the thing sets exist to prevent.
+        final Path sets = dir.resolve("data/sokar/egress");
+        Files.createDirectories(sets);
+        Files.writeString(sets.resolve("maven.yaml"),
+                "name: maven\nlabel: Maven Central\ndomains:\n  - repo.maven.apache.org\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> answer =
+                        client.call(SokarDaemon.INTERFACE + ".Sets", Map.of());
+
+                final Map<?, ?> set = (Map<?, ?>) ((List<?>) answer.get("sets")).getFirst();
+                assertThat(set.get("name")).isEqualTo("maven");
+                assertThat(set.get("label")).isEqualTo("Maven Central");
+                assertThat(String.valueOf(set.get("domains"))).contains("repo.maven.apache.org");
+                // Where they come from, in search order: an operator's own file of the same name
+                // wins over a packaged one, and that is worth being able to show.
+                assertThat((List<?>) answer.get("locations")).isNotEmpty();
+            }
+        });
+    }
+
+    @Test
     void answersWhatAProjectMayReachAndChangesIt(@TempDir Path dir) throws Exception {
 
         // The pair that makes the egress editor reachable from an interface. Driven over the wire

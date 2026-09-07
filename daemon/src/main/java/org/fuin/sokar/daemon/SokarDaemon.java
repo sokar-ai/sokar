@@ -170,6 +170,20 @@ public final class SokarDaemon {
             }
         });
 
+        server.method("Sets", (parameters, replies) -> {
+            // What a chooser offers. Scanned rather than listed anywhere: a set an operator added
+            // is a file they dropped in a directory, and it has to appear without anything being
+            // rebuilt.
+            final var directory = context.paths().egressSets();
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("sets", directory.all().values().stream()
+                    .map(set -> Map.<String, Object>of("name", set.name(), "label", set.label(),
+                            "domains", set.domains()))
+                    .toList());
+            answer.put("locations", directory.locations().stream().map(Path::toString).toList());
+            replies.last(answer);
+        });
+
         server.method("Egress", (parameters, replies) -> {
             final Path file = projectFile(parameters);
             final EgressControl egress = new EgressControl(context);

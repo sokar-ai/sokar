@@ -145,6 +145,16 @@ type PendingPush (
   at: string
 )
 
+# A curated group of hosts a project can opt into by name.
+type EgressSet (
+  # What a project writes in its egress.sets list, and what SetEgress takes.
+  name: string,
+  # Human-readable name, for a listing.
+  label: string,
+  # The hosts it grants, in the order the file declares them.
+  domains: []string
+)
+
 # A host a task may reach, and who granted it.
 type EgressHost (
   host: string,
@@ -376,6 +386,22 @@ method Resume(task: string) -> (
 # Reads one of a task's log files, and with "more" follows it as it is written.
 #
 # The log name is checked against the files that are there rather than resolved as a path.
+# The curated egress sets installed on this machine.
+#
+# What a chooser offers, so nobody has to author a host list. Scanned from a directory each time
+# it is asked, so a set an operator dropped in appears without anything being rebuilt - and
+# theirs wins over a packaged one of the same name, which is why the locations are given in the
+# order they are searched.
+#
+# Not every set can be complete: os-packages-fedora reaches mirrors named by a mirrorlist, which
+# differ by region and by day, so hosts beyond the list arrive as clearance prompts. An interface
+# should not present it as equivalent to the others.
+method Sets() -> (
+  sets: []EgressSet,
+  # Directories searched, most specific first. Empty means none is installed.
+  locations: []string
+)
+
 # What a project may reach, and who granted each host.
 #
 # The agent's own hosts and its provider's are included, because what an operator wants to know
