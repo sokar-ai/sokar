@@ -417,7 +417,19 @@ method Start(
   # nobody is attached to.
   mode: ?Mode,
   # What an unattended task is asked to do. Recorded on the task and kept after it finishes.
-  prompt: ?string
+  #
+  # Giving one makes this call RUN the agent, not merely start the container: the call lasts as
+  # long as the run does, and with "more" the agent's own output arrives as it is produced. The
+  # exit code in the reply is then the agent's. Without a prompt the container comes up and the
+  # call returns, as it always did.
+  prompt: ?string,
+  # Model to ask the agent for, when it declares a model flag. Ignored otherwise.
+  model: ?string,
+  # Turn limit, when the agent declares one.
+  maxTurns: ?int,
+  # How long the agent may run, in minutes. Default: 30. On expiry the run is killed and whatever
+  # it produced is kept - the exit code is 124 and the log holds what it managed to say.
+  minutes: ?int
 ) -> (
   # One line of output. Set on every reply while continues is true, and only then.
   line: ?string,

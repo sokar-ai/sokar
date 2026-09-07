@@ -400,12 +400,19 @@ public final class SokarDaemon {
 
             final java.util.concurrent.atomic.AtomicReference<String> started =
                     new java.util.concurrent.atomic.AtomicReference<>("");
-            final int code = new TaskLaunch(context, request(parameters))
-                    .launch(sink, sink, running -> {
+            final TaskLaunch launch = new TaskLaunch(context, request(parameters));
+            final int code = launch.launch(sink, sink, running -> {
                         started.set(running.container());
-                        // No terminal on the far end of a socket, so this is the --no-attach
-                        // path: the task is up, and the client is told so.
-                        return 0;
+                        // With a prompt this is an unattended run and has to actually run: a task
+                        // started over the socket is as unattended as one started at a terminal,
+                        // and a client that got "started" for a run nobody performed would wait
+                        // for output that was never going to come. Without one, there is no
+                        // terminal on the far end of a socket, so the task is up and that is all.
+                        if (empty(parameters, "prompt") == null) {
+                            return 0;
+                        }
+                        return launch.runAgent(running.runner(), running.selected(),
+                                running.container(), running.environment(), sink, sink);
                     });
             sink.flush();
             replies.last(Map.of("container", started.get(), "exitCode", code,
@@ -757,7 +764,11 @@ public final class SokarDaemon {
                         empty(parameters, "prompt") == null
                                 ? org.fuin.sokar.wire.TaskMode.SHELL
                                 : org.fuin.sokar.wire.TaskMode.UNATTENDED),
-                empty(parameters, "prompt"));
+                empty(parameters, "prompt"),
+                empty(parameters, "model"),
+                parameters.get("maxTurns") instanceof Number turns ? turns.intValue() : null,
+                parameters.get("minutes") instanceof Number minutes ? minutes.intValue()
+                        : TaskLaunch.DEFAULT_MINUTES);
     }
 
     /**

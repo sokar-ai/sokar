@@ -151,6 +151,19 @@ class TaskRunCommandTest {
     }
 
     @Test
+    void aPromptWithNoAgentIsRefusedRatherThanReportedAsDone(@TempDir Path dir) throws IOException {
+
+        // The difference between "started" and "ran". A prompt asks for work to be performed, and
+        // a run that answers success without an agent having done anything leaves somebody waiting
+        // for output that was never going to come.
+        final int code = execute(context(dir, true), "task", "run",
+                "-p", projectFile(dir, MINIMAL).toString(), "-P", "fix the parser");
+
+        assertThat(code).isEqualTo(69);
+        assertThat(err.toString()).contains("a prompt needs an agent");
+    }
+
+    @Test
     void removesAContainerThatWasNeverCreated(@TempDir Path dir) throws IOException {
 
         // Nothing exists to hold, so the tidy-up runs as it always did.

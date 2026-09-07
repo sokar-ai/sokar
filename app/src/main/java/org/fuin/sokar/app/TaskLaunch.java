@@ -48,7 +48,8 @@ public final class TaskLaunch {
     public record Request(String task, Path projectFile, @Nullable String agentName,
             @Nullable String providerName, @Nullable String credentialType, int tokenHours,
             @Nullable String upstream, boolean noGate, boolean dryRun, String clearance,
-            boolean keep, org.fuin.sokar.wire.TaskMode mode, @Nullable String prompt) {
+            boolean keep, org.fuin.sokar.wire.TaskMode mode, @Nullable String prompt,
+            @Nullable String model, @Nullable Integer maxTurns, int minutes) {
 
         /**
          * Constructor for a request that does not say how somebody is involved.
@@ -70,7 +71,8 @@ public final class TaskLaunch {
                 @Nullable String upstream, boolean noGate, boolean dryRun, String clearance,
                 boolean keep) {
             this(task, projectFile, agentName, providerName, credentialType, tokenHours, upstream,
-                    noGate, dryRun, clearance, keep, org.fuin.sokar.wire.TaskMode.SHELL, null);
+                    noGate, dryRun, clearance, keep, org.fuin.sokar.wire.TaskMode.SHELL, null,
+                    null, null, DEFAULT_MINUTES);
         }
     }
 
@@ -91,6 +93,19 @@ public final class TaskLaunch {
             String container, java.util.Map<String, String> environment, Project project,
             IntUnaryOperator cleanUp) {
     }
+
+    /** How long an unattended agent may run when nothing says otherwise. */
+    public static final int DEFAULT_MINUTES = 30;
+
+    /**
+     * What {@link #runAgent} answers when there is no agent to run.
+     * <p>
+     * Distinct from the agent's own failure on purpose: "nothing was installed to do this" and
+     * "the agent tried and failed" need different things from whoever reads it, and a caller that
+     * collapsed them would send somebody looking through an empty log for a run that never
+     * started.
+     */
+    public static final int NO_AGENT = 69;
 
     /** What happens once a task is up. */
     @FunctionalInterface
@@ -374,6 +389,52 @@ public final class TaskLaunch {
             err.println("sokar: " + ex);
             err.flush();
             return cleanUp(runner, container, 70, out);
+        }
+    }
+
+    /**
+     * Runs the agent against the prompt this task was started with.
+     * <p>
+     * In the launch rather than in the CLI, because a task started over the socket is as
+     * unattended as one started at a terminal and has to do the same thing. What stays in the CLI
+     * is the rendering: the agent formats its own log for a person, and a socket has no person on
+     * the far end - only the file, which {@code Tail} already serves.
+     *
+     * @param runner Runs the container.
+     * @param selected The agent, or {@code null} when none is installed.
+     * @param container Container name.
+     * @param environment What the container was given, so the agent runs with the same.
+     * @param out Where progress is reported.
+     * @param err Where a failure is reported.
+     * @return Exit code of the agent, or 69 when there is no agent to run.
+     */
+    public int runAgent(TaskRunner runner, @Nullable InstalledAgent selected, String container,
+            java.util.Map<String, String> environment, PrintWriter out, PrintWriter err) {
+
+        if (selected == null) {
+            err.println("sokar: a prompt needs an agent, and none is installed");
+            err.flush();
+            return NO_AGENT;
+        }
+        final Path log = context.paths().containerState(container).resolve("task.log");
+        final org.fuin.sokar.agent.api.RunRequest agentRequest =
+                new org.fuin.sokar.agent.api.RunRequest(request.prompt(), request.model(),
+                        request.maxTurns(), null, false, true);
+
+        out.println();
+        out.println("running   " + selected.name() + " (up to " + request.minutes() + " minutes)");
+        out.flush();
+
+        try {
+            return runner.runAgent(selected, container, agentRequest, environment, log,
+                    java.time.Duration.ofMinutes(request.minutes()));
+        } catch (org.fuin.sokar.runtime.ContainerException ex) {
+            // Whatever the agent managed to say before it was killed is the most useful thing
+            // there is at this point. Throwing here would discard it, which is the opposite of
+            // what someone diagnosing a stuck run needs.
+            err.println("sokar: " + ex.getMessage());
+            err.flush();
+            return 124;
         }
     }
 

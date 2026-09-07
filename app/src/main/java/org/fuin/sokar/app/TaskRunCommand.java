@@ -141,14 +141,24 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         // daemon builds the same request and gets the same behavior without running a CLI.
         final TaskLaunch launch = new TaskLaunch(context, new TaskLaunch.Request(task, projectFile,
                 agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
-                clearance, keep, mode(), prompt));
+                clearance, keep, mode(), prompt, model, maxTurns, minutes));
 
         return launch.launch(out, err, running -> {
 
             environmentCache = running.environment();
 
             if (prompt != null) {
-                return runAgent(running.runner(), running.selected(), running.container(), out, err);
+                // The run itself belongs to the launch, which the daemon calls too; what is left
+                // here is showing it to a person.
+                final int code = launch.runAgent(running.runner(), running.selected(),
+                        running.container(), running.environment(), out, err);
+                if (code == TaskLaunch.NO_AGENT) {
+                    // A refusal, not a failed run: there is no log to render and nothing to say
+                    // beyond what was already said.
+                    return code;
+                }
+                render(running.selected(), running.container(), out, err);
+                return code == 0 ? 0 : 70;
             }
 
             if (noAttach) {
@@ -244,45 +254,28 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * it produced. That is the whole point of the boundary - a second agent with a different
      * command line and a different output format needs no change here.
      */
-    private int runAgent(TaskRunner runner,
-            org.fuin.sokar.agent.api.@org.jspecify.annotations.Nullable InstalledAgent agent,
-            String container, PrintWriter out, PrintWriter err) {
+    /**
+     * Shows what the agent produced, which is the half of an unattended run that needs a person.
+     * <p>
+     * The agent renders its own log. A second agent with a different format needs no change here,
+     * which is the property the reference implementation lost by branching on the agent's name in
+     * its log viewer.
+     *
+     * @param agent The agent that ran, or {@code null} when none did.
+     * @param container Container name.
+     * @param out Where the output goes.
+     * @param err Where a rendering failure is reported.
+     */
+    private void render(org.fuin.sokar.agent.api.@org.jspecify.annotations.Nullable InstalledAgent
+            agent, String container, PrintWriter out, PrintWriter err) {
 
-        if (agent == null) {
-            err.println("sokar: --prompt needs an agent, and none is installed");
-            err.flush();
-            return 69;
-        }
-
-        final java.nio.file.Path log = context.paths().containerState(container).resolve("task.log");
-        final org.fuin.sokar.agent.api.RunRequest request = new org.fuin.sokar.agent.api.RunRequest(
-                prompt, model, maxTurns, null, false, !raw);
-
-        out.println();
-        out.println("running   " + agent.name() + " (up to " + minutes + " minutes)");
-        out.flush();
-
-        int code;
-        String timedOut = null;
-        try {
-            code = runner.runAgent(agent, container, request,
-                    environmentCache, log, java.time.Duration.ofMinutes(minutes));
-        } catch (org.fuin.sokar.runtime.ContainerException ex) {
-            // Whatever the agent managed to say before it was killed is the most useful thing
-            // there is at this point. Throwing here would discard it, which is the opposite of
-            // what someone diagnosing a stuck run needs.
-            code = 124;
-            timedOut = ex.getMessage();
-        }
-
+        final java.nio.file.Path log =
+                context.paths().containerState(container).resolve("task.log");
         out.println();
         try {
-            if (raw) {
+            if (raw || agent == null) {
                 java.nio.file.Files.readAllLines(log).forEach(out::println);
             } else {
-                // The agent renders its own output. A second agent with a different format needs
-                // no change here, which is the property the reference implementation lost by
-                // branching on the agent's name in its log viewer.
                 final int[] shown = { 0 };
                 agent.formatLog(log, line -> {
                     shown[0]++;
@@ -301,16 +294,10 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.println("sokar: cannot render the agent output at " + log + ": " + ex.getMessage());
             err.flush();
         }
-        out.flush();
-
         out.println();
-        if (timedOut != null) {
-            err.println("sokar: " + timedOut);
-            err.flush();
-        }
-        out.println("agent exited with " + code + "; output kept at " + log);
+        out.println("output kept at " + log);
         out.flush();
-        return code == 0 ? 0 : 70;
     }
+
 
 }
