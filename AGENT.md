@@ -65,7 +65,7 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
 
 ## Tests
 
-- **Descriptive method names, not `testXxx`.** All 673 test methods read as
+- **Descriptive method names, not `testXxx`.** All 676 test methods read as
   sentences — `refusesADomainThatIsBothAllowedAndRefused`,
   `readsTheDomainsAnAgentNeeds`. There is no `testXxx` left; do not reintroduce it.
 - **Every guard must be proven to fail.** A test that has never failed is a test

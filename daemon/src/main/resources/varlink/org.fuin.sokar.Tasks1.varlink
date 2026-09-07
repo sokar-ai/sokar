@@ -497,6 +497,56 @@ method Resume(task: string) -> (
   problems: []string
 )
 
+# One task a panic stopped, or would have stopped.
+type PanickedTask (
+  # Container name, which is what Resume takes.
+  name: string,
+  # How many helper processes it had.
+  helpers: int,
+  # Helpers that outlived the stop and have to be killed by hand. Empty is the normal case.
+  surviving: []string
+)
+
+# Stops every running task and every helper any of them started.
+#
+# No task names, on purpose: somebody reaching for this is not in a position to list what is
+# running first, and a stop that needs an inventory is one they will get wrong.
+#
+# IT STOPS; IT NEVER REMOVES. Every workspace, log and unpushed commit survives, and Resume brings
+# a task back with the work it had. An interface that presented this as a cleanup would send
+# somebody looking for work that is still exactly where it was. Discarding is a separate decision,
+# made afterwards, by name, with Stop(purge:).
+method Panic(
+  # Lists what would be stopped and stops nothing.
+  dryRun: ?bool
+) -> (
+  # Every task that was running, in the order they were stopped. Empty means nothing was running.
+  tasks: []PanickedTask,
+  # Every helper that outlived its stop, across all tasks. Non-empty means somebody has processes
+  # to kill by hand, and they are named rather than counted.
+  surviving: []string,
+  # Whether this only listed what would happen.
+  previewed: bool
+)
+
+# Drops the cached vault passphrase, so the next thing that needs it has to ask.
+#
+# The only call that changes the credential store. There is deliberately no Unlock: a daemon has
+# no terminal to take a passphrase at, so it can shut the vault and can never open it - unlocking
+# stays at the machine, with 'sokar vault unlock'.
+method Lock() -> (
+  # Whether the kernel keyring exists here at all. Without it nothing can be cached, so nothing
+  # ever was, and "locked" would claim a change that did not happen.
+  keyring: bool,
+  # Whether a passphrase was cached and has now been dropped. False means it was already locked -
+  # which is the wanted state either way, so this is not a failure.
+  wasCached: bool,
+  # Running tasks whose credential proxy already read the credential and holds it in its own
+  # memory, where locking cannot reach. Stopping them is what ends that. An interface reporting
+  # "locked" without this would be claiming more than happened.
+  holding: int
+)
+
 # Reads one of a task's log files, and with "more" follows it as it is written.
 #
 # The log name is checked against the files that are there rather than resolved as a path.

@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.fuin.sokar.app.SokarContext;
+import org.fuin.sokar.app.TaskPanic;
 import org.fuin.sokar.app.GateSupport;
 import org.fuin.sokar.app.TaskControl;
 import org.fuin.sokar.app.TaskLaunch;
@@ -135,6 +136,41 @@ public final class SokarDaemon {
             answer.put("recorded", result.recorded());
             answer.put("imageDrift", result.imageDrift() == null ? "" : result.imageDrift());
             answer.put("problems", result.problems());
+            replies.last(answer);
+        });
+
+        server.method("Panic", (parameters, replies) -> {
+            // The same operation the CLI runs, not a faster one. Somebody reaches for this when
+            // they do not know what is wrong, which is the worst moment for two implementations
+            // of "stop everything" to differ - and it is why shelling out to 'sokar panic' was
+            // never an acceptable answer for an interface.
+            //
+            // It stops and never removes: every workspace, log and unpushed commit survives, and
+            // Resume brings a task back with the work it had.
+            final TaskPanic.Result result = new TaskPanic(context).panic(flag(parameters, "dryRun"));
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("tasks", result.tasks().stream().map(TaskPanic.Stopped::asMap).toList());
+            answer.put("surviving", result.surviving());
+            answer.put("previewed", result.previewed());
+            replies.last(answer);
+        });
+
+        server.method("Lock", (parameters, replies) -> {
+            // The one thing that mutates the credential store over the socket. Everything else
+            // about the vault is read-only here on purpose: a daemon has no terminal, so it can
+            // shut the vault but can never open it.
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            final boolean keyring = org.fuin.sokar.vault.KernelKeyring.available();
+            answer.put("keyring", keyring);
+            answer.put("wasCached", keyring
+                    && new org.fuin.sokar.vault.KernelKeyring(
+                            context.paths().vaultKeyringKey()).forget());
+            // Locking does not reach a running task: its proxy read the credential when it
+            // started and holds it in its own memory. Stopping the task is what ends that, and an
+            // interface that said "locked" without saying this would be claiming more than
+            // happened.
+            answer.put("holding", context.podman().sokarTasks().stream()
+                    .filter(org.fuin.sokar.runtime.ContainerSummary::running).count());
             replies.last(answer);
         });
 

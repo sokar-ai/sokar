@@ -766,6 +766,85 @@ class SokarDaemonTest {
     }
 
     @Test
+    void panicListsWhatItWouldStopAndStopsNothing(@TempDir Path dir) throws Exception {
+
+        // The half somebody presses first, and the half that must not act. A preview that stopped
+        // anything would be the worst possible surprise in the one command reached for when
+        // nobody knows what is wrong.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n"
+                + "sokar-uc-shell-2\tExited (0) 2 minutes ago\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Panic",
+                        Map.of("dryRun", true));
+
+                assertThat(reply).containsEntry("previewed", true);
+                @SuppressWarnings("unchecked")
+                final List<Map<String, Object>> tasks =
+                        (List<Map<String, Object>>) reply.get("tasks");
+                // Only the running one: a task that has exited is not something to stop.
+                assertThat(tasks).hasSize(1);
+                assertThat(tasks.getFirst()).containsEntry("name", "sokar-uc-shell-1");
+            }
+        });
+
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman stop"));
+    }
+
+    @Test
+    void panicStopsEveryRunningTaskAndRemovesNothing(@TempDir Path dir) throws Exception {
+
+        // It stops; it never removes. An operator who believed this cleaned up would go looking
+        // for work that is still exactly where it was, which is why nothing here may run 'rm'.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n"
+                + "sokar-uc-other-2\tUp 9 minutes\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Panic", Map.of());
+
+                assertThat(reply).containsEntry("previewed", false);
+                @SuppressWarnings("unchecked")
+                final List<Map<String, Object>> tasks =
+                        (List<Map<String, Object>>) reply.get("tasks");
+                assertThat(tasks).hasSize(2);
+                assertThat(tasks.stream().map(task -> task.get("name")))
+                        .containsExactly("sokar-uc-shell-1", "sokar-uc-other-2");
+            }
+        });
+
+        assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman stop"));
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
+    void lockSaysWhatItDidAndWhatItCouldNotReach(@TempDir Path dir) throws Exception {
+
+        // A running task's proxy read the credential when it started and holds it in its own
+        // memory, where locking cannot reach. Reporting "locked" without saying so would claim
+        // more than happened.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Lock", Map.of());
+
+                assertThat(reply).containsKeys("keyring", "wasCached", "holding");
+                // Compared as a number, not by type: the reader turns every JSON number into a
+                // Double by design, so the wire's "1" arrives as 1.0 for every int in this
+                // contract.
+                assertThat(((Number) reply.get("holding")).longValue()).isEqualTo(1L);
+                // Nothing was ever cached for this temporary vault, so locking it changed nothing
+                // - which is not a failure: "not cached" is the wanted state either way.
+                assertThat(reply).containsEntry("wasCached", false);
+            }
+        });
+    }
+
+    @Test
     void aGateCallWithoutAProjectIsRefused(@TempDir Path dir) throws Exception {
 
         // A gate belongs to a project, and answering about the wrong one is worse than refusing.

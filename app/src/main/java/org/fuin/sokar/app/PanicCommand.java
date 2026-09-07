@@ -45,42 +45,30 @@ public class PanicCommand implements Callable<Integer>, SokarFactory.ContextAwar
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        final List<TaskInventory.Task> running = new TaskInventory(context).tasks().stream()
-                .filter(TaskInventory.Task::running)
-                .toList();
+        // The operation itself lives in TaskPanic, which the daemon serves too: this is the one
+        // command somebody reaches for without knowing what is wrong, and two implementations of
+        // "stop everything" is the last place a difference should be discovered.
+        final TaskPanic.Result result = new TaskPanic(context).panic(dryRun);
 
-        if (running.isEmpty()) {
+        if (result.tasks().isEmpty()) {
             out.println("nothing is running");
             out.flush();
             return 0;
         }
 
         if (dryRun) {
-            running.forEach(task -> out.println("would stop " + task.name()
+            result.tasks().forEach(task -> out.println("would stop " + task.name()
                     + " (" + task.helpers() + " helpers)"));
             out.flush();
             return 0;
         }
 
-        final TaskControl control = new TaskControl(context);
-        int stopped = 0;
-        final List<String> surviving = new java.util.ArrayList<>();
-
-        for (final TaskInventory.Task task : running) {
-            // Through the same operation 'task stop' uses, so a panic writes down what a task held
-            // that never reached the gate, exactly as a deliberate stop does. A faster path that
-            // skipped that would lose the one record of what was lost.
-            final TaskControl.Stopped result = control.stop(task.name(), false, false, false);
-            out.println("stopped   " + task.name() + " (" + result.helpers() + " helpers)");
-            if (result.surviving().isEmpty()) {
-                stopped++;
-            } else {
-                surviving.addAll(result.surviving());
-            }
-        }
+        result.tasks().forEach(task -> out.println("stopped   " + task.name()
+                + " (" + task.helpers() + " helpers)"));
+        final List<String> surviving = result.surviving();
 
         out.println();
-        out.println("stopped   " + stopped + " of " + running.size() + " tasks");
+        out.println("stopped   " + result.clean() + " of " + result.tasks().size() + " tasks");
         // Never removed, and said every time: an operator who believes this cleaned up would go
         // looking for work that is still exactly where it was.
         out.println("kept      every workspace, log and unpushed commit; 'sokar task list' shows"
