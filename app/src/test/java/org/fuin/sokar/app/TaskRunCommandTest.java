@@ -303,7 +303,7 @@ class TaskRunCommandTest {
 
         // An agent that refreshes its own token leaves the imported copy behind, and the task
         // then fails as an authentication error with no hint that a refresh would fix it.
-        assertThat(TaskRunCommand.staleCredential(
+        assertThat(CredentialChoice.staleCredential(
                 new org.fuin.sokar.vault.VaultEntry("old-token", "oauth"),
                 org.fuin.sokar.agent.api.Credential.of("oauth", "new-token"))).isTrue();
     }
@@ -313,15 +313,15 @@ class TaskRunCommandTest {
 
         // Three negatives, and the middle one matters most: storing a different kind on purpose
         // is not staleness, and warning about it every run would teach the operator to ignore it.
-        assertThat(TaskRunCommand.staleCredential(
+        assertThat(CredentialChoice.staleCredential(
                 new org.fuin.sokar.vault.VaultEntry("same", "oauth"),
                 org.fuin.sokar.agent.api.Credential.of("oauth", "same"))).isFalse();
-        assertThat(TaskRunCommand.staleCredential(
+        assertThat(CredentialChoice.staleCredential(
                 new org.fuin.sokar.vault.VaultEntry("a-key", "api-key"),
                 org.fuin.sokar.agent.api.Credential.of("oauth", "a-token"))).isFalse();
-        assertThat(TaskRunCommand.staleCredential(null,
+        assertThat(CredentialChoice.staleCredential(null,
                 org.fuin.sokar.agent.api.Credential.of("oauth", "a-token"))).isFalse();
-        assertThat(TaskRunCommand.staleCredential(
+        assertThat(CredentialChoice.staleCredential(
                 new org.fuin.sokar.vault.VaultEntry("a-key", "api-key"), null)).isFalse();
     }
 }
