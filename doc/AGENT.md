@@ -243,6 +243,20 @@ See [build.md](build.md). Three things that will bite:
   watcher *follows the file* that hook appends to, and that path reached the hub without ever
   reaching a subscriber. A client subscribed to a live task saw nothing at all while the log
   beside it recorded the decisions. Both ways in now call `ClearanceService.publish`.
+- **`sokard` speaks varlink on an owner-only socket, and that is the whole access story.**
+  No listener on any interface, so remote access is a tunnelling problem rather than an
+  authentication one, and another account on the same machine is refused by the kernel -
+  measured with a second user: `PermissionError` on `connect`. Root still gets in, because
+  root bypasses file modes; that is the operating system's, not something a check could change.
+- **One question, one implementation, or the CLI and the daemon will disagree.** `TaskInventory`
+  answers what tasks exist, `TaskControl` decides what stopping and resuming do, `TaskLaunch`
+  starts one, `GateSupport` resolves a project's mirror. Both callers render what those return
+  and decide nothing themselves. The refusals are why it matters: one that existed in the CLI
+  and not over the socket would be a task removed, remotely, with work that existed nowhere else.
+- **A varlink stream that ends without a final reply was cut short, not finished.** A finished
+  stream arrives as a reply without `continues`; a socket that simply closes did not finish.
+  Returning normally there is indistinguishable from success, and a client would go on showing
+  what it last saw - stale state for a fleet view, or a clearance prompt that has expired.
 - **A task's helpers are `sokar` re-invoked, so never ask `ProcessHandle.current()` for the
   path.** The gate, the credential broker, the relay and the clearance watcher are all the CLI
   with different arguments. Inside `sokard` - or anything else that is not `sokar` - that

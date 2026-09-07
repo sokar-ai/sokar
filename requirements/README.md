@@ -1,101 +1,47 @@
 # Requirements
 
-One file per requirement. The first table is **ordered by what to do next**, not by
-number; the number is only the file's identity. Each file carries its own acceptance
-criteria so it can be judged done or not done.
+What Sokar must do, in four sets. Each set has its own index, its own numbering and its own
+order — importance is decided inside a category, not across them, because the people working on
+one rarely need to rank it against another.
 
-**Open question** means the file ends with a *To be checked* section: something
-unresolved whose answer could change what the requirement says, or whether it
-survives at all.
+| Set | What it covers | Files |
+|---|---|---|
+| [**Base**](base/README.md) | The product below the interface: the CLI, the daemon, and the guarantees they make. | `B01`… |
+| [**Frontend**](frontend/README.md) | The interface people actually use, described as what must be true for a person using it. | `F01`… |
+| [**Agents**](agents/README.md) | Which agents exist, how each authenticates, whether it can be brokered, and how updates follow upstream. | `A01`… |
+| [**Providers**](providers/README.md) | Which providers exist, and how a task reaches one without ever holding its credential. | `P01`… |
 
-Task lifecycle control is **done** and its file is gone: `task list`, `task stop` and
-`task resume` in the CLI, and `List`, `Stop` and `Resume` over the daemon's socket, both reaching
-the same code so neither can grow a behaviour the other lacks. What it measured about stopping and
-resuming a real container is in [AGENT.md](../doc/AGENT.md).
+## How to read one
 
-## Work, in the order to do it
+Every file carries its own **acceptance criteria**, so it can be judged done or not done rather
+than discussed. A file that ends with a **To be checked** section has something unresolved whose
+answer could change what the requirement says — or whether it survives at all; its index marks
+that as an open question.
 
-Ordered by consequence, not by number. The first group is the shipped CLI, where a defect is
-live on somebody's machine today. The second is the interface, which cannot start before
-[0001](0001-Local-Daemon-API.md) and is otherwise in dependency order. The last group runs
-alongside rather than after.
+The number is identity, not order: `B06` is the sixth base requirement written, not the sixth to
+build. Each index orders its own set by what to do next.
 
-Both of the entries that could lose work or open a hole have since been closed and retired -
-the git endpoint that sat on the local network, and the cleanup command that destroyed work
-while reporting success. Their files are gone; what they measured is in
-[AGENT.md](../doc/AGENT.md), and the one question the second left behind - what the agent
-installed *inside* a container, which is lost with it and warns nobody - is now part of
-[0022](0022-Recovery-And-Panic.md). What is left in the first group is smaller than that.
+**A finished requirement is deleted, not marked done.** What it measured — the things that were
+expensive to learn, and the traps that would otherwise be learned twice — moves into
+[AGENT.md](../doc/AGENT.md), and any question it leaves behind moves to whichever requirement now
+owns it. The set is therefore what is left to do, not a history of what was done; the history is
+in git.
 
-| # | Requirement | What must be true | Open question |
-|---|---|---|---|
-| 24 | [Refreshable Task Tokens](0024-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
-| 44 | [Automated Agent Updates](0044-Automated-Agent-Updates.md) | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
-| 25 | [Pi Forge Subscription](0025-Pi-Forge-Subscription.md) | The second agent's remaining half: a provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
-| 1 | [Local Daemon API](0001-Local-Daemon-API.md) | Everything the interface can do is exposed by a local daemon over a private socket, so no feature depends on shelling out to the CLI. | yes |
-| 2 | [Fleet Overview](0002-Fleet-Overview.md) | One screen lists every task on the machine with its project, agent, state and age, so a person with several running tasks can see all of them at once. |  |
-| 4 | [Clearance Prompts](0004-Clearance-Prompts.md) | Allow and deny decisions appear in the interface with enough context to answer them, and the answer reaches the waiting task. | yes |
-| 5 | [Review And Approve Work](0005-Review-And-Approve-Work.md) | Work pushed by a task is listed, diffed and approved or rejected from the interface, without dropping to a terminal. |  |
-| 3 | [Task State Detection](0003-Task-State-Detection.md) | Each task reports whether it is working, idle, or blocked waiting for a person, so an unattended run that has quietly stopped is visible. | yes |
-| 6 | [Task Log Viewer](0006-Task-Log-Viewer.md) | Every log a task produces is readable in the interface, live, with the ability to follow or search it. | yes |
-| 7 | [Attach To A Task](0007-Attach-To-A-Task.md) | A person can get an interactive shell inside a running task from the interface, in a real terminal emulator. | yes |
-| 8 | [Start A Task](0008-Start-A-Task.md) | A task can be started from the interface, choosing project, agent, mode and credential type, without typing a command. |  |
-| 10 | [Notifications](0010-Notifications.md) | The interface notifies outside itself when a task needs a person or has finished, so nobody has to watch it. | yes |
-| 11 | [Agent Inventory](0011-Agent-Inventory.md) | Installed agents, their versions, what they may reach and what is pinned are all visible in the interface. |  |
-| 12 | [Credential Management](0012-Credential-Management.md) | Credentials are stored and listed from the interface without ever displaying, logging or copying a value. |  |
-| 13 | [Egress Sets Editor](0013-Egress-Sets-Editor.md) | The destinations a project may reach can be read and edited in the interface, with the effect of a change visible before it is applied. | yes |
-| 14 | [Project Setup Wizard](0014-Project-Setup-Wizard.md) | A new project can be described, checked and made runnable from the interface, including the parts that are easy to get wrong. |  |
-| 15 | [Health And Diagnostics](0015-Health-And-Diagnostics.md) | The interface reports whether the machine can actually run a task, naming anything missing or misconfigured. | yes |
-| 16 | [Repository Context](0016-Repository-Context.md) | Each task shows what it has done to the repository: branch, commits, files changed, and whether anything is waiting for review. |  |
-| 17 | [Remote Access](0017-Remote-Access.md) | The interface can drive tasks on another machine over an encrypted tunnel, without the daemon ever binding a network port. | yes |
-| 18 | [Mobile Client](0018-Mobile-Client.md) | A phone can monitor tasks, answer decisions and stop a run, sharing the codebase with the desktop interface. | yes |
-| 19 | [Task Templates](0019-Task-Templates.md) | Common jobs are startable as named templates carrying their own prompt and settings, rather than retyped each time. |  |
-| 22 | [Recovery And Panic](0022-Recovery-And-Panic.md) | A task that has gone wrong can be isolated for inspection, and everything can be stopped at once. | yes |
-| 21 | [More Agents Providers](0021-More-Agents-Providers.md) | Which agents and providers exist, how each authenticates, and whether it can be brokered at all. | yes |
-| 39 | [Providers As Packages](0039-Providers-As-Packages.md) | A provider is declared once and reused, rather than restated inside every agent that reaches it. | yes |
-| 23 | [McSokar Apple Containers](0023-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
+## The one thing that spans two sets
 
-## Agents and providers
+[**Agents And Providers Compared**](Agents-And-Providers-Compared.md) sets every agent and every
+provider side by side, because the comparison is what a single file cannot hold: which of them
+can be brokered at all — the column that decides whether an agent can be supported — what each
+costs, and which to build next. It belongs to two sets, so it lives here rather than inside one.
 
-Reference rather than work: what exists, how each authenticates, and whether it can
-be brokered. Compared side by side in
-[0021](0021-More-Agents-Providers.md); the one chosen to be built next is
-[0025](0025-Pi-Forge-Subscription.md).
+## Why these four
 
-**Status** is what exists today. **Shipped** means it is packaged, installable and covered by the
-acceptance suite - an open question beside a shipped entry is something still to learn about it,
-not work left to do.
+An **agent** is code: it has behaviour that cannot be expressed as data — a stream formatter,
+first-run setup, one CLI's quirks. A **provider** is data: an upstream, a header, a prefix and a
+path, found by scanning a directory. Adding a provider is a file; adding an agent is a release.
+That difference is why they are separate sets rather than one list of integrations.
 
-| # | Entry | Status | What it covers | Open question |
-|---|---|---|---|---|
-| 26 | [Agent Claude Code](0026-Agent-Claude-Code.md) | **shipped** | One agent: how it authenticates and whether it can be brokered. | yes |
-| 27 | [Agent Codex CLI](0027-Agent-Codex-CLI.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
-| 28 | [Agent Gemini CLI](0028-Agent-Gemini-CLI.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
-| 29 | [Agent Copilot CLI](0029-Agent-Copilot-CLI.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
-| 30 | [Agent Grok Build](0030-Agent-Grok-Build.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
-| 31 | [Agent OpenCode](0031-Agent-OpenCode.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
-| 32 | [Agent Pi](0032-Agent-Pi.md) | **shipped** | One agent: how it authenticates and whether it can be brokered. | yes |
-| 46 | [Agent Oh My Pi](0046-Agent-Oh-My-Pi.md) | **shipped** | One agent: a fork of a different Pi, listed so the two are not confused. | yes |
-| 33 | [Provider Anthropic](0033-Provider-Anthropic.md) | **shipped** | One provider: how it authenticates and whether it can be brokered. | yes |
-| 34 | [Provider OpenAI](0034-Provider-OpenAI.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |
-| 35 | [Provider Google](0035-Provider-Google.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |
-| 36 | [Provider GitHub Copilot](0036-Provider-GitHub-Copilot.md) | chosen next | One provider: how it authenticates and whether it can be brokered. | yes |
-| 37 | [Provider xAI](0037-Provider-xAI.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |
-| 38 | [Provider Zhipu](0038-Provider-Zhipu.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |
-| 45 | [Provider OpenRouter](0045-Provider-OpenRouter.md) | **shipped** | One provider: how it authenticates and whether it can be brokered. Verified with a second agent. |  |
-
-## To be checked
-
-Three of the open questions are worth knowing about before any of this is planned
-in detail, because each one changes what gets built rather than only how:
-
-- Whether a task can report that it is **waiting for a person** at all, for every
-  agent ([0003](0003-Task-State-Detection.md)). Several screens assume it can.
-- Whether the remote transport can carry the daemon's socket directly
-  ([0017](0017-Remote-Access.md)). It decides the transport posture, whether
-  [0010](0010-Notifications.md) is achievable away from the machine, and how much of
-  [0018](0018-Mobile-Client.md) is real.
-- Whether the guarantees can be re-derived at all on the second platform in
-  [0023](0023-McSokar-Apple-Containers.md). It decides whether that project offers
-  the same product or a weaker one wearing the same name, and it also constrains how
-  [0001](0001-Local-Daemon-API.md) may be written.
+The **frontend** is separate because it is judged differently — what must be true for a person
+using it, rather than what must be true of the machine — and because it should be workable on its
+own. Each set is a candidate for a repository of its own when that becomes worth it, the way every
+shipped agent already has one.
