@@ -93,6 +93,23 @@ public class ClearanceService implements AutoCloseable {
         });
     }
 
+    /**
+     * Sends an event to every subscriber, for one that did not arrive through {@code Report}.
+     * <p>
+     * The watcher has two ways in. When it starts its own reader, events arrive as {@code Report}
+     * calls and are broadcast on the way past. When the reader hook is already running inside the
+     * container, the watcher <em>follows the file</em> that hook appends to and decides from there
+     * - and that path reached the hub without ever reaching a subscriber. Measured: a client
+     * subscribed to a live task and saw nothing at all, while the log beside it recorded the
+     * decisions. The point of this service is that these events are interesting to more than one
+     * thing, so both ways in have to feed it.
+     *
+     * @param event The event, as the reader wrote it.
+     */
+    public void publish(Map<String, Object> event) {
+        broadcast(new LinkedHashMap<>(event));
+    }
+
     private void broadcast(Map<String, Object> event) {
         // offer, not put: a subscriber that has stopped reading must not block the reader, which
         // is on the path of every dropped packet.

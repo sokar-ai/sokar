@@ -12,6 +12,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.fuin.sokar.app.SokarContext;
+import org.fuin.sokar.clearance.ClearanceHub;
+import org.fuin.sokar.clearance.ClearanceService;
+import org.fuin.sokar.clearance.Verdict;
 import org.fuin.sokar.app.SokarPaths;
 import org.fuin.sokar.core.config.XdgPaths;
 import org.fuin.sokar.testing.FakeCommandRunner;
@@ -278,6 +281,93 @@ class SokarDaemonTest {
             Thread.sleep(50);
         }
         throw new AssertionError("the server never reached the expected state");
+    }
+
+    @Test
+    void carriesAPromptFromATaskAndTheAnswerBack(@TempDir Path dir) throws Exception {
+
+        // The one socket an interface talks to. Driven against a real watcher-side service on a
+        // real socket, because what is being checked is that two processes meet - and a prompt
+        // that never arrives, or an answer that goes nowhere, both leave the task blocked.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+
+        final List<String> decided = new CopyOnWriteArrayList<>();
+        final ClearanceHub hub = new ClearanceHub("uc", request -> Verdict.TIMEOUT,
+                decided::add);
+
+        try (ClearanceService watcher = new ClearanceService(state.resolve("clearance.sock"), hub)) {
+            watcher.start();
+
+            serving(dir, socket -> {
+                try (VarlinkClient client = new VarlinkClient(socket)) {
+                    final List<Map<String, Object>> prompts = new CopyOnWriteArrayList<>();
+                    final Thread reader = Thread.ofVirtual().start(() -> {
+                        try {
+                            client.callMore(SokarDaemon.INTERFACE + ".Prompts", Map.of(),
+                                    prompts::add);
+                        } catch (RuntimeException ex) {
+                            // Ends with the connection.
+                        }
+                    });
+
+                    // Wait until the daemon has subscribed, then report a blocked destination the
+                    // way the reader hook does.
+                    waitFor(() -> watcher.subscriberCount() > 0);
+                    try (VarlinkClient hook =
+                            new VarlinkClient(state.resolve("clearance.sock"))) {
+                        hook.call(ClearanceService.INTERFACE + ".Report",
+                                Map.of("destination", "pypi.org", "protocol", "tcp",
+                                        "port", 443));
+                    }
+
+                    waitFor(() -> !prompts.isEmpty());
+                    assertThat(prompts.get(0))
+                            .containsEntry("destination", "pypi.org")
+                            .as("tagged with the task it came from, so an answer can go back")
+                            .containsEntry("task", "sokar-uc-shell-1");
+
+                    // And the answer reaches the hub that is holding the task.
+                    try (VarlinkClient answering = new VarlinkClient(socket)) {
+                        assertThat(answering.call(SokarDaemon.INTERFACE + ".Decide",
+                                Map.of("task", "sokar-uc-shell-1", "key", "tcp/pypi.org/443",
+                                        "address", "pypi.org", "allow", true)))
+                                .containsEntry("ok", true);
+                    }
+                    waitFor(() -> decided.contains("pypi.org"));
+
+                    reader.interrupt();
+                }
+            });
+        }
+    }
+
+    @Test
+    void answeringATaskWithNoWatcherSaysSo(@TempDir Path dir) throws Exception {
+
+        // An answer that goes nowhere leaves the operator believing they unblocked something.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Decide",
+                        Map.of("task", "sokar-uc-shell-1", "key", "k", "address", "a",
+                                "allow", true)))
+                        .isInstanceOf(VarlinkException.class);
+            }
+        });
+    }
+
+    @Test
+    void promptsWithoutStreamingIsRefusedRatherThanAnsweredOnce(@TempDir Path dir)
+            throws Exception {
+
+        // Answering a stream once would look like it worked and then deliver nothing ever again.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Prompts", Map.of()))
+                        .isInstanceOf(VarlinkException.class);
+            }
+        });
     }
 
     @Test

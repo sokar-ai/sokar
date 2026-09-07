@@ -46,8 +46,7 @@ as the calls: a client that polls will lag a prompt that expires.
   Their logic moved out of the picocli command classes into `TaskControl`, which both the CLI and
   the daemon call; the commands now render what it returns and decide nothing. Measured over the
   socket against a real container, refusals included.
-- Clearance prompts as a call. Task state and log tails now stream; a prompt is the third, and
-  the one where lag actually costs something - it expires while a client polls.
+- ~~Clearance prompts as a call.~~ - built, and the round trip is measured.
 - The rest of the surface: starting a task, the gate's review commands, the vault, the agent
   inventory. Each is a call the interface will need and none of them exists yet.
 - ~~Killing the daemon while a task runs is not demonstrated.~~ - demonstrated: `SIGKILL` to
@@ -77,6 +76,38 @@ a path: `../../etc/passwd` is a log name until something refuses it.
 
 Both end when the client goes away, which is the only disconnect signal there is - sending to a
 closed connection throws, and nothing else tells a server that a reader left.
+
+## Clearance prompts, built 2026-09-07
+
+Every running task already serves its own prompts on its own socket - the watcher's
+`org.fuin.sokar.Clearance1`. `Prompts` is the one socket an interface talks to instead of
+discovering and connecting to each of them: it subscribes to every running task, tags each event
+with the task it came from, and picks up tasks that start after the client connected. `Decide`
+carries an answer back to the watcher that asked.
+
+The event carries the deduplication key, not just the destination. A client answering has to name
+the same thing the hub deduplicates on, and deriving that key from three separate fields at the
+far end is one rule in two places, waiting to drift.
+
+**Subscribing had been delivering nothing, and only a live task showed it.** The watcher has two
+ways in: when it starts its own reader, events arrive as `Report` calls and are broadcast on the
+way past; when the reader hook is already running inside the container - which is the normal case
+- it *follows the file* that hook appends to and decided from there, reaching the hub without ever
+reaching a subscriber. So the service whose whole point is that these events are interesting to
+more than one thing had one consumer. `ClearanceService.publish` now feeds subscribers from the
+follow path too.
+
+Measured on Fedora 44, against a real task with a real blocked connection:
+
+```
+prompt streamed → Decide {allow:true} → {"ok": true}
+watcher log:  decided deny 9.9.9.9:443 │ allowed 9.9.9.9
+container:    the connection then succeeded
+```
+
+That is the whole loop: a dropped packet became a question, the answer crossed two processes, the
+live nftables set changed, and the task got through. The acceptance suite still passes, so the
+watcher's own behaviour is unchanged for a task nobody is watching.
 
 ## To be checked
 

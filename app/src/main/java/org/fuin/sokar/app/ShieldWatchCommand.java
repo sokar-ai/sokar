@@ -140,7 +140,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
                     // and split the events between them.
                     out.println("following " + events + " for project " + project);
                     out.flush();
-                    follow(hub, out, err, enough);
+                    follow(hub, service, out, err, enough);
                 } else {
                     reader = startReader(service.socketPath());
                     out.println("watching  NFLOG group " + group + " for project " + project);
@@ -174,7 +174,8 @@ public class ShieldWatchCommand implements Callable<Integer> {
      *
      * @return The verdict, or {@code null} if the line was not an event.
      */
-    private Verdict handle(ClearanceHub hub, String line, PrintWriter err) {
+    private Verdict handle(ClearanceHub hub, ClearanceService service, String line,
+            PrintWriter err) {
         try {
             if (!(org.fuin.sokar.wire.Json.parse(line) instanceof java.util.Map<?, ?> event)) {
                 return null;
@@ -192,8 +193,29 @@ public class ShieldWatchCommand implements Callable<Integer> {
             final String shownAddress = port == 0 ? destination : destination + ":" + port;
             final String shown = name == null ? shownAddress
                     : name + (port == 0 ? "" : ":" + port) + " (" + destination + ")";
-            return hub.handle(protocol + "/" + destination + "/" + port, destination, shown,
-                    protocol);
+            final String key = protocol + "/" + destination + "/" + port;
+
+            // Published before it is decided: a subscriber - a terminal watching, or the daemon
+            // carrying prompts to an interface - wants the question, and the line below blocks
+            // until somebody answers it.
+            //
+            // Rebuilt rather than forwarded, and it carries the key: a client answering this
+            // has to name the same destination the hub deduplicates on, and deriving that from
+            // three separate fields at the far end is a rule in two places that can drift. The
+            // resolved name comes with it, because an address alone is not something an operator
+            // can judge.
+            final java.util.Map<String, Object> prompt = new java.util.LinkedHashMap<>();
+            prompt.put("key", key);
+            prompt.put("destination", destination);
+            prompt.put("address", destination);
+            prompt.put("protocol", protocol);
+            prompt.put("port", port);
+            prompt.put("name", name == null ? "" : name);
+            prompt.put("shown", shown);
+            prompt.put("project", project);
+            service.publish(prompt);
+
+            return hub.handle(key, destination, shown, protocol);
         } catch (RuntimeException ex) {
             // A line the reader could not have produced is not worth stopping for; a partially
             // written last line is normal when following a file that is still being appended to.
@@ -231,7 +253,8 @@ public class ShieldWatchCommand implements Callable<Integer> {
      * task runs. Re-reading from the beginning on start is deliberate - a destination decided
      * before the watcher existed should still be applied.
      */
-    private void follow(ClearanceHub hub, PrintWriter out, PrintWriter err,
+    private void follow(ClearanceHub hub, ClearanceService service, PrintWriter out,
+            PrintWriter err,
             java.util.concurrent.CountDownLatch enough) throws IOException, InterruptedException {
 
         long position = 0;
@@ -242,7 +265,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
                     final long start = position;
                     lines.forEach(line -> {
                         if (seen[0]++ >= start) {
-                            handle(hub, line, err);
+                            handle(hub, service, line, err);
                         }
                     });
                     position = seen[0];

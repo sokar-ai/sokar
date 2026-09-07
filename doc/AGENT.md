@@ -237,6 +237,12 @@ See [build.md](build.md). Three things that will bite:
 - **The guard covers `sokar task stop --purge` and nothing else.** A `podman rm` typed
   directly, or a tidy-up script, still destroys a workspace without a word: nothing Sokar
   writes can stop the runtime's own command.
+- **The clearance watcher has two ways in, and only one of them broadcast.** When it starts
+  its own reader, events arrive as varlink `Report` calls and subscribers see them on the way
+  past. When the reader hook is already running inside the container - the normal case - the
+  watcher *follows the file* that hook appends to, and that path reached the hub without ever
+  reaching a subscriber. A client subscribed to a live task saw nothing at all while the log
+  beside it recorded the decisions. Both ways in now call `ClearanceService.publish`.
 - **Take the helper census before stopping anything.** Stopping a container fires the
   poststop hook, which reaps the helpers and deletes their pid files - so a count taken
   afterwards has nothing left to count. Measured: it reported none while stopping five.

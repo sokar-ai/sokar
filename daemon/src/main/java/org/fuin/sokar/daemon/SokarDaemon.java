@@ -5,10 +5,13 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.fuin.sokar.app.SokarContext;
 import org.fuin.sokar.app.TaskControl;
 import org.fuin.sokar.app.TaskInventory;
+import org.fuin.sokar.clearance.ClearanceService;
 import org.fuin.sokar.runtime.ContainerName;
+import org.fuin.sokar.wire.varlink.VarlinkClient;
 import org.fuin.sokar.wire.varlink.VarlinkException;
 import org.fuin.sokar.wire.varlink.VarlinkServer;
 
@@ -42,6 +45,9 @@ public final class SokarDaemon {
 
     /** How often a watch looks for a change. */
     static final java.time.Duration WATCH_INTERVAL = java.time.Duration.ofMillis(500);
+
+    /** How long a prompt stream waits before looking for newly started tasks. */
+    static final java.time.Duration PROMPT_INTERVAL = java.time.Duration.ofMillis(500);
 
     /** How often a tail looks for new lines. */
     static final java.time.Duration TAIL_INTERVAL = java.time.Duration.ofMillis(200);
@@ -161,7 +167,121 @@ public final class SokarDaemon {
             }
         });
 
+        // ------------------------------------------------------------- clearance prompts
+        //
+        // Every running task already serves its own prompts on its own socket - the watcher's
+        // 'org.fuin.sokar.Clearance1'. This is the one socket an interface talks to instead of
+        // discovering and connecting to each of them, and it is where lag actually costs
+        // something: a prompt expires while a client polls, and the task stays blocked.
+
+        server.method("Prompts", (parameters, replies) -> {
+            if (!replies.streaming()) {
+                // Answering a stream once would look like it worked and then deliver nothing
+                // ever again. The watcher's own Subscribe refuses the same way.
+                throw new VarlinkException(INTERFACE + ".StreamRequired",
+                        Map.of("method", "Prompts"));
+            }
+            final java.util.concurrent.BlockingQueue<Map<String, Object>> events =
+                    new java.util.concurrent.LinkedBlockingQueue<>(1024);
+            final Map<String, Thread> watching = new java.util.concurrent.ConcurrentHashMap<>();
+            try {
+                while (true) {
+                    subscribe(context, inventory, events, watching);
+                    final Map<String, Object> event =
+                            events.poll(PROMPT_INTERVAL.toMillis(), TimeUnit.MILLISECONDS);
+                    if (event != null) {
+                        replies.more(event);
+                    }
+                }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            } finally {
+                // The client left, so nothing needs these any more. Each subscription is a
+                // connection to another process; leaving them open would accumulate one per
+                // client that ever watched.
+                watching.values().forEach(Thread::interrupt);
+            }
+        });
+
+        server.method("Decide", (parameters, replies) -> {
+            final String task = text(parameters, "task");
+            final Path clearance = clearanceSocket(context, task);
+            if (clearance == null) {
+                // A task that is not running has no watcher, so there is nobody to tell. Said
+                // plainly rather than accepted and dropped: an answer that goes nowhere leaves
+                // the operator believing they unblocked something.
+                throw new VarlinkException(INTERFACE + ".NoClearance", Map.of("task", task));
+            }
+            try (VarlinkClient client = new VarlinkClient(clearance)) {
+                final Map<String, Object> answer = client.call(
+                        ClearanceService.INTERFACE + ".Verdict",
+                        Map.of("key", text(parameters, "key"),
+                                "address", text(parameters, "address"),
+                                "allow", flag(parameters, "allow")));
+                replies.last(Map.of("ok", Boolean.TRUE.equals(answer.get("ok"))));
+            }
+        });
+
         return server;
+    }
+
+    /**
+     * Subscribes to the prompts of every running task that is not already being watched.
+     * <p>
+     * Rescanned rather than taken once: a task started after a client connected raises prompts
+     * too, and a client that had to reconnect to see them would miss exactly the ones that arrive
+     * while an agent is doing something new.
+     *
+     * @param context Where the paths come from.
+     * @param inventory What tasks exist.
+     * @param events Where events from every task go.
+     * @param watching Subscriptions already running, by task name.
+     */
+    private static void subscribe(SokarContext context, TaskInventory inventory,
+            java.util.concurrent.BlockingQueue<Map<String, Object>> events,
+            Map<String, Thread> watching) {
+
+        watching.entrySet().removeIf(entry -> !entry.getValue().isAlive());
+        for (final TaskInventory.Task task : inventory.tasks()) {
+            if (!task.running() || watching.containsKey(task.name())) {
+                continue;
+            }
+            final Path socket = clearanceSocket(context, task.name());
+            if (socket == null) {
+                continue;
+            }
+            watching.put(task.name(), Thread.ofVirtual().start(() -> {
+                try (VarlinkClient client = new VarlinkClient(socket)) {
+                    client.callMore(ClearanceService.INTERFACE + ".Subscribe", Map.of(), event -> {
+                        final Map<String, Object> tagged = new LinkedHashMap<>(event);
+                        // Which task it came from: one socket now carries the prompts of every
+                        // task, and an answer has to go back to the one that asked.
+                        tagged.put("task", task.name());
+                        // offer, not put: a client that stopped reading must not block the
+                        // subscription, which is on the path of every dropped packet.
+                        events.offer(tagged);
+                        return !Thread.currentThread().isInterrupted();
+                    });
+                } catch (RuntimeException | java.io.IOException ex) {
+                    // The watcher went away, which is how a task ending looks from here.
+                }
+            }));
+        }
+    }
+
+    /**
+     * Returns a running task's clearance socket, or {@code null} when it has none.
+     *
+     * @param context Where the paths come from.
+     * @param task Container name.
+     * @return The socket, or {@code null}.
+     */
+    private static Path clearanceSocket(SokarContext context, String task) {
+        if (!ContainerName.isSokar(task)) {
+            return null;
+        }
+        final Path socket = context.paths().containerState(task).resolve("clearance.sock");
+        return Files.exists(socket) ? socket : null;
     }
 
     /**
