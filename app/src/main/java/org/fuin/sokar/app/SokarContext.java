@@ -62,12 +62,9 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
     }
 
     /**
-     * Returns the credentials the vault holds, keyed by agent name.
-     * <p>
-     * Empty when there is no vault or it cannot be unlocked without asking. A task that needs no
-     * credential must not be blocked by one that is merely absent.
+     * Returns the vault file for these paths, whether or not it exists yet.
      *
-     * @return Credentials, possibly empty.
+     * @return The vault.
      */
     public org.fuin.sokar.vault.VaultFile vault() {
         return new org.fuin.sokar.vault.VaultFile(paths.vaultFile());
@@ -95,19 +92,41 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
      * @return Credentials, possibly empty.
      */
     public java.util.Map<String, org.fuin.sokar.vault.VaultEntry> credentials() {
+        return readableCredentials().orElseGet(java.util.Map::of);
+    }
+
+    /**
+     * Returns the credentials the vault holds, or nothing when they cannot be read.
+     * <p>
+     * The distinction {@link #credentials()} cannot make. An empty map there means "there is no
+     * vault", "it is locked" and "it cannot be decrypted" as well as "it is empty", and anything
+     * reporting the store's state has to tell the last from the others: "we cannot tell you until
+     * you unlock it" and "it is not there" are different sentences, and only one of them is
+     * somebody's problem to fix before starting a task.
+     * <p>
+     * A vault that does not exist reads as an empty set rather than as unreadable. There is
+     * nothing to unlock, and telling somebody to unlock it is the one instruction that cannot
+     * help them.
+     *
+     * @return The entries, possibly empty, or empty when the vault is locked or unreadable.
+     */
+    public java.util.Optional<java.util.Map<String, org.fuin.sokar.vault.VaultEntry>>
+            readableCredentials() {
         final org.fuin.sokar.vault.VaultFile vault = vault();
         if (!vault.exists()) {
-            return java.util.Map.of();
+            return java.util.Optional.of(java.util.Map.of());
         }
         final java.util.Optional<char[]> passphrase = new org.fuin.sokar.vault.PassphraseTiers(
                 org.fuin.sokar.vault.KernelKeyring.source(paths.vaultKeyringKey())).passphrase();
         if (passphrase.isEmpty()) {
-            return java.util.Map.of();
+            return java.util.Optional.empty();
         }
         try {
-            return vault.read(passphrase.get());
+            return java.util.Optional.of(vault.read(passphrase.get()));
         } catch (org.fuin.sokar.vault.VaultException ex) {
-            return java.util.Map.of();
+            // A wrong passphrase or a damaged file. Unreadable rather than empty: the operator
+            // has something to fix either way, and reporting it as empty hides it.
+            return java.util.Optional.empty();
         }
     }
 

@@ -34,6 +34,9 @@ class SokarDaemonTest {
 
     private final FakeCommandRunner runner = new FakeCommandRunner();
 
+    /** Written into and read back out of a vault that only exists for the length of one test. */
+    private static final char[] VAULT_PASSPHRASE = "correct horse battery staple".toCharArray();
+
     private SokarContext context(Path dir) {
         final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
             case "XDG_CONFIG_HOME" -> dir.resolve("config").toString();
@@ -49,8 +52,17 @@ class SokarDaemonTest {
      * Runs the server on its own thread and hands the socket to the body.
      */
     private void serving(Path dir, ThrowingConsumer body) throws Exception {
+        servingContext(context(dir), dir, body);
+    }
+
+    /**
+     * Runs the server on a context the caller prepared, for a test that has to set up what the
+     * daemon will be asked about before it starts.
+     */
+    private void servingContext(SokarContext context, Path dir, ThrowingConsumer body)
+            throws Exception {
         final Path socket = dir.resolve("sokard.sock");
-        try (VarlinkServer server = SokarDaemon.serving(context(dir), socket)) {
+        try (VarlinkServer server = SokarDaemon.serving(context, socket)) {
             final Thread thread = Thread.ofVirtual().start(server);
             try {
                 body.accept(socket);
@@ -694,6 +706,61 @@ class SokarDaemonTest {
                 assertThat(reply).containsKey("vault").containsKey("credentials")
                         .containsEntry("exists", false);
                 assertThat(String.valueOf(reply)).doesNotContain("value");
+            }
+        });
+    }
+
+    @Test
+    void anUnlockedVaultHoldingNothingIsNotReportedAsLocked(@TempDir Path dir)
+            throws Exception {
+
+        // The whole reason 'readable' exists, and it used to answer this case wrongly: the field
+        // was inferred from the credential list being empty, so a vault that was open and simply
+        // empty was indistinguishable from one nobody had unlocked. A client acting on that told
+        // somebody to unlock a vault that was already open.
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                org.fuin.sokar.vault.KernelKeyring.available(), "libkeyutils is not installed");
+
+        final SokarContext context = context(dir);
+        final org.fuin.sokar.vault.KernelKeyring keyring =
+                new org.fuin.sokar.vault.KernelKeyring(context.paths().vaultKeyringKey());
+        try {
+            Files.createDirectories(context.vault().path().getParent());
+            context.vault().write(Map.of(), VAULT_PASSPHRASE);
+            keyring.store(VAULT_PASSPHRASE);
+
+            servingContext(context, dir, socket -> {
+                try (VarlinkClient client = new VarlinkClient(socket)) {
+                    final Map<String, Object> reply =
+                            client.call(SokarDaemon.INTERFACE + ".Credentials", Map.of());
+                    assertThat(reply).containsEntry("exists", true)
+                            .containsEntry("readable", true)
+                            .containsEntry("credentials", List.of());
+                }
+            });
+        } finally {
+            keyring.forget();
+        }
+    }
+
+    @Test
+    void aLockedVaultIsReportedAsUnreadable(@TempDir Path dir) throws Exception {
+
+        // The other half of the same distinction: nothing is in the keyring, so the daemon cannot
+        // read it and has no terminal to ask at. "We cannot tell you until you unlock it" and
+        // "it is not there" are different sentences, and only one of them is somebody's problem.
+        final SokarContext context = context(dir);
+        Files.createDirectories(context.vault().path().getParent());
+        context.vault().write(Map.of("anthropic",
+                org.fuin.sokar.vault.VaultEntry.of("sk-test-value")), VAULT_PASSPHRASE);
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Credentials", Map.of());
+                assertThat(reply).containsEntry("exists", true)
+                        .containsEntry("readable", false)
+                        .containsEntry("credentials", List.of());
             }
         });
     }

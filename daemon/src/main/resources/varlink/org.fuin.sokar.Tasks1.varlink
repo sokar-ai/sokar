@@ -377,6 +377,8 @@ method Credentials() -> (
   # Whether the list can be believed. The vault opens only if its passphrase is already in the
   # kernel keyring - a daemon has no terminal to ask at - so an empty list from a locked vault
   # and an empty list from an empty vault are different things an interface must not conflate.
+  # False means locked or undecryptable, and only then is there a passphrase to ask for. A vault
+  # that does not exist yet is readable and empty: there is nothing to unlock.
   readable: bool
 )
 
@@ -395,9 +397,11 @@ method Start(
   task: ?string,
   # Path to the project file, as the CLI takes it. Default: "project.yml".
   project: ?string,
-  # Agent to run, by the name Agents reports. Default: the project's own.
+  # Agent to run, by the name Agents reports. Default: the only one installed, or an error naming
+  # them all when several are.
   agent: ?string,
-  # Provider to route through. Default: the project's own.
+  # Provider to route through. Default: the agent's own declared default, or an error when it
+  # declares none. A project file names neither an agent nor a provider.
   provider: ?string,
   # Overrides the stored credential kind for this run.
   credentialType: ?string,

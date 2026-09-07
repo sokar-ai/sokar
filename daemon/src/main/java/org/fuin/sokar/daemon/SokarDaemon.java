@@ -306,7 +306,9 @@ public final class SokarDaemon {
             final Map<String, Object> answer = new LinkedHashMap<>();
             answer.put("vault", context.vault().path().toString());
             answer.put("exists", context.vault().exists());
-            final List<Map<String, Object>> entries = context.credentials().entrySet().stream()
+            final var readable = context.readableCredentials();
+            final List<Map<String, Object>> entries = readable.orElseGet(Map::of).entrySet()
+                    .stream()
                     .map(entry -> {
                         final Map<String, Object> row = new LinkedHashMap<>();
                         row.put("name", entry.getKey());
@@ -317,9 +319,11 @@ public final class SokarDaemon {
                     }).toList();
             answer.put("credentials", entries);
             // Empty because it is locked and empty because it holds nothing are different things
-            // an interface has to show apart.
-            answer.put("readable", !context.vault().exists() || !entries.isEmpty()
-                    || !context.credentials().isEmpty());
+            // an interface has to show apart. Asked of the vault rather than inferred from the
+            // list being empty, which is what this did before: an unlocked vault holding nothing
+            // answered "unreadable", and a client acting on that told somebody to unlock a vault
+            // that was already open.
+            answer.put("readable", readable.isPresent());
             replies.last(answer);
         });
 
