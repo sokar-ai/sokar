@@ -42,10 +42,13 @@ public final class ProjectInventory {
      *        the recorded one is no longer there.
      * @param mirror The gate's mirror for it, or {@code null} when it has never used the gate.
      * @param pending How many pushes are waiting for review in that mirror.
-     * @param tasks How many tasks of this project exist right now.
+     * @param tasks How many tasks of this project exist right now, running or stopped.
+     * @param running How many of those are up. A project with none is not idle by mistake - a
+     *        stopped task keeps its workspace and can be resumed - so both numbers are reported
+     *        rather than one being inferred from the other.
      */
     public record Summary(String name, @Nullable String securityClass, @Nullable String file,
-            @Nullable String mirror, int pending, int tasks) {
+            @Nullable String mirror, int pending, int tasks, int running) {
 
         /**
          * Returns this project as plain values, for a caller that has to put it on a wire.
@@ -61,6 +64,7 @@ public final class ProjectInventory {
             map.put("mirror", mirror == null ? "" : mirror);
             map.put("pending", pending);
             map.put("tasks", tasks);
+            map.put("running", running);
             return map;
         }
     }
@@ -78,6 +82,11 @@ public final class ProjectInventory {
 
     /**
      * Returns every project this machine knows about, alphabetically.
+     * <p>
+     * <strong>Every project, not only the busy ones.</strong> A project with nothing running is
+     * the ordinary case - between tasks, or after a run was stopped and can still be resumed - and
+     * an interface that only listed active ones would show an empty screen on a machine with a
+     * dozen projects on it. Which are active is a number in each row rather than a filter here.
      *
      * @return The projects, empty when none has ever run a task or used the gate.
      */
@@ -89,7 +98,7 @@ public final class ProjectInventory {
 
         for (final String name : mirroredNames()) {
             found.put(name, new Summary(name, null, fileOf(files, name),
-                    mirrorOf(name).toString(), pendingIn(name), 0));
+                    mirrorOf(name).toString(), pendingIn(name), 0, 0));
         }
         for (final TaskInventory.Task task : new TaskInventory(context).tasks()) {
             if (task.project() == null) {
@@ -103,12 +112,13 @@ public final class ProjectInventory {
                     fileOf(files, task.project()),
                     known == null ? null : known.mirror(),
                     known == null ? 0 : known.pending(),
-                    (known == null ? 0 : known.tasks()) + 1));
+                    (known == null ? 0 : known.tasks()) + 1,
+                    (known == null ? 0 : known.running()) + (task.running() ? 1 : 0)));
         }
         // A project whose file was recorded but that has neither a mirror nor a task: it ran once
         // and everything was removed. Still worth showing - the file is what an interface acts on.
         files.keySet().stream().filter(name -> !found.containsKey(name)).forEach(name ->
-                found.put(name, new Summary(name, null, fileOf(files, name), null, 0, 0)));
+                found.put(name, new Summary(name, null, fileOf(files, name), null, 0, 0, 0)));
 
         return found.values().stream()
                 .sorted(java.util.Comparator.comparing(Summary::name))

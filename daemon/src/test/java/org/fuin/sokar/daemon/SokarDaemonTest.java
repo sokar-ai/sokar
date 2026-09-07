@@ -166,9 +166,10 @@ class SokarDaemonTest {
         // project file path, and a client on another machine has no filesystem here to find one in.
         Files.createDirectories(dir.resolve("data/sokar/mirrors/uc.git"));
         final Path projectFile = Files.writeString(dir.resolve("project.yml"), "project:\n");
-        Files.createDirectories(dir.resolve("data/sokar"));
-        Files.writeString(dir.resolve("data/sokar/projects.json"),
-                "{\"uc\":\"" + projectFile + "\"}");
+        // One file per project, which is how a task start writes it: a shared document would be a
+        // read-modify-write that two starts at once can lose or mix.
+        Files.createDirectories(dir.resolve("data/sokar/projects"));
+        Files.writeString(dir.resolve("data/sokar/projects/uc"), projectFile + "\n");
 
         serving(dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {

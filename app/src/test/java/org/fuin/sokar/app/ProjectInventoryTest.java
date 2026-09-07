@@ -44,11 +44,11 @@ class ProjectInventoryTest {
                 .writeTo(state.resolve("sidecar.json"));
     }
 
-    private Path registry(Path dir, String json) throws IOException {
-        final Path file = dir.resolve("data/sokar/projects.json");
-        Files.createDirectories(file.getParent());
-        Files.writeString(file, json, StandardCharsets.UTF_8);
-        return file;
+    /** One file per project, which is how the registry a task start writes is shaped. */
+    private void registry(Path dir, String name, Path projectFile) throws IOException {
+        final Path entry = dir.resolve("data/sokar/projects").resolve(name);
+        Files.createDirectories(entry.getParent());
+        Files.writeString(entry, projectFile + "\n", StandardCharsets.UTF_8);
     }
 
     @Test
@@ -91,7 +91,7 @@ class ProjectInventoryTest {
         final SokarContext context = context(dir);
         mirror("uc");
         final Path projectFile = Files.writeString(dir.resolve("project.yml"), "project:\n");
-        registry(dir, "{\"uc\":\"" + projectFile + "\"}");
+        registry(dir, "uc", projectFile);
 
         assertThat(new ProjectInventory(context).projects()).singleElement()
                 .satisfies(project -> assertThat(project.file()).isEqualTo(projectFile.toString()));
@@ -104,7 +104,7 @@ class ProjectInventoryTest {
         // looks like a fault in the daemon.
         final SokarContext context = context(dir);
         mirror("uc");
-        registry(dir, "{\"uc\":\"" + dir.resolve("moved-away.yml") + "\"}");
+        registry(dir, "uc", dir.resolve("moved-away.yml"));
 
         assertThat(new ProjectInventory(context).projects()).singleElement()
                 .satisfies(project -> assertThat(project.file()).isNull());
@@ -130,7 +130,7 @@ class ProjectInventoryTest {
         // It ran once and everything was removed. The file is still what an interface acts on.
         final SokarContext context = context(dir);
         final Path projectFile = Files.writeString(dir.resolve("project.yml"), "project:\n");
-        registry(dir, "{\"ghost\":\"" + projectFile + "\"}");
+        registry(dir, "ghost", projectFile);
 
         assertThat(new ProjectInventory(context).projects()).singleElement()
                 .satisfies(project -> {
@@ -141,8 +141,10 @@ class ProjectInventoryTest {
     }
 
     @Test
-    void countsEveryTaskOfAProjectOnce(@TempDir Path dir) throws IOException {
+    void countsEveryTaskOfAProjectAndSaysHowManyAreUp(@TempDir Path dir) throws IOException {
 
+        // Both numbers: a stopped task keeps its workspace and can be resumed, so it is not the
+        // same as no task at all, and an interface showing only running ones would hide it.
         final SokarContext context = context(dir);
         runner.answering("ps",
                 "sokar-uc-shell-1\tUp 4 minutes\nsokar-uc-build-2\tExited (0) 1 hour ago\n");
@@ -153,7 +155,23 @@ class ProjectInventoryTest {
         assertThat(new ProjectInventory(context).projects()).singleElement()
                 .satisfies(project -> {
                     assertThat(project.tasks()).isEqualTo(2);
+                    assertThat(project.running()).isEqualTo(1);
                     assertThat(project.mirror()).endsWith("uc.git");
                 });
+    }
+
+    @Test
+    void listsAProjectWithNothingRunning(@TempDir Path dir) throws IOException {
+
+        // The ordinary case. A list of only active projects would be empty on a machine with a
+        // dozen projects on it.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 hour ago\n");
+        task("sokar-uc-shell-1", "uc");
+        mirror("idle");
+
+        assertThat(new ProjectInventory(context).projects()).hasSize(2);
+        assertThat(new ProjectInventory(context).projects())
+                .allSatisfy(project -> assertThat(project.running()).isZero());
     }
 }

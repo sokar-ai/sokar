@@ -52,7 +52,8 @@ public class ProjectsCommand implements Callable<Integer>, SokarFactory.ContextA
                 // a line nobody reads.
                 out.printf("%-" + width + "s  %s%n", "",
                         (project.tasks() > 0 ? project.tasks() + " task"
-                                + (project.tasks() == 1 ? "" : "s") : "")
+                                + (project.tasks() == 1 ? "" : "s")
+                                + " (" + project.running() + " running)" : "")
                                 + (project.pending() > 0 && project.tasks() > 0 ? ", " : "")
                                 + (project.pending() > 0 ? project.pending()
                                         + " waiting for review" : ""));

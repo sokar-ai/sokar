@@ -183,15 +183,16 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
-     * Returns the file recording where each project's own file is.
+     * Returns the directory recording where each project's own file is, one file per project.
      * <p>
      * Durable rather than runtime state: an interface asking what projects exist has to be
-     * answered on a machine where nothing is running.
+     * answered on a machine where nothing is running. A directory rather than a document because
+     * two tasks can start at the same moment, and a file each is a race that cannot happen.
      *
-     * @return The registry file.
+     * @return The registry directory.
      */
     public Path projectRegistry() {
-        return xdg.data().resolve("projects.json");
+        return xdg.data().resolve("projects");
     }
 
     /**

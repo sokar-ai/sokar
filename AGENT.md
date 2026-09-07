@@ -148,6 +148,12 @@ See [build.md](doc/build.md). Three things that will bite:
   `PhantomToken.toString` both abbreviate because tokens end up in log lines by accident - and
   `gate serve` then wrote `token.value()` into `gate.log`, which the daemon streams to whatever is
   tailing it. Print the token, not its value.
+- **A registry that two processes write is a directory of files, not one document.** The project
+  registry began as a single JSON file, which meant read-modify-write: 24 concurrent starts kept
+  one entry and lost 23, measured, and both writers went through the same temporary file so the
+  document moved into place could have been a mixture of the two. One file per project removes the
+  class of problem - different projects never touch the same file, the same project writes the same
+  bytes - rather than guarding it with a lock.
 - **A remote client has no filesystem, so the daemon hands out paths rather than taking them on
   faith.** Every gate method and `Start` take a `project.yml` path, which is fine for a CLI typed
   on the machine that holds it and impossible over a forwarded socket. `Projects` answers what
