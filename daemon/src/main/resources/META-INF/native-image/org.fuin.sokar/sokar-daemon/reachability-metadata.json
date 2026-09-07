@@ -1,0 +1,7 @@
+{
+  "resources": [
+    {
+      "glob": "varlink/org.fuin.sokar.Tasks1.varlink"
+    }
+  ]
+}

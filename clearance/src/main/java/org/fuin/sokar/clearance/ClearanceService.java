@@ -55,7 +55,7 @@ public class ClearanceService implements AutoCloseable {
             final int port = parameters.get("port") instanceof Number number ? number.intValue() : 0;
             final String shown = port == 0 ? destination : destination + ":" + port;
             final Verdict verdict =
-                    hub.handle(protocol + "/" + destination + "/" + port, destination, shown, protocol);
+                    hub.handle(key(protocol, destination, port), destination, shown, protocol);
             replies.last(Map.of("verdict", verdict.name().toLowerCase()));
         });
 
@@ -91,6 +91,23 @@ public class ClearanceService implements AutoCloseable {
                     allow ? Verdict.ALLOW : Verdict.DENY);
             replies.last(Map.of("ok", Boolean.TRUE));
         });
+    }
+
+    /**
+     * Returns the key that identifies one blocked connection.
+     * <p>
+     * Public and used from both ends on purpose. A subscriber has to send this back with its
+     * verdict, and it is derived from fields the event already carries - so a client could build
+     * it, and would then be one separator away from answering a prompt that does not exist while
+     * the task stays blocked. Deriving it here means there is one derivation.
+     *
+     * @param protocol {@code tcp} or {@code udp}.
+     * @param destination Host or address the task asked for.
+     * @param port Port, or {@code 0} when there is none.
+     * @return The key.
+     */
+    public static String key(String protocol, String destination, int port) {
+        return protocol + "/" + destination + "/" + port;
     }
 
     /**

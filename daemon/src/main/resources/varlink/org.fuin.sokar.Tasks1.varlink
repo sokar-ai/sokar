@@ -1,0 +1,399 @@
+# The interface between Sokar and anything with a user in front of it.
+#
+# This file is the contract, not a description of one: the daemon serves it verbatim through
+# org.varlink.service.GetInterfaceDescription, and a test fails the build when a method is
+# registered without appearing here or appears here without being registered. A client may
+# therefore read it off a running daemon and trust that it matches.
+#
+# Everything is reached over one unix socket, owner-only, in Sokar's runtime directory
+# ($XDG_RUNTIME_DIR/sokar/sokard.sock). There is no port and no authentication of its own: the
+# filesystem decides who may connect, and a remote client forwards the socket over SSH rather
+# than reaching a listener.
+#
+# Framing is varlink's own: one JSON object per call, NUL-separated, no length prefix. A call
+# carrying "more": true asks for a stream, and every reply but the last carries
+# "continues": true.
+#
+# A field declared ?type is genuinely absent, not empty. Everything else is always present -
+# a string that has no value arrives as "", because an interface has to render something.
+
+# ---------------------------------------------------------------------------- compatibility
+#
+# A fleet is not upgraded at once, so a frontend has to work against a daemon older than
+# itself. Three things make that possible, and a client should use all three.
+#
+# 1. The trailing 1 in the interface name is the promise. Within it this interface only ever
+#    grows: new methods, new ?parameters, new reply fields. Nothing that is here will be
+#    removed, renamed, given a different type, or made to mean something else. A change that
+#    cannot be made that way becomes org.fuin.sokar.Tasks2, and a daemon serves both for at
+#    least one release - so a client reads org.varlink.service.GetInfo, takes the highest
+#    interface name it understands from the interfaces list, and uses that. Version numbers
+#    are not compared to decide this.
+#
+# 2. Per feature, not per connection. Calling a method an older daemon does not have answers
+#    org.varlink.service.MethodNotFound. That is a normal answer, not a fault: an interface
+#    disables that one feature and keeps everything else. The same goes for a ?parameter an
+#    older daemon ignores - it will behave as though it were not given, which is what its
+#    default says it does.
+#
+# 3. Unknown values must not be fatal. New reply fields will appear in replies a client did
+#    not expect, and new values will appear in enumerations it does not know - Outcome in
+#    particular will gain entries. A client MUST ignore fields it does not recognise and MUST
+#    render an unrecognised enumeration value rather than failing on it. This is part of the
+#    contract: adding a value is not treated as a breaking change, so a client that cannot
+#    survive one will break on a routine release.
+#
+# org.varlink.service.GetInfo also reports the daemon's own version, which is a build
+# version and moves independently of the number in the interface name. Show it, log it, and
+# put it in a bug report - but do not gate features on it. What a daemon can do is answered
+# by 1 and 2 above, which stay true no matter how the product is numbered.
+#
+# org.varlink.service.GetInterfaceDescription returns this file, from the running daemon.
+# A client that wants certainty rather than assumption can read the contract off the thing
+# it is talking to.
+
+interface org.fuin.sokar.Tasks1
+
+# ---------------------------------------------------------------------------- types
+
+# One task on this machine, running or not.
+#
+# A task is a container plus the helpers Sokar started beside it. Both halves matter: a
+# container that is up with no helpers has lost its gate or its clearance watcher, and is not
+# the same thing as a healthy task.
+type Task (
+  # Container name, which is what every other method takes as its task parameter.
+  name: string,
+  # Project the task belongs to, or "" when nothing recorded it.
+  project: string,
+  # offline, guarded or online - or "" when nothing recorded it.
+  securityClass: string,
+  # The container runtime's own words, such as "Up 4 minutes" or "Exited (143) 2 seconds ago".
+  # Free text meant for a person; do not parse it. Use running for the decision.
+  state: string,
+  # Whether the runtime says it is up.
+  running: bool,
+  # How many recorded helper processes are alive.
+  helpers: int
+)
+
+# What became of a Stop or a Resume.
+#
+# One enumeration serves both because one enumeration implements both. A client should render
+# every value it can receive: a refusal is the interesting outcome, not an error case.
+type Outcome (
+  # Stop: the name is not one Sokar created. Nothing was touched.
+  NOT_A_TASK,
+  # Stop: no container and no helpers by that name.
+  NOTHING_TO_STOP,
+  # Stop: the container is down and the helpers are gone.
+  STOPPED,
+  # Stop: refused, because the task holds commits that never reached the gate. work says what.
+  # Re-ask with purge to discard it, or with rescue to push it into the mirror first.
+  HOLDS_WORK,
+  # Stop: nothing could say whether there was work, so it was not removed.
+  NOTHING_KNOWS,
+  # Stop: rescue was asked for, but the container is already down and cannot be read.
+  RESCUE_NEEDS_IT_RUNNING,
+  # Stop: rescue was attempted and failed. detail says why. Nothing was removed.
+  RESCUE_FAILED,
+  # Resume: the container is up again and the helpers were restarted.
+  RESUMED,
+  # Resume: it was already running. Nothing was started.
+  ALREADY_RUNNING,
+  # Resume: there is no container by that name to start.
+  NO_CONTAINER,
+  # Resume: the container started, but nothing recorded which helpers it should have.
+  NO_HELPERS_RECORDED
+)
+
+# An agent binary installed on this machine.
+type Agent (
+  # Name the binary calls itself by, which is what Start takes.
+  name: string,
+  # Human-readable name.
+  label: string,
+  # The command it runs inside the container.
+  binary: string,
+  # Version it reports, or "" when it reports none.
+  version: string,
+  # Where the binary was found.
+  from: string,
+  # Hosts this agent needs, added to a task's egress on top of the project's own.
+  allowedDomains: []string
+)
+
+# One entry in the vault. Never its value: this interface cannot be used to read a secret.
+type Credential (
+  name: string,
+  # What kind of credential it is, or "" when nothing recorded it.
+  type: string,
+  # Length of the stored value, so an interface can show that something is there.
+  characters: int
+)
+
+# A push waiting at the gate for a decision.
+type PendingPush (
+  # Ref name under refs/sokar/incoming/, which is what Review, Approve and Reject take.
+  name: string,
+  commit: string,
+  # First line of the commit message.
+  subject: string,
+  # How long it has been waiting, as words: "4 minutes".
+  waiting: string,
+  # When it arrived, ISO-8601.
+  at: string
+)
+
+# A connection a task tried to make and was stopped for.
+#
+# This is the one event with a deadline. The task is blocked while it waits, and the watcher
+# gives up after its own timeout - so an interface that shows these must show them as they
+# arrive, which is why Prompts is a stream and not a poll.
+type Prompt (
+  # Container name, for routing the answer back to the right task.
+  task: string,
+  # Pass this to Decide unchanged. It is derived from the other fields, but the derivation is
+  # the daemon's and a client that rebuilt it would answer a prompt that does not exist.
+  key: string,
+  # Host or address the task asked for.
+  destination: string,
+  # tcp or udp.
+  protocol: string,
+  port: int,
+  # When it was blocked, ISO-8601.
+  at: string,
+  # Where in the ruleset it was stopped, for an operator who needs to know which rule fired.
+  prefix: string
+)
+
+# ---------------------------------------------------------------------------- what exists
+
+# Every task on this machine, running or stopped.
+method List() -> (tasks: []Task)
+
+# The same answer, again whenever it changes.
+#
+# Called without "more" this answers once, exactly as List does, so a client that cannot
+# stream is not locked out of the data.
+#
+# Called with "more" it sends the whole list on every change and nothing in between. The age
+# in state is deliberately not a change: it moves on its own, and a view that redrew for it
+# would redraw every second forever.
+method Watch() -> (tasks: []Task)
+
+# Agent binaries installed on this machine.
+method Agents() -> (
+  agents: []Agent,
+  # Binaries that are installed and could not be asked what they are, by file name. An agent
+  # that fails to describe itself is unusable, and leaving it out would read as not installed.
+  failures: [string]string
+)
+
+# What the vault holds, without any of it.
+method Credentials() -> (
+  # Where the vault file is.
+  vault: string,
+  # Whether that file exists.
+  exists: bool,
+  credentials: []Credential,
+  # Whether the list can be believed. The vault opens only if its passphrase is already in the
+  # kernel keyring - a daemon has no terminal to ask at - so an empty list from a locked vault
+  # and an empty list from an empty vault are different things an interface must not conflate.
+  readable: bool
+)
+
+# ---------------------------------------------------------------------------- running tasks
+
+# Starts a task.
+#
+# The long one. With "more" it streams the build as it happens, one reply per line, and an
+# interface should show them: building an image takes minutes, and showing nothing for that
+# long is indistinguishable from having hung.
+#
+# The task outlives this call and this connection. Closing the socket mid-build does not
+# cancel it; List shows it afterwards.
+method Start(
+  # Task name within the project. Default: "shell".
+  task: ?string,
+  # Path to the project file, as the CLI takes it. Default: "project.yml".
+  project: ?string,
+  # Agent to run, by the name Agents reports. Default: the project's own.
+  agent: ?string,
+  # Provider to route through. Default: the project's own.
+  provider: ?string,
+  # Overrides the stored credential kind for this run.
+  credentialType: ?string,
+  # Lifetime of the gate token. Default: 8.
+  tokenHours: ?int,
+  # Upstream to gate against. Default: the project's own.
+  upstream: ?string,
+  # Runs with no workspace and no git gate: the agent gets an empty directory and can commit
+  # nowhere.
+  noGate: ?bool,
+  # Does everything up to starting the container, then stops and reports. Nothing is created.
+  dryRun: ?bool,
+  # What to do with a blocked connection: prompt, allow, deny or off. Default: "prompt".
+  clearance: ?string,
+  # Keeps the container after it exits.
+  keep: ?bool
+) -> (
+  # One line of output. Set on every reply while continues is true, and only then.
+  line: ?string,
+  # Container name of the started task. Set on the final reply, and only then.
+  container: ?string,
+  # What the launch returned. 0 is success. Set on the final reply.
+  exitCode: ?int,
+  # Everything that was printed, for a caller that did not ask to stream. Empty when it did.
+  output: ?[]string
+)
+
+# Stops a task and removes what is left of it.
+#
+# Refuses rather than destroys. A task holding commits that never reached the gate comes back
+# as HOLDS_WORK and is left exactly as it was; the caller decides whether that work is worth
+# keeping and asks again.
+method Stop(
+  # Container name.
+  task: string,
+  # Discard unpushed work and remove it anyway.
+  purge: ?bool,
+  # Push what it holds into the gate's mirror first, then remove it.
+  rescue: ?bool,
+  # Remove it even when nothing can say what it holds.
+  force: ?bool
+) -> (
+  outcome: Outcome,
+  # What it holds, when that is why it was refused. "" otherwise.
+  work: string,
+  # Where rescued work was put, when it was rescued. "" otherwise.
+  rescuedRef: string,
+  # Whether the container was removed.
+  removed: bool,
+  # How many helper processes were stopped.
+  helpers: int,
+  # How many helper processes are still alive afterwards. Not zero is worth showing.
+  surviving: int,
+  # Why, in words, for an outcome that needs one. "" otherwise.
+  detail: string
+)
+
+# Starts a stopped task's container again, with the helpers it is recorded as having had.
+method Resume(task: string) -> (
+  outcome: Outcome,
+  # How many helpers were started.
+  started: int,
+  # How many the task is recorded as having had. Fewer started than recorded is a partial
+  # resume, and an interface should say so.
+  recorded: int,
+  # Set when the image the container was built from has changed since. "" otherwise.
+  imageDrift: string,
+  # What went wrong per helper, for the ones that did not come back.
+  problems: []string
+)
+
+# Reads one of a task's log files, and with "more" follows it as it is written.
+#
+# The log name is checked against the files that are there rather than resolved as a path.
+method Tail(
+  # Container name.
+  task: string,
+  # File name within the task's state directory, ending in .log. Not a path.
+  log: string
+) -> (lines: []string)
+
+# ---------------------------------------------------------------------------- the gate
+
+# What is waiting at a project's gate.
+#
+# The gate methods take a project file rather than a task, because a gate belongs to a project
+# and one daemon serves every project the operator has.
+method Pending(
+  # Path to the project file.
+  project: string,
+  # Upstream to gate against. Default: the project's own.
+  upstream: ?string
+) -> (
+  # Path to the bare mirror the agent pushes into.
+  mirror: string,
+  # offline, gatekeeping or online.
+  mode: string,
+  # Where the mirror was seeded from, or "" when it was not.
+  seededFrom: string,
+  pending: []PendingPush
+)
+
+# What a pending push contains, so it can be judged before it is forwarded.
+method Review(
+  project: string,
+  upstream: ?string,
+  # Ref name, from PendingPush.name.
+  name: string,
+  # What to diff against. Default: the upstream's default branch.
+  against: ?string
+) -> (
+  # Unified diff.
+  diff: string,
+  # Commit log over the same range.
+  log: string
+)
+
+# Forwards a pending push upstream. The only call in this interface that sends anything
+# anywhere, and it makes the caller name the branch rather than inferring one.
+method Approve(
+  project: string,
+  upstream: ?string,
+  name: string,
+  # Branch to push to. Required.
+  branch: string
+) -> (forwarded: string, branch: string)
+
+# Drops a pending push. The work stays in the mirror; only the request is gone.
+method Reject(project: string, upstream: ?string, name: string) -> (rejected: string)
+
+# ---------------------------------------------------------------------------- clearance
+
+# Blocked connections from every running task, as they happen.
+#
+# Streaming only: answering this once would look like it worked and then deliver nothing ever
+# again, so a call without "more" is refused.
+#
+# One subscription covers every task, including tasks started after the call - an interface
+# does not discover and connect to each task's own socket.
+method Prompts() -> Prompt
+
+# Answers one prompt.
+#
+# A task that is not running has no watcher to tell, and that is refused rather than accepted
+# and dropped: an answer that goes nowhere leaves the operator believing they unblocked
+# something.
+method Decide(
+  # Container name, from Prompt.task.
+  task: string,
+  # From Prompt.key, unchanged.
+  key: string,
+  # From Prompt.destination.
+  address: string,
+  # Whether to let it through.
+  allow: ?bool
+) -> (ok: bool)
+
+# ---------------------------------------------------------------------------- errors
+
+# The named log is not a file in that task's state directory.
+error NoSuchLog(task: string, log: string)
+
+# The method only works as a stream and was called without "more".
+error StreamRequired(method: string)
+
+# The task is not running, so nothing can act on the answer.
+error NoClearance(task: string)
+
+# A gate method was called without naming a project file.
+error ProjectRequired()
+
+# Approve was called without a branch to push to.
+error BranchRequired(name: string)
+
+# Anything else that went wrong. The message is for a person, not for a client to match on.
+error Failed(message: string)

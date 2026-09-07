@@ -42,8 +42,22 @@ import org.fuin.sokar.wire.varlink.VarlinkServer;
  */
 public final class SokarDaemon {
 
-    /** Varlink interface this serves. */
-    public static final String INTERFACE = "org.fuin.sokar.Tasks";
+    /**
+     * Varlink interface this serves.
+     * <p>
+     * The trailing digit is the compatibility promise and is not decoration - it is varlink's own
+     * convention, and {@code org.fuin.sokar.Clearance1} already follows it. Within one number the
+     * interface only ever grows: methods, optional parameters and reply fields may be added, and
+     * nothing that exists may be removed, renamed, retyped or made to mean something else. A
+     * change that cannot be made that way gets the next number and is served <em>beside</em> this
+     * one, so a frontend built against either keeps working while a fleet is upgraded piecemeal.
+     * <p>
+     * {@code GetInfo} lists what a daemon offers, so a client picks the newest name it
+     * understands rather than comparing version numbers. The rest is per-method: calling
+     * something an older daemon does not have answers {@code MethodNotFound}, which lets an
+     * interface disable one feature instead of refusing to connect.
+     */
+    public static final String INTERFACE = "org.fuin.sokar.Tasks1";
 
     /** Name of the socket inside Sokar's runtime directory. */
     public static final String SOCKET = "sokard.sock";
@@ -76,7 +90,9 @@ public final class SokarDaemon {
      * @return The server, not yet running.
      */
     public static VarlinkServer serving(SokarContext context, Path socket) {
-        final VarlinkServer server = new VarlinkServer(socket, INTERFACE);
+        final VarlinkServer server = new VarlinkServer(socket, INTERFACE)
+                .describedBy(description())
+                .reporting(org.fuin.sokar.app.SokarVersion.version());
         final TaskInventory inventory = new TaskInventory(context);
 
         // The same question 'sokar task list' asks, answered by the same code. A second
@@ -371,6 +387,30 @@ public final class SokarDaemon {
     }
 
     /**
+     * Returns the interface description, read from the jar.
+     * <p>
+     * A resource rather than a string in this file, so that the contract is a document an
+     * interface author can read, diff and be handed - and so that {@link SokarDaemonTest} can
+     * hold it against the methods actually registered here. Missing it is a broken build rather
+     * than a daemon that answers {@code InterfaceNotFound}: the description is not optional.
+     *
+     * @return The IDL.
+     */
+    public static String description() {
+        try (java.io.InputStream in =
+                SokarDaemon.class.getResourceAsStream("/varlink/" + INTERFACE + ".varlink")) {
+            if (in == null) {
+                throw new IllegalStateException(
+                        "The interface description is not on the classpath: /varlink/"
+                                + INTERFACE + ".varlink");
+            }
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException ex) {
+            throw new IllegalStateException("Cannot read the interface description", ex);
+        }
+    }
+
+    /**
      * Returns the gate of the project a call names.
      * <p>
      * The project file is a path the caller gives, the way it gives one to the CLI: a gate
@@ -424,6 +464,14 @@ public final class SokarDaemon {
                         // Which task it came from: one socket now carries the prompts of every
                         // task, and an answer has to go back to the one that asked.
                         tagged.put("task", task.name());
+                        // And what to answer with. The watcher keys its pending decisions by
+                        // this and the event does not carry it, so a client had to rebuild it
+                        // from the other fields - a separator away from answering a prompt that
+                        // does not exist while the task stays blocked.
+                        tagged.put("key", ClearanceService.key(
+                                String.valueOf(event.get("protocol")),
+                                String.valueOf(event.get("destination")),
+                                event.get("port") instanceof Number port ? port.intValue() : 0));
                         // offer, not put: a client that stopped reading must not block the
                         // subscription, which is on the path of every dropped packet.
                         events.offer(tagged);
@@ -560,10 +608,10 @@ public final class SokarDaemon {
                 task.isEmpty() ? "shell" : task,
                 Path.of(project.isEmpty() ? "project.yml" : project),
                 empty(parameters, "agent"), empty(parameters, "provider"),
-                empty(parameters, "credential-type"),
-                parameters.get("token-hours") instanceof Number hours ? hours.intValue() : 8,
-                empty(parameters, "upstream"), flag(parameters, "no-gate"),
-                flag(parameters, "dry-run"),
+                empty(parameters, "credentialType"),
+                parameters.get("tokenHours") instanceof Number hours ? hours.intValue() : 8,
+                empty(parameters, "upstream"), flag(parameters, "noGate"),
+                flag(parameters, "dryRun"),
                 text(parameters, "clearance").isEmpty() ? "prompt"
                         : text(parameters, "clearance"),
                 flag(parameters, "keep"));

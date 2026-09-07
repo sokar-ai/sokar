@@ -48,7 +48,7 @@ changes what gets built rather than only how:
 - Whether the remote transport can carry the daemon's socket directly
   ([B06](B06-Remote-Access.md)). It decides the transport posture, whether notifications are
   achievable away from the machine, and how much of
-  [F20](../frontend/F20-Access-From-Elsewhere.md) is real.
+  [F20](https://github.com/fuinorg/sokar-frontend/blob/main/requirements/F20-Access-From-Elsewhere.md) is real.
 - Whether the guarantees can be re-derived at all on a second platform
   ([B08](B08-McSokar-Apple-Containers.md)). It decides whether that project offers the same
   product or a weaker one wearing the same name, and it constrains what may be added to the

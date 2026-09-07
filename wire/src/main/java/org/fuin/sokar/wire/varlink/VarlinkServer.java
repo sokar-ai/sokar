@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.fuin.sokar.wire.SocketContext;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Serves varlink methods over a unix socket.
@@ -73,6 +74,12 @@ public class VarlinkServer implements AutoCloseable, Runnable {
 
     private final Map<String, Method> methods = new ConcurrentHashMap<>();
 
+    /** The IDL this service serves, or {@code null} until one is given. */
+    private volatile @Nullable String description;
+
+    /** What {@code GetInfo} reports as the version. */
+    private volatile String version = "unknown";
+
     private final ServerSocketChannel channel;
 
     private volatile boolean running = true;
@@ -101,11 +108,50 @@ public class VarlinkServer implements AutoCloseable, Runnable {
             final Map<String, Object> info = new LinkedHashMap<>();
             info.put("vendor", "fuin.org");
             info.put("product", "Sokar");
-            info.put("version", "0.1.0");
+            info.put("version", version);
             info.put("url", "https://github.com/fuinorg/sokar");
             info.put("interfaces", List.of("org.varlink.service", interfaceName));
             replies.last(info);
         });
+        methods.put("org.varlink.service.GetInterfaceDescription", (parameters, replies) -> {
+            final Object wanted = parameters.get("interface");
+            final String idl = description;
+            if (idl == null || !interfaceName.equals(wanted)) {
+                throw new VarlinkException("org.varlink.service.InterfaceNotFound",
+                        Map.of("interface", String.valueOf(wanted)));
+            }
+            replies.last(Map.of("description", idl));
+        });
+    }
+
+    /**
+     * Gives this service the version to report.
+     * <p>
+     * Not read from anywhere here: {@code wire} is a library and does not know which product it
+     * has been built into. It was a literal until a client had a reason to ask - a frontend
+     * connecting to whichever daemon happens to be installed needs to know which one that is.
+     *
+     * @param value Version string, as a build produced it.
+     * @return This instance.
+     */
+    public VarlinkServer reporting(String value) {
+        this.version = value;
+        return this;
+    }
+
+    /**
+     * Gives this service its interface description.
+     * <p>
+     * Served verbatim, because the point of it is that a client can read the contract off a
+     * running daemon rather than off a copy that may be older than what is answering. A service
+     * without one answers {@code InterfaceNotFound}, which is what a caller has to handle anyway.
+     *
+     * @param idl The interface definition, in varlink's own syntax.
+     * @return This instance.
+     */
+    public VarlinkServer describedBy(String idl) {
+        this.description = idl;
+        return this;
     }
 
     /**
@@ -118,6 +164,19 @@ public class VarlinkServer implements AutoCloseable, Runnable {
     public VarlinkServer method(String name, Method method) {
         methods.put(interfaceName + "." + name, method);
         return this;
+    }
+
+    /**
+     * Returns every method this service answers, fully qualified.
+     * <p>
+     * For a test that holds the registrations against the interface description: a method that
+     * exists and is not described is one an interface cannot know about, and a described method
+     * that does not exist is one a client will call and be refused.
+     *
+     * @return Method names, including the {@code org.varlink.service} ones.
+     */
+    public java.util.Set<String> methodNames() {
+        return java.util.Set.copyOf(methods.keySet());
     }
 
     /**

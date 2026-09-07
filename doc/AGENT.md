@@ -421,6 +421,30 @@ both. Both packages carry identical bytes, so there is one binary to get right. 
 writes a manifest beside the binaries and the publish job reads it, because the two lists
 drifted when they were written down twice.
 
+## The interface contract
+
+`daemon/src/main/resources/varlink/org.fuin.sokar.Tasks1.varlink` is the API the frontend is
+built against, in a separate repository
+([sokar-frontend](https://github.com/fuinorg/sokar-frontend)). It is the contract, not a
+description of one: the daemon serves it verbatim through
+`org.varlink.service.GetInterfaceDescription`, and `InterfaceDescriptionTest` fails the build
+when a method is registered without appearing in it, appears in it without being registered,
+reads a parameter it does not describe, or throws an error it does not name.
+
+- **The trailing `1` is the compatibility promise**, and it is varlink's own convention -
+  `org.fuin.sokar.Clearance1` already followed it. Within one number the interface only grows:
+  new methods, new `?` parameters, new reply fields. Nothing that exists may be removed, renamed,
+  retyped or given a new meaning. A change that cannot be made that way becomes `Tasks2`, served
+  *beside* `Tasks1` for at least one release, because a fleet is not upgraded at once.
+- **Adding an enum value is explicitly not breaking**, so the contract requires clients to
+  tolerate unknown ones. `Outcome` will gain entries.
+- **Parameter names must be varlink identifiers.** Hyphens are not: `credential-type` and
+  `token-hours` had to become `credentialType` and `tokenHours` before the description could be
+  written truthfully, which is the sort of thing an IDL catches and an ad-hoc map does not.
+- **Derive nothing on the client side that the daemon can send.** A clearance prompt now carries
+  its own `key` because a client rebuilding it from the other fields is one separator away from
+  answering a prompt that does not exist, while the task stays blocked.
+
 ## Security rules that are not negotiable
 
 - **Never put a secret in a command line.** A process list is world-readable.

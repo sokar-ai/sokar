@@ -7,9 +7,16 @@ one rarely need to rank it against another.
 | Set | What it covers | Files |
 |---|---|---|
 | [**Base**](base/README.md) | The product below the interface: the CLI, the daemon, and the guarantees they make. | `B01`… |
-| [**Frontend**](frontend/README.md) | The interface people actually use, described as what must be true for a person using it. | `F01`… |
+| [**Frontend**](https://github.com/fuinorg/sokar-frontend/blob/main/requirements/README.md) | The interface people actually use, described as what must be true for a person using it. **In its own repository.** | `F01`… |
 | [**Agents**](agents/README.md) | Which agents exist, how each authenticates, whether it can be brokered, and how updates follow upstream. | `A01`… |
 | [**Providers**](providers/README.md) | Which providers exist, and how a task reaches one without ever holding its credential. | `P01`… |
+
+The frontend set lives in [sokar-frontend](https://github.com/fuinorg/sokar-frontend) so it can
+be built independently of this one. What connects them is not a shared checkout but a contract:
+`daemon/src/main/resources/varlink/org.fuin.sokar.Tasks1.varlink`, which the daemon serves to
+anything that asks and which a test here refuses to let drift from the methods actually
+registered. Changing that file is changing an interface somebody else has already built
+against — the rules for doing it safely are at the top of the file.
 
 ## How to read one
 
@@ -43,5 +50,5 @@ That difference is why they are separate sets rather than one list of integratio
 
 The **frontend** is separate because it is judged differently — what must be true for a person
 using it, rather than what must be true of the machine — and because it should be workable on its
-own. Each set is a candidate for a repository of its own when that becomes worth it, the way every
-shipped agent already has one.
+own. It is the first set to have taken the repository of its own that every set is a candidate
+for, the way every shipped agent already has one.
