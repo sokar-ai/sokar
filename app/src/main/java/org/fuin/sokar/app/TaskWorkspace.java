@@ -203,18 +203,25 @@ public class TaskWorkspace {
      * <p>
      * Static because it depends on nothing but the mount point and the environment already in the
      * container: a task being rescued has no workspace object left to ask.
+     * <p>
+     * <strong>Committing comes first, and an empty workspace exits non-zero.</strong> A project
+     * with no commit yet has no {@code HEAD}, and the earlier order asked for one before it
+     * committed - so a task whose agent had created files in a repository that never had an
+     * initial commit printed "nothing to push", exited zero, and was then removed as rescued.
+     * Measured: the ref never reached the mirror and the files went with the container. Committing
+     * first creates that initial commit, and the only way out without a {@code HEAD} now fails,
+     * because a caller that removes a container on success must not be told success for nothing.
      *
      * @return Command and arguments.
      */
     public static java.util.List<String> pushCommand() {
         return java.util.List.of("sh", "-c",
                 "set -e; cd " + MOUNT + "; "
-                        + "if [ -z \"$(git status --porcelain)\" ] && git rev-parse HEAD >/dev/null 2>&1; then "
+                        + "if [ -n \"$(git status --porcelain)\" ]; then "
+                        + "  git add -A && git commit -q -m \"agent: uncommitted work\"; fi; "
+                        + "if git rev-parse HEAD >/dev/null 2>&1; then "
                         + "  git push -q sokar HEAD:\"$SOKAR_TASK_REF\"; "
-                        + "elif git rev-parse HEAD >/dev/null 2>&1; then "
-                        + "  git add -A && git commit -q -m \"agent: uncommitted work\" "
-                        + "  && git push -q sokar HEAD:\"$SOKAR_TASK_REF\"; "
-                        + "else echo 'nothing to push'; fi");
+                        + "else echo 'nothing to push'; exit 3; fi");
     }
 
     /**

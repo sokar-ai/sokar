@@ -574,8 +574,19 @@ if podman exec "$CONTAINER" sh -c 'test -d /workspace/.git' 2>/dev/null; then
 
     # The endpoint the agent pushes to must not be an endpoint anything else can reach. The
     # token was the only defence while the gate bound every interface; the bind is the second.
+    #
+    # Where podman cannot map the host's loopback into a container - podman 4.9.3 on Ubuntu
+    # 24.04 LTS, which is what CI runs, has no pasta to ask - the gate binds every interface
+    # and says so. That is the designed fallback, not a regression, so this asserts the strong
+    # property only where it is available and asserts the honesty of the fallback otherwise.
+    # A gate that quietly stopped narrowing would print no such line and still be caught.
     GATE_PORT="$(grep '^gate ' "$START_LOG" | sed -n 's|.*:\([0-9]\+\)/.*|\1|p' | head -1)"
-    if [ -n "$GATE_PORT" ]; then
+    if grep -q "bound to every interface" "$START_LOG"; then
+        pass "the gate says it could not be narrowed on this machine, and why"
+        grep -o "sokar: the git gate is bound to every interface.*" "$START_LOG" | head -1 \
+            | cut -c1-160 | while read -r line; do info "  $line"; done
+        info "podman $(podman --version | awk '{print $3}') here; the per-task token is the defence"
+    elif [ -n "$GATE_PORT" ]; then
         # Java binds a dual-stack socket, so loopback reads as [::ffff:127.0.0.1] here.
         if ss -ltnH "sport = :$GATE_PORT" \
                 | grep -qE '(127\.0\.0\.1|\[::1\]|\[::ffff:127\.0\.0\.1\]):'"$GATE_PORT"; then
@@ -658,6 +669,47 @@ if [ -z "$FAIL_STATE" ] || [ -z "$(find "$FAIL_STATE" -name '*.pid' 2>/dev/null)
     pass "the failed run left no pid files claiming live helpers"
 else
     fail "the failed run left pid files in $FAIL_STATE"
+fi
+
+# --------------------------------------------------- removing a task, safely
+#
+# Removal is a cleanup command, and cleanup commands must not destroy work. The refusal
+# used to cover only a running task: stop it first and the very same commit was removed
+# silently, reporting success. What makes the stopped case answerable is the note the task
+# writes on its way down - nothing can look inside a stopped container.
+echo
+echo "-- removing a task --"
+
+if podman exec "$CONTAINER" sh -c 'cd /workspace \
+        && git -c user.email=agent@localhost -c user.name=agent commit -q --allow-empty \
+             -m "e2e: work that was never pushed"' 2>/dev/null; then
+
+    STOP_OUT="$(cd "$WORK" && "$SOKAR" task stop "$CONTAINER" 2>&1)"
+    if echo "$STOP_OUT" | grep -q "never reached the gate"; then
+        pass "stopping a task says what it holds that never reached the gate"
+    else
+        fail "stopping a task said nothing about the work it holds"
+        echo "$STOP_OUT" | head -3 | while read -r line; do info "  $line"; done
+    fi
+
+    PURGE_OUT="$(cd "$WORK" && "$SOKAR" task stop "$CONTAINER" --purge 2>&1)"
+    PURGED=$?
+    if podman container exists "$CONTAINER" 2>/dev/null; then
+        pass "removing a stopped task that holds unpushed work is refused"
+    else
+        fail "a stopped task was removed with work that existed nowhere else"
+        echo "$PURGE_OUT" | head -3 | while read -r line; do info "  $line"; done
+    fi
+
+    if (cd "$WORK" && "$SOKAR" task stop "$CONTAINER" --purge --force >/dev/null 2>&1) \
+            && ! podman container exists "$CONTAINER" 2>/dev/null; then
+        pass "--force removes it anyway, which is the deliberate way to discard work"
+        CONTAINER=""
+    else
+        fail "--force did not remove the task"
+    fi
+else
+    fail "could not create unpushed work in the workspace"
 fi
 
 echo

@@ -1,9 +1,26 @@
 # 0043 — Workspace Outlives Its Container
 
-**Status:** the refusal and the rescue are built - `sokar task stop --purge` refuses when
-the workspace holds work that never reached the gate, `--rescue` pushes it to a ref of its
-own first, and `--force` discards it deliberately. Whether the workspace should live on the
-host at all is still open, and the answer below is still no.
+**Status:** the refusal and the rescue are built and now cover the two cases that got past
+them - `sokar task stop --purge` refuses when the workspace holds work that never reached the
+gate, whether the task is running or was stopped earlier, `--rescue` pushes it to a ref of its
+own first and fails loudly if nothing arrives, and `--force` discards it deliberately. Whether
+the workspace should live on the host at all is still open, and the answer below is still no.
+
+Two silent losses were measured on Fedora 44 and closed, both of the kind this requirement
+exists for - a cleanup command destroying work while reporting success:
+
+- **A task stopped first was purged without a word.** The refusal asked the container what it
+  held, and nothing can ask a stopped container. The census is now written into the task's
+  state directory on the way down, while it is still knowable, and read back by whoever
+  removes the task later. A stopped task whose note is missing entirely - stopped by
+  something other than Sokar, or its runtime directory gone with a logout - is refused rather
+  than guessed at, and says to resume it or pass `--force`.
+- **`--rescue` reported a rescue that never happened.** In a repository with no initial
+  commit the push command asked for `HEAD` before it committed, printed `nothing to push`,
+  exited zero, and the container was removed as rescued. Measured: the mirror held no ref and
+  the file went with the container. It now commits first, which creates that initial commit,
+  and an empty workspace exits non-zero. Verified by removing a task whose workspace held one
+  uncommitted file and nothing else: `refs/sokar/incoming/shell-rescued` now carries it.
 
 A task's workspace lives inside its container: the clone runs in the container and
 `/workspace` is part of the container's filesystem, not a mount. Removing the container
@@ -55,14 +72,26 @@ The first option is preferred. It removes the accidental-destruction harm withou
 a second route out, and it costs an editor-shaped convenience rather than a containment
 property.
 
+Two questions this used to leave open are answered by what was built:
+
+**How the check is made without host-side git.** A running task is asked inside its
+container. A stopped one cannot be asked at all, so the answer is written down while it is
+still knowable and read back later; a stopped container's filesystem does not change, so the
+note cannot go stale. Reading the workspace from the host instead was rejected for the reason
+this requirement rejects the mount: `.git` is agent-controlled content, and hooks, `core.pager`,
+`core.fsmonitor` and aliases all run host-side code, so `git status` in it is enough to run
+whatever the agent wrote.
+
+**What "never pushed" means for a dirty workspace.** Both are counted - commits that are not
+on the gate, and changed files - and a rescue commits what is uncommitted as
+`agent: uncommitted work`, on the `-rescued` ref rather than the reviewed one. That does put
+words in the agent's mouth, and the commit message says as much; losing the work was the worse
+of the two.
+
 ## To be checked
 
-- Whether the check can be made cheaply and reliably: it means running git inside the
-  container while it is stopped, or before stopping it, and a task with no gate has
-  nowhere to push at all.
-- What "never pushed" means for a workspace the agent left dirty rather than committed.
-  Committing on the agent's behalf puts words in its mouth; pushing nothing loses the
-  work.
+- Whether the same guard should cover `podman rm` directly. Nothing Sokar writes can stop
+  the runtime's own command, so the note is a defence for `sokar task stop --purge` only.
 - Whether the same argument covers what the agent installed *in* the container -
   packages, caches, a built toolchain - which is lost with it today, and is why
   [0009](0009-Task-Lifecycle-Control.md) keeps the old image on resume rather than

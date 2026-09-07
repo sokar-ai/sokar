@@ -293,6 +293,105 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void aStoppedTaskIsNotPurgedOnWhatNobodyCanSee(@TempDir Path dir) throws IOException {
+
+        // The same harm, one command later: nothing can look inside a stopped container, so
+        // before this the refusal simply did not apply and the work went quietly.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
+        stateOf("sokar-uc-shell-1");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isEqualTo(65);
+        assertThat(err.toString()).contains("nothing recorded what it holds").contains("resume");
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
+    void aStoppingTaskWritesDownWhatItHolds(@TempDir Path dir) throws IOException {
+
+        // Written on the way down, because that is the last moment anyone can ask.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        final Path state = stateOf("sokar-uc-shell-1");
+        workspaceReports(dir, "3 2");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1")).isZero();
+
+        assertThat(state.resolve(UnhandedWork.FILE)).content()
+                .isEqualTo("2 commits and 3 changed files");
+    }
+
+    @Test
+    void theNoteIsWhatRefusesToRemoveAStoppedTask(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
+        final Path state = stateOf("sokar-uc-shell-1");
+        UnhandedWork.note(state, "2 commits");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isEqualTo(65);
+        assertThat(err.toString()).contains("it holds 2 commits");
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
+    void aTaskThatHeldNothingIsRemovedWithoutFuss(@TempDir Path dir) throws IOException {
+
+        // "This held nothing" and "nobody looked" are different answers, and only the first one
+        // makes removal safe without asking.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), null);
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+        assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
+    void rescuingAStoppedTaskSaysToResumeItFirst(@TempDir Path dir) throws IOException {
+
+        // Rescue pushes from inside the container to the gate, and neither is up.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), "2 commits");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--rescue"))
+                .isEqualTo(70);
+        assertThat(err.toString()).contains("task resume");
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
+    void purgingATaskThatIsGoneEntirelyIsStillNotAnError(@TempDir Path dir) {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+        assertThat(out.toString()).contains("nothing to stop");
+    }
+
+    @Test
+    void aRescueThatPushedNothingIsNotARescue(@TempDir Path dir) throws IOException {
+
+        // Measured: a workspace whose repository had no initial commit printed "nothing to push",
+        // exited zero, and the container was removed as rescued while the mirror never saw a ref.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        // Registered before the ref, and matched on the commit message: answers are tried in
+        // insertion order, and the push command mentions SOKAR_TASK_REF as well.
+        runner.answering("agent: uncommitted work", "nothing to push");
+        runner.answering("SOKAR_TASK_REF", "refs/sokar/incoming/shell");
+        stateOf("sokar-uc-shell-1");
+        workspaceReports(dir, "3 0");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--rescue"))
+                .isEqualTo(70);
+        assertThat(err.toString()).contains("could not push the work");
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
+    }
+
+    @Test
     void forceRemovesItAnyway(@TempDir Path dir) throws IOException {
 
         final SokarContext context = context(dir);

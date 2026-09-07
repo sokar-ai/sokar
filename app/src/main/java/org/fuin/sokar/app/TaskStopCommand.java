@@ -71,14 +71,36 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
         }
 
         final Path state = context.paths().containerState(container);
-        final boolean known = context.podman().sokarTasks().stream()
-                .anyMatch(task -> task.name().equals(container)) || Files.isDirectory(state);
+        final java.util.Optional<org.fuin.sokar.runtime.ContainerSummary> summary =
+                context.podman().sokarTasks().stream()
+                        .filter(task -> task.name().equals(container)).findFirst();
+        final boolean known = summary.isPresent() || Files.isDirectory(state);
+        final boolean running = summary
+                .map(org.fuin.sokar.runtime.ContainerSummary::running).orElse(false);
 
         // Asked while the container and the gate are both still up: afterwards there is nothing
-        // to ask, and nowhere to push what the answer finds.
-        final String work = unhandedWork(container);
+        // to ask, and nowhere to push what the answer finds. A task that is already stopped is
+        // past that point, so what it left in its note is all there is.
+        final java.util.Optional<String> noted = running
+                ? java.util.Optional.empty() : UnhandedWork.note(state);
+        final String work = running ? unhandedWork(container)
+                : noted.filter(phrase -> !phrase.isEmpty()).orElse(null);
         if (work != null) {
             out.println("work      " + work + " that never reached the gate");
+        }
+        if (purge && summary.isPresent() && !running && work == null && noted.isEmpty()
+                && !force) {
+            // The container is there and stopped, nothing can see inside it, and nothing wrote
+            // down what it held - stopped by something other than Sokar, or its runtime directory
+            // went with a logout. Removing it would be the silent destruction this refuses. A
+            // task that is gone entirely is a different case and still not an error: there is
+            // nothing left to lose.
+            err.println("sokar: refusing to remove " + container + ": it is stopped and nothing"
+                    + " recorded what it holds");
+            err.println("       resume it with 'sokar task resume " + container + "' to see, or"
+                    + " --force to discard it unseen.");
+            err.flush();
+            return 65;
         }
         if (work != null && purge && !rescue && !force) {
             err.println("sokar: refusing to remove " + container + ": it holds " + work);
@@ -86,6 +108,13 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
                     + " first, or --force to discard it.");
             err.flush();
             return 65;
+        }
+        if (work != null && rescue && !running) {
+            // Rescue pushes from inside the container to the gate, and neither is up.
+            err.println("sokar: " + container + " is stopped, so its work cannot be pushed."
+                    + " Resume it with 'sokar task resume " + container + "' first.");
+            err.flush();
+            return 70;
         }
         if (work != null && rescue && !rescueWork(container, out, err)) {
             err.println("sokar: nothing was removed, because the work could not be rescued");
@@ -104,6 +133,11 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
             context.podman().remove(container);
         } else {
             context.podman().stop(container);
+            // Written on the way down, while the answer is still knowable. Whoever removes this
+            // task later cannot ask the container itself.
+            if (running) {
+                UnhandedWork.note(state, work);
+            }
         }
         TaskLifecycle.stopHelpers(state);
 
@@ -169,28 +203,7 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
         if (!result.successful()) {
             return null;
         }
-        try {
-            final String[] counts = result.trimmedOutput().split("\\s+");
-            if (counts.length != 2) {
-                return null;
-            }
-            final int changed = Integer.parseInt(counts[0]);
-            final int commits = Integer.parseInt(counts[1]);
-            if (changed == 0 && commits == 0) {
-                return null;
-            }
-            final StringBuilder text = new StringBuilder();
-            if (commits > 0) {
-                text.append(commits).append(commits == 1 ? " commit" : " commits");
-            }
-            if (changed > 0) {
-                text.append(text.isEmpty() ? "" : " and ")
-                        .append(changed).append(changed == 1 ? " changed file" : " changed files");
-            }
-            return text.toString();
-        } catch (RuntimeException ex) {
-            return null;
-        }
+        return UnhandedWork.phrase(result.trimmedOutput());
     }
 
     /**
@@ -224,8 +237,11 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
         final String rescueRef = taskRef + "-rescued";
         final org.fuin.sokar.core.process.CommandResult pushed = context.podman().ask(container,
                 java.util.Map.of("SOKAR_TASK_REF", rescueRef), TaskWorkspace.pushCommand());
-        if (!pushed.successful()) {
-            err.println("sokar: could not push the work: " + pushed.standardError().strip());
+        // The output is checked as well as the exit code: this answer decides whether a container
+        // holding the only copy of something is removed, so "it did not fail" is not enough.
+        if (!pushed.successful() || pushed.trimmedOutput().contains("nothing to push")) {
+            err.println("sokar: could not push the work: " + (pushed.trimmedOutput().isEmpty()
+                    ? pushed.standardError().strip() : pushed.trimmedOutput()));
             return false;
         }
         out.println("rescued   " + rescueRef);
