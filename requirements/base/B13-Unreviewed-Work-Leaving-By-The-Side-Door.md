@@ -34,6 +34,32 @@ Measured rather than assumed, because the first guess was wrong:
   `user.email` `agent@localhost` unless the task overrides them, so a commit made by an agent can
   be told from one made by a person - which is what any guard here would have to rest on.
 
+## Why the work is in the container at all
+
+Asked because it is the premise of everything below, and the answer is not "because nobody thought
+about it".
+
+**A bind-mounted workspace hands the agent the host.** Not metaphorically: a working copy contains
+`.git/hooks/`, and a hook is a script git runs *with the privileges of whoever runs git next*. An
+agent that can write into a directory the operator later opens has arranged to execute code as the
+operator. The container exists to make that impossible, and a bind mount is a hole straight through
+it. Two lesser reasons point the same way: rootless podman writes those files as a subordinate uid,
+so the operator cannot even edit them without `podman unshare`, and relabelling somebody's real
+project directory for SELinux is not something a tool should do to them.
+
+**The reference implementation does the same and goes further.** Terok also clones into the
+container (`REPO_ROOT=/workspace/...`, seeded from `file:///git-gate/gate.git`) and then builds an
+explicit way in for a person: an sshd baked into the image, the host's public key bind-mounted to
+`/etc/ssh/authorized_keys.d/terok`, reached over podman's pasta, offered in its interface as
+`terok login <project> <task>`. It exists there partly for a reason Sokar does not have - under the
+krun runtime `podman exec` cannot enter the guest at all - and it is a *shell*, not an editor.
+
+**But for reviewing, inside is the wrong place regardless.** The reviewer does not want the agent's
+environment; they want the diff, in their own tools, on the machine they are already connected to.
+And the work is *already on the host*: every pushed branch is in the gate's mirror. What is missing
+is not a way in, it is a way out - nothing turns `refs/sokar/incoming/<task>` into a working copy
+somebody can open.
+
 ## Whether the safe way is even open
 
 Asked while writing this, because the answer decides whether the whole thing is a documentation
@@ -88,9 +114,18 @@ commits an agent wrote and nobody approved, they should hear about it.
 - **Whether the mirror should be harder to fetch from.** Making it unreadable would break `gate
   review`, which is how anybody looks at the work at all. Probably nothing to do here, but it is
   the other end of the same path.
-- **Whether attaching an editor should be made easy.** It is the safe way to look at the work and
-  it does not currently work out of the box; making it work by declaring an editor vendor's hosts
-  widens the agent's reach for the benefit of a person, which is backwards. Placing the server with
-  `podman cp` needs no egress at all and could be a command of its own. Whether that belongs here,
-  in its own requirement, or in the documentation is the question - but leaving the safe path
-  harder than the unsafe one is not an option, because that is what produces the accident.
+- **A working copy on the host, from the mirror, is probably the answer.** Something like
+  `sokar gate checkout <task>`: materialise the incoming ref into a directory the operator opens
+  with the editor they already have pointed at that machine. The agent never touched it, no
+  container access is needed, and the copy can be made safe by construction - no remote to the
+  upstream, `core.hooksPath` pointed at nothing, so a hook the agent committed cannot run and there
+  is nowhere to push except back to the gate. That would make the safe path the convenient one,
+  which is the only durable fix for an accident of convenience.
+- **Or review on a forge, which is a different trade.** Pushing the incoming ref to a review branch
+  on the upstream would give a person the diff view they already know - and it gives up the
+  property that unreviewed work never leaves the machine. Worth naming as an option rather than
+  dismissing, because for some teams the review tooling is worth more than that property.
+- **Whether attaching an editor to the container should be made to work anyway.** It is possible
+  and it is currently blocked by the egress rules, and the workaround - declaring an editor
+  vendor's hosts - widens the agent's reach for a person's benefit, which is backwards. `podman cp`
+  places the server with no egress at all. This matters less if the checkout above exists.
