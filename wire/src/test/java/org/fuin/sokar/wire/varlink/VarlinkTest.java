@@ -115,6 +115,49 @@ class VarlinkTest {
     }
 
     @Test
+    void aStreamCutShortIsAnErrorRatherThanAnEnding(@TempDir Path dir) throws Exception {
+
+        // Measured against the real daemon: killing it mid-stream closes the socket with no final
+        // reply, and returning normally there is indistinguishable from a stream that finished. A
+        // client would stop watching and go on showing what it last saw - which for a fleet view,
+        // or a clearance prompt that expires, is worse than an error.
+        //
+        // Written against a bare socket rather than VarlinkServer, because what is being modelled
+        // is a service that dies: one reply, then the connection ends mid-stream. Closing the
+        // server object would not do it - the accepted connection stays open and the client waits
+        // for ever, which is how the first version of this test hung.
+        final Path socket = dir.resolve("dying.sock");
+        try (java.nio.channels.ServerSocketChannel channel = java.nio.channels.ServerSocketChannel
+                .open(java.net.StandardProtocolFamily.UNIX)) {
+            channel.bind(java.net.UnixDomainSocketAddress.of(socket));
+            final Thread service = Thread.ofVirtual().start(() -> {
+                try (java.nio.channels.SocketChannel client = channel.accept()) {
+                    final java.nio.ByteBuffer in = java.nio.ByteBuffer.allocate(4096);
+                    client.read(in);
+                    client.write(java.nio.ByteBuffer.wrap(
+                            ("{\"parameters\":{\"n\":1},\"continues\":true}\0")
+                                    .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                } catch (IOException ex) {
+                    // The client went first, which this test does not care about.
+                }
+            });
+
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final List<Map<String, Object>> seen = new ArrayList<>();
+                assertThatThrownBy(() -> client.callMore(INTERFACE + ".Endless", Map.of(),
+                        reply -> {
+                            seen.add(reply);
+                            return true;
+                        }))
+                        .isInstanceOf(VarlinkException.class)
+                        .hasMessageContaining("before it ended");
+                assertThat(seen).as("what did arrive is still delivered").hasSize(1);
+            }
+            service.join(java.time.Duration.ofSeconds(5));
+        }
+    }
+
+    @Test
     void reportsAnUnknownMethodAsAVarlinkError(@TempDir Path dir) throws IOException {
 
         try (VarlinkServer server = server(dir)) {

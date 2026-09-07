@@ -144,5 +144,12 @@ one is the property spawning could have broken, so it was measured rather than a
   answered**: each streams correctly on its own connection, and the 64 KB cap on a tail
   reply is a guess at the bulk problem rather than a measurement of it. Nobody has yet
   run a fleet watch and several tails through one client at once.
-- What happens to a call that is in flight when the daemon restarts? A client that
-  silently shows stale state is worse than one that shows an error.
+- ~~What happens to a call that is in flight when the daemon restarts?~~ **Answered, and it was
+  the bad case.** Measured: killing the daemon mid-stream closes the socket with no final reply,
+  and `VarlinkClient.callMore` returned normally there - indistinguishable from a stream that
+  finished. A client would have stopped watching and gone on showing what it last saw, which is
+  exactly the "silently shows stale state" this warned about. A finished stream arrives as a
+  reply without `continues`; a socket that simply ends did not finish, and now raises. The fix is
+  in the shared client, so every varlink consumer gets it - the agent contract included.
+- What a client should *do* about it is still open: reconnecting and resuming a watch is a
+  client-side decision nothing here has had to make yet.
