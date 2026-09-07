@@ -23,8 +23,9 @@ Those two are the only artifacts Sokar puts on Maven Central, so the rule is als
 what an agent in its own repository is *able* to resolve.
 
 **Every shipped agent is in its own repository** —
-[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code) and
-[sokar-pi](https://github.com/fuinorg/sokar-pi) — building against that published
+[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code),
+[sokar-pi](https://github.com/fuinorg/sokar-pi) and
+[sokar-omp](https://github.com/fuinorg/sokar-omp) — building against that published
 contract with no checkout of this one. What remains in `agents/` is the contract and
 the **stub**, which exists so the acceptance suite still has something to drive; a
 suite that cannot run is one that quietly stops being maintained.

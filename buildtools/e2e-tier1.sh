@@ -109,6 +109,10 @@ PROMPT_FLAG="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(s
 PROVIDER="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("default") or "")')"
 SOCKET_ENV="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("socketEnvironment") or "")')"
 BASE_URL_ENV="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("baseUrlEnvironment") or "")')"
+# socket or url. An agent that can only address a URL is pointed at the broker by a file its
+# own container setup writes, so it declares no variable at all - and the checks below used to
+# read that as "pointed at nothing" and fail. Both sokar-pi and sokar-omp are that shape.
+ENDPOINT="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("endpoint") or "socket")')"
 info "agent $AGENT_NAME, tool $AGENT_BINARY, provider ${PROVIDER:-none}, CLI version $CLI_VERSION"
 
 # ------------------------------------------------------------------ the vault
@@ -290,7 +294,26 @@ else
     # fails as "not a socket in the container" and reads like a broken mount.
     SOCKET_VAR="${SOCKET_ENV:-$BASE_URL_ENV}"
 
-    if [ -z "$SOCKET_VAR" ]; then
+    if [ -z "$SOCKET_VAR" ] && [ "$ENDPOINT" = "url" ]; then
+        # Routed by a file rather than by a variable, so the endpoint to test is the relay
+        # bound inside the container's own network namespace. Same question as the socket
+        # path asks: does a request carrying the phantom token come back answered by the
+        # PROVIDER rather than by the proxy?
+        pass "the agent is routed by a file its container setup wrote, not by a variable"
+        RELAY_REPLY="$(podman exec "$CONTAINER" sh -c \
+            "curl -s --max-time 30 -H \"x-api-key: \$$PHANTOM_VAR\" \
+             -H 'content-type: application/json' -X POST http://127.0.0.1:9419/v1/messages \
+             -d '{\"model\":\"m\",\"max_tokens\":1,\"messages\":[]}'" 2>/dev/null)"
+        if echo "$RELAY_REPLY" | grep -q "sokar:"; then
+            fail "the broker rejected this task's own token"
+            info "$(echo "$RELAY_REPLY" | head -c 200)"
+        elif [ -n "$RELAY_REPLY" ]; then
+            pass "a request through the relay was answered by the provider, not by the broker"
+        else
+            fail "nothing answered on the relay the agent was pointed at"
+            info "an agent that can only address a URL has no other way to redeem its token"
+        fi
+    elif [ -z "$SOCKET_VAR" ]; then
         fail "$PHANTOM_VAR holds a phantom token that nothing can redeem"
         info "the agent is pointed at no proxy, so it talks straight to the provider and"
         info "presents 'sokar_pt_...' as if it were a real key"

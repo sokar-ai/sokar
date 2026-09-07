@@ -19,6 +19,7 @@ to either:
 |---|---|
 | Claude Code | [sokar-claude-code](https://github.com/fuinorg/sokar-claude-code) |
 | Pi | [sokar-pi](https://github.com/fuinorg/sokar-pi) |
+| Oh My Pi | [sokar-omp](https://github.com/fuinorg/sokar-omp) |
 
 The stub stays. Without an agent in the tree the acceptance suite would have nothing
 to drive, and a suite that cannot run is one that quietly stops being maintained.
