@@ -117,6 +117,26 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     /** How the git gate is bound and firewalled for this task. Built on first use. */
     private GateWiring gate;
 
+    /** The repository the agent works in. Built on first use. */
+    private WorkspaceSetup workspace;
+
+    private WorkspaceSetup workspace() {
+        if (workspace == null) {
+            workspace = new WorkspaceSetup(context, task, upstream);
+        }
+        return workspace;
+    }
+
+    /** The watcher that asks about blocked connections. Built on first use. */
+    private ClearanceWiring clearanceWiring;
+
+    private ClearanceWiring clearance() {
+        if (clearanceWiring == null) {
+            clearanceWiring = new ClearanceWiring(context, this::recordHelper, task, clearance);
+        }
+        return clearanceWiring;
+    }
+
     private GateWiring gate() {
         if (gate == null) {
             gate = new GateWiring(context, this::recordHelper, projectFile, upstream);
@@ -247,7 +267,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final String container =
                 runner.containerName(project, task, String.valueOf(ProcessHandle.current().pid()));
 
-        final TaskWorkspace workspace = openWorkspace(project, out, err);
+        final TaskWorkspace workspace = workspace().openWorkspace(project, !noGate && !dryRun, out, err);
 
         try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
 
@@ -381,13 +401,13 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     gate().startGate(runner, workspace, wiring.gateAddress(),
                             container, project, out, err);
                 }
-                prepareWorkspace(runner, workspace, container, out, err);
+                workspace().prepareWorkspace(runner, workspace, container, environmentCache, out, err);
             }
 
             placeAgentFiles(runner, selected, container, environmentCache, out, err);
             out.println();
 
-            startClearance(runner, project, container, out, err);
+            clearance().startClearance(runner, project, container, out, err);
             writeResumeRecord(container, err);
 
             if (prompt != null) {
@@ -428,63 +448,6 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             err.flush();
             return cleanUp(runner, container, 70);
         }
-    }
-
-    /**
-     * Opens the git gate for this task, unless the caller asked for none.
-     *
-     * @return The workspace, or {@code null} when running without a gate.
-     */
-    private TaskWorkspace openWorkspace(Project project, PrintWriter out, PrintWriter err) {
-        if (noGate || dryRun) {
-            return null;
-        }
-        try {
-            if (project.securityClass() == org.fuin.sokar.core.project.SecurityClass.ONLINE) {
-                // Online takes the gate out of the path entirely: the agent's remote IS the
-                // upstream. Nothing is reviewed, which is what the class is for and why a project
-                // has to opt into it rather than a task asking for it.
-                return TaskWorkspace.direct(project.upstream());
-            }
-            return TaskWorkspace.gated(
-                    GateSupport.gate(project, upstream, seed(project, out)),
-                    TaskWorkspace.containerVisibleHost());
-        } catch (RuntimeException ex) {
-            // A task with no workspace is still a useful task - a shell in a hardened box - so
-            // this reports and continues rather than refusing to start.
-            err.println("sokar: no git gate for this task: " + ex.getMessage());
-            err.flush();
-            return null;
-        }
-    }
-
-    /**
-     * Returns the repository an empty mirror should be seeded from.
-     * <p>
-     * Only reached when neither {@code --upstream} nor the project names one. Standing in a
-     * checkout is taken as meaning that checkout, so the common case needs no flag. It is printed
-     * rather than assumed silently, and only committed history is copied - a bare clone has no
-     * working tree.
-     *
-     * @param project The project.
-     * @param out Where to report.
-     * @return Path of the work tree, or {@code null} when there is none.
-     */
-    @org.jspecify.annotations.Nullable
-    private String seed(Project project, PrintWriter out) {
-        if (upstream != null || project.upstream() != null
-                || java.nio.file.Files.isDirectory(GateSupport.mirror(project).resolve("objects"))) {
-            // A mirror that exists is never re-seeded, so saying it would be seeded is a lie.
-            return null;
-        }
-        final java.nio.file.Path local = org.fuin.sokar.gate.LocalRepository.topLevel(
-                new org.fuin.sokar.core.process.ProcessCommandRunner(),
-                java.nio.file.Path.of("."));
-        if (local == null) {
-            return null;
-        }
-        out.println("seed      " + local + " (committed history only)");
-        return local.toString();
     }
 
     /**
@@ -617,89 +580,6 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
     private Project project(PrintWriter out, PrintWriter err) {
         return ProjectReader.read(projectFile);
-    }
-
-    /**
-     * Clones the mirror into the container's workspace.
-     */
-    private void prepareWorkspace(TaskRunner runner, TaskWorkspace workspace, String container,
-            PrintWriter out, PrintWriter err) {
-
-        final java.nio.file.Path log =
-                context.paths().containerState(container).resolve("workspace.log");
-        final int code = runner.execute(container, environmentCache, workspace.cloneCommand(),
-                log, java.time.Duration.ofMinutes(5));
-        if (code == 0) {
-            out.println("workspace " + TaskWorkspace.MOUNT + " ready");
-        } else {
-            err.println("sokar: could not prepare the workspace, see " + log);
-            err.flush();
-        }
-        out.flush();
-    }
-
-    /**
-     * Starts the clearance watcher for this container, following the events the reader hook is
-     * already writing.
-     * <p>
-     * Detached on purpose. This process either replaces itself with a shell or returns when the
-     * agent finishes, and in both cases the watcher has to outlive it - a blocked connection
-     * during an interactive session needs a prompt just as much as one during a headless run. The
-     * watcher writes a pid file, and the supervisor hook reaps it at poststop.
-     */
-    private void startClearance(TaskRunner runner, Project project, String container,
-            PrintWriter out, PrintWriter err) {
-
-        if ("off".equals(clearance)) {
-            return;
-        }
-
-        // The watcher edits the container's live nftables set, which means entering its network
-        // namespace, which means knowing its pid. Starting one without it produces a watcher that
-        // reaches a verdict and cannot act on it - which reads exactly like a working watcher.
-        final java.util.Optional<Long> pid = runner.containerPid(container);
-        if (pid.isEmpty()) {
-            err.println("sokar: the container reports no process, so no clearance watcher"
-                    + " was started; blocked connections will stay blocked");
-            err.flush();
-            return;
-        }
-
-        final java.nio.file.Path state = context.paths().containerState(container);
-        final java.nio.file.Path events =
-                state.resolve(org.fuin.sokar.wire.ReaderEvents.FILE);
-
-        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
-                ProcessHandle.current().info().command().orElse("sokar"),
-                "shield", "watch",
-                // What the prompt shows. A container name carries a pid and identifies nothing
-                // an operator recognises; project and task are what they chose.
-                "--project", project.name() + "/" + task,
-                "--pid", String.valueOf(pid.get()),
-                "--events", events.toString(),
-                "--socket", state.resolve("clearance.sock").toString(),
-                "--pid-file", state.resolve("watcher.pid").toString()));
-        switch (clearance) {
-            case "allow" -> command.add("--allow-all");
-            case "deny" -> command.add("--deny-all");
-            default -> { }
-        }
-
-        try {
-            new ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .redirectOutput(state.resolve("clearance.log").toFile())
-                    .start();
-            // The container pid in here belongs to this run; a resume replaces it with the new one.
-            recordHelper("watcher", command, java.util.Map.of(), TaskHelpers.AFTER);
-            out.println("clearance " + clearance + ", log at " + state.resolve("clearance.log"));
-            out.flush();
-        } catch (java.io.IOException ex) {
-            // Losing the prompt costs recourse, not containment: the firewall keeps dropping
-            // either way. Saying so beats failing a task that may not need it.
-            err.println("sokar: could not start the clearance watcher: " + ex.getMessage());
-            err.flush();
-        }
     }
 
     /**
