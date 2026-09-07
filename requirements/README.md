@@ -15,10 +15,14 @@ resuming a real container is in [AGENT.md](../doc/AGENT.md).
 
 ## Work, in the order to do it
 
-Ordered by consequence, not by number. The first group is the shipped CLI: a defect there is
-live, and two of them can lose work or open a hole. The second is the interface, which cannot
-start before [0001](0001-Local-Daemon-API.md) and is otherwise in dependency order. The last
-group runs alongside rather than after.
+Ordered by consequence, not by number. The first group is the shipped CLI, where a defect is
+live on somebody's machine today. The second is the interface, which cannot start before
+[0001](0001-Local-Daemon-API.md) and is otherwise in dependency order. The last group runs
+alongside rather than after.
+
+Both of the entries that could lose work or open a hole have since been closed and retired -
+the git endpoint that sat on the local network, and the cleanup command that destroyed work
+while reporting success. What is left in the first group is smaller than that.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
@@ -69,7 +73,7 @@ not work left to do.
 | 30 | [Agent Grok Build](0030-Agent-Grok-Build.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
 | 31 | [Agent OpenCode](0031-Agent-OpenCode.md) | candidate | One agent: how it authenticates and whether it can be brokered. | yes |
 | 32 | [Agent Pi](0032-Agent-Pi.md) | **shipped** | One agent: how it authenticates and whether it can be brokered. | yes |
-| 46 | [Agent Oh My Pi](0046-Agent-Oh-My-Pi.md) | candidate | One agent: a fork of a different Pi, listed so the two are not confused. | yes |
+| 46 | [Agent Oh My Pi](0046-Agent-Oh-My-Pi.md) | **shipped** | One agent: a fork of a different Pi, listed so the two are not confused. | yes |
 | 33 | [Provider Anthropic](0033-Provider-Anthropic.md) | **shipped** | One provider: how it authenticates and whether it can be brokered. | yes |
 | 34 | [Provider OpenAI](0034-Provider-OpenAI.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |
 | 35 | [Provider Google](0035-Provider-Google.md) | candidate | One provider: how it authenticates and whether it can be brokered. | yes |

@@ -1,6 +1,7 @@
 package org.fuin.sokar.daemon;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -9,11 +10,13 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.fuin.sokar.app.SokarContext;
 import org.fuin.sokar.app.SokarPaths;
 import org.fuin.sokar.core.config.XdgPaths;
 import org.fuin.sokar.testing.FakeCommandRunner;
 import org.fuin.sokar.wire.varlink.VarlinkClient;
+import org.fuin.sokar.wire.varlink.VarlinkException;
 import org.fuin.sokar.wire.varlink.VarlinkServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -151,6 +154,130 @@ class SokarDaemonTest {
                         .containsEntry("outcome", "NOT_A_TASK");
             }
         });
+    }
+
+    @Test
+    void tailsALogAsItIsWritten(@TempDir Path dir) throws Exception {
+
+        // A client that polls lags a prompt that expires, which is why these exist at all.
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+        final Path log = state.resolve("gate.log");
+        Files.writeString(log, "first line\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final List<Map<String, Object>> replies = new CopyOnWriteArrayList<>();
+                final Thread reader = Thread.ofVirtual().start(() -> {
+                    try {
+                        client.callMore(SokarDaemon.INTERFACE + ".Tail",
+                                Map.of("task", "sokar-uc-shell-1", "log", "gate.log"),
+                                replies::add);
+                    } catch (RuntimeException ex) {
+                        // The connection closes underneath it, which is how a tail ends.
+                    }
+                });
+
+                waitFor(() -> !replies.isEmpty());
+                Files.writeString(log, "second line\n", java.nio.file.StandardOpenOption.APPEND);
+                waitFor(() -> replies.stream().anyMatch(
+                        reply -> String.valueOf(reply.get("lines")).contains("second line")));
+
+                reader.interrupt();
+                assertThat(replies.stream().map(reply -> String.valueOf(reply.get("lines"))))
+                        .anyMatch(lines -> lines.contains("first line"));
+            }
+        });
+    }
+
+    @Test
+    void aLogNameIsNotAPath(@TempDir Path dir) throws Exception {
+
+        // A client is not this process, and '../../etc/passwd' is a log name until something
+        // refuses it.
+        Files.createDirectories(dir.resolve("run/sokar/sokar-uc-shell-1"));
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                for (final String name : List.of("../../../etc/passwd", "/etc/passwd",
+                        "gate.log/../../../etc/passwd", "")) {
+                    assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Tail",
+                            Map.of("task", "sokar-uc-shell-1", "log", name)))
+                            .as("log name '%s'", name)
+                            .isInstanceOf(VarlinkException.class);
+                }
+            }
+        });
+    }
+
+    @Test
+    void watchingWithoutAskingToStreamAnswersOnce(@TempDir Path dir) throws Exception {
+
+        // One method serves both, so a client that cannot stream is not locked out of the data.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Watch", Map.of());
+                @SuppressWarnings("unchecked")
+                final List<Map<String, Object>> tasks =
+                        (List<Map<String, Object>>) reply.get("tasks");
+                assertThat(tasks).singleElement()
+                        .satisfies(task -> assertThat(task).containsEntry("name",
+                                "sokar-uc-shell-1"));
+            }
+        });
+    }
+
+    @Test
+    void watchSendsTheStateAgainOnlyWhenItChanges(@TempDir Path dir) throws Exception {
+
+        // A fleet view redrawn every half second because nothing happened is noise.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final List<Map<String, Object>> replies = new CopyOnWriteArrayList<>();
+                final Thread reader = Thread.ofVirtual().start(() -> {
+                    try {
+                        client.callMore(SokarDaemon.INTERFACE + ".Watch", Map.of(), replies::add);
+                    } catch (RuntimeException ex) {
+                        // Ends with the connection.
+                    }
+                });
+
+                waitFor(() -> replies.size() == 1);
+
+                // The age moves on its own: 'Up 3 seconds' becomes 'Up 4 seconds' a second later.
+                // Measured against a real task, this made the watch fire every second and tell a
+                // fleet view to redraw because a clock had moved.
+                runner.answering("ps", "sokar-uc-shell-1\tUp 9 minutes\n");
+                Thread.sleep(SokarDaemon.WATCH_INTERVAL.multipliedBy(4));
+                assertThat(replies).as("only the age changed, so nothing more was sent")
+                        .hasSize(1);
+
+                runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 second ago\n");
+                waitFor(() -> replies.size() == 2);
+
+                reader.interrupt();
+                assertThat(String.valueOf(replies.get(1))).contains("Exited");
+            }
+        });
+    }
+
+    /**
+     * Waits for a condition the server reaches on its own schedule.
+     */
+    private static void waitFor(java.util.function.BooleanSupplier condition)
+            throws InterruptedException {
+        for (int attempt = 0; attempt < 100; attempt++) {
+            if (condition.getAsBoolean()) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("the server never reached the expected state");
     }
 
     @Test

@@ -46,14 +46,44 @@ as the calls: a client that polls will lag a prompt that expires.
   Their logic moved out of the picocli command classes into `TaskControl`, which both the CLI and
   the daemon call; the commands now render what it returns and decide nothing. Measured over the
   socket against a real container, refusals included.
-- The streaming calls - task state, clearance prompts, log tails. The server supports `more`
-  replies already and the agent contract uses them, so this is work rather than a question.
+- Clearance prompts as a call. Task state and log tails now stream; a prompt is the third, and
+  the one where lag actually costs something - it expires while a client polls.
+- The rest of the surface: starting a task, the gate's review commands, the vault, the agent
+  inventory. Each is a call the interface will need and none of them exists yet.
 - ~~Killing the daemon while a task runs is not demonstrated.~~ - demonstrated: `SIGKILL` to
   `sokard` left the task up with all four of its helpers, still listed by the CLI.
+
+## Streaming, built 2026-09-07
+
+`Watch` streams the fleet's state and `Tail` streams one of a task's logs, both as varlink `more`
+replies on the connection the call arrived on. Asked *without* `more`, each answers once instead
+of refusing - one method serves a client that can stream and one that cannot, and the data is not
+put behind a capability.
+
+Measured against a real task on Fedora 44, which is where the flaw was: comparing whole answers
+made `Watch` fire every second, because the runtime's state is a phrase carrying an age and
+`Up 3 seconds` becomes `Up 4 seconds` on its own. A fleet view would have redrawn continuously
+because a clock moved. The comparison now ignores the age and keeps the exit code - a task that
+was stopped and one that died are different things - and the same task then produced one reply on
+connect, nothing through eight seconds of ticking, and exactly one more when it actually stopped.
+No unit test would have found this: a fake answers whatever it is told, and it was told a
+constant.
+
+`Tail` reads by position rather than watching the file, because a log is appended to by another
+process entirely. A file that shrank was rotated and is read from the start, a partial last line
+is left for the next read, and one reply carries at most 64 KB so a large log cannot become one
+enormous message. A log name is checked against the files that are there rather than resolved as
+a path: `../../etc/passwd` is a log name until something refuses it.
+
+Both end when the client goes away, which is the only disconnect signal there is - sending to a
+closed connection throws, and nothing else tells a server that a reader left.
 
 ## To be checked
 
 - Does the chosen protocol stream well enough for a live log tail and a fleet of
-  task states at once, or does it need a second channel for bulk output?
+  task states at once, or does it need a second channel for bulk output? **Half
+  answered**: each streams correctly on its own connection, and the 64 KB cap on a tail
+  reply is a guess at the bulk problem rather than a measurement of it. Nobody has yet
+  run a fleet watch and several tails through one client at once.
 - What happens to a call that is in flight when the daemon restarts? A client that
   silently shows stale state is worse than one that shows an error.
