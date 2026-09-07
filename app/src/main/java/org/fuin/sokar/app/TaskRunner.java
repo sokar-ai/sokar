@@ -222,7 +222,7 @@ public class TaskRunner {
      *         usable. The fallback matters: the container's own resolv.conf points at loopback, so
      *         inheriting it would make the resolver forward to itself.
      */
-    private java.util.List<String> hostResolvers() {
+    static java.util.List<String> hostResolvers() {
         final java.util.List<String> found = new java.util.ArrayList<>();
         try {
             for (final String line : Files.readAllLines(Path.of("/etc/resolv.conf"))) {

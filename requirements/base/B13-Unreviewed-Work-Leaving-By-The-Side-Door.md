@@ -34,6 +34,26 @@ Measured rather than assumed, because the first guess was wrong:
   `user.email` `agent@localhost` unless the task overrides them, so a commit made by an agent can
   be told from one made by a person - which is what any guard here would have to rest on.
 
+## Whether the safe way is even open
+
+Asked while writing this, because the answer decides whether the whole thing is a documentation
+problem or a product one: **can an editor attach to the container at all?**
+
+Mechanically yes - both VS Code and JetBrains attach by running a command in the container, and
+`podman exec` is what `task run` already does to hand over a shell. What neither can do is *arrive*:
+both install a server component into the container on first attach, and both download it. The
+container's egress is deny-by-default, no shipped egress set covers either vendor's hosts, and
+nothing resolves that a project did not declare. So the first attach fails, and the way to make it
+work is to declare an editor vendor's hosts in the project - widening what the *agent* may reach in
+order to let a person look at its work, which is the wrong trade.
+
+There is a way in that needs no network at all: copy the server in with `podman cp`, or bake it
+into the image. Both vendors support a server installed by hand.
+
+**So today the safe way to inspect the work is the inconvenient one, and the unsafe way - fetch the
+branch out of the mirror into your own checkout - is the convenient one.** That is the shape of the
+accident this requirement is about: it is not carelessness, it is the only path that works.
+
 ## Acceptance
 
 - Work that reached the upstream without passing the gate is **prevented or reported**, not
@@ -68,6 +88,9 @@ commits an agent wrote and nobody approved, they should hear about it.
 - **Whether the mirror should be harder to fetch from.** Making it unreadable would break `gate
   review`, which is how anybody looks at the work at all. Probably nothing to do here, but it is
   the other end of the same path.
-- **Whether the IDE case wants its own answer.** Attaching an editor to the container is the safe
-  way to look at the work, and nothing in the product says so. Documentation may be worth more here
-  than mechanism.
+- **Whether attaching an editor should be made easy.** It is the safe way to look at the work and
+  it does not currently work out of the box; making it work by declaring an editor vendor's hosts
+  widens the agent's reach for the benefit of a person, which is backwards. Placing the server with
+  `podman cp` needs no egress at all and could be a command of its own. Whether that belongs here,
+  in its own requirement, or in the documentation is the question - but leaving the safe path
+  harder than the unsafe one is not an option, because that is what produces the accident.
