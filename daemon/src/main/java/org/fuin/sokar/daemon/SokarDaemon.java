@@ -1,9 +1,11 @@
 package org.fuin.sokar.daemon;
 
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.fuin.sokar.app.SokarContext;
+import org.fuin.sokar.app.TaskControl;
 import org.fuin.sokar.app.TaskInventory;
 import org.fuin.sokar.wire.varlink.VarlinkServer;
 
@@ -62,7 +64,65 @@ public final class SokarDaemon {
             replies.last(Map.of("tasks", tasks));
         });
 
+        // Stop and Resume come from TaskControl, which is what 'sokar task stop' and
+        // 'sokar task resume' render. The refusals are the reason that matters: one that exists
+        // in the CLI and not here would be a task removed, over this socket, with work in it.
+        final TaskControl control = new TaskControl(context);
+
+        server.method("Stop", (parameters, replies) -> {
+            final TaskControl.Stopped result = control.stop(text(parameters, "task"),
+                    flag(parameters, "purge"), flag(parameters, "rescue"),
+                    flag(parameters, "force"));
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("outcome", result.outcome().name());
+            answer.put("work", result.work() == null ? "" : result.work());
+            answer.put("rescuedRef", result.rescuedRef() == null ? "" : result.rescuedRef());
+            answer.put("removed", result.removed());
+            answer.put("helpers", result.helpers());
+            answer.put("surviving", result.surviving());
+            answer.put("detail", result.detail() == null ? "" : result.detail());
+            replies.last(answer);
+        });
+
+        server.method("Resume", (parameters, replies) -> {
+            final TaskControl.Resumed result = control.resume(text(parameters, "task"));
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("outcome", result.outcome().name());
+            answer.put("started", result.started());
+            answer.put("recorded", result.recorded());
+            answer.put("imageDrift", result.imageDrift() == null ? "" : result.imageDrift());
+            answer.put("problems", result.problems());
+            replies.last(answer);
+        });
+
         return server;
+    }
+
+    /**
+     * Reads a string parameter, treating a missing one as empty.
+     * <p>
+     * A client is not this process, so nothing it sends can be assumed to be there or to be of
+     * the type this expects. An absent task name reaches {@code TaskControl} as the empty string
+     * and is refused there as a name Sokar did not create, which is the same answer the CLI gives.
+     *
+     * @param parameters What the call carried.
+     * @param name Parameter to read.
+     * @return Its value, or the empty string.
+     */
+    private static String text(Map<String, Object> parameters, String name) {
+        final Object value = parameters.get(name);
+        return value instanceof String string ? string : "";
+    }
+
+    /**
+     * Reads a boolean parameter, treating anything else as false.
+     *
+     * @param parameters What the call carried.
+     * @param name Parameter to read.
+     * @return Its value, or {@code false}.
+     */
+    private static boolean flag(Map<String, Object> parameters, String name) {
+        return Boolean.TRUE.equals(parameters.get(name));
     }
 
     /**

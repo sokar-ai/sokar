@@ -1,10 +1,20 @@
 # 0009 — Task Lifecycle Control
 
-**Status:** the CLI half is done — `task list`, `task stop` and `task resume`, verified
-end to end on a real container, including the edges. The API half has begun:
-[0001](0001-Local-Daemon-API.md) now serves `List` over the daemon's socket, from the same
-`TaskInventory` the CLI prints, so those two cannot drift. `Stop` and `Resume` are not there yet,
-and that is the whole of what stands between this requirement and done.
+**Status:** done. All four acceptance criteria are met and measured - `task list`, `task stop`
+and `task resume` in the CLI, and `List`, `Stop` and `Resume` over the daemon's socket, both
+reaching the same code.
+
+Measured on Fedora 44 against a real container, over the socket rather than in a test double:
+`Stop` with `purge` on a task holding an unpushed commit answered `HOLDS_WORK` and the container
+survived; a plain `Stop` answered `STOPPED` with `helpers 4`; `Resume` answered `RESUMED` with
+`started 2 of 2` and the container came back up. The daemon was then killed with `SIGKILL` and the
+task stayed up with all four helpers, still listed by the CLI - so a client dying leaves running
+tasks untouched, which is now demonstrated rather than argued.
+
+The CLI and the daemon cannot drift, because neither decides anything: `TaskInventory` answers
+what tasks exist and `TaskControl` decides what stopping and resuming do. Both callers render what
+those return. The refusals are why that matters - one that existed in the CLI and not over the
+socket would be a task removed, remotely, with work that existed nowhere else.
 
 Today a task can be started and nothing else. Stopping one means finding its
 container by name and using the runtime directly, which is both undiscoverable and

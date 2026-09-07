@@ -1,7 +1,6 @@
 package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.runtime.ContainerName;
@@ -62,204 +61,82 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        if (!ContainerName.isSokar(container)) {
-            // Refused rather than guessed at: this command stops processes and removes a
-            // container, and a name Sokar did not create belongs to somebody else.
-            err.println("sokar: '" + container + "' is not a task Sokar created");
-            err.flush();
-            return 64;
+        // Decided by TaskControl, which the daemon calls too: a refusal that exists in one caller
+        // and not the other is a task removed with work in it. This renders, and nothing else.
+        final TaskControl.Stopped result =
+                new TaskControl(context).stop(container, purge, rescue, force);
+
+        if (result.work() != null && result.outcome() != TaskControl.Outcome.NOT_A_TASK) {
+            out.println("work      " + result.work() + " that never reached the gate");
         }
 
-        final Path state = context.paths().containerState(container);
-        final java.util.Optional<org.fuin.sokar.runtime.ContainerSummary> summary =
-                context.podman().sokarTasks().stream()
-                        .filter(task -> task.name().equals(container)).findFirst();
-        final boolean known = summary.isPresent() || Files.isDirectory(state);
-        final boolean running = summary
-                .map(org.fuin.sokar.runtime.ContainerSummary::running).orElse(false);
-
-        // Asked while the container and the gate are both still up: afterwards there is nothing
-        // to ask, and nowhere to push what the answer finds. A task that is already stopped is
-        // past that point, so what it left in its note is all there is.
-        final java.util.Optional<String> noted = running
-                ? java.util.Optional.empty() : UnhandedWork.note(state);
-        final String work = running ? unhandedWork(container)
-                : noted.filter(phrase -> !phrase.isEmpty()).orElse(null);
-        if (work != null) {
-            out.println("work      " + work + " that never reached the gate");
-        }
-        if (purge && summary.isPresent() && !running && work == null && noted.isEmpty()
-                && !force) {
-            // The container is there and stopped, nothing can see inside it, and nothing wrote
-            // down what it held - stopped by something other than Sokar, or its runtime directory
-            // went with a logout. Removing it would be the silent destruction this refuses. A
-            // task that is gone entirely is a different case and still not an error: there is
-            // nothing left to lose.
-            err.println("sokar: refusing to remove " + container + ": it is stopped and nothing"
-                    + " recorded what it holds");
-            err.println("       resume it with 'sokar task resume " + container + "' to see, or"
-                    + " --force to discard it unseen.");
-            err.flush();
-            return 65;
-        }
-        if (work != null && purge && !rescue && !force) {
-            err.println("sokar: refusing to remove " + container + ": it holds " + work);
-            err.println("       it exists nowhere else. Use --rescue to push it to the gate"
-                    + " first, or --force to discard it.");
-            err.flush();
-            return 65;
-        }
-        if (work != null && rescue && !running) {
-            // Rescue pushes from inside the container to the gate, and neither is up.
-            err.println("sokar: " + container + " is stopped, so its work cannot be pushed."
-                    + " Resume it with 'sokar task resume " + container + "' first.");
-            err.flush();
-            return 70;
-        }
-        if (work != null && rescue && !rescueWork(container, out, err)) {
-            err.println("sokar: nothing was removed, because the work could not be rescued");
-            err.flush();
-            return 70;
-        }
-
-        // Counted first: stopping the container fires the poststop hook, which reaps the helpers
-        // and deletes their pid files, leaving nothing to count afterwards.
-        final java.util.List<ProcessHandle> helpers = TaskLifecycle.running(state);
-
-        // The container may be running, stopped already, or gone. All three are fine, and a task
-        // that has already gone is not an error: an operator stopping something twice wants it
-        // stopped, not a complaint.
-        if (purge) {
-            context.podman().remove(container);
-        } else {
-            context.podman().stop(container);
-            // Written on the way down, while the answer is still knowable. Whoever removes this
-            // task later cannot ask the container itself.
-            if (running) {
-                UnhandedWork.note(state, work);
+        switch (result.outcome()) {
+            case NOT_A_TASK -> {
+                // Refused rather than guessed at: this command stops processes and removes a
+                // container, and a name Sokar did not create belongs to somebody else.
+                err.println("sokar: '" + container + "' is not a task Sokar created");
+                err.flush();
+                return 64;
+            }
+            case NOTHING_KNOWS -> {
+                err.println("sokar: refusing to remove " + container + ": it is stopped and"
+                        + " nothing recorded what it holds");
+                err.println("       resume it with 'sokar task resume " + container + "' to see,"
+                        + " or --force to discard it unseen.");
+                err.flush();
+                return 65;
+            }
+            case HOLDS_WORK -> {
+                err.println("sokar: refusing to remove " + container + ": it holds "
+                        + result.work());
+                err.println("       it exists nowhere else. Use --rescue to push it to the gate"
+                        + " first, or --force to discard it.");
+                err.flush();
+                return 65;
+            }
+            case RESCUE_NEEDS_IT_RUNNING -> {
+                err.println("sokar: " + container + " is stopped, so its work cannot be pushed."
+                        + " Resume it with 'sokar task resume " + container + "' first.");
+                err.flush();
+                return 70;
+            }
+            case RESCUE_FAILED -> {
+                // The reason first: a task with no gate ref, one that pushes to its upstream and
+                // a push that did not arrive need three different things from the operator.
+                if (result.detail() != null) {
+                    err.println("sokar: " + result.detail());
+                }
+                err.println("sokar: nothing was removed, because the work could not be rescued");
+                err.flush();
+                return 70;
+            }
+            case NOTHING_TO_STOP -> {
+                out.println("No task " + container + "; nothing to stop.");
+                out.flush();
+                return 0;
+            }
+            default -> {
+                // Stopped, which is everything below.
             }
         }
-        TaskLifecycle.stopHelpers(state);
 
-        if (!known) {
-            out.println("No task " + container + "; nothing to stop.");
-            out.flush();
-            return 0;
+        if (result.rescuedRef() != null) {
+            out.println("rescued   " + result.rescuedRef());
+            out.println("          review it with 'sokar gate pending'");
         }
-
-        // Verified rather than assumed: a helper that ignored the signal is the case worth
-        // reporting, because it still holds its socket and the next run trips over it. Waited for
-        // first - termination is asynchronous, so checking straight away reports live processes
-        // that are already on their way out.
-        for (final ProcessHandle helper : helpers) {
-            try {
-                helper.onExit().get(2, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (java.util.concurrent.TimeoutException | java.util.concurrent.ExecutionException ex) {
-                // Still running, which the check below reports.
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-            }
+        out.println("stopped   " + container + (result.removed() ? " and removed" : ""));
+        out.println("helpers   " + (result.helpers() - result.surviving().size())
+                + " of " + result.helpers() + " stopped");
+        for (final String alive : result.surviving()) {
+            out.println("          still running: " + alive);
         }
-        final java.util.List<ProcessHandle> surviving =
-                helpers.stream().filter(ProcessHandle::isAlive).toList();
-
-        out.println("stopped   " + container + (purge ? " and removed" : ""));
-        out.println("helpers   " + (helpers.size() - surviving.size())
-                + " of " + helpers.size() + " stopped");
-        for (final ProcessHandle alive : surviving) {
-            out.println("          still running: " + alive.pid() + " "
-                    + alive.info().command().orElse("?"));
-        }
-
-        if (purge) {
-            out.println("removed   " + state);
-            deleteTree(state);
-        } else if (Files.isDirectory(state)) {
+        if (result.removed()) {
+            out.println("removed   " + context.paths().containerState(container));
+        } else if (result.state() != null) {
             out.println("resume    sokar task resume " + container);
-            out.println("logs      " + state);
+            out.println("logs      " + result.state());
         }
         out.flush();
-        return surviving.isEmpty() ? 0 : 70;
-    }
-
-    /**
-     * Describes what the agent has done and not handed back, or {@code null} when there is none.
-     * <p>
-     * Only answerable while the container runs, which is why it is asked before anything is
-     * stopped. A task with no workspace, or one already stopped, simply reports nothing rather
-     * than guessing.
-     *
-     * @param container Container name.
-     * @return A phrase naming what would be lost, or {@code null}.
-     */
-    private String unhandedWork(String container) {
-
-        final org.fuin.sokar.core.process.CommandResult result =
-                context.podman().ask(container, java.util.Map.of(), java.util.List.of("sh", "-c",
-                        "cd " + TaskWorkspace.MOUNT + " 2>/dev/null || exit 0;"
-                        + " printf '%s %s' \"$(git status --porcelain 2>/dev/null | wc -l)\""
-                        + " \"$(git log --oneline --branches --not --remotes 2>/dev/null"
-                        + " | wc -l)\""));
-        if (!result.successful()) {
-            return null;
-        }
-        return UnhandedWork.phrase(result.trimmedOutput());
-    }
-
-    /**
-     * Pushes what the agent never handed back, under a ref of its own.
-     * <p>
-     * Rescued work is not work an agent offered up, so it lands beside the reviewed ref rather
-     * than in it, and a reviewer can tell the two apart. Only a gated task can be rescued: a task
-     * that pushes straight to a real upstream has no place to put unreviewed work.
-     *
-     * @param container Container name.
-     * @param out Where progress is reported.
-     * @param err Where failures are reported.
-     * @return {@code true} if the work is now on the gate.
-     */
-    private boolean rescueWork(String container, PrintWriter out, PrintWriter err) {
-
-        final org.fuin.sokar.core.process.CommandResult reference = context.podman().ask(container,
-                java.util.Map.of(),
-                java.util.List.of("sh", "-c", "printf '%s' \"$SOKAR_TASK_REF\""));
-        if (!reference.successful()) {
-            err.println("sokar: the task has no gate ref, so there is nowhere to rescue it to");
-            return false;
-        }
-        final String taskRef = reference.trimmedOutput();
-        if (!taskRef.startsWith("refs/sokar/incoming/")) {
-            err.println("sokar: this task pushes straight to its upstream, so unreviewed work"
-                    + " cannot be rescued without publishing it");
-            return false;
-        }
-
-        final String rescueRef = taskRef + "-rescued";
-        final org.fuin.sokar.core.process.CommandResult pushed = context.podman().ask(container,
-                java.util.Map.of("SOKAR_TASK_REF", rescueRef), TaskWorkspace.pushCommand());
-        // The output is checked as well as the exit code: this answer decides whether a container
-        // holding the only copy of something is removed, so "it did not fail" is not enough.
-        if (!pushed.successful() || pushed.trimmedOutput().contains("nothing to push")) {
-            err.println("sokar: could not push the work: " + (pushed.trimmedOutput().isEmpty()
-                    ? pushed.standardError().strip() : pushed.trimmedOutput()));
-            return false;
-        }
-        out.println("rescued   " + rescueRef);
-        out.println("          review it with 'sokar gate pending'");
-        return true;
-    }
-
-    private void deleteTree(Path directory) {
-        try (java.util.stream.Stream<Path> paths = Files.walk(directory)) {
-            paths.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (java.io.IOException ex) {
-                    // Best effort: what is left is a directory the runtime clears at logout.
-                }
-            });
-        } catch (java.io.IOException ex) {
-            // Same.
-        }
+        return result.clean() ? 0 : 70;
     }
 }

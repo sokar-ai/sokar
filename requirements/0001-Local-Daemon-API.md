@@ -42,15 +42,14 @@ as the calls: a client that polls will lag a prompt that expires.
 
 ## Still to build
 
-- `Stop` and `Resume`, which is what [0009](0009-Task-Lifecycle-Control.md) waits on. `List` is
-  a pure read; both of those change the machine, and their logic still lives inside the picocli
-  command classes rather than beside `TaskInventory` where both callers could reach it.
+- ~~`Stop` and `Resume`~~ - built, and [0009](0009-Task-Lifecycle-Control.md) is done with them.
+  Their logic moved out of the picocli command classes into `TaskControl`, which both the CLI and
+  the daemon call; the commands now render what it returns and decide nothing. Measured over the
+  socket against a real container, refusals included.
 - The streaming calls - task state, clearance prompts, log tails. The server supports `more`
   replies already and the agent contract uses them, so this is work rather than a question.
-- **Killing the daemon while a task runs is not yet demonstrated.** It is structurally true - the
-  daemon starts nothing and owns nothing, tasks belong to the container runtime and their helpers
-  to themselves - but the check that would prove it killed the wrong process, so it is claimed by
-  argument and not by measurement.
+- ~~Killing the daemon while a task runs is not demonstrated.~~ - demonstrated: `SIGKILL` to
+  `sokard` left the task up with all four of its helpers, still listed by the CLI.
 
 ## To be checked
 

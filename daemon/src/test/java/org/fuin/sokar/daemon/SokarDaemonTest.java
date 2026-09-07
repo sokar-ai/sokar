@@ -84,6 +84,76 @@ class SokarDaemonTest {
     }
 
     @Test
+    void stopsATaskOverTheSocket(@TempDir Path dir) throws Exception {
+
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("git status --porcelain", "0 0");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Stop",
+                        Map.of("task", "sokar-uc-shell-1"));
+
+                assertThat(reply).containsEntry("outcome", "STOPPED")
+                        .containsEntry("removed", false);
+                assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman stop"));
+            }
+        });
+    }
+
+    @Test
+    void refusesOverTheSocketExactlyAsTheCliDoes(@TempDir Path dir) throws Exception {
+
+        // The reason this shares TaskControl with the CLI rather than reimplementing it: a
+        // refusal that exists in one caller and not the other is a task removed, over this
+        // socket, with work that existed nowhere else.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("git status --porcelain", "3 2");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Stop",
+                        Map.of("task", "sokar-uc-shell-1", "purge", true));
+
+                assertThat(reply).containsEntry("outcome", "HOLDS_WORK")
+                        .containsEntry("work", "2 commits and 3 changed files");
+                assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
+            }
+        });
+    }
+
+    @Test
+    void resumingSomethingAlreadyUpIsAnswered(@TempDir Path dir) throws Exception {
+
+        runner.answering("container inspect", "4711");
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Resume",
+                        Map.of("task", "sokar-uc-shell-1"));
+
+                assertThat(reply).containsEntry("outcome", "ALREADY_RUNNING");
+                assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman start"));
+            }
+        });
+    }
+
+    @Test
+    void aCallWithNoTaskNameIsRefusedRatherThanGuessedAt(@TempDir Path dir) throws Exception {
+
+        // A client is not this process: nothing it sends can be assumed to be there.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThat(client.call(SokarDaemon.INTERFACE + ".Stop", Map.of()))
+                        .containsEntry("outcome", "NOT_A_TASK");
+                assertThat(client.call(SokarDaemon.INTERFACE + ".Resume", Map.of()))
+                        .containsEntry("outcome", "NOT_A_TASK");
+            }
+        });
+    }
+
+    @Test
     void theSocketIsOwnerOnly(@TempDir Path dir) throws Exception {
 
         // The whole access-control story: no listener on any interface, and the filesystem
