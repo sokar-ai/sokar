@@ -138,7 +138,7 @@ make a task depend on the vendor's own tool being logged in.
   does exactly that for a different exchange: its start-up check contacts the
   provider directly, ignoring the endpoint it was given.
 - Whether an agent can be told its credential does not expire, and whether that is
-  honoured or merely recorded.
+  honored or merely recorded.
 - Whether an agent that accepts a credential **by reference to an environment
   variable** sidesteps this entirely. If the stored value is a pointer rather than a
   token, there may be nothing for the agent to consider expired.

@@ -5,7 +5,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Everything about an agent that is data rather than behaviour.
+ * Everything about an agent that is data rather than behavior.
  * <p>
  * Read from the {@code agent.yaml} inside the agent's own module. What cannot be expressed here is
  * expressed by overriding a method on {@link Agent}, in that same module - never by a branch

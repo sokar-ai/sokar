@@ -39,5 +39,5 @@ Ordered by what to do next, not by number: the number is only the file's identit
 ## Notes
 
 An agent and a provider are different things and the distinction is load-bearing: an agent is
-code, because it has behaviour that cannot be expressed as data; a provider is an upstream, a
+code, because it has behavior that cannot be expressed as data; a provider is an upstream, a
 header, a prefix and a path, and is therefore [data](../providers/README.md).

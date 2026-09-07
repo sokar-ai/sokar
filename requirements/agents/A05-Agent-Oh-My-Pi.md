@@ -51,7 +51,7 @@ scratch, because the packaging work is already done in a shape it shares.
 
 - Whether its provider list really includes a forge subscription that can be brokered, or
   only ones that route through the vendor's own service. Still open, and now the only reason
-  this agent was worth building: the 60+ providers are a bundled catalogue, and the two that
+  this agent was worth building: the 60+ providers are a bundled catalog, and the two that
   matter - Copilot and Cursor - authenticate into omp's own store rather than through anything
   Sokar can stand in front of.
 - **Answered: `registerProvider` survives the fork and does not do the job.** See above. The

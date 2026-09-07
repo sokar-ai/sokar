@@ -19,7 +19,7 @@ import picocli.CommandLine.Spec;
  * Runs the container's own DNS resolver.
  * <p>
  * Without it, the agent uses whatever resolver the host uses and the firewall sees only addresses,
- * so a name the operator would have recognised arrives at the Allow prompt as an IP nobody can
+ * so a name the operator would have recognized arrives at the Allow prompt as an IP nobody can
  * place. With it, names resolve only where the project allows them.
  */
 @Command(name = "dns",

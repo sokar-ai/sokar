@@ -122,7 +122,7 @@ class VarlinkTest {
         // client would stop watching and go on showing what it last saw - which for a fleet view,
         // or a clearance prompt that expires, is worse than an error.
         //
-        // Written against a bare socket rather than VarlinkServer, because what is being modelled
+        // Written against a bare socket rather than VarlinkServer, because what is being modeled
         // is a service that dies: one reply, then the connection ends mid-stream. Closing the
         // server object would not do it - the accepted connection stays open and the client waits
         // for ever, which is how the first version of this test hung.

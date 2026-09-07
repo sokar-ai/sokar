@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Written by hand and symmetric, so that both halves of the conversion sit on one screen: an
  * asymmetry between them is a field that Sokar reads as absent while the agent believes it sent
- * it, which produces behaviour nobody declared.
+ * it, which produces behavior nobody declared.
  */
 public final class AgentDefinitionJson {
 

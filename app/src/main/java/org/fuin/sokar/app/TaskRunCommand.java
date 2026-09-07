@@ -138,7 +138,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         final PrintWriter err = spec.commandLine().getErr();
 
         // Starting the task is the domain's job; what this class adds is the terminal. The
-        // daemon builds the same request and gets the same behaviour without running a CLI.
+        // daemon builds the same request and gets the same behavior without running a CLI.
         final TaskLaunch launch = new TaskLaunch(context, new TaskLaunch.Request(task, projectFile,
                 agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
                 clearance, keep, mode(), prompt));

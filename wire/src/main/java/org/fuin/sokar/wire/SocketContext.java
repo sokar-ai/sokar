@@ -56,7 +56,7 @@ public final class SocketContext implements Closeable {
      * unlabelled and the container's connection refused, with everything else looking correct.
      * Opening it here is what keeps that mistake from being possible at a call site.
      *
-     * @return Channel, labelled where the policy allows it.
+     * @return Channel, labeled where the policy allows it.
      * @throws IOException If the channel cannot be opened.
      */
     public static ServerSocketChannel openUnixSocket() throws IOException {
@@ -117,7 +117,7 @@ public final class SocketContext implements Closeable {
     }
 
     /**
-     * Returns the context a socket is labelled with.
+     * Returns the context a socket is labeled with.
      *
      * @return Full SELinux context.
      * @throws IOException If the thread's own context cannot be read.
@@ -126,7 +126,7 @@ public final class SocketContext implements Closeable {
         final String own = Files.readString(CURRENT).trim().replace("\0", "");
         final int user = own.indexOf(':');
         if (user < 1) {
-            throw new IOException("Unrecognised process context: " + own);
+            throw new IOException("Unrecognized process context: " + own);
         }
         // The SELinux user is carried over; only the type is Sokar's.
         return own.substring(0, user) + ":object_r:" + TYPE + ":s0";

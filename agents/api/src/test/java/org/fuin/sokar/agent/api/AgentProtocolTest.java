@@ -71,7 +71,7 @@ class AgentProtocolTest {
                     AgentDefinitionJson.write(sent));
 
             // Every field, not just the ones a caller happens to read first: a field lost in
-            // translation is behaviour nobody declared.
+            // translation is behavior nobody declared.
             assertThat(received).isEqualTo(sent);
         }
     }

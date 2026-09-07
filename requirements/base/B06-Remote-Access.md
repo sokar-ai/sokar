@@ -88,4 +88,4 @@ reaching a person whose client is closed.
 - **Which of the two shapes an interface should use.** Both exist and both work; the trade is
   measured above, and choosing is the interface's decision rather than this one's. What is not
   measured is either shape over a real ssh hop from a second machine - this machine runs no sshd -
-  so the reconnection behaviour below is still untested against a link that actually drops.
+  so the reconnection behavior below is still untested against a link that actually drops.

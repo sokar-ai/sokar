@@ -100,7 +100,7 @@ public class ContainerSpec {
      * <strong>Only ever a phantom token, never a real credential.</strong> What is set here is
      * readable from the container's own metadata for as long as it exists, which a real credential
      * must never be. The value no longer reaches podman's argument list - see
-     * {@link #toArguments()} - but that is the weaker of the two reasons, not a licence.
+     * {@link #toArguments()} - but that is the weaker of the two reasons, not a license.
      *
      * @param name Variable name.
      * @param value Variable value.
@@ -226,7 +226,7 @@ public class ContainerSpec {
 
         resolvers.forEach(address -> {
             // Without this the agent uses the host's resolver, the firewall sees only addresses,
-            // and a name the operator would have recognised reaches the prompt as a bare IP.
+            // and a name the operator would have recognized reaches the prompt as a bare IP.
             arguments.add("--dns");
             arguments.add(address);
         });

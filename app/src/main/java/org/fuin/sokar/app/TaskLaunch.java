@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Lifted out of {@code TaskRunCommand} after the six wirings, so that starting a task is something
  * the domain does rather than something a CLI class does. The CLI and the interface have to reach
- * identical behaviour through the same calls, and this was the last operation where they did not:
+ * identical behavior through the same calls, and this was the last operation where they did not:
  * the daemon had to spawn the CLI and read a line of its output, because running the command was
  * the only way to start a task.
  * <p>

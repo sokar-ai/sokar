@@ -3,7 +3,7 @@
 Deletes test servers that a run left behind.
 
 This exists because the cleanup in `provisioned()` cannot cover every case: a process killed
-between two statements, a runner cancelled mid-job, a laptop closed. At 0.111 EUR/hour a server
+between two statements, a runner canceled mid-job, a laptop closed. At 0.111 EUR/hour a server
 nobody notices costs 81 EUR a month, which is more than a year of intended use.
 
 Dry by default. Pass --now to actually delete.

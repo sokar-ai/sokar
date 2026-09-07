@@ -14,7 +14,7 @@ class ClearanceRequestTest {
 
         // Captured off the notification bus: the summary read
         // "Sokar: sokar-notify-probe-shell-1209592 blocked", which carries a process id and
-        // identifies nothing an operator with several tasks open would recognise.
+        // identifies nothing an operator with several tasks open would recognize.
         assertThat(new ClearanceRequest("myproject", "shell", "1.1.1.1:443", "1.1.1.1", "tcp")
                 .summary()).isEqualTo("Sokar: myproject/shell blocked");
     }

@@ -6,7 +6,7 @@
 #
 # That is on purpose. A vendor CLI makes the suite depend on somebody else's release, a 320 MB
 # download and whatever that version happens to do; this one does exactly what the checks need
-# and nothing else, so a check that used to observe a vendor's behaviour can assert ours.
+# and nothing else, so a check that used to observe a vendor's behavior can assert ours.
 
 name: stub
 label: Stub Agent

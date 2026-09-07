@@ -40,7 +40,7 @@ class DnsmasqProbeTest {
     @Test
     void answersNoWhenThereIsNothingToRead() {
 
-        // A missing dnsmasq, or output in a shape this does not recognise. Assuming support
+        // A missing dnsmasq, or output in a shape this does not recognize. Assuming support
         // would turn a loud "your dnsmasq is too old" into a silent network fault.
         assertThat(DnsmasqProbe.supportsNftSet(null)).isFalse();
         assertThat(DnsmasqProbe.supportsNftSet("")).isFalse();

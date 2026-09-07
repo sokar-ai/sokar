@@ -7,7 +7,7 @@ structural here rather than a step at the end - `provisioned()` is a context man
 in a `finally`, and `sweep()` exists because a process killed between two statements cannot clean
 up after itself.
 
-Everything is labelled `sokar=ci` so the sweep can find it without a list of names to keep in
+Everything is labeled `sokar=ci` so the sweep can find it without a list of names to keep in
 step with reality.
 """
 

@@ -79,7 +79,7 @@ public class VaultFile {
      * <p>
      * A {@link FileLock} is owned by the JVM, not by the thread that took it, so two threads in
      * one process asking for the same region get an {@code OverlappingFileLockException} rather
-     * than being serialised. This lock covers threads; the file lock covers processes. Both are
+     * than being serialized. This lock covers threads; the file lock covers processes. Both are
      * needed, and neither replaces the other.
      */
     private static final Map<Path, java.util.concurrent.locks.ReentrantLock> THREAD_LOCKS =
@@ -238,7 +238,7 @@ public class VaultFile {
      * checked</strong> - deriving the key is what produces the ability to check it, so there is no
      * ordering that avoids this. Anyone who can write the file can therefore choose the cost, and
      * a single flipped byte turns three iterations into sixteen million: the process hangs, or
-     * allocates until it is killed. Bounding the values is the only defence, and it has to happen
+     * allocates until it is killed. Bounding the values is the only defense, and it has to happen
      * here rather than after decryption.
      *
      * @param iterations Iteration count from the file.

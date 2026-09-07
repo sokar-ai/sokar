@@ -141,7 +141,7 @@ public final class ExampleAgent extends YamlAgent {
 }
 ```
 
-That is the whole class, unless the agent needs behaviour the definition cannot
+That is the whole class, unless the agent needs behavior the definition cannot
 express — see *When YAML is not enough*.
 
 ### 4. `agents/<name>/src/main/resources/META-INF/services/org.fuin.sokar.agent.api.Agent`

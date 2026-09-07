@@ -71,7 +71,7 @@ final class ClearanceWiring {
                 SokarBinary.path(),
                 "shield", "watch",
                 // What the prompt shows. A container name carries a pid and identifies nothing
-                // an operator recognises; project and task are what they chose.
+                // an operator recognizes; project and task are what they chose.
                 "--project", project.name(),
                 "--task", task,
                 "--pid", String.valueOf(pid.get()),

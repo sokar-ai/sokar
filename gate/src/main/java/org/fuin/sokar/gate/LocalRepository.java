@@ -25,7 +25,7 @@ public final class LocalRepository {
      */
     @Nullable
     public static Path topLevel(CommandRunner runner, Path directory) {
-        // git answers, so a worktree or submodule - where .git is a file - is recognised too.
+        // git answers, so a worktree or submodule - where .git is a file - is recognized too.
         final CommandResult result = runner.run(Command.of(List.of(
                 "git", "-C", directory.toString(), "rev-parse", "--show-toplevel")));
         if (!result.successful()) {

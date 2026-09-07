@@ -72,7 +72,7 @@ thing twice.
 
 **Adding a value is not a breaking change and adding a field is not either** — that is stated at
 the top of the IDL, and it is why this is worth asking for now rather than after several clients
-exist. An unrecognised activity value renders rather than throwing, by the same rule that already
+exist. An unrecognized activity value renders rather than throwing, by the same rule that already
 covers `Outcome`.
 
 ## To be checked

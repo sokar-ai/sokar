@@ -16,7 +16,7 @@ on:
 jobs:
 
   smoke:
-    name: Reachable, authorised, writable
+    name: Reachable, authorized, writable
     runs-on: ubuntu-latest
 
     env:

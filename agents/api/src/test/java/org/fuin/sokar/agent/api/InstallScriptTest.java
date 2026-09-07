@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
  * That the generated script actually refuses a tampered file was verified against a real container
  * and a real HTTP server: with the correct digest the tool installs and runs; with a wrong one
  * {@code sha256sum} reports {@code FAILED}, the {@code install} line never executes, and the layer
- * exits 1. What is pinned here is the script that produces that behaviour.
+ * exits 1. What is pinned here is the script that produces that behavior.
  */
 class InstallScriptTest {
 

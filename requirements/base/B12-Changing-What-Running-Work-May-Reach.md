@@ -136,7 +136,7 @@ something that will be refused.
 
 The name is recorded as approved for this run and the resolver is extended; the first connection
 is still dropped, the watcher sees it, looks the address up to the name in the resolver's log -
-which it already does today, to show an operator something they can recognise - finds it approved
+which it already does today, to show an operator something they can recognize - finds it approved
 and allows it without asking anybody. From then on the host is open.
 
 The cost is one dropped packet and a retry, which is exactly what every clearance decision costs

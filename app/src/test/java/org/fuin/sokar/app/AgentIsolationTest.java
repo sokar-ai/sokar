@@ -208,7 +208,7 @@ class AgentIsolationTest {
         try (Stream<Path> definitions = Files.walk(agents)) {
             return definitions
                     // Not target/: a built module holds a copy of its own definition, and counting
-                    // it would report every offence twice.
+                    // it would report every offense twice.
                     .filter(path -> !path.toString().contains("/target/"))
                     .filter(path -> path.getParent() != null
                             && path.getParent().getFileName().toString().equals("agent"))

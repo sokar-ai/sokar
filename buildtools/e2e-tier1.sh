@@ -596,7 +596,7 @@ if podman exec "$CONTAINER" sh -c 'test -d /workspace/.git' 2>/dev/null; then
     fi
 
     # The endpoint the agent pushes to must not be an endpoint anything else can reach. The
-    # token was the only defence while the gate bound every interface; the bind is the second.
+    # token was the only defense while the gate bound every interface; the bind is the second.
     #
     # Where podman cannot map the host's loopback into a container - podman 4.9.3 on Ubuntu
     # 24.04 LTS, which is what CI runs, has no pasta to ask - the gate binds every interface
@@ -608,7 +608,7 @@ if podman exec "$CONTAINER" sh -c 'test -d /workspace/.git' 2>/dev/null; then
         pass "the gate says it could not be narrowed on this machine, and why"
         grep -o "sokar: the git gate is bound to every interface.*" "$START_LOG" | head -1 \
             | cut -c1-160 | while read -r line; do info "  $line"; done
-        info "podman $(podman --version | awk '{print $3}') here; the per-task token is the defence"
+        info "podman $(podman --version | awk '{print $3}') here; the per-task token is the defense"
     elif [ -n "$GATE_PORT" ]; then
         # Java binds a dual-stack socket, so loopback reads as [::ffff:127.0.0.1] here.
         if ss -ltnH "sport = :$GATE_PORT" \

@@ -60,7 +60,7 @@ class GitGateTest {
 
     private GitGate gate(GateMode mode, String upstream) {
         final GitGate gate = new GitGate(runner, mirror, mode, upstream);
-        gate.initialise();
+        gate.initialize();
         return gate;
     }
 
@@ -398,7 +398,7 @@ class GitGateTest {
 
         final GitGate gate = new GitGate(runner, mirror, GateMode.GATEKEEPING,
                 upstream.toString(), seed.toString());
-        gate.initialise();
+        gate.initialize();
 
         assertThat(gate.resolves("refs/heads/main")).isTrue();
         assertThat(runner.runOrFail(Command.of("git", "--git-dir", mirror.toString(),
@@ -413,7 +413,7 @@ class GitGateTest {
         // The negative case: a mirror created empty has no origin, and inventing one would make
         // the report worse than absent.
         final GitGate gate = new GitGate(runner, mirror, GateMode.GATEKEEPING, null);
-        gate.initialise();
+        gate.initialize();
 
         assertThat(gate.seededFrom()).isNull();
     }
@@ -425,7 +425,7 @@ class GitGateTest {
         final Path upstream = root.resolve("upstream.git");
         git(root, "init", "--bare", "--initial-branch=main", upstream.toString());
 
-        new GitGate(runner, mirror, GateMode.GATEKEEPING, upstream.toString()).initialise();
+        new GitGate(runner, mirror, GateMode.GATEKEEPING, upstream.toString()).initialize();
 
         assertThat(runner.runOrFail(Command.of("git", "--git-dir", mirror.toString(),
                 "config", "--get", "remote.origin.url")).standardOutput().strip())

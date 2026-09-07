@@ -94,7 +94,7 @@ public class GitGate {
      *
      * @throws GateException If the mirror cannot be created.
      */
-    public void initialise() {
+    public void initialize() {
         if (Files.isDirectory(mirror.resolve("objects"))) {
             return;
         }

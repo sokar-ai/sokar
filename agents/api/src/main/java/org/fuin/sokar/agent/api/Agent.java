@@ -9,7 +9,7 @@ import java.util.List;
  * Every method but {@link #definition()} has a default drawn from that definition, which is what
  * makes a well-behaved agent a YAML file and six lines of Java.
  * <p>
- * <strong>An agent that needs behaviour the definition cannot express overrides a method
+ * <strong>An agent that needs behavior the definition cannot express overrides a method
  * here.</strong> It does not add a branch elsewhere: a branch outside this package would be
  * invisible to the next agent, which would fall into its {@code else} and be quietly wrong.
  */

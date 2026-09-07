@@ -43,7 +43,7 @@ costs, and which to build next. It belongs to two sets, so it lives here rather 
 
 ## Why these four
 
-An **agent** is code: it has behaviour that cannot be expressed as data — a stream formatter,
+An **agent** is code: it has behavior that cannot be expressed as data — a stream formatter,
 first-run setup, one CLI's quirks. A **provider** is data: an upstream, a header, a prefix and a
 path, found by scanning a directory. Adding a provider is a file; adding an agent is a release.
 That difference is why they are separate sets rather than one list of integrations.

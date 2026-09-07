@@ -57,6 +57,6 @@ Those are two separate pieces of work that share a name.
   credential still has to be obtained on the host. That question belongs to
   [P04](../providers/P04-Provider-GitHub-Copilot.md) and is not answered by BYOK.
 - Which model names the subscription serves, since BYOK requires an explicit model and
-  the built-in catalogue is what a subscription run would use.
+  the built-in catalog is what a subscription run would use.
 - Whether `telemetry.individual.githubcopilot.com` can be refused without breaking it, the
   same question the first agent's telemetry intake raised.

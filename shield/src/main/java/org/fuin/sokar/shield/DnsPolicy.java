@@ -11,7 +11,7 @@ import org.fuin.sokar.core.project.SecurityClass;
  * <p>
  * A resolver of Sokar's own runs inside the container's network namespace, and the container's
  * {@code resolv.conf} points at it. Without one, the agent talks to whatever resolver the host
- * uses and the firewall sees only addresses - so a name an operator would have recognised arrives
+ * uses and the firewall sees only addresses - so a name an operator would have recognized arrives
  * as an IP nobody can place, and the Allow prompt becomes a guess.
  * <p>
  * <strong>The default answer is NXDOMAIN.</strong> Names resolve only if the project allows them,
@@ -33,7 +33,7 @@ public class DnsPolicy {
      * <strong>Separate because it is the only part dnsmasq re-reads.</strong> A {@code
      * servers-file} is re-read on {@code SIGHUP}; the configuration file is not, and neither is
      * anything else. Measured against dnsmasq 2.x: a name that answered NXDOMAIN answered with
-     * real addresses after a line was appended here and the process signalled - same process, no
+     * real addresses after a line was appended here and the process signaled - same process, no
      * restart, no window in which the container resolves nothing.
      * <p>
      * That is what lets a running task be widened by name. It costs the separation: a servers-file
@@ -196,14 +196,14 @@ public class DnsPolicy {
      * <p>
      * Written beside the configuration and re-read on {@code SIGHUP}, which is the whole reason it
      * is a file of its own. A name added here while a task runs resolves as soon as the resolver
-     * is signalled; nothing is restarted and nothing else in the configuration is touched.
+     * is signaled; nothing is restarted and nothing else in the configuration is touched.
      *
      * @return The file's content, empty of rules when nothing may resolve.
      */
     public String renderServers() {
         final List<String> lines = new ArrayList<>();
         lines.add("# Written by sokar. One line per name this task may resolve.");
-        lines.add("# Re-read when dnsmasq is signalled with SIGHUP, so a running task can be");
+        lines.add("# Re-read when dnsmasq is signaled with SIGHUP, so a running task can be");
         lines.add("# widened without its resolver being restarted.");
         if (securityClass == SecurityClass.OFFLINE || upstreamResolvers.isEmpty()) {
             lines.add("# An offline task resolves nothing at all.");

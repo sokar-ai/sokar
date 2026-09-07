@@ -356,7 +356,7 @@ public final class SokarDaemon {
         // down rather than glossed: 'task run' is seven hundred lines that build an image, mint a
         // token, install hooks, start four helpers in a fixed order and can hand over a terminal.
         // Extracting that the way stop and resume were extracted is the right end state; doing it
-        // hastily to a command that is the whole product is not. Spawning it is behaviour parity
+        // hastily to a command that is the whole product is not. Spawning it is behavior parity
         // by construction - it *is* the same code - at the cost of parsing one line of its output
         // for the container name.
         //
@@ -367,7 +367,7 @@ public final class SokarDaemon {
             // Into the domain, not out to a subprocess. Until TaskLaunch existed this spawned
             // 'sokar task run' and read one line of its output for the container name, because
             // running the command was the only way to start a task. Now the CLI and this call
-            // the same object, so neither can grow a behaviour the other lacks - and there is
+            // the same object, so neither can grow a behavior the other lacks - and there is
             // because the name comes back as a value.
             final java.io.StringWriter collected = new java.io.StringWriter();
             final PrintWriter sink = replies.streaming()
@@ -525,7 +525,7 @@ public final class SokarDaemon {
      * operator has. Reading it fails loudly rather than answering about the wrong gate.
      *
      * @param parameters The call's parameters.
-     * @return The gate, initialised.
+     * @return The gate, initialized.
      */
     private static GitGate gate(Map<String, Object> parameters) {
         final String file = text(parameters, "project");
@@ -535,7 +535,7 @@ public final class SokarDaemon {
         final Project project = GateSupport.project(Path.of(file));
         final String upstream = text(parameters, "upstream");
         final GitGate gate = GateSupport.gate(project, upstream.isEmpty() ? null : upstream);
-        gate.initialise();
+        gate.initialize();
         return gate;
     }
 
@@ -784,7 +784,7 @@ public final class SokarDaemon {
                     replies.more(Map.of("line", complete));
                 } catch (java.io.IOException ex) {
                     // The client left mid-build. Measured: throwing here aborted the launch and
-                    // no container was ever created - a task cancelled because whoever asked for
+                    // no container was ever created - a task canceled because whoever asked for
                     // it closed a window. The start is not this connection's to cancel, so this
                     // stops reporting and lets it finish; 'List' shows it afterwards.
                     gone = true;

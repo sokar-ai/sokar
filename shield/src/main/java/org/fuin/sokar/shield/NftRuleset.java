@@ -29,7 +29,7 @@ public class NftRuleset {
     /** NFLOG group the reader listens on. */
     public static final int NFLOG_GROUP = 1;
 
-    /** Log prefix on every dropped packet, used to recognise Sokar's own events. */
+    /** Log prefix on every dropped packet, used to recognize Sokar's own events. */
     public static final String DROP_PREFIX = "sokar-drop";
 
     private final SecurityClass securityClass;

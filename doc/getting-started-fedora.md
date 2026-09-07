@@ -378,7 +378,7 @@ Two things follow from it being a *bare clone*, and both surprise people:
 
 - **Only committed history is copied.** A bare repository has no working tree, so
   uncommitted changes stay on your side. Commit before you run.
-- **Seeding happens once.** `initialise` returns early if the mirror is already
+- **Seeding happens once.** `initialize` returns early if the mirror is already
   there, so later commits on the host do not flow in by themselves, and re-running
   with a different `--upstream` changes nothing. To start over, delete
   `~/.local/share/sokar/mirrors/<project>.git`.

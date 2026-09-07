@@ -25,7 +25,7 @@
 # that 858s was native-image. Running here also means full optimisation rather than -Ob, so a
 # pull request builds the same binary as main.
 #
-# About two cents a push for both servers, and each destroys itself. A run that is cancelled
+# About two cents a push for both servers, and each destroys itself. A run that is canceled
 # cannot, which is what .github/workflows/sweep.yml is for.
 #
 # Tier 2 needs a real provider credential and spends money per run, so it is not here yet.
@@ -45,7 +45,7 @@ on:
   workflow_dispatch:
 
 # One run per branch. Without this every push leaves its predecessor running to completion on a
-# commit nobody cares about any more - and a cancelled run leaks its server, which is why the
+# commit nobody cares about any more - and a canceled run leaks its server, which is why the
 # scheduled sweep exists.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

@@ -15,8 +15,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * Stopping and resuming a task, decided once for every caller.
  * <p>
- * The CLI renders what these return and the daemon serialises it, the way both already share
- * {@link TaskInventory}. The CLI and the interface have to reach identical behaviour through the
+ * The CLI renders what these return and the daemon serializes it, the way both already share
+ * {@link TaskInventory}. The CLI and the interface have to reach identical behavior through the
  * same calls, and these two operations are where a second implementation would hurt most: they
  * refuse things. A refusal that exists in one caller and not the other is a task
  * removed with work in it.

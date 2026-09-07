@@ -38,8 +38,8 @@
 #
 # 3. Unknown values must not be fatal. New reply fields will appear in replies a client did
 #    not expect, and new values will appear in enumerations it does not know - Outcome in
-#    particular will gain entries. A client MUST ignore fields it does not recognise and MUST
-#    render an unrecognised enumeration value rather than failing on it. This is part of the
+#    particular will gain entries. A client MUST ignore fields it does not recognize and MUST
+#    render an unrecognized enumeration value rather than failing on it. This is part of the
 #    contract: adding a value is not treated as a breaking change, so a client that cannot
 #    survive one will break on a routine release.
 #

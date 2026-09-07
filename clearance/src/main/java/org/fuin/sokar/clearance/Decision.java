@@ -44,7 +44,7 @@ public record Decision(Instant at, String project, String task, String key, Stri
      * Returns this decision as the event a subscriber receives.
      * <p>
      * The same field names the prompt event uses, plus {@code verdict}: an interface that showed
-     * the question has to recognise the answer as the same destination, and the daemon rebuilds
+     * the question has to recognize the answer as the same destination, and the daemon rebuilds
      * the key from {@code protocol}, {@code destination} and {@code port}.
      * <p>
      * The task is not among them. One socket is one task, and {@code task} is the field the daemon

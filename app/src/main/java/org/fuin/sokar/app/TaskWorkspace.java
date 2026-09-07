@@ -66,7 +66,7 @@ public class TaskWorkspace {
         this.token = gate == null ? null : TaskToken.mint();
         this.port = gate == null ? 0 : freePort();
         if (gate != null) {
-            gate.initialise();
+            gate.initialize();
         }
     }
 

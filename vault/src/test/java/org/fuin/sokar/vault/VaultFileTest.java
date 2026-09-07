@@ -104,7 +104,7 @@ class VaultFileTest {
         // checked - deriving the key is what makes checking possible. So a single flipped byte in
         // the iteration count turns 3 into 16777219, and the process hangs before it ever gets to
         // notice the file was altered. This is a denial of service against anyone who can write
-        // the file, and bounding the values is the only defence.
+        // the file, and bounding the values is the only defense.
         final Path file = dir.resolve("vault.bin");
         new VaultFile(file).write(ENTRIES, PASSPHRASE);
 

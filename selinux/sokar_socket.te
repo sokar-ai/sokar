@@ -41,7 +41,7 @@ type sokar_socket_t;
 
 allow unconfined_t self:process setsockcreate;
 
-# connectto included: Sokar talks to its own agent binaries over labelled sockets too, and
+# connectto included: Sokar talks to its own agent binaries over labeled sockets too, and
 # without it the operator's own process cannot reach a socket it just created.
 allow unconfined_t sokar_socket_t:unix_stream_socket {
     create bind listen accept

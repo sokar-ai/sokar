@@ -108,7 +108,7 @@ class DnsPolicyTest {
 
         // The whole point of the split: a servers-file is re-read on SIGHUP and the configuration
         // is not, which is what lets a running task be widened by name. Measured against real
-        // dnsmasq: NXDOMAIN before a line was appended here and signalled, real addresses after,
+        // dnsmasq: NXDOMAIN before a line was appended here and signaled, real addresses after,
         // same process.
         final java.nio.file.Path config = dir.resolve("dnsmasq.conf");
         new DnsPolicy(SecurityClass.GUARDED).upstream("8.8.8.8").allow("github.com")

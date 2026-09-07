@@ -15,7 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
  * Tests for {@link SshAgentServer}'s message handling.
  * <p>
  * The wire format is also checked against real OpenSSH in a separate manual run; what these tests
- * pin is the behaviour that must not drift, above all the requests the agent refuses.
+ * pin is the behavior that must not drift, above all the requests the agent refuses.
  */
 class SshAgentServerTest {
 

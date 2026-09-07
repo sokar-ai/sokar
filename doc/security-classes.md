@@ -36,7 +36,7 @@ approve is what forwards it.
 The dashed path is not a hole in the container: it is a person with their own key, fetching the
 agent's branch into their own checkout and pushing it. Nothing stops that, and today it is the
 *convenient* way to look at the work — which is what makes it happen. Two consequences follow, and
-both are open questions rather than settled behaviour:
+both are open questions rather than settled behavior:
 
 - The gate then says something untrue. `approve` pushes **and** deletes the incoming ref, and it is
   the delete that empties the queue; a push made by hand leaves the ref, so `gate pending` shows the

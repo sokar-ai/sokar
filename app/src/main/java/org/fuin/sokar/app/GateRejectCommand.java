@@ -43,7 +43,7 @@ public class GateRejectCommand implements Callable<Integer> {
         try {
             final Project project = GateSupport.project(projectFile);
             final GitGate gate = GateSupport.gate(project, upstream);
-            gate.initialise();
+            gate.initialize();
             gate.reject(name);
             out.println("discarded " + name);
             out.flush();

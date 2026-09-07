@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Reading and changing what a project may reach.
  * <p>
- * The CLI renders this and the daemon serialises it, so the most consequential edit in the product
+ * The CLI renders this and the daemon serializes it, so the most consequential edit in the product
  * is made in one place. Two implementations would differ exactly where it matters - which sets are
  * refused, whether a class forbids the change, what a change is reported to open - and the one
  * that drifted would be the one nobody was watching.
@@ -210,7 +210,7 @@ public final class EgressControl {
             // named one. Refused before anything is written: the file would otherwise name
             // something no task here could resolve, and every run would fail on it rather than
             // this one call. Checked by resolving rather than by a second look-up beside it -
-            // deleting that look-up changed no behaviour, which is how it was found to be
+            // deleting that look-up changed no behavior, which is how it was found to be
             // redundant.
             return Effect.refused(Outcome.NO_SUCH_SET, ex.getMessage());
         }

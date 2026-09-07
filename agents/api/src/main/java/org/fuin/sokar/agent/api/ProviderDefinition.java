@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
  * reaching the same provider described it twice, in their own words, and the descriptions were
  * free to drift.
  * <p>
- * <strong>There is deliberately no behaviour here.</strong> A provider is data, which is why it
+ * <strong>There is deliberately no behavior here.</strong> A provider is data, which is why it
  * ships as a file rather than as a binary the way an agent does.
  *
  * @param name Short name, and the key an operator types.

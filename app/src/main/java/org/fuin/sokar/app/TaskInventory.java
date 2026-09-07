@@ -13,8 +13,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * What tasks exist on this machine, as data rather than as a printed table.
  * <p>
- * The CLI renders this and the daemon serialises it, so that "what tasks are there" is answered in
- * one place. The interface and the CLI have to reach identical behaviour through the same calls;
+ * The CLI renders this and the daemon serializes it, so that "what tasks are there" is answered in
+ * one place. The interface and the CLI have to reach identical behavior through the same calls;
  * two implementations of the same question are how a feature comes to exist in one and not the
  * other, and how they come to disagree about something an operator is reading to decide what to
  * stop.

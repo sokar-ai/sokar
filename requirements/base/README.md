@@ -25,7 +25,7 @@ B11 is built, and B12 is what F17 is still waiting on.
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | yes |
-| B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
+| B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | yes |
 
 ## What was here and is finished
 
@@ -33,7 +33,7 @@ Ten requirements have been met and retired. Their files are gone; what each meas
 [AGENT.md](../../AGENT.md), where it will be read again:
 
 - **The local daemon API.** `sokard` serves the domain over an owner-only varlink socket, and the
-  CLI and the daemon reach it through the same objects, so neither can grow a behaviour the other
+  CLI and the daemon reach it through the same objects, so neither can grow a behavior the other
   lacks. The two questions it left are part of [B06](B06-Remote-Access.md).
 - **Task lifecycle control.** List, stop and resume, in the CLI and over the socket.
 - **The git endpoint.** It bound every interface and sat on the operator's network; it now binds

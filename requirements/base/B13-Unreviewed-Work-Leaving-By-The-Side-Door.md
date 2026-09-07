@@ -134,7 +134,7 @@ The three compose in that order of reliability, and only the last two are worth 
   silently possible.
 - The gate never describes work as waiting for review when it is already upstream, and never
   records it as discarded when it is not.
-- The guard recognises agent work by something the agent actually leaves behind, not by where a
+- The guard recognizes agent work by something the agent actually leaves behind, not by where a
   branch happens to be.
 - A person who means it can still do it. **This is protection against an accident, not against the
   owner of the machine** - anything else would be a lie, since it is their key, their checkout and

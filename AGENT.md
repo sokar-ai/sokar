@@ -55,8 +55,12 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
   `.sokar.md` or here, where they can be found without reading the code.
 - **A comment in `pom.xml` is one line too**, same rule and same reason. Build
   files attract essays about traps; name the trap and stop.
-- **British-leaning spelling** in prose and comments: behaviour, recognise,
-  serialise.
+- **US spelling** in prose and comments: behavior, recognize, serialize, license,
+  defense. Changed from British-leaning on 2026-09-07 and swept through the
+  repository in one commit, identifiers included - `GitGate.initialize()` was
+  `initialise()`. Two words were left alone because they are not errors in US
+  usage and changing 65 of them would have been diff noise: *afterwards* and
+  *towards*.
 - Prefer a small named method over a comment explaining a block.
 
 ## Tests
@@ -69,7 +73,7 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
   it break, then keep the negative case if it can be expressed as a test. This is
   how the ArchUnit rule, the FFM metadata check, the domain-coverage check, the
   git-gate firewall rule and the package freshness rule were all validated.
-- **Test observable behaviour**, not internals: the generated ruleset, the
+- **Test observable behavior**, not internals: the generated ruleset, the
   packaged file list, what a container can actually reach.
 - A test that needs podman belongs in `buildtools/e2e-tier1.sh`, not in surefire.
   Unit tests must run without a container runtime.
@@ -255,7 +259,7 @@ See [build.md](doc/build.md). Three things that will bite:
   for it; note that `no-nftset` contains `nftset`, so a substring check reports
   the opposite of the truth.
 - **SELinux silently stops `nft` from reading a file, with nothing in the audit
-  log.** `/usr/sbin/nft` is labelled `iptables_exec_t`, so running it transitions
+  log.** `/usr/sbin/nft` is labeled `iptables_exec_t`, so running it transitions
   into a confined domain that cannot open the operator's runtime files; the denial
   is `dontaudit`ed, so `ausearch` reports no matches and only `setenforce 0` tells
   you. Measured on Fedora 44: `nft --file <path>` fails with "Permission denied"
@@ -263,12 +267,12 @@ See [build.md](doc/build.md). Three things that will bite:
   ruleset on **stdin** instead. Ubuntu has no such transition, so this cannot be
   reproduced on the development machine.
 - **SELinux refuses a container's connection to a host process, whatever the socket
-  is labelled.** podman relabels a mounted socket `container_file_t` with the
+  is labeled.** podman relabels a mounted socket `container_file_t` with the
   container's MCS categories, and it is still denied: `connectto` is checked against
   the *server process* context, and any host program a person starts is
   `unconfined_t`. Measured on Fedora 44 - the request never reaches the proxy and
   `vault.log` stays empty, so it reads as an authentication failure. The socket is
-  labelled at creation instead, by writing the context to
+  labeled at creation instead, by writing the context to
   `/proc/thread-self/attr/sockcreate` **before the socket is opened** - the kernel
   assigns the label at `socket()`, not at `bind()`, so wrapping the bind leaves it
   unlabelled while everything else looks right. `SocketContext.openUnixSocket()`
@@ -413,7 +417,7 @@ See [build.md](doc/build.md). Three things that will bite:
   already answered is a working note rather than product documentation: `.AGENT.md`
   in the repository root, gitignored like every dotfile here.
 
-- **A provider is data; an agent is code.** An agent needs a binary because it has behaviour
+- **A provider is data; an agent is code.** An agent needs a binary because it has behavior
   that cannot be expressed as data - a stream formatter, first-run setup, one CLI's quirks. A
   provider is an upstream, a header, a prefix and a path, so it is a YAML file found by a
   directory scan under `/usr/share/sokar/providers`. Do not give it a process.

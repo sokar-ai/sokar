@@ -11,7 +11,7 @@ import org.fuin.sokar.wire.Sidecar;
 /**
  * What the three hooks have in common: read the OCI state, find the sidecar, run, report.
  * <p>
- * <strong>Failure behaviour is the whole design here.</strong> A hook that exits non-zero at
+ * <strong>Failure behavior is the whole design here.</strong> A hook that exits non-zero at
  * {@code createRuntime} stops the container from starting, which is right for the firewall and
  * wrong for everything else. Each hook says which it is, and this class makes sure the choice is
  * applied consistently rather than depending on which exception happens to escape.

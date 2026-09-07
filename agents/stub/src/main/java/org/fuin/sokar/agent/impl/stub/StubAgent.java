@@ -14,11 +14,11 @@ import org.fuin.sokar.agent.api.YamlAgent;
  * <p>
  * That is a stronger test than a vendor CLI for the parts the core owns, because those reaches
  * are deliberate rather than a side effect of whatever the vendor shipped that month. What it
- * cannot tell you is whether a real CLI honours a socket or stays inside its declared domains -
+ * cannot tell you is whether a real CLI honors a socket or stays inside its declared domains -
  * that belongs to the agent's own repository.
  * <p>
  * No overrides. Everything is {@code stub.yaml}, which is the point: if this agent needed
- * behaviour Sokar could not express as data, the suite would be testing the exception rather
+ * behavior Sokar could not express as data, the suite would be testing the exception rather
  * than the rule.
  */
 public final class StubAgent extends YamlAgent {

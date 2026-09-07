@@ -10,7 +10,7 @@ import org.junit.jupiter.api.condition.EnabledIf;
 /**
  * Tests for {@link SocketContext}.
  * <p>
- * The behaviour that matters is only observable on a machine running SELinux, so the checks that
+ * The behavior that matters is only observable on a machine running SELinux, so the checks that
  * need one say so rather than being asserted everywhere and passing for the wrong reason.
  */
 class SocketContextTest {

@@ -233,7 +233,7 @@ Settling it needs the request path at `api.github.com`, which a disposable accou
   the same client and the same shape. The CLI's own logs would say why, and they were deleted
   with the credential before anyone looked - so next time, keep `~/.copilot/logs/` first. Not on
   the critical path, since `--with-token` avoids the web flow entirely.
-- Whether `COPILOT_GITHUB_TOKEN` is honoured for a phantom token, which is the whole design if
+- Whether `COPILOT_GITHUB_TOKEN` is honored for a phantom token, which is the whole design if
   it is. Untested: it needs a credential, and the one used here was wiped.
 
 ## Notes

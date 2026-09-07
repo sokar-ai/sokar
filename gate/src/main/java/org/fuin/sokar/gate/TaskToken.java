@@ -54,7 +54,7 @@ public record TaskToken(String value) {
     }
 
     /**
-     * Returns enough of the token to recognise it, and not enough to push with it.
+     * Returns enough of the token to recognize it, and not enough to push with it.
      * <p>
      * A log is the one place a token gets away with being written down: it is streamed to
      * whatever is tailing it, read by whoever is debugging, and pasted into bug reports. Printing

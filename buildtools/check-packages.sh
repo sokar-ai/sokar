@@ -87,7 +87,7 @@ DEB_ALL="$(dpkg-deb -c "$DEB" | awk '$1 !~ /^d/ {print substr($6, 2)}' | sort)"
 RPM_ALL="$(podman run --rm -v "$(dirname "$RPM")":/pkg:ro,Z fedora:41 \
     rpm -qlp "/pkg/$(basename "$RPM")" 2>/dev/null | sort)"
 
-# The licence is the one file the two ecosystems put in different places on purpose - Debian
+# The license is the one file the two ecosystems put in different places on purpose - Debian
 # Policy 12.5 wants /usr/share/doc/<pkg>/copyright, rpm wants %license under
 # /usr/share/licenses/<pkg>. Each is checked on its own below; everything else must match.
 DEB_FILES="$(echo "$DEB_ALL" | grep -v '^/usr/share/doc/' || true)"
@@ -107,7 +107,7 @@ else
 fi
 
 if echo "$RPM_ALL" | grep -q '^/usr/share/licenses/.*/LICENSE$'; then
-    pass "the rpm ships its licence under /usr/share/licenses"
+    pass "the rpm ships its license under /usr/share/licenses"
 else
     fail "the rpm ships no /usr/share/licenses/<package>/LICENSE"
 fi

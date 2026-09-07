@@ -24,7 +24,7 @@ import picocli.CommandLine.Spec;
  * and never handed to anyone else - including the {@code task run} process that started this one.
  * The minted value is written to {@code --token-file} for the task to inject into the container.
  * <p>
- * Minting also fails fast: {@link TokenBroker#mint} refuses a scope the vault cannot honour, so a
+ * Minting also fails fast: {@link TokenBroker#mint} refuses a scope the vault cannot honor, so a
  * missing credential is reported here, before the container starts, rather than surfacing inside
  * the agent as a provider authentication error.
  */

@@ -23,9 +23,9 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * <strong>Two halves, because dnsmasq only gives one of them.</strong> A name has to resolve and
  * its addresses have to be let through. The resolver is told by appending to its servers file and
- * signalling it - the one part dnsmasq re-reads, measured - and the firewall is not told at all:
+ * signaling it - the one part dnsmasq re-reads, measured - and the firewall is not told at all:
  * the name is recorded as granted to this run, the first connection is still dropped, and the
- * clearance watcher recognises it and allows it without asking anybody. That costs one packet and
+ * clearance watcher recognizes it and allows it without asking anybody. That costs one packet and
  * a retry, which is what every clearance decision costs.
  */
 public final class RunningEgress {
@@ -166,7 +166,7 @@ public final class RunningEgress {
     /**
      * Tells the running task's resolver about the names, without restarting it.
      * <p>
-     * Appended to the servers file and signalled: that file is the only part dnsmasq re-reads on
+     * Appended to the servers file and signaled: that file is the only part dnsmasq re-reads on
      * {@code SIGHUP}, so nothing is restarted and there is no window in which the container
      * resolves nothing. The recorded pid is the resolver's own - {@code nsenter} execs dnsmasq
      * rather than forking it, which is also why the poststop hook can reap it by that pid.

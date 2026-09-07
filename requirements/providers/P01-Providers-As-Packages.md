@@ -24,11 +24,11 @@ down before anything is built:
 
 | Knowledge | Belongs to | Why |
 |---|---|---|
-| how a session is started, what a fresh container must be told | the **agent** | its own first-run behaviour, nothing to do with who serves the model |
+| how a session is started, what a fresh container must be told | the **agent** | its own first-run behavior, nothing to do with who serves the model |
 | which command line runs a prompt, how output is formatted | the **agent** | its interface |
 | upstream endpoint, auth header, value prefix | the **provider** | the same for every agent reaching it |
 | how a credential is obtained, stored, and renewed | the **provider** | a sign-in belongs to whoever the account is with |
-| whether the endpoint can be redirected | **both** | the provider must offer it and the agent must honour it |
+| whether the endpoint can be redirected | **both** | the provider must offer it and the agent must honor it |
 
 The last row is why this is not a clean cut. Redirection is a property of the pair,
 not of either side, and the pair is what a task actually runs.
@@ -138,7 +138,7 @@ The experiment is on the branch `probe/pi-anthropic`, deliberately not merged.
 
 The open question was whether a provider needs its own *package* or only its own
 *declaration*. **Declaration**, and the reason is the measurement already in this file: an
-agent needs a binary because it has behaviour that cannot be expressed as data - a stream
+agent needs a binary because it has behavior that cannot be expressed as data - a stream
 formatter, first-run container setup, the quirks of one CLI. A provider, measured across
 the two that exist, is *entirely* data: an upstream, a header, a prefix, a path. There is
 nothing to execute.
@@ -210,7 +210,7 @@ requirement rather than a description of it.
 The last open question, answered by the shape: yes, when the provider serves a dialect the
 agent speaks. Nothing pairs them by name. A provider added tomorrow that declares
 `openai` is drivable by every agent that speaks `openai`, and by every `native` agent that
-recognises its name.
+recognizes its name.
 
 ### The vault is keyed by provider
 
@@ -237,7 +237,7 @@ tests rather than a condition inside a command.
 
 **One thing this exposed.** `vault serve` took the vault key in an option called `--agent`, which
 was true when the two were the same name and misleading afterwards. It is now `--credential`.
-That option was the last place a provider's name travelled under an agent's label, and it was
+That option was the last place a provider's name traveled under an agent's label, and it was
 found by a task failing to authenticate rather than by reading the code.
 
 
@@ -295,6 +295,6 @@ Fedora and Ubuntu.
   *declaration*.~~ **Declaration**, see above.
 - ~~Whether an agent can drive a provider it has never heard of.~~ **Yes**, when the
   provider serves a dialect the agent speaks. See above.
-- Whether `dialect: native` survives a provider whose name the agent does not recognise.
+- Whether `dialect: native` survives a provider whose name the agent does not recognize.
   Pi registers a provider *by name*, so a provider it has never heard of may need its
   dialect stated after all. Testable the moment a third provider exists.

@@ -8,7 +8,7 @@ not allowed to decide, and two of those things are questions about third-party c
 
   * the set of dependencies changed - new code entering a containment tool is exactly what
     pinning exists to make visible;
-  * a licence changed - the package redistributes that code, so this is an obligation.
+  * a license changed - the package redistributes that code, so this is an obligation.
 
 Neither is answerable without comparing two bills, which is why nothing here could be written
 before they existed.
@@ -54,11 +54,11 @@ def components(bom: dict) -> dict[str, dict]:
 
 
 def licences(component: dict) -> set[str]:
-    """Every licence named on a component, however it is expressed."""
+    """Every license named on a component, however it is expressed."""
     named = set()
     for entry in component.get("licenses") or []:
-        licence = entry.get("license") or {}
-        name = licence.get("id") or licence.get("name") or entry.get("expression")
+        license = entry.get("license") or {}
+        name = license.get("id") or license.get("name") or entry.get("expression")
         if name:
             named.add(name)
     return named
@@ -129,7 +129,7 @@ def main() -> int:
 
     print()
     print(f"STOP: {len(added)} added, {len(removed)} removed, {len(relicensed)} relicensed.")
-    print("New third-party code or a changed licence is not something to decide automatically.")
+    print("New third-party code or a changed license is not something to decide automatically.")
     return 1
 
 

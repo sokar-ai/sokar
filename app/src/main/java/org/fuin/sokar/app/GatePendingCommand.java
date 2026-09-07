@@ -51,7 +51,7 @@ public class GatePendingCommand implements Callable<Integer> {
         try {
             final Project project = GateSupport.project(projectFile);
             final GitGate gate = GateSupport.gate(project, upstream);
-            gate.initialise();
+            gate.initialize();
 
             final String seededFrom = gate.seededFrom();
 

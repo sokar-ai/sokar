@@ -12,7 +12,7 @@ import org.fuin.sokar.core.process.CommandRunner;
  * A {@link CommandRunner} that records what it was asked to run and answers from a script.
  * <p>
  * Lets the modules that drive {@code podman}, {@code nft} and {@code git} be tested for the
- * commands they build, which is where their behaviour actually lives.
+ * commands they build, which is where their behavior actually lives.
  */
 public class FakeCommandRunner implements CommandRunner {
 

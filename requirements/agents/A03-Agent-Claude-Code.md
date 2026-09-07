@@ -12,7 +12,7 @@ binary from `downloads.claude.ai` rather than from npm; the artefact and its dig
 
 **Authentication.** A subscription token or an API key. The kind decides which variable carries it.
 
-**Can it be brokered?** **Verified.** It honours both a base URL and a unix socket, with either credential kind, including a token minted for the task.
+**Can it be brokered?** **Verified.** It honors both a base URL and a unix socket, with either credential kind, including a token minted for the task.
 
 ## Acceptance
 

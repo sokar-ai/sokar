@@ -17,7 +17,7 @@ import java.util.Map;
  * Changing a field name changes that contract. The hooks are installed once and outlive any single
  * release of the CLI, so a rename must be treated as a protocol change, not a refactoring.
  *
- * @param version Schema version, so a newer hook can recognise an older file.
+ * @param version Schema version, so a newer hook can recognize an older file.
  * @param project Project name, for log messages and for the operator reading the file.
  * @param securityClass The project's security class, lower case.
  * @param rulesetFile Path to the generated nftables ruleset the nft hook loads.

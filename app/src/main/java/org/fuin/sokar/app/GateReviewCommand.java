@@ -47,7 +47,7 @@ public class GateReviewCommand implements Callable<Integer> {
         try {
             final Project project = GateSupport.project(projectFile);
             final GitGate gate = GateSupport.gate(project, upstream);
-            gate.initialise();
+            gate.initialize();
             out.println(gate.log(name, against));
             out.println(gate.review(name, against == null ? "HEAD" : against));
             out.flush();

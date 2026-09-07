@@ -25,7 +25,7 @@ import java.util.Set;
  * reach it. A rootless container can still get in because Sokar starts its own containers with
  * {@code org.fuin.sokar.runtime.LoopbackMapping}, which points pasta's address for this host at
  * the host's loopback. Where podman cannot do that - slirp4netns - {@code task run} falls back to
- * binding every interface and says so. The per-task token every request must carry is the defence
+ * binding every interface and says so. The per-task token every request must carry is the defense
  * that holds either way.
  */
 public class GitHttpServer implements AutoCloseable {
@@ -98,7 +98,7 @@ public class GitHttpServer implements AutoCloseable {
 
     void handle(HttpExchange exchange) throws IOException {
         try {
-            if (!authorised(exchange)) {
+            if (!authorized(exchange)) {
                 // The realm makes git prompt for credentials rather than simply failing, which is
                 // what turns a wrong token into a usable message.
                 exchange.getResponseHeaders().add("WWW-Authenticate", "Basic realm=\"sokar\"");
@@ -120,7 +120,7 @@ public class GitHttpServer implements AutoCloseable {
         }
     }
 
-    private boolean authorised(HttpExchange exchange) {
+    private boolean authorized(HttpExchange exchange) {
         final String header = exchange.getRequestHeaders().getFirst("Authorization");
         if (header == null || !header.startsWith("Basic ")) {
             return false;

@@ -18,7 +18,7 @@ class ProviderRouteTest {
     @Test
     void namesTheCredentialKindsItCannotCarry() {
 
-        // Measured behaviour of a real agent, declared as data rather than coded: with one kind
+        // Measured behavior of a real agent, declared as data rather than coded: with one kind
         // the agent ignores the base URL, so nothing reaches the proxy and the task fails inside
         // the container with a message about the operator's network.
         assertThat(route(Map.of("oauth", "it contacts the provider directly"))

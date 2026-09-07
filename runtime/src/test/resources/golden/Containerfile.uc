@@ -20,7 +20,7 @@ RUN set -eux; \
     fi
 
 # The agent never runs as root. A rootless podman user namespace already maps this
-# to an unprivileged host uid, so this is defence in depth rather than the only line.
+# to an unprivileged host uid, so this is defense in depth rather than the only line.
 # No uid is pinned: 1000 is already taken on several common base images.
 RUN id -u agent >/dev/null 2>&1 || useradd --create-home --shell /bin/bash agent
 

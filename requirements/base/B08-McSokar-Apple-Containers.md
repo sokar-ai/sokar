@@ -2,7 +2,7 @@
 
 **Status:** open
 
-A sibling project, **McSokar**, offering the same behaviour on Apple Containers so
+A sibling project, **McSokar**, offering the same behavior on Apple Containers so
 that macOS is a first-class host rather than an unsupported one. The graphical
 client is one codebase and connects to either, without the person using it having to
 know which is on the other end.

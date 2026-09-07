@@ -22,7 +22,7 @@ import org.jspecify.annotations.Nullable;
  * facing fields to it would make every one of them a protocol change. This file has no such
  * readers.
  *
- * @param version Schema version, so a file from an older Sokar is recognised rather than
+ * @param version Schema version, so a file from an older Sokar is recognized rather than
  *        half-understood.
  * @param agent Name of the agent running in the task, or {@code null} when it has none.
  * @param mode How a person is meant to be involved.

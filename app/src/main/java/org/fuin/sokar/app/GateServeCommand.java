@@ -80,7 +80,7 @@ public class GateServeCommand implements Callable<Integer> {
             final String effectiveUpstream = upstream != null ? upstream
                     : System.getenv("SOKAR_GATE_UPSTREAM");
             final GitGate gate = GateSupport.gate(project, effectiveUpstream);
-            gate.initialise();
+            gate.initialize();
 
             // From the environment when a task started this gate, so the container and the gate
             // agree on it. Never from an argument: a command line is visible in the host's

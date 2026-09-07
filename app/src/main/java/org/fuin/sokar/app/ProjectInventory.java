@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * What projects this machine knows about, from three sources that each know part of it.
  * <p>
- * The CLI renders this and the daemon serialises it, so "what projects are there" is answered
+ * The CLI renders this and the daemon serializes it, so "what projects are there" is answered
  * once. Nothing here is a store of its own: a project is not something Sokar creates, it is
  * somebody's directory with a {@code project.yml} in it, and this reports what has been seen of
  * one rather than pretending to own it.
