@@ -183,7 +183,8 @@ console issues it, and which `--credential-type` matches, is knowledge about a
 vendor. Put it beside the vendor's adapter, not in Sokar's own documentation,
 for the same reason the code lives here.
 
-[`claude/README.md`](claude/README.md) is the worked example. Cover at least:
+[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code)'s own README is the
+worked example — it left this repository with the adapter it documents. Cover at least:
 
 - each credential kind, the `--credential-type` that selects it, and where to get
   it

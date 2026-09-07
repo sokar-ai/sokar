@@ -165,6 +165,11 @@ of your repository sitting on your own machine, and pushes land in a private hol
 area (`refs/sokar/incoming/`) rather than on any branch — so nothing you are looking at
 changes under your feet.
 
+That in-tray listens on your machine's loopback only, so nothing else on your network
+can reach it — not a colleague's laptop, not another device on the same café wifi. The
+agent gets in because Sokar connects your own loopback into the room it started, and
+only into that room.
+
 Then, on your side:
 
 ```
