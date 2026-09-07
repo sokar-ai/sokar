@@ -27,6 +27,22 @@ public class DnsPolicy {
     /** Port the resolver listens on. */
     public static final int PORT = 53;
 
+    /**
+     * Name of the file holding the per-domain {@code server=} lines, beside the configuration.
+     * <p>
+     * <strong>Separate because it is the only part dnsmasq re-reads.</strong> A {@code
+     * servers-file} is re-read on {@code SIGHUP}; the configuration file is not, and neither is
+     * anything else. Measured against dnsmasq 2.x: a name that answered NXDOMAIN answered with
+     * real addresses after a line was appended here and the process signalled - same process, no
+     * restart, no window in which the container resolves nothing.
+     * <p>
+     * That is what lets a running task be widened by name. It costs the separation: a servers-file
+     * may contain nothing but {@code server=} and {@code rev-server=}, so the {@code nftset=} lines
+     * stay in the configuration and cannot be added later. The firewall half of a live widening
+     * therefore goes through the clearance watcher rather than through this.
+     */
+    public static final String SERVERS_FILE = "dnsmasq.servers";
+
     private final SecurityClass securityClass;
 
     private final Set<String> allowedDomains = new LinkedHashSet<>();
@@ -104,7 +120,7 @@ public class DnsPolicy {
      *
      * @return File content, ending in a line separator.
      */
-    public String render() {
+    public String render(String serversFile) {
 
         final List<String> lines = new ArrayList<>();
 
@@ -146,14 +162,15 @@ public class DnsPolicy {
             lines.add("# Everything is NXDOMAIN unless a rule below overrides it.");
             lines.add("address=/#/");
             lines.add("");
+            lines.add("");
+            lines.add("# The names that may resolve are in a file of their own, because that is");
+            lines.add("# the only part dnsmasq re-reads on SIGHUP - which is how a running task");
+            lines.add("# can be widened by name without restarting its resolver.");
+            lines.add("servers-file=" + serversFile);
             if (allowedDomains.isEmpty()) {
+                lines.add("");
                 lines.add("# No domains are allowed for this project yet.");
             } else {
-                for (final String domain : allowedDomains) {
-                    for (final String resolver : upstreamResolvers) {
-                        lines.add("server=/" + domain + "/" + resolver);
-                    }
-                }
                 if (!autoAllowed.isEmpty()) {
                     lines.add("");
                     lines.add("# Every address answered for these is added to the firewall's allow");
@@ -171,6 +188,53 @@ public class DnsPolicy {
         }
 
         return String.join("\n", lines) + "\n";
+    }
+
+    /**
+     * Returns the file the configuration points at, holding one {@code server=} line per allowed
+     * name.
+     * <p>
+     * Written beside the configuration and re-read on {@code SIGHUP}, which is the whole reason it
+     * is a file of its own. A name added here while a task runs resolves as soon as the resolver
+     * is signalled; nothing is restarted and nothing else in the configuration is touched.
+     *
+     * @return The file's content, empty of rules when nothing may resolve.
+     */
+    public String renderServers() {
+        final List<String> lines = new ArrayList<>();
+        lines.add("# Written by sokar. One line per name this task may resolve.");
+        lines.add("# Re-read when dnsmasq is signalled with SIGHUP, so a running task can be");
+        lines.add("# widened without its resolver being restarted.");
+        if (securityClass == SecurityClass.OFFLINE || upstreamResolvers.isEmpty()) {
+            lines.add("# An offline task resolves nothing at all.");
+            return String.join("\n", lines) + "\n";
+        }
+        for (final String domain : allowedDomains) {
+            for (final String resolver : upstreamResolvers) {
+                lines.add("server=/" + domain + "/" + resolver);
+            }
+        }
+        return String.join("\n", lines) + "\n";
+    }
+
+    /**
+     * Writes the configuration and its servers file, and returns the configuration's path.
+     * <p>
+     * The two belong together and are written together: a configuration pointing at a servers file
+     * that is not there makes dnsmasq refuse to start, which reaches an operator as a container
+     * that came up with no resolver at all.
+     *
+     * @param configFile Where the configuration goes. The servers file is written beside it.
+     * @return The configuration's path, for a caller that passes it to dnsmasq.
+     * @throws java.io.IOException If either file cannot be written.
+     */
+    public java.nio.file.Path writeTo(java.nio.file.Path configFile) throws java.io.IOException {
+        final java.nio.file.Path servers = configFile.resolveSibling(SERVERS_FILE);
+        java.nio.file.Files.writeString(servers, renderServers(),
+                java.nio.charset.StandardCharsets.UTF_8);
+        java.nio.file.Files.writeString(configFile, render(servers.toString()),
+                java.nio.charset.StandardCharsets.UTF_8);
+        return configFile;
     }
 
     /**

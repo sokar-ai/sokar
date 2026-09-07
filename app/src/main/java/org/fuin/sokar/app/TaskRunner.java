@@ -147,8 +147,7 @@ public class TaskRunner {
         // Written before the container is created, like the ruleset: the supervisor hook reads
         // it while the container is coming up.
         final Path dnsConfig = state.resolve("dns.conf");
-        Files.writeString(dnsConfig, dnsPolicyFor(project, allowedDomains).render(),
-                StandardCharsets.UTF_8);
+        dnsPolicyFor(project, allowedDomains).writeTo(dnsConfig);
         out.println("resolver  " + dnsConfig
                 + (allowedDomains.isEmpty() ? " (no domains allowed)"
                         : " (" + allowedDomains.size() + " domains)"));

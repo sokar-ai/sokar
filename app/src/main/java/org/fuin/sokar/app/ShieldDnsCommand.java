@@ -64,7 +64,7 @@ public class ShieldDnsCommand implements Callable<Integer> {
 
         final Path config = configOnly != null ? configOnly
                 : Files.createTempFile("sokar-dns-", ".conf");
-        Files.writeString(config, policy.render(), StandardCharsets.UTF_8);
+        policy.writeTo(config);
         out.println("config    " + config);
         out.flush();
 
