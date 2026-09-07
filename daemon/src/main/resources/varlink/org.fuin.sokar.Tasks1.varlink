@@ -175,12 +175,48 @@ type Agent (
   label: string,
   # The command it runs inside the container.
   binary: string,
-  # Version it reports, or "" when it reports none.
+  # The build this agent pins, from its own manifest, or "" when it pins none. NOT what the
+  # binary answers if asked its version: nothing here executes it to find out, so two machines
+  # showing the same value are running the same declared build.
   version: string,
   # Where the binary was found.
   from: string,
   # Hosts this agent needs, added to a task's egress on top of the project's own.
-  allowedDomains: []string
+  allowedDomains: []string,
+  # Hosts this agent declares and is deliberately NOT given. Not the same as absent from
+  # allowedDomains: these were asked for and refused on purpose, which is worth showing beside
+  # what was granted rather than leaving as a silence.
+  refusedDomains: []string,
+  # What this agent fetches when its image is built, each with the digest that pins it. Empty is
+  # a real state and not a gap: an agent that writes its tool into the image fetches nothing, so
+  # it has a pinned version and no digest at all.
+  artifacts: []InstallArtifact
+)
+
+# One file an agent fetches while its image is built.
+type InstallArtifact (
+  # Where it is fetched from.
+  url: string,
+  # Expected SHA-256, or "" when there is none - in which case 'unverified' says whether that is
+  # deliberate.
+  sha256: string,
+  # Absolute path it is installed at.
+  target: string,
+  # Whether it is knowingly unverifiable. An artifact with no digest and no reason is a mistake;
+  # one with a reason is a decision somebody made and can be shown as such.
+  unverified: bool,
+  # Why it cannot be verified. "" unless 'unverified'.
+  reason: string
+)
+
+# An installed agent binary that never runs, because an earlier location holds one of the same
+# file name.
+type ShadowedAgent (
+  # The binary that is installed and not in use.
+  path: string,
+  # The one that runs instead. Locations are searched most specific first - the operator's own
+  # directory, then the packaged one - so this is a rule and not an accident of scan order.
+  usedInstead: string
 )
 
 # One entry in the vault. Never its value: this interface cannot be used to read a secret.
@@ -361,10 +397,18 @@ method Watch() -> (tasks: []Task)
 
 # Agent binaries installed on this machine.
 method Agents() -> (
+  # One entry per agent NAME, never two: they are held by name, so a name appears once whatever
+  # is installed. A second binary claiming a name already taken does not appear here at all - it
+  # lands in 'failures'.
   agents: []Agent,
   # Binaries that are installed and could not be asked what they are, by file name. An agent
   # that fails to describe itself is unusable, and leaving it out would read as not installed.
-  failures: [string]string
+  # Also where a name collision lands: two binaries both calling themselves the same thing.
+  failures: [string]string,
+  # Binaries installed under a file name an earlier location already holds. These are never
+  # started, so they have no Agent entry - which is why they are reported separately rather than
+  # as a flag on one.
+  shadowed: []ShadowedAgent
 )
 
 # What the vault holds, without any of it.

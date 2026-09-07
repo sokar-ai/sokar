@@ -327,11 +327,29 @@ public final class SokarDaemon {
                             ? "" : agent.definition().version());
                     entry.put("from", agent.executable().toString());
                     entry.put("allowedDomains", agent.definition().allowedDomains());
+                    // Asked for and deliberately not given. Absent from the allowed list means
+                    // nobody mentioned it; this means somebody decided, and the two read the same
+                    // way to anybody who is only shown the first.
+                    entry.put("refusedDomains", agent.definition().refusedDomains());
+                    entry.put("artifacts", agent.definition().artifacts().stream()
+                            .map(SokarDaemon::artifact).toList());
                     return entry;
                 }).toList();
+                // Which copy of a shadowed name runs is a rule, and it lives in AgentDirectory
+                // with the scan that implements it. Reported separately because a shadowed binary
+                // is never started and so has no agent entry to carry a flag.
+                final List<Map<String, Object>> hidden =
+                        context.paths().agentDirectory().shadowedBy().entrySet().stream()
+                                .map(pair -> {
+                                    final Map<String, Object> row = new LinkedHashMap<>();
+                                    row.put("path", pair.getKey().toString());
+                                    row.put("usedInstead", pair.getValue().toString());
+                                    return row;
+                                }).toList();
                 // What could not be asked matters as much as what could: an agent that fails to
                 // describe itself is installed and unusable, and silence would read as absent.
-                replies.last(Map.of("agents", found, "failures", agents.failures()));
+                replies.last(Map.of("agents", found, "failures", agents.failures(),
+                        "shadowed", hidden));
             }
         });
 
@@ -783,6 +801,23 @@ public final class SokarDaemon {
      * @param parameters The call's parameters.
      * @return What to start.
      */
+    /**
+     * Returns one install artifact as plain values.
+     *
+     * @param artifact What the agent declares.
+     * @return The artifact, with {@code null} as "" so every encoding can carry it.
+     */
+    static Map<String, Object> artifact(
+            org.fuin.sokar.agent.api.InstallArtifact artifact) {
+        final Map<String, Object> row = new LinkedHashMap<>();
+        row.put("url", artifact.url());
+        row.put("sha256", artifact.sha256() == null ? "" : artifact.sha256());
+        row.put("target", artifact.target());
+        row.put("unverified", artifact.unverified());
+        row.put("reason", artifact.reason() == null ? "" : artifact.reason());
+        return row;
+    }
+
     private static TaskLaunch.Request request(Map<String, Object> parameters) {
         final String task = text(parameters, "task");
         final String project = text(parameters, "project");

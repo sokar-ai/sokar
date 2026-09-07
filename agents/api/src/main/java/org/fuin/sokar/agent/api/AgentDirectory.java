@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -77,6 +79,34 @@ public class AgentDirectory {
      */
     public List<Path> shadowed() {
         return select(false);
+    }
+
+    /**
+     * Returns each installed binary that never runs, with the one that runs instead.
+     * <p>
+     * The pairing lives here rather than at the caller because the rule that decides it lives
+     * here: a caller that matched winners to losers itself would be a second implementation of
+     * "which copy is in use", and it would differ exactly when it mattered.
+     *
+     * @return Shadowed binary to the one shadowing it, in scan order, possibly empty.
+     */
+    public Map<Path, Path> shadowedBy() {
+
+        final Map<String, Path> winners = new LinkedHashMap<>();
+        for (final Path path : executables()) {
+            winners.put(path.getFileName().toString(), path);
+        }
+
+        // Insertion order kept on purpose: Map.copyOf would lose it, and the order these were
+        // found in is the only thing that explains why one wins.
+        final Map<Path, Path> pairs = new LinkedHashMap<>();
+        for (final Path loser : shadowed()) {
+            final Path winner = winners.get(loser.getFileName().toString());
+            if (winner != null) {
+                pairs.put(loser, winner);
+            }
+        }
+        return java.util.Collections.unmodifiableMap(pairs);
     }
 
     /**

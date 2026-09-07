@@ -845,6 +845,95 @@ class SokarDaemonTest {
     }
 
     @Test
+    void agentsNamesTheInstalledCopyThatNeverRuns(@TempDir Path dir) throws Exception {
+
+        // A shadowed binary is never started, so it has no agent entry to carry a flag - which is
+        // why it is reported separately rather than as "inUse: false" on something that is not
+        // there. The interface asked for this after building a view for a state that could not
+        // occur; the honest shape is the pair, so a person is told what runs instead.
+        final Path own = Files.createDirectories(dir.resolve("data/sokar/agents"));
+        final Path packaged = Files.createDirectories(dir.resolve("packaged"));
+        for (final Path where : List.of(own, packaged)) {
+            final Path binary = Files.createFile(
+                    where.resolve(org.fuin.sokar.agent.api.AgentDirectory.PREFIX + "alpha"));
+            assertThat(binary.toFile().setExecutable(true)).isTrue();
+        }
+
+        final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
+            case "XDG_CONFIG_HOME" -> dir.resolve("config").toString();
+            case "XDG_DATA_HOME" -> dir.resolve("data").toString();
+            case "XDG_STATE_HOME" -> dir.resolve("state").toString();
+            case "XDG_RUNTIME_DIR" -> dir.resolve("run").toString();
+            default -> null;
+        }, dir);
+        final SokarContext context = new SokarContext(runner,
+                new SokarPaths(xdg, dir.resolve("bin"), dir.resolve("hooks"), packaged),
+                arguments -> 0);
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Agents", Map.of());
+
+                @SuppressWarnings("unchecked")
+                final List<Map<String, Object>> shadowed =
+                        (List<Map<String, Object>>) reply.get("shadowed");
+                assertThat(shadowed).hasSize(1);
+                assertThat(shadowed.getFirst())
+                        .containsEntry("path", packaged.resolve("sokar-agent-alpha").toString())
+                        .containsEntry("usedInstead", own.resolve("sokar-agent-alpha").toString());
+            }
+        });
+    }
+
+    @Test
+    void agentsSaysNothingIsShadowedWhenNothingIs(@TempDir Path dir) throws Exception {
+
+        // A field that always names something teaches an interface to ignore it.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Agents", Map.of());
+                assertThat(reply).containsEntry("shadowed", List.of());
+            }
+        });
+    }
+
+    @Test
+    void aVerifiedArtifactCarriesItsDigestAndNoReason() {
+
+        // Only two artifacts can exist: InstallArtifact refuses one with neither a digest nor a
+        // stated reason, which is worth knowing before designing a screen for a third state. It
+        // refused the one this test first asserted.
+        final Map<String, Object> row = SokarDaemon.artifact(
+                new org.fuin.sokar.agent.api.InstallArtifact("https://example.test/tool",
+                        "a".repeat(64), "/usr/local/bin/tool", "0755", false, null));
+
+        assertThat(row).containsEntry("sha256", "a".repeat(64))
+                .containsEntry("unverified", false)
+                // "" and not the four characters "null", which would render as a reason.
+                .containsEntry("reason", "")
+                .containsEntry("url", "https://example.test/tool")
+                .containsEntry("target", "/usr/local/bin/tool");
+    }
+
+    @Test
+    void anArtifactThatIsUnverifiableOnPurposeKeepsItsReason() {
+
+        // Three renderable states rather than one blank field: verified, nothing to fetch, and
+        // unverifiable for a stated reason. The last is a decision somebody made, not a fault,
+        // and it reads as a fault without the reason beside it.
+        final Map<String, Object> row = SokarDaemon.artifact(
+                new org.fuin.sokar.agent.api.InstallArtifact("https://example.test/tool", null,
+                        "/usr/local/bin/tool", "0755", true, "the vendor publishes no digest"));
+
+        assertThat(row).containsEntry("unverified", true)
+                .containsEntry("reason", "the vendor publishes no digest")
+                // Absent as "", never as "null": an interface cannot tell that from a digest.
+                .containsEntry("sha256", "");
+    }
+
+    @Test
     void aGateCallWithoutAProjectIsRefused(@TempDir Path dir) throws Exception {
 
         // A gate belongs to a project, and answering about the wrong one is worse than refusing.

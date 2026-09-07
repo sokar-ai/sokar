@@ -66,6 +66,43 @@ class AgentDirectoryTest {
     }
 
     @Test
+    void namesWhatRunsInsteadOfTheCopyItHides() throws IOException {
+
+        // "Not in use" is only half an answer. An operator looking at a binary that never runs
+        // needs the one that does, or the next question is where to look - and the pairing has to
+        // come from the class that implements the rule, or a caller matching them up would be a
+        // second implementation of "which copy is in use".
+        final Path mine = agent(own, "alpha");
+        final Path theirs = agent(packaged, "alpha");
+
+        assertThat(new AgentDirectory(List.of(own, packaged)).shadowedBy())
+                .containsExactly(java.util.Map.entry(theirs, mine));
+    }
+
+    @Test
+    void pairsNothingWhenNothingIsShadowed() throws IOException {
+
+        agent(own, "alpha");
+        agent(packaged, "beta");
+
+        assertThat(new AgentDirectory(List.of(own, packaged)).shadowedBy()).isEmpty();
+    }
+
+    @Test
+    void keepsTheOrderTheCopiesWereFoundIn() throws IOException {
+
+        // The order is the only thing that explains why one wins, so it is not the map's to
+        // discard - Map.copyOf would.
+        agent(own, "alpha");
+        agent(own, "beta");
+        final Path hiddenAlpha = agent(packaged, "alpha");
+        final Path hiddenBeta = agent(packaged, "beta");
+
+        assertThat(new AgentDirectory(List.of(own, packaged)).shadowedBy().keySet())
+                .containsExactly(hiddenAlpha, hiddenBeta);
+    }
+
+    @Test
     void reportsNothingShadowedWhenTheNamesDiffer() throws IOException {
 
         // A doctor that always claims something is shadowed teaches the operator to ignore it.

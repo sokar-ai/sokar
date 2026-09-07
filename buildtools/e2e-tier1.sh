@@ -811,6 +811,32 @@ else
     else
         pass "sokard is listening on its own socket"
 
+        # What the daemon says an agent is, against an agent that really declares both lists and
+        # really fetches nothing. The stub writes its tool into the image, so "no artifacts" is
+        # the true answer here rather than an empty field standing in for a missing one.
+        printf '{"method":"org.fuin.sokar.Tasks1.Agents","parameters":{}}\0' \
+            | "$SOKAR" daemon connect > "$WORK/daemon-agents.json" 2>/dev/null
+        AGENTS_REPLY="$(tr '\0' '\n' < "$WORK/daemon-agents.json" | grep -m1 'agents' || true)"
+
+        if [ -z "$AGENTS_REPLY" ]; then
+            fail "the daemon answered nothing to Agents"
+        else
+            # example.net is the host the stub declares and is deliberately NOT given - the same
+            # one the domain-coverage check requires to come back NXDOMAIN. If it reaches the wire
+            # here, the two halves agree about what was refused.
+            if echo "$AGENTS_REPLY" | grep -q '"refusedDomains":\["example.net"\]'; then
+                pass "the daemon reports what an agent was deliberately refused"
+            else
+                fail "refusedDomains did not reach the wire; see $WORK/daemon-agents.json"
+            fi
+            if echo "$AGENTS_REPLY" | grep -q '"shadowed":\[\]'; then
+                pass "nothing is reported as shadowed when nothing is"
+            else
+                info "shadowed is not empty on this machine: $(echo "$AGENTS_REPLY" \
+                    | grep -oE '"shadowed":\[[^]]*\]')"
+            fi
+        fi
+
         # One varlink call, framed the way the wire frames it, through the bridge that exists for
         # exactly this: no client library in a shell script.
         printf '{"method":"org.fuin.sokar.Tasks1.Start","parameters":{"task":"viadaemon","project":"%s","agent":"%s","prompt":"say hello and stop","clearance":"deny","keep":true}}\0' \
