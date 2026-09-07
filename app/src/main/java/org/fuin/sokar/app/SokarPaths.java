@@ -183,6 +183,18 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file recording where each project's own file is.
+     * <p>
+     * Durable rather than runtime state: an interface asking what projects exist has to be
+     * answered on a machine where nothing is running.
+     *
+     * @return The registry file.
+     */
+    public Path projectRegistry() {
+        return xdg.data().resolve("projects.json");
+    }
+
+    /**
      * Returns the socket the daemon serves on.
      * <p>
      * Named here rather than in the daemon, because the CLI has to find the same file: it is what

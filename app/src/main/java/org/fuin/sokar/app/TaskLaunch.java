@@ -131,6 +131,11 @@ public final class TaskLaunch {
         final Project project;
         try {
             project = ProjectReader.read(request.projectFile());
+            // Where this project's file is, for an interface that has no filesystem on this
+            // machine to find it in. Recorded on every start rather than by a registration step
+            // nobody would run.
+            new ProjectRegistry(context.paths().projectRegistry())
+                    .remember(project.name(), request.projectFile().toAbsolutePath());
         } catch (ProjectException ex) {
             // A bad project file is the user's problem to fix, not a defect: report it as one
             // line, not as a stack trace.

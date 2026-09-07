@@ -160,6 +160,44 @@ class SokarDaemonTest {
     }
 
     @Test
+    void listsTheProjectsThisMachineKnowsAbout(@TempDir Path dir) throws Exception {
+
+        // The method that makes the gate reachable from an interface: every gate call takes a
+        // project file path, and a client on another machine has no filesystem here to find one in.
+        Files.createDirectories(dir.resolve("data/sokar/mirrors/uc.git"));
+        final Path projectFile = Files.writeString(dir.resolve("project.yml"), "project:\n");
+        Files.createDirectories(dir.resolve("data/sokar"));
+        Files.writeString(dir.resolve("data/sokar/projects.json"),
+                "{\"uc\":\"" + projectFile + "\"}");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Projects", Map.of());
+
+                assertThat((List<?>) reply.get("projects")).hasSize(1);
+                final Map<?, ?> project = (Map<?, ?>) ((List<?>) reply.get("projects")).getFirst();
+                assertThat(project.get("name")).isEqualTo("uc");
+                assertThat(project.get("file")).isEqualTo(projectFile.toString());
+                assertThat(String.valueOf(project.get("mirror"))).endsWith("uc.git");
+            }
+        });
+    }
+
+    @Test
+    void listsNoProjectsOnAMachineThatHasRunNothing(@TempDir Path dir) throws Exception {
+
+        // Empty rather than an error: a fresh machine is a normal state, and an interface should
+        // show "none yet" rather than a fault.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThat((List<?>) client.call(SokarDaemon.INTERFACE + ".Projects", Map.of())
+                        .get("projects")).isEmpty();
+            }
+        });
+    }
+
+    @Test
     void listsTheLogsATaskActuallyHas(@TempDir Path dir) throws Exception {
 
         // Which files exist depends on what the task started, so a client that held a list of

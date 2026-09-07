@@ -145,6 +145,28 @@ type PendingPush (
   at: string
 )
 
+# A project this machine knows about.
+#
+# Not something Sokar creates: a project is somebody's directory with a project.yml in it, and
+# this reports what has been seen of one rather than owning it.
+type Project (
+  # Project name, as its file declares it.
+  name: string,
+  # offline, guarded or online. "" when no task has recorded one.
+  securityClass: string,
+  # Absolute path of its project.yml on the daemon's machine, which every gate method and Start
+  # take. "" when nothing recorded one, or when the recorded file is no longer there - reported
+  # absent rather than as a path nothing can read, so a call made with it cannot fail for a
+  # reason that looks like a fault in the daemon.
+  file: string,
+  # The gate's mirror for it. "" when it has never used the gate.
+  mirror: string,
+  # How many pushes are waiting for review in that mirror.
+  pending: int,
+  # How many of its tasks exist right now, running or stopped.
+  tasks: int
+)
+
 # One log a task has written.
 type Log (
   # Pass this to Tail unchanged.
@@ -321,6 +343,17 @@ method Resume(task: string) -> (
 # Reads one of a task's log files, and with "more" follows it as it is written.
 #
 # The log name is checked against the files that are there rather than resolved as a path.
+# Every project this machine knows about, alphabetically.
+#
+# The list is assembled from what is durable: the gate mirrors, the tasks that exist, and the
+# project files task starts have recorded. A project appears here once somebody has run a task
+# with it - there is no registration step, because nobody would run one.
+#
+# This is the method that makes the gate reachable from an interface. Pending, Review, Approve,
+# Reject and Start all take a project file path, and a client on another machine has no
+# filesystem here to find one in.
+method Projects() -> (projects: []Project)
+
 # Which logs a task has.
 #
 # Ask rather than assume: what a task writes depends on what it started - a task with no gate

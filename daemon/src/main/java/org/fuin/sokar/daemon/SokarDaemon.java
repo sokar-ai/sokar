@@ -11,6 +11,7 @@ import org.fuin.sokar.app.SokarContext;
 import org.fuin.sokar.app.GateSupport;
 import org.fuin.sokar.app.TaskControl;
 import org.fuin.sokar.app.TaskLaunch;
+import org.fuin.sokar.app.ProjectInventory;
 import org.fuin.sokar.app.TaskInventory;
 import org.fuin.sokar.clearance.ClearanceService;
 import org.fuin.sokar.core.project.Project;
@@ -166,6 +167,14 @@ public final class SokarDaemon {
                 }
                 sleep(WATCH_INTERVAL);
             }
+        });
+
+        server.method("Projects", (parameters, replies) -> {
+            // The path in each answer is the one thing a client cannot work out: over a forwarded
+            // socket there is no filesystem on this side to look in, and every gate method takes
+            // one.
+            replies.last(Map.of("projects", new ProjectInventory(context).projects().stream()
+                    .map(ProjectInventory.Summary::asMap).toList()));
         });
 
         server.method("Logs", (parameters, replies) -> {

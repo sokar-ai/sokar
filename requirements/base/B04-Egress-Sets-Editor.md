@@ -95,8 +95,11 @@ for.
 
 - **No daemon method exposes any of this**, so an interface cannot show what a project may reach
   or change it, and it may not shell out to the CLI. The composition and the edit are both in
-  `app`, where the daemon can already reach them; what has to be decided is what a method that
-  edits a file *by path* means when the client is on another machine and has no filesystem there.
+  `app`, where the daemon can already reach them. The question that blocked it - what a method
+  editing a file *by path* means for a client with no filesystem on that machine - is answered:
+  `Projects` hands out the path of each project's file, recorded when a task was started with it,
+  so a client passes back something this machine gave it rather than something it invented. What
+  is left is to expose the two operations.
 - Does a change apply to a running task, or only to the next one? The editor says it applies to
   the next one, which is what the code does: a container's ruleset and resolver are built when it
   starts. Whether they *should* be changeable underneath a running agent is the larger question,

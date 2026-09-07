@@ -148,6 +148,13 @@ See [build.md](doc/build.md). Three things that will bite:
   `PhantomToken.toString` both abbreviate because tokens end up in log lines by accident - and
   `gate serve` then wrote `token.value()` into `gate.log`, which the daemon streams to whatever is
   tailing it. Print the token, not its value.
+- **A remote client has no filesystem, so the daemon hands out paths rather than taking them on
+  faith.** Every gate method and `Start` take a `project.yml` path, which is fine for a CLI typed
+  on the machine that holds it and impossible over a forwarded socket. `Projects` answers what
+  exists - from the gate mirrors, the tasks that exist, and a registry each task start writes - so
+  a client passes back a path this machine gave it. A recorded file that has moved is reported as
+  absent rather than as a path nothing can read: a call made with it would fail in a way that looks
+  like a fault in the daemon.
 - **A stdio bridge to the daemon must copy bytes, not lines.** `sokar daemon connect` exists so
   that `ssh host sokar daemon connect` speaks varlink down the ssh session with no socket file on
   the client. Frames are NUL-separated JSON and a stream is answered over time, so it flushes on
