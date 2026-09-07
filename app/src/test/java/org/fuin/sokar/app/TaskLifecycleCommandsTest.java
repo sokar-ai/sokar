@@ -472,8 +472,12 @@ class TaskLifecycleCommandsTest {
                 .isZero();
 
         assertThat(out.toString()).contains("rescued   refs/sokar/incoming/shell-rescued");
-        assertThat(runner.lines())
-                .anyMatch(line -> line.contains("SOKAR_TASK_REF=refs/sokar/incoming/shell-rescued"));
+        // In the environment of the exec, not in its arguments: podman is told the name and
+        // copies the value out of the environment it was started with.
+        assertThat(runner.invocations())
+                .anyMatch(command -> "refs/sokar/incoming/shell-rescued"
+                        .equals(command.environment().get("SOKAR_TASK_REF")));
+        assertThat(runner.lines()).noneMatch(line -> line.contains("shell-rescued"));
         assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman rm"));
     }
 

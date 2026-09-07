@@ -97,11 +97,10 @@ public class ContainerSpec {
     /**
      * Sets an environment variable inside the container.
      * <p>
-     * <strong>Only ever a phantom token, never a real credential.</strong> A variable passed here
-     * reaches podman's command line, so it is visible in the host's process list for as long as
-     * the create call runs, and it is readable from the container image metadata afterwards. A
-     * phantom token is worth nothing outside this task; the real credential must never take this
-     * path.
+     * <strong>Only ever a phantom token, never a real credential.</strong> What is set here is
+     * readable from the container's own metadata for as long as it exists, which a real credential
+     * must never be. The value no longer reaches podman's argument list - see
+     * {@link #toArguments()} - but that is the weaker of the two reasons, not a licence.
      *
      * @param name Variable name.
      * @param value Variable value.
@@ -110,6 +109,42 @@ public class ContainerSpec {
     public ContainerSpec environment(String name, String value) {
         environment.put(name, value);
         return this;
+    }
+
+    /**
+     * Returns the variables the podman process itself must carry when these arguments are run.
+     * <p>
+     * <strong>Inseparable from {@link #toArguments()}.</strong> The arguments name the variables
+     * and do not carry their values; podman copies each value from its own environment. Running
+     * those arguments without this map does not fail - measured: podman passes nothing at all for
+     * a name it cannot resolve - so the container comes up missing a variable, which for an agent
+     * means quietly falling back to its own compiled-in endpoint.
+     *
+     * @return Variables to give the podman process.
+     */
+    public Map<String, String> environment() {
+        return Map.copyOf(environment);
+    }
+
+    /**
+     * Returns {@code --env NAME} for each variable, without any value.
+     * <p>
+     * A value in an argument is world-readable: {@code /proc/<pid>/cmdline} is mode 444 and
+     * {@code /proc} carries no {@code hidepid} on either supported distribution, measured. Named
+     * on the command line and carried in the environment, the value is only ever readable by its
+     * owner. Podman copies it from its own environment, byte for byte - measured with a value
+     * holding spaces, a colon and trailing padding, which is what the git gate's header is.
+     *
+     * @param names Variable names.
+     * @return Arguments naming them.
+     */
+    public static List<String> passedThrough(java.util.Collection<String> names) {
+        final List<String> arguments = new ArrayList<>();
+        names.forEach(name -> {
+            arguments.add("--env");
+            arguments.add(name);
+        });
+        return List.copyOf(arguments);
     }
 
     /**
@@ -187,10 +222,7 @@ public class ContainerSpec {
         arguments.add("--network");
         arguments.add("private");
 
-        environment.forEach((name, value) -> {
-            arguments.add("--env");
-            arguments.add(name + "=" + value);
-        });
+        arguments.addAll(passedThrough(environment.keySet()));
 
         resolvers.forEach(address -> {
             // Without this the agent uses the host's resolver, the firewall sees only addresses,

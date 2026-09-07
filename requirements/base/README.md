@@ -11,22 +11,20 @@ answer could change what the requirement says, or whether it survives at all.
 
 Ordered by consequence, not by number; the number is only the file's identity. The first is live
 on somebody's machine today. The last is a second platform, which is a project rather than a
-feature. B09 sits in the middle because it is small and already decided in one direction: the rule
-it names is the one `vault put` keeps and the container path does not.
+feature.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | B04 | [Egress Sets Editor](B04-Egress-Sets-Editor.md) | What a project may reach is readable and editable, with the effect of a change visible before it is applied. | yes |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |
-| B09 | [Secrets Off The Command Line](B09-Secrets-Off-The-Command-Line.md) | No secret Sokar holds appears in the argument list of a process it starts. | yes |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | yes |
 | B07 | [Recovery And Panic](B07-Recovery-And-Panic.md) | A task that has gone wrong can be isolated for inspection, and everything can be stopped at once. | yes |
 | B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
 
 ## What was here and is finished
 
-Seven requirements have been met and retired. Their files are gone; what each measured is in
+Eight requirements have been met and retired. Their files are gone; what each measured is in
 [AGENT.md](../../AGENT.md), where it will be read again:
 
 - **The local daemon API.** `sokard` serves the domain over an owner-only varlink socket, and the
@@ -43,7 +41,13 @@ Seven requirements have been met and retired. Their files are gone; what each me
   a kind and a length, and is questioned when it looks like a placeholder rather than a secret. A
   passphrase is verified before it is cached, and `sokar vault lock` drops it again without
   restarting anything - saying, when a task is running, what it cannot reach. What the sweep found
-  and this did not own is [B09](B09-Secrets-Off-The-Command-Line.md).
+  and this did not own became the requirement below it, and is also done.
+- **Secrets off the command line.** Every variable a container is given is now named on podman's
+  command line without its value, which podman copies from Sokar's own environment: an argument
+  list is world-readable and an environment is not. It covered the git gate's token and the
+  phantom token, at container creation and at every agent run. The pair that must not drift - the
+  names in the arguments, the values in the environment - is guarded by tests at both places that
+  build them, because podman drops a name it cannot resolve rather than failing.
 - **Clearance prompts.** A blocked destination is a question naming the project, the task and what
   was reached; the answer takes effect on the waiting connection, is never asked twice for a task -
   across a resume, which is where it used to leak - and is written to a record that outlives the

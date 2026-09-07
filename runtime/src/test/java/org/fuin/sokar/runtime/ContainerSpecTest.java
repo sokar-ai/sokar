@@ -22,6 +22,40 @@ class ContainerSpecTest {
     }
 
     @Test
+    void namesAVariableOnTheCommandLineAndCarriesItsValueElsewhere() {
+
+        // An argument list is world-readable - /proc/<pid>/cmdline is mode 444 and neither
+        // supported distribution mounts /proc with hidepid, measured - and an environment is not.
+        // Podman copies the value from its own environment when it is given only the name.
+        final ContainerSpec specification = new ContainerSpec("box", "ubuntu:24.04")
+                .environment("SOKAR_TOKEN", "sokar_pt_a_secret_value");
+
+        assertThat(specification.toArguments()).containsSequence("--env", "SOKAR_TOKEN");
+        assertThat(specification.toArguments())
+                .noneMatch(argument -> argument.contains("sokar_pt_a_secret_value"));
+        assertThat(specification.environment())
+                .containsEntry("SOKAR_TOKEN", "sokar_pt_a_secret_value");
+    }
+
+    @Test
+    void neverPutsAValueBesideAVariableName() {
+
+        // The rule rather than one instance of it: no --env argument may carry a value, whatever
+        // is added here later.
+        final List<String> arguments = new ContainerSpec("box", "ubuntu:24.04")
+                .environment("ONE", "first")
+                .environment("TWO", "second")
+                .toArguments();
+
+        for (int i = 0; i < arguments.size() - 1; i++) {
+            if ("--env".equals(arguments.get(i))) {
+                assertThat(arguments.get(i + 1)).doesNotContain("=");
+            }
+        }
+        assertThat(arguments).contains("--env");
+    }
+
+    @Test
     void alwaysAddsAnInitProcess() {
 
         // PID 1 is 'sleep infinity', which never calls wait(), so an orphan becomes a zombie

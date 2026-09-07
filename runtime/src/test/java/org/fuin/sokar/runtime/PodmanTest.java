@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.fuin.sokar.core.process.CommandException;
 import org.fuin.sokar.testing.FakeCommandRunner;
 import org.fuin.sokar.core.project.Project;
@@ -177,12 +178,50 @@ class PodmanTest {
     }
 
     @Test
-    void passesAnEnvironmentVariableToTheContainer() {
+    void passesAnEnvironmentVariableToTheContainerWithoutPuttingItInTheArguments() {
 
+        // An argument list is world-readable and an environment is not, so podman is told the
+        // name and left to copy the value out of its own environment. Measured with real podman:
+        // the value arrives byte for byte, spaces and padding included.
         podman.create(new ContainerSpec("sokar-uc-shell-1", "sokar/uc")
                 .environment("ANTHROPIC_API_KEY", "sokar_pt_phantom"));
 
-        assertThat(runner.only("create").describe()).contains("--env ANTHROPIC_API_KEY=sokar_pt_phantom");
+        assertThat(runner.only("create").describe())
+                .contains("--env ANTHROPIC_API_KEY")
+                .doesNotContain("sokar_pt_phantom");
+        assertThat(runner.only("create").environment())
+                .containsEntry("ANTHROPIC_API_KEY", "sokar_pt_phantom");
+    }
+
+    @Test
+    void keepsAValueOutOfTheArgumentsOfAnAgentRunToo() {
+
+        // The second exposure: the agent is started with 'podman exec', once per run, and the
+        // phantom token was on that command line as well.
+        podman.ask("sokar-uc-shell-1", Map.of("ANTHROPIC_API_KEY", "sokar_pt_phantom"),
+                List.of("printenv", "ANTHROPIC_API_KEY"));
+
+        assertThat(runner.only("exec").describe())
+                .contains("--env ANTHROPIC_API_KEY")
+                .doesNotContain("sokar_pt_phantom");
+        assertThat(runner.only("exec").environment())
+                .containsEntry("ANTHROPIC_API_KEY", "sokar_pt_phantom");
+    }
+
+    @Test
+    void namesEveryVariableItCarries() {
+
+        // Naming without carrying is the dangerous half: podman passes nothing at all for a name
+        // it cannot resolve, so the container would come up missing a variable rather than
+        // failing, and an agent missing its endpoint quietly uses its own.
+        final ContainerSpec specification = new ContainerSpec("sokar-uc-shell-1", "sokar/uc")
+                .environment("ONE", "first")
+                .environment("TWO", "second");
+
+        podman.create(specification);
+
+        assertThat(runner.only("create").environment())
+                .containsOnlyKeys(specification.environment().keySet().toArray(String[]::new));
     }
 
     @Test

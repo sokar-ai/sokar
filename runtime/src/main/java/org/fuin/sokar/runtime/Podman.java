@@ -211,7 +211,11 @@ public class Podman {
     public String create(ContainerSpec specification) {
         final List<String> arguments = new ArrayList<>(List.of("create"));
         arguments.addAll(specification.toArguments());
-        return runner.runOrFail(podman(arguments.toArray(String[]::new))).trimmedOutput();
+        // The arguments name the variables; the values travel in this process's environment, where
+        // they are not world-readable. The two halves come from the same object so neither can be
+        // sent without the other.
+        return runner.runOrFail(podman(arguments.toArray(String[]::new))
+                .withEnvironment(specification.environment())).trimmedOutput();
     }
 
     /**
@@ -352,13 +356,10 @@ public class Podman {
     public CommandResult ask(String container, Map<String, String> environment,
             List<String> command) {
         final List<String> arguments = new ArrayList<>(List.of("exec"));
-        environment.forEach((name, value) -> {
-            arguments.add("--env");
-            arguments.add(name + "=" + value);
-        });
+        arguments.addAll(ContainerSpec.passedThrough(environment.keySet()));
         arguments.add(container);
         arguments.addAll(command);
-        return runner.run(podman(arguments.toArray(new String[0])));
+        return runner.run(podman(arguments.toArray(new String[0])).withEnvironment(environment));
     }
 
     /**
@@ -431,18 +432,17 @@ public class Podman {
             Path output, Duration timeout) {
 
         final List<String> arguments = new ArrayList<>(List.of(executable, "exec"));
-        environment.forEach((name, value) -> {
-            arguments.add("--env");
-            arguments.add(name + "=" + value);
-        });
+        arguments.addAll(ContainerSpec.passedThrough(environment.keySet()));
         arguments.add(container);
         arguments.addAll(command);
 
         try {
-            final Process process = new ProcessBuilder(arguments)
+            final ProcessBuilder builder = new ProcessBuilder(arguments)
                     .redirectErrorStream(true)
-                    .redirectOutput(output.toFile())
-                    .start();
+                    .redirectOutput(output.toFile());
+            // Where the values go, since the arguments above carry only the names.
+            builder.environment().putAll(environment);
+            final Process process = builder.start();
             if (!process.waitFor(timeout.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS)) {
                 process.destroyForcibly();
                 throw new ContainerException("The agent did not finish within "
@@ -457,16 +457,6 @@ public class Podman {
         }
     }
 
-    /**
-     * Returns the argument list that attaches an interactive shell to a running container.
-     * <p>
-     * Returned rather than executed: attaching replaces the Sokar process with the shell, so the
-     * caller does that with {@code execvp} and never comes back.
-     *
-     * @param container Container name or id.
-     * @param shell Shell to run.
-     * @return Full argument list, starting with the podman executable.
-     */
     /**
      * Returns the arguments that write a file inside a container, reading it from standard input.
      * <p>
@@ -485,6 +475,16 @@ public class Podman {
                         + " '" + path + "'");
     }
 
+    /**
+     * Returns the argument list that attaches an interactive shell to a running container.
+     * <p>
+     * Returned rather than executed: attaching replaces the Sokar process with the shell, so the
+     * caller does that with {@code execvp} and never comes back.
+     *
+     * @param container Container name or id.
+     * @param shell Shell to run.
+     * @return Full argument list, starting with the podman executable.
+     */
     public List<String> attachArguments(String container, String shell) {
         return List.of(executable, "exec", "--interactive", "--tty", container, shell);
     }

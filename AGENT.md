@@ -122,11 +122,19 @@ See [build.md](doc/build.md). Three things that will bite:
   that were all HTTP 200. `VaultProxy.forwardable` drops anything starting with a
   colon. A relay built on an HTTP/1.1-only client cannot hit this, which is why it
   is specific to this rewrite.
-- **A secret goes in through standard input or a file, never an argument.** `/proc/<pid>/cmdline`
-  is world-readable and `/proc` is mounted without `hidepid` on both supported distributions,
-  measured; `/proc/<pid>/environ` is owner-only. `vault put` reads the value from stdin for that
-  reason. The rule is not kept on the way out yet - a container's variables reach it as
-  `podman --env NAME=VALUE` - which is what B09 is for.
+- **A secret goes in through standard input or an environment, never an argument.**
+  `/proc/<pid>/cmdline` is world-readable and `/proc` is mounted without `hidepid` on both
+  supported distributions, measured; `/proc/<pid>/environ` is owner-only. `vault put` reads the
+  value from stdin for that reason, and every variable a container gets is named on podman's
+  command line without its value: `--env NAME` makes podman copy it from its own environment,
+  which Sokar sets. Measured against podman 5.7.0, including a value carrying spaces, a colon and
+  trailing `==` - the gate's `Authorization: Basic ...` header - which arrives byte for byte.
+- **A name podman cannot resolve is dropped, not passed as empty.** So the arguments naming the
+  variables and the map carrying their values must come from the same object, or a container comes
+  up silently missing one - and an agent missing its endpoint variable quietly uses its own
+  compiled-in one instead of failing. `ContainerSpec.toArguments()` and
+  `ContainerSpec.environment()` are that pair; `Command.withEnvironment` carries it to the
+  process.
 - **Verify a passphrase before caching it.** A wrong one accepted now fails at the next command,
   where it reads as a corrupt store rather than as a typo. `vault unlock` opens the vault first and
   caches nothing when it cannot. Nothing to verify against on a first run, which is also the run

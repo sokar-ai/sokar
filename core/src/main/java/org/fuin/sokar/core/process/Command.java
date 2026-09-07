@@ -63,6 +63,21 @@ public record Command(List<String> arguments, @Nullable Path workingDirectory,
     }
 
     /**
+     * Returns a copy of this command with variables added to the environment it inherits.
+     * <p>
+     * This is where a value goes when it must not be an argument: a child's environment is
+     * readable only by its owner, and its argument list is readable by everyone on the machine.
+     *
+     * @param variables Variables to add.
+     * @return New command.
+     */
+    public Command withEnvironment(Map<String, String> variables) {
+        final Map<String, String> merged = new java.util.LinkedHashMap<>(environment);
+        merged.putAll(variables);
+        return new Command(arguments, workingDirectory, merged, input);
+    }
+
+    /**
      * Returns a copy of this command running in the given directory.
      *
      * @param directory Working directory.
