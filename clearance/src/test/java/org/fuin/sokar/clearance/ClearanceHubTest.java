@@ -166,6 +166,49 @@ class ClearanceHubTest {
     }
 
     @Test
+    void asksNobodyAboutANameThisRunWasGranted() {
+
+        // Somebody has already said this run may reach it. Asking would put a question on screen
+        // whose answer is already known, which is how an operator learns to click without reading.
+        final ClearanceHub hub = hub(Verdict.DENY);
+        hub.granted("docs.example.test"::equals);
+
+        final Blocked blocked = new Blocked("1.1.1.1", 443, "tcp", "docs.example.test:443",
+                "docs.example.test");
+
+        assertThat(hub.handle(blocked)).isEqualTo(Verdict.ALLOW);
+        assertThat(asked).hasValue(0);
+        assertThat(allowed).containsExactly("1.1.1.1");
+    }
+
+    @Test
+    void recordsThatNobodyWasAskedAboutAGrantedName() {
+
+        // "Allowed without being asked" and "allowed by somebody" are different events, and the
+        // record is the only place that can tell them apart afterwards.
+        final ClearanceHub hub = hub(Verdict.DENY);
+        hub.granted(name -> true);
+
+        hub.handle(new Blocked("1.1.1.1", 443, "tcp", "docs:443", "docs.example.test"));
+
+        assertThat(announced).singleElement()
+                .satisfies(decision -> assertThat(decision.source()).isEqualTo(Decision.GRANTED));
+    }
+
+    @Test
+    void aGrantDoesNotCoverADestinationNothingResolved() {
+
+        // A grant is made for a name; an address on its own can never match one, and treating it
+        // as covered would open a host nobody granted.
+        final ClearanceHub hub = hub(Verdict.DENY);
+        hub.granted(name -> true);
+
+        hub.handle(ONE_ONE_ONE_ONE);
+
+        assertThat(asked).hasValue(1);
+    }
+
+    @Test
     void doesNotAskAgainAboutSomethingAnEarlierWatcherDecided() {
 
         // A resumed task re-reads its events file from the beginning, so every destination it was

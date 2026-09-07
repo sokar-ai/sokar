@@ -32,6 +32,15 @@ public record Decision(Instant at, String project, String task, String key, Stri
     public static final String CLIENT = "client";
 
     /**
+     * Nobody was asked: the name had been granted to this run.
+     * <p>
+     * Recorded as its own source so the audit record says why nothing appeared on anybody's
+     * screen. "Allowed without being asked" and "allowed by somebody" are different events, and
+     * the file is the only place that can tell them apart afterwards.
+     */
+    public static final String GRANTED = "granted";
+
+    /**
      * Returns this decision as the event a subscriber receives.
      * <p>
      * The same field names the prompt event uses, plus {@code verdict}: an interface that showed

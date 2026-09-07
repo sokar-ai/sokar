@@ -11,8 +11,23 @@ package org.fuin.sokar.clearance;
  * @param port Port, or {@code 0} when there is none.
  * @param protocol Protocol name, for example {@code tcp}.
  * @param shown How it should be shown to the operator, which may carry a resolved name.
+ * @param name The name the container was answered with, or {@code null} when nothing resolved it.
+ *        A grant is made for a name, and an address on its own can never match one.
  */
-public record Blocked(String destination, int port, String protocol, String shown) {
+public record Blocked(String destination, int port, String protocol, String shown,
+        @org.jspecify.annotations.Nullable String name) {
+
+    /**
+     * Constructor for a destination nothing resolved a name for.
+     *
+     * @param destination Host or address the task asked for.
+     * @param port Port, or {@code 0} when there is none.
+     * @param protocol Protocol name.
+     * @param shown How it should be shown to the operator.
+     */
+    public Blocked(String destination, int port, String protocol, String shown) {
+        this(destination, port, protocol, shown, null);
+    }
 
     /**
      * Returns the key this destination is decided under.

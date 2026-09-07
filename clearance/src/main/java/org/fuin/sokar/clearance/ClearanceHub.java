@@ -39,6 +39,9 @@ public class ClearanceHub {
 
     private final List<Consumer<Decision>> listeners = new CopyOnWriteArrayList<>();
 
+    /** Names this run was granted while it was running; asked afresh, because grants arrive late. */
+    private java.util.function.Predicate<String> granted = name -> false;
+
     /**
      * Constructor.
      *
@@ -69,6 +72,19 @@ public class ClearanceHub {
     }
 
     /**
+     * Says which names this run has been granted, so they are not asked about.
+     * <p>
+     * A predicate rather than a list, and consulted on every event rather than once: a grant is
+     * made while the task runs, usually because an agent has just been refused something, so a
+     * copy taken at start would never contain the grant that matters.
+     *
+     * @param names Answers whether a name has been granted to this run.
+     */
+    public void granted(java.util.function.Predicate<String> names) {
+        this.granted = names;
+    }
+
+    /**
      * Handles one blocked connection.
      *
      * @param blocked What the firewall stopped.
@@ -80,6 +96,17 @@ public class ClearanceHub {
         final Verdict already = decided.get(key);
         if (already != null) {
             return already;
+        }
+
+        // Somebody has already said this run may reach that name, so there is nothing to ask. The
+        // first connection to it was still dropped - the packet is gone and the agent will retry -
+        // and every one after this is not.
+        if (blocked.name() != null && granted.test(blocked.name())) {
+            decided.put(key, Verdict.ALLOW);
+            seen.put(key, blocked);
+            allow.accept(blocked.destination());
+            announce(blocked, Verdict.ALLOW, Decision.GRANTED);
+            return Verdict.ALLOW;
         }
 
         // Recorded before asking, so a burst of retries arriving while the notification is on

@@ -169,6 +169,12 @@ public class ShieldWatchCommand implements Callable<Integer> {
                 }
             });
 
+            // Asked afresh on every event: a grant is made while the task runs, usually seconds
+            // after an agent was refused something, so a list read at start would never hold the
+            // one that matters.
+            hub.granted(name -> org.fuin.sokar.wire.GrantedNames.covers(
+                    socketPath().getParent(), name));
+
             // Before anything is followed. A resumed task re-reads the events file from the start,
             // so a destination decided in the previous run reaches the hub again within seconds -
             // and without its decisions back, that is a second prompt for a question the operator
@@ -246,7 +252,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
             final String shownAddress = port == 0 ? destination : destination + ":" + port;
             final String shown = name == null ? shownAddress
                     : name + (port == 0 ? "" : ":" + port) + " (" + destination + ")";
-            final Blocked blocked = new Blocked(destination, port, protocol, shown);
+            final Blocked blocked = new Blocked(destination, port, protocol, shown, name);
 
             // Published before it is decided: a subscriber - a terminal watching, or the daemon
             // carrying prompts to an interface - wants the question, and the line below blocks
