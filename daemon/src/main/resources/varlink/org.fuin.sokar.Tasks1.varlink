@@ -286,7 +286,12 @@ method Stop(
   # How many helper processes are still alive afterwards. Not zero is worth showing.
   surviving: int,
   # Why, in words, for an outcome that needs one. "" otherwise.
-  detail: string
+  detail: string,
+  # How many paths the container had that its image did not - what the agent installed inside it,
+  # which is destroyed with the container and has nowhere to arrive, unlike the workspace. Counted
+  # only when it was removed, and zero otherwise. Show it beside the removal: nothing else records
+  # that any of it existed.
+  discarded: int
 )
 
 # Starts a stopped task's container again, with the helpers it is recorded as having had.

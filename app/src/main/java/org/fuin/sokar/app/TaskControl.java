@@ -79,10 +79,13 @@ public final class TaskControl {
      * @param detail Why a rescue could not happen, or {@code null}. Three cases with three
      *        different fixes: a task with no gate ref, one that pushes straight to its upstream,
      *        and a push that did not arrive.
+     * @param discarded How many paths the container had that its image did not - what the agent
+     *        installed inside it - counted only when it was removed, because that is when they
+     *        stopped existing. Zero otherwise.
      */
     public record Stopped(Outcome outcome, @Nullable String work, @Nullable String rescuedRef,
             boolean removed, int helpers, List<String> surviving, @Nullable Path state,
-            @Nullable String detail) {
+            @Nullable String detail, long discarded) {
 
         /** @return Whether anything is left running that should not be. */
         public boolean clean() {
@@ -127,7 +130,7 @@ public final class TaskControl {
     public Stopped stop(String container, boolean purge, boolean rescue, boolean force) {
 
         if (!ContainerName.isSokar(container)) {
-            return new Stopped(Outcome.NOT_A_TASK, null, null, false, 0, List.of(), null, null);
+            return new Stopped(Outcome.NOT_A_TASK, null, null, false, 0, List.of(), null, null, 0);
         }
 
         final Path state = context.paths().containerState(container);
@@ -143,21 +146,22 @@ public final class TaskControl {
 
         if (purge && summary.isPresent() && !running && work == null && noted.isEmpty() && !force) {
             return new Stopped(Outcome.NOTHING_KNOWS, null, null, false, 0, List.of(), state,
-                    null);
+                    null, 0);
         }
         if (work != null && purge && !rescue && !force) {
-            return new Stopped(Outcome.HOLDS_WORK, work, null, false, 0, List.of(), state, null);
+            return new Stopped(Outcome.HOLDS_WORK, work, null, false, 0, List.of(), state, null,
+                    0);
         }
         String rescued = null;
         if (work != null && rescue) {
             if (!running) {
                 return new Stopped(Outcome.RESCUE_NEEDS_IT_RUNNING, work, null, false, 0,
-                        List.of(), state, null);
+                        List.of(), state, null, 0);
             }
             final Rescue attempt = rescue(container);
             if (attempt.ref() == null) {
                 return new Stopped(Outcome.RESCUE_FAILED, work, null, false, 0, List.of(), state,
-                        attempt.problem());
+                        attempt.problem(), 0);
             }
             rescued = attempt.ref();
         }
@@ -165,6 +169,9 @@ public final class TaskControl {
         // Counted first: stopping the container fires the poststop hook, which reaps the helpers
         // and deletes their pid files, leaving nothing to count afterwards.
         final List<ProcessHandle> helpers = TaskLifecycle.running(state);
+
+        // Counted before the container goes, because afterwards there is nothing left to ask.
+        final long discarded = purge ? context.podman().addedPaths(container) : 0;
 
         if (purge) {
             context.podman().remove(container);
@@ -180,7 +187,7 @@ public final class TaskControl {
 
         if (!known) {
             return new Stopped(Outcome.NOTHING_TO_STOP, null, null, false, 0, List.of(), null,
-                    null);
+                    null, 0);
         }
 
         // Waited for first: termination is asynchronous, so checking straight away reports live
@@ -202,7 +209,7 @@ public final class TaskControl {
             deleteTree(state);
         }
         return new Stopped(Outcome.STOPPED, work, rescued, purge, helpers.size(), surviving,
-                purge || !Files.isDirectory(state) ? null : state, null);
+                purge || !Files.isDirectory(state) ? null : state, null, discarded);
     }
 
     /**

@@ -151,8 +151,9 @@ class TaskRunCommandTest {
     }
 
     @Test
-    void removesTheContainerWhenStartingFails(@TempDir Path dir) throws IOException {
+    void removesAContainerThatWasNeverCreated(@TempDir Path dir) throws IOException {
 
+        // Nothing exists to hold, so the tidy-up runs as it always did.
         runner.failing("start", 125, "hook failed");
 
         final int code = execute(context(dir, true), "task", "run",
@@ -162,6 +163,26 @@ class TaskRunCommandTest {
         assertThat(err.toString()).contains("hook failed");
         assertThat(runner.lines()).anyMatch(line -> line.contains("rm --force"));
         assertThat(execCalls).as("no shell is attached to a container that never started").isEmpty();
+    }
+
+    @Test
+    void holdsAFailedTaskInsteadOfRemovingIt(@TempDir Path dir) throws IOException {
+
+        // --keep has to be decided before the run, and the run worth looking at is the one that
+        // went wrong, which is known only afterwards. So a failure is held rather than swept up.
+        runner.answering("container inspect", "c0ffee\n");
+        runner.failing("start", 125, "hook failed");
+
+        final int code = execute(context(dir, true), "task", "run",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(code).isEqualTo(70);
+        assertThat(runner.lines()).noneMatch(line -> line.contains("rm --force"));
+        assertThat(out.toString()).contains("kept").contains("it failed, so nothing was removed")
+                .contains("task resume").contains("--purge");
+        // Held, not abandoned: a task nobody is watching that still holds a firewall, a gate and a
+        // credential proxy is not kept.
+        assertThat(runner.lines()).anyMatch(line -> line.contains("podman stop"));
     }
 
     @Test

@@ -120,6 +120,7 @@ public final class SokarDaemon {
             answer.put("helpers", result.helpers());
             answer.put("surviving", result.surviving());
             answer.put("detail", result.detail() == null ? "" : result.detail());
+            answer.put("discarded", result.discarded());
             replies.last(answer);
         });
 

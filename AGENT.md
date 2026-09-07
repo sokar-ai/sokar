@@ -148,6 +148,21 @@ See [build.md](doc/build.md). Three things that will bite:
   `PhantomToken.toString` both abbreviate because tokens end up in log lines by accident - and
   `gate serve` then wrote `token.value()` into `gate.log`, which the daemon streams to whatever is
   tailing it. Print the token, not its value.
+- **A failure is held, not swept up.** `--keep` has to be decided before a run, and the run worth
+  looking at is the one that went wrong - which is known only afterwards. So a non-zero exit stops
+  the container through `TaskControl` and leaves it: workspace, logs and unpushed commits intact,
+  `task resume` to go back in, `task stop --purge` to discard. Stopped rather than left running,
+  because a task nobody is watching that still holds a firewall, a gate and a credential proxy is
+  not kept, it is abandoned.
+- **`sokar panic` stops everything and removes nothing.** The reason for reaching for it is that
+  something is going wrong and nobody yet knows what, which is exactly when destroying the evidence
+  is worst. It takes no container names on purpose: somebody in that position is not going to list
+  what is running first. It goes through the same `TaskControl.stop` a deliberate stop uses, so the
+  record of what a task held that never reached the gate is written for every task it stops.
+- **`podman diff` is what answers "what did the agent install in there".** Added paths only: a
+  container that ran at all reports `/etc` and `/var` as changed, and a number that is never zero
+  means nothing. Counted before removal, because afterwards there is nothing left to ask - it is
+  the one part of a task with nowhere to arrive, unlike the workspace, which has the gate.
 - **A diagnostic that names no next action is not a diagnostic.** `sokar doctor` reports each
   dependency as a `Probe`, and the record's constructor refuses any state but `OK` without one -
   the line somebody forgets is the line an operator is reading at their worst moment. `UNKNOWN` is

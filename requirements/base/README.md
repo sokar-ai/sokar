@@ -19,12 +19,11 @@ feature.
 | B04 | [Egress Sets Editor](B04-Egress-Sets-Editor.md) | What a project may reach is readable and editable, with the effect of a change visible before it is applied. | yes |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | yes |
-| B07 | [Recovery And Panic](B07-Recovery-And-Panic.md) | A task that has gone wrong can be isolated for inspection, and everything can be stopped at once. | yes |
 | B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behaviour on Apple Containers, with one client that connects to either host. | yes |
 
 ## What was here and is finished
 
-Eight requirements have been met and retired. Their files are gone; what each measured is in
+Nine requirements have been met and retired. Their files are gone; what each measured is in
 [AGENT.md](../../AGENT.md), where it will be read again:
 
 - **The local daemon API.** `sokard` serves the domain over an owner-only varlink socket, and the
@@ -35,7 +34,7 @@ Eight requirements have been met and retired. Their files are gone; what each me
   loopback, measured unreachable from a second machine.
 - **The workspace outliving its container.** Cleanup used to destroy work while reporting
   success. The question it left - what the agent installed *inside* a container, which is lost
-  with it and warns nobody - is part of [B07](B07-Recovery-And-Panic.md).
+  with it and warned nobody - is answered below, under recovery and panic.
 - **What a project may reach.** Curated egress sets, declared per project.
 - **Credential management.** The value goes in through standard input, comes back only as a name,
   a kind and a length, and is questioned when it looks like a placeholder rather than a secret. A
@@ -48,6 +47,13 @@ Eight requirements have been met and retired. Their files are gone; what each me
   phantom token, at container creation and at every agent run. The pair that must not drift - the
   names in the arguments, the values in the environment - is guarded by tests at both places that
   build them, because podman drops a name it cannot resolve rather than failing.
+- **Recovery and panic.** A task that fails is held rather than removed - nobody can ask for that
+  in advance, since the run worth looking at is the one that went wrong - and `sokar panic` stops
+  every running task and every helper without being told a single container name, removing nothing.
+  Both go through the same stop the CLI uses, so both write down what a task held that never
+  reached the gate. The question it left, what the agent installed *inside* a container, is
+  answered rather than moved: `podman diff` counts it, and a removal now says how much it
+  destroyed.
 - **Clearance prompts.** A blocked destination is a question naming the project, the task and what
   was reached; the answer takes effect on the waiting connection, is never asked twice for a task -
   across a resume, which is where it used to leak - and is written to a record that outlives the

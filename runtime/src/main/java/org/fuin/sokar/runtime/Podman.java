@@ -271,6 +271,31 @@ public class Podman {
     }
 
     /**
+     * Returns how many paths the container has that its image does not.
+     * <p>
+     * What an agent installs inside a container - packages, a toolchain, a cache it warmed - is
+     * destroyed with the container and has nowhere to arrive, unlike the workspace, which the gate
+     * holds. Nothing else records it, so removal is the last moment it can be counted.
+     * <p>
+     * Added paths only. {@code podman diff} also reports a directory as changed the moment
+     * anything under it moves, which is true of {@code /etc} and {@code /var} on any container
+     * that ran at all, and counting those would put a number in front of an operator that is never
+     * zero and therefore means nothing.
+     *
+     * @param container Container name or id.
+     * @return How many paths were added, or zero when podman cannot say.
+     */
+    public long addedPaths(String container) {
+        final CommandResult result = runner.run(podman("diff", container));
+        if (!result.successful()) {
+            // Not an error: this is a nicety on the way to removing something, and a container
+            // that is already gone answers nothing.
+            return 0;
+        }
+        return result.standardOutput().lines().filter(line -> line.startsWith("A ")).count();
+    }
+
+    /**
      * Returns the id of a container, if it exists.
      *
      * @param container Container name.

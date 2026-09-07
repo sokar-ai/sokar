@@ -454,6 +454,18 @@ You are now in a shell inside the container. The container is removed when you
 leave; `--keep` keeps it. `-P "your prompt"` runs the agent headlessly instead of
 giving you a shell.
 
+**A task that fails is kept without being asked.** You cannot know in advance which
+run you will want to look at, so a non-zero exit stops the container instead of
+removing it — workspace, logs and unpushed commits all still there. `sokar task list`
+shows it, `sokar task resume <name>` puts you back inside, and
+`sokar task stop <name> --purge` discards it. A purge also says how many files the
+agent had installed inside the container, because those have nowhere to go and
+nothing else records that they existed.
+
+**If something is going wrong and you do not yet know what**, `sokar panic` stops
+every running task and every helper it started. It takes no names, and it removes
+nothing: everything can be resumed afterwards.
+
 ## 6. Hand the work back
 
 `/workspace` inside the container is a clone from the gate, with a remote already

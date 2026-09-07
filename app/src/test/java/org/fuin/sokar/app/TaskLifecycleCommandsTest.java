@@ -458,6 +458,25 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void saysWhatARemovalDestroysInsideTheContainer(@TempDir Path dir) throws IOException {
+
+        // The workspace has the gate to arrive in; what the agent installed inside the container
+        // has nowhere at all, and nothing else records that it existed. Counted before the
+        // removal, because afterwards there is nothing left to ask.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 3 minutes ago\n");
+        runner.answering("diff", "C /etc\nA /opt/tool\nA /opt/tool/bin\nC /var\n");
+        stateOf("sokar-uc-shell-1");
+
+        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--force"))
+                .isZero();
+
+        // Added paths only: a container that ran at all has changed /etc and /var, and a number
+        // that is never zero means nothing.
+        assertThat(out.toString()).contains("discarded 2 files the agent added");
+    }
+
+    @Test
     void rescuePushesTheWorkUnderItsOwnRef(@TempDir Path dir) throws IOException {
 
         // Rescued work is not work an agent offered up, so it lands beside the reviewed ref

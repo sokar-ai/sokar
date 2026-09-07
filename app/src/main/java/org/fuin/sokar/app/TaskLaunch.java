@@ -332,16 +332,16 @@ public final class TaskLaunch {
             // on purpose: the installed agents are a resource this owns, and the paths that
             // follow a start use them.
             return after.started(new Running(runner, agents, selected, container,
-                    environmentCache, project, code -> cleanUp(runner, container, code)));
+                    environmentCache, project, code -> cleanUp(runner, container, code, out)));
 
         } catch (CommandException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();
-            return cleanUp(runner, container, 70);
+            return cleanUp(runner, container, 70, out);
         } catch (Exception ex) {
             err.println("sokar: " + ex);
             err.flush();
-            return cleanUp(runner, container, 70);
+            return cleanUp(runner, container, 70, out);
         }
     }
 
@@ -599,8 +599,42 @@ public final class TaskLaunch {
     /** The watcher that asks about blocked connections. Built on first use. */
     private ClearanceWiring clearanceWiring;
 
-    private int cleanUp(TaskRunner runner, String container, int code) {
-        if (!request.keep()) {
+    /**
+     * Removes a task that finished, and holds one that failed.
+     * <p>
+     * <strong>A failure is kept, because nobody can ask for that in advance.</strong> {@code
+     * --keep} has to be decided before the run, and the run an operator wants to look at is the
+     * one that went wrong - which is known only afterwards. So a non-zero exit stops the container
+     * rather than removing it: the workspace, the logs and anything that never reached the gate
+     * stay where they are, {@code task resume} brings it back, and discarding it is a separate
+     * decision made by name.
+     * <p>
+     * Stopped through {@link TaskControl}, not by leaving it running: a task nobody is watching
+     * that still holds a firewall, a gate and a credential proxy is not "kept", it is abandoned.
+     * That is also what writes down what the workspace held.
+     *
+     * @param runner Runs the container.
+     * @param container Container name.
+     * @param code Exit code of the run.
+     * @param out Where the decision is reported.
+     * @return The exit code, unchanged.
+     */
+    private int cleanUp(TaskRunner runner, String container, int code, PrintWriter out) {
+
+        final boolean exists = context.podman().idOf(container).isPresent();
+
+        if (code != 0 && exists && !request.keep()) {
+            final TaskControl.Stopped held = new TaskControl(context)
+                    .stop(container, false, false, false);
+            out.println("kept      " + container + " - it failed, so nothing was removed");
+            if (held.work() != null) {
+                out.println("          it holds " + held.work());
+            }
+            out.println("          look with 'sokar task list', go back in with"
+                    + " 'sokar task resume " + container + "',");
+            out.println("          discard with 'sokar task stop " + container + " --purge'");
+            out.flush();
+        } else if (!request.keep()) {
             // The container may or may not exist: podman rm tolerates both, and leaving a created
             // container behind is worse than an extra command.
             runner.remove(container);

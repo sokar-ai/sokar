@@ -132,6 +132,13 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
         }
         if (result.removed()) {
             out.println("removed   " + context.paths().containerState(container));
+            if (result.discarded() > 0) {
+                // The other half of what a removal costs. The workspace has the gate to arrive in;
+                // what the agent installed in the container has nowhere at all, and nothing else
+                // records that it existed.
+                out.println("discarded " + result.discarded() + " files the agent added inside the"
+                        + " container - packages, caches, a built toolchain");
+            }
         } else if (result.state() != null) {
             out.println("resume    sokar task resume " + container);
             out.println("logs      " + result.state());
