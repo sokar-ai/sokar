@@ -154,6 +154,33 @@ final class CredentialWiring {
             java.util.Map<String, String> environment) {
     }
 
+    /**
+     * Says why this task will run without a credential, or {@code null} when it will have one.
+     * <p>
+     * <strong>Locked is not the same as absent, and this used to say it was.</strong> A locked
+     * vault reads as an empty set, so a credential that is sitting in the vault was reported as
+     * missing - sending somebody to store one they already have, when what they have to do is
+     * unlock it. The same conflation was in the daemon's {@code readable} field and is fixed
+     * there; this is the other place it lived.
+     *
+     * @param stored What the vault holds, or empty when it cannot be read.
+     * @param name Vault key this task's credential would be under.
+     * @return The reason, or {@code null} when the credential is there.
+     */
+    @Nullable
+    static String credentialUnavailable(
+            java.util.Optional<java.util.Map<String, org.fuin.sokar.vault.VaultEntry>> stored,
+            String name) {
+        if (stored.isEmpty()) {
+            return "the vault is locked, so this task cannot authenticate;"
+                    + " 'sokar vault unlock' and start it again";
+        }
+        if (!stored.get().containsKey(name)) {
+            return "the vault holds no credential for '" + name + "'";
+        }
+        return null;
+    }
+
     @Nullable
     CredentialPlumbing startVault(org.fuin.sokar.agent.api.InstalledAgent agent,
             String container, PrintWriter out, PrintWriter err) {
@@ -177,9 +204,10 @@ final class CredentialWiring {
             }
             return null;
         }
-        if (!context.credentials().containsKey(choice.credentialName(agent))) {
-            out.println("token     none - the vault holds no credential for '"
-                    + choice.credentialName(agent) + "'");
+        final String unavailable = credentialUnavailable(context.readableCredentials(),
+                choice.credentialName(agent));
+        if (unavailable != null) {
+            out.println("token     none - " + unavailable);
             return null;
         }
 
