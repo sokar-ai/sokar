@@ -164,9 +164,12 @@ type Prompt (
   # tcp or udp.
   protocol: string,
   port: int,
-  # When it was blocked, ISO-8601.
+  # When it was blocked, ISO-8601 - and on an event carrying a verdict, when it was decided.
+  # The two are the same field because they are the same event twice; keep the question's own
+  # value if you want the block time of an answered prompt.
   at: string,
   # Where in the ruleset it was stopped, for an operator who needs to know which rule fired.
+  # Empty on an event carrying a verdict: nothing decided it a second time.
   prefix: string,
   # Absent while the question is open. Once it is settled the same destination arrives again
   # carrying "allow", "deny" or "timeout", and that is the only way an interface learns that a
