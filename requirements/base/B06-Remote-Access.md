@@ -25,6 +25,35 @@ The consequence, written down because it is a trade and not a free win: reaching
 a shell on its machine. There is no browser and no other client, and the frontend's
 corresponding requirement dropped its browser criterion because of this.
 
+## Measured, 2026-09-07
+
+**The second shape exists now.** `sokar daemon connect` puts this process's standard input and
+output onto the daemon's socket and interprets nothing in between, so
+`ssh host sokar daemon connect` speaks varlink straight down the ssh session: no socket file on
+the client, nothing to tear down, and the connection lives exactly as long as the ssh command.
+Measured against a running daemon by piping one call in and reading the reply out; the ssh leg
+could not be measured on this machine, which runs no sshd, so what is proven is the bridge, not
+the hop.
+
+**Bytes, not lines.** Varlink frames are NUL-separated JSON and a stream is answered over time, so
+the bridge copies raw bytes and flushes on every read. A line-buffered one would hold a reply until
+the next arrived, which for a fleet watch means holding it until something changes - exactly the
+case an interface has to show promptly.
+
+**One client can carry several streams, and each costs a connection.** A fleet watch and two log
+tails were run at once against one daemon, each through its own bridge, while both logs were
+appended to: all three delivered, none blocked another. That is the answer to the question, and it
+is also the difference between the two shapes - `ssh -L` forwards one socket and a client opens as
+many connections through it as it likes, while `connect` is one connection per invocation, so
+three streams are three ssh sessions. Neither is wrong; the second trades sessions for having no
+socket file and no lifetime to manage.
+
+**The 64 KB chunk is not a limit, it is a rate.** A 1.5 MB log tailed as 24 replies, largest
+68 KB, all 30,000 lines delivered and none lost. But the tail loop sleeps 200 ms between chunks,
+so a backlog drains at roughly 320 KB/s however fast the transport is: opening a large log is
+slow by construction rather than by bandwidth. That is a decision to revisit deliberately - the
+sleep is there so a live tail does not spin - not a bug to fix in passing.
+
 ## Acceptance
 
 - A remote machine's tasks are usable with no configuration on that machine beyond
@@ -52,14 +81,11 @@ reaching a person whose client is closed.
   than ending quietly, which is the honest half; reconnecting and resuming a watch is a decision
   nothing has had to make yet, and it is this requirement's to make because the transport decides
   what a reconnection costs.
-- **Whether one client can carry a fleet watch and several log tails at once.** Each streams
-  correctly on its own connection; nobody has run them together, and the 64 KB cap on a tail
-  reply is a guess at the bulk problem rather than a measurement of it.
-
 - **Whether an interface should manage the tunnel itself.** Spawning `ssh` and owning its
   lifetime is friendlier and puts key handling and process supervision inside the client;
   requiring a tunnel that is already up keeps it out of the credential business. Not this
   requirement's to decide alone, but it constrains what "reconnection recovers" above can mean.
-- **Whether `ssh host sokar daemon connect` is the better shape than `-L`.** Piping stdin and
-  stdout to the socket removes the local socket file and the forwarding lifetime entirely, at
-  the cost of a subcommand that does not exist yet. Measured only in the `-L` form so far.
+- **Which of the two shapes an interface should use.** Both exist and both work; the trade is
+  measured above, and choosing is the interface's decision rather than this one's. What is not
+  measured is either shape over a real ssh hop from a second machine - this machine runs no sshd -
+  so the reconnection behaviour below is still untested against a link that actually drops.

@@ -148,6 +148,19 @@ See [build.md](doc/build.md). Three things that will bite:
   `PhantomToken.toString` both abbreviate because tokens end up in log lines by accident - and
   `gate serve` then wrote `token.value()` into `gate.log`, which the daemon streams to whatever is
   tailing it. Print the token, not its value.
+- **A stdio bridge to the daemon must copy bytes, not lines.** `sokar daemon connect` exists so
+  that `ssh host sokar daemon connect` speaks varlink down the ssh session with no socket file on
+  the client. Frames are NUL-separated JSON and a stream is answered over time, so it flushes on
+  every read: a line-buffered bridge holds a reply until the next one arrives, which for a fleet
+  watch means holding it until something changes.
+- **`-L` and `connect` differ in what a second stream costs.** A forwarded socket carries as many
+  connections as a client opens; `connect` is one connection per invocation, so three streams are
+  three ssh sessions. Measured with a fleet watch and two log tails at once - all three delivered,
+  none blocked another.
+- **A tail's 64 KB chunk is a rate, not a limit.** A 1.5 MB log arrives complete, in 24 replies,
+  but the loop sleeps 200 ms between chunks so a backlog drains at roughly 320 KB/s whatever the
+  transport can do. The sleep is there so a live tail does not spin; changing it is a deliberate
+  decision, not a tidy-up.
 - **A failure is held, not swept up.** `--keep` has to be decided before a run, and the run worth
   looking at is the one that went wrong - which is known only afterwards. So a non-zero exit stops
   the container through `TaskControl` and leaves it: workspace, logs and unpushed commits intact,
