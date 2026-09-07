@@ -39,18 +39,55 @@ class UpstreamDistanceTest {
 
     /**
      * Builds an upstream with one commit on it and returns its path.
+     * <p>
+     * <strong>The initial branch is named, not inherited.</strong> Without it {@code git init}
+     * takes the branch name from the machine's own configuration, and the upstream ends up with
+     * HEAD pointing at a branch that was never created - which makes {@code git fetch origin}
+     * fail with "couldn't find remote ref HEAD", because with no refspec that is exactly what it
+     * asks for. This test passed on a machine with {@code init.defaultBranch=main} and failed on
+     * CI, which has none: the fixture depended on whoever ran it.
      */
     private Path upstreamWithOneCommit(Path root) throws Exception {
         final Path upstream = root.resolve("upstream.git");
         final Path work = root.resolve("work");
-        git(root, "init", "--quiet", "--bare", upstream.toString());
-        git(root, "init", "--quiet", work.toString());
+        git(root, "init", "--quiet", "--bare", "--initial-branch=main", upstream.toString());
+        git(root, "init", "--quiet", "--initial-branch=main", work.toString());
         java.nio.file.Files.writeString(work.resolve("one.txt"), "one\n");
         git(work, "add", ".");
         git(work, "commit", "--quiet", "-m", "one");
         git(work, "branch", "-M", "main");
         git(work, "push", "--quiet", upstream.toString(), "main");
         return upstream;
+    }
+
+    @Test
+    void measuresAnUpstreamWhoseDefaultBranchIsNotMain(@TempDir Path root) throws Exception {
+
+        // The mirror's HEAD and the upstream's HEAD are what get compared, so a project whose
+        // default branch is called something else has to work exactly the same. Naming 'main'
+        // anywhere in the measurement would answer 0 for every repository that does not use it.
+        final Path upstream = root.resolve("upstream.git");
+        final Path work = root.resolve("work");
+        git(root, "init", "--quiet", "--bare", "--initial-branch=trunk", upstream.toString());
+        git(root, "init", "--quiet", "--initial-branch=trunk", work.toString());
+        java.nio.file.Files.writeString(work.resolve("one.txt"), "one\n");
+        git(work, "add", ".");
+        git(work, "commit", "--quiet", "-m", "one");
+        git(work, "push", "--quiet", upstream.toString(), "trunk");
+
+        final Path mirror = root.resolve("mirror.git");
+        git(root, "clone", "--quiet", "--bare", upstream.toString(), mirror.toString());
+        java.nio.file.Files.writeString(work.resolve("two.txt"), "two\n");
+        git(work, "add", ".");
+        git(work, "commit", "--quiet", "-m", "two");
+        git(work, "push", "--quiet", upstream.toString(), "trunk");
+
+        final UpstreamDistance.Distance distance =
+                UpstreamDistance.measure(runner, mirror, GateMode.GATEKEEPING);
+
+        assertThat(distance.reason()).as("git said: %s", distance.detail())
+                .isEqualTo(UpstreamDistance.Reason.MEASURED);
+        assertThat(distance.behind()).isEqualTo(1);
     }
 
     private void commitTo(Path root, Path upstream, String name) throws Exception {
@@ -73,7 +110,11 @@ class UpstreamDistanceTest {
         final UpstreamDistance.Distance distance =
                 UpstreamDistance.measure(runner, mirror, GateMode.GATEKEEPING);
 
-        assertThat(distance.reason()).isEqualTo(UpstreamDistance.Reason.MEASURED);
+        // The detail is in the message on purpose: without it a failure here reads only
+        // "expected MEASURED but was FAILED" and throws away git's own words, which is the one
+        // thing that would explain it. That cost a reproduction round on this very test.
+        assertThat(distance.reason()).as("git said: %s", distance.detail())
+                .isEqualTo(UpstreamDistance.Reason.MEASURED);
         assertThat(distance.behind()).isEqualTo(2);
         assertThat(distance.measured()).isNotNull();
     }
@@ -90,7 +131,8 @@ class UpstreamDistanceTest {
         final UpstreamDistance.Distance distance =
                 UpstreamDistance.measure(runner, mirror, GateMode.GATEKEEPING);
 
-        assertThat(distance.reason()).isEqualTo(UpstreamDistance.Reason.MEASURED);
+        assertThat(distance.reason()).as("git said: %s", distance.detail())
+                .isEqualTo(UpstreamDistance.Reason.MEASURED);
         assertThat(distance.behind()).isZero();
     }
 

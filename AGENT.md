@@ -65,7 +65,7 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
 
 ## Tests
 
-- **Descriptive method names, not `testXxx`.** All 708 test methods read as
+- **Descriptive method names, not `testXxx`.** All 709 test methods read as
   sentences — `refusesADomainThatIsBothAllowedAndRefused`,
   `readsTheDomainsAnAgentNeeds`. There is no `testXxx` left; do not reintroduce it.
 - **Every guard must be proven to fail.** A test that has never failed is a test
@@ -85,6 +85,17 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
   the thing that is broken.
 - **Test observable behavior**, not internals: the generated ruleset, the
   packaged file list, what a container can actually reach.
+- **A fixture must not inherit the machine's configuration.** `git init` takes
+  its branch name from `init.defaultBranch`, so a test that pushed `main` into a
+  fixture built without `--initial-branch` produced an upstream whose HEAD named
+  a branch that was never created - and `git fetch origin`, which asks for HEAD
+  when given no refspec, then failed. Green on a laptop that sets the option,
+  red on CI which does not. Run the suite with `GIT_CONFIG_GLOBAL=/dev/null`
+  before trusting anything that shells out to git.
+- **Keep the reason in the assertion.** `assertThat(x.reason()).isEqualTo(MEASURED)`
+  fails with "expected MEASURED but was FAILED" and throws away the detail the
+  object is carrying. `.as("git said: %s", x.detail())` turns a reproduction
+  round into a readable CI log.
 - A test that needs podman belongs in `buildtools/e2e-tier1.sh`, not in surefire.
   Unit tests must run without a container runtime.
 - **Never commit with a failing suite.** Run `./mvnw -B test` as its own step,
