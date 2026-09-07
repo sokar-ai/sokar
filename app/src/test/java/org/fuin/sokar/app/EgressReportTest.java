@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
  * Against the sets this repository actually ships, not a fixture copy of them: the report is only
  * worth anything if the names in a project file resolve to the hosts an operator was shown.
  */
-class TaskRunEgressTest {
+class EgressReportTest {
 
     private static final EgressSetDirectory SETS =
             new EgressSetDirectory(List.of(Path.of("..", "egress")));
@@ -36,7 +36,7 @@ class TaskRunEgressTest {
             List<String> refused) {
         final StringWriter written = new StringWriter();
         final PrintWriter out = new PrintWriter(written);
-        TaskRunCommand.reportReachable(project, origins, refused, out);
+        EgressReport.reportReachable(project, origins, refused, out);
         out.flush();
         return written.toString();
     }
@@ -44,7 +44,7 @@ class TaskRunEgressTest {
     @Test
     void namesTheSetThatGrantedEachHost() {
 
-        final Map<String, String> origins = TaskRunCommand.projectEgress(
+        final Map<String, String> origins = EgressReport.projectEgress(
                 project(SecurityClass.GUARDED, new Egress(List.of("maven"), List.of())), SETS);
 
         assertThat(origins).containsEntry("repo.maven.apache.org", "set maven")
@@ -56,7 +56,7 @@ class TaskRunEgressTest {
 
         // It may also appear in a set. Whoever wrote it down by hand should see it back as their
         // own decision rather than as whichever set happens to contain it too.
-        final Map<String, String> origins = TaskRunCommand.projectEgress(project(
+        final Map<String, String> origins = EgressReport.projectEgress(project(
                 SecurityClass.GUARDED,
                 new Egress(List.of("maven"), List.of("repo.maven.apache.org"))), SETS);
 
@@ -66,14 +66,14 @@ class TaskRunEgressTest {
     @Test
     void aProjectThatDeclaresNothingGrantsNothing() {
 
-        assertThat(TaskRunCommand.projectEgress(
+        assertThat(EgressReport.projectEgress(
                 project(SecurityClass.GUARDED, Egress.none()), SETS)).isEmpty();
     }
 
     @Test
     void anUnknownSetStopsTheTask() {
 
-        assertThatThrownBy(() -> TaskRunCommand.projectEgress(
+        assertThatThrownBy(() -> EgressReport.projectEgress(
                 project(SecurityClass.GUARDED, new Egress(List.of("mvn"), List.of())), SETS))
                 .isInstanceOf(EgressSetException.class)
                 .hasMessageContaining("Unknown egress set 'mvn'");

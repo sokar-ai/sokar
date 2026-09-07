@@ -22,14 +22,6 @@ import picocli.CommandLine.Spec;
         description = "Runs a task in a fresh container for the given project.")
 public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
-    /**
-     * Hosts whose reachability changes what the git gate is worth, matched on the registrable
-     * name so a subdomain counts too.
-     */
-    private static final java.util.List<String> FORGES = java.util.List.of("github.com",
-            "gitlab.com", "bitbucket.org", "codeberg.org", "githubusercontent.com");
-
-
     @Parameters(index = "0", arity = "0..1", paramLabel = "<task>",
             description = "Name of the task. Defaults to an interactive shell.")
     private String task = "shell";
@@ -338,7 +330,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         // project-file errors - before an image is built, and where --dry-run can still see it.
         final java.util.Map<String, String> projectOrigins;
         try {
-            projectOrigins = projectEgress(project, context.paths().egressSets());
+            projectOrigins = EgressReport.projectEgress(project, context.paths().egressSets());
         } catch (org.fuin.sokar.shield.EgressSetException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();
@@ -348,7 +340,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         if (dryRun) {
             // What the project itself opens. The agent and provider are not chosen yet, so this
             // is a preview of the file rather than the full report a real run prints.
-            reportReachable(project, projectOrigins, java.util.List.of(), out);
+            EgressReport.reportReachable(project, projectOrigins, java.util.List.of(), out);
             return 0;
         }
 
@@ -507,7 +499,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 }
             }
 
-            reportReachable(project, origins, refused(selected), out);
+            EgressReport.reportReachable(project, origins, EgressReport.refused(selected), out);
 
             // The port is decided before this, so the firewall rule can name it; the gate itself
             // starts afterwards, because its log lives in the state directory that start()
@@ -1385,7 +1377,10 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     + (agent.definition().version() == null ? "" : agent.definition().version()));
             layers = layers.and(agent.definition().installAsRoot(),
                     org.fuin.sokar.agent.api.InstallScript.render(agent.definition().artifacts()));
-            layers = layers.and(stage(agent, project, out), java.util.List.of());
+            layers = layers.and(
+                    AgentStaging.stage(agent, project, context.paths(),
+                            context.runner(), out),
+                    java.util.List.of());
             layers = layers.and(java.util.List.of(), agent.definition().installAsAgent());
         }
 
@@ -1394,134 +1389,6 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             layers = layers.and(project.imageSnippetLines(), java.util.List.of());
         }
         return layers;
-    }
-
-    /**
-     * Copies what the agent ships into the build context and returns the lines that install it.
-     * <p>
-     * A tool that is a tree of files rather than one binary has no URL to pin, so its own package
-     * carries it and the image build fetches nothing at all. That is why the copy happens here:
-     * the container runtime can only see what is inside the build context.
-     *
-     * @param agent The agent.
-     * @param project The project being built.
-     * @param out Where progress is reported.
-     * @return Build lines, empty when the agent ships nothing.
-     */
-    private java.util.List<String> stage(org.fuin.sokar.agent.api.InstalledAgent agent,
-            Project project, PrintWriter out) {
-
-        final java.util.List<String> lines = new java.util.ArrayList<>();
-        for (final var tree : agent.definition().packaged()) {
-            final java.nio.file.Path source = java.nio.file.Path.of(tree.source());
-            if (!java.nio.file.Files.exists(source)) {
-                out.println("missing   " + source + ", which " + agent.name() + " says it ships");
-                continue;
-            }
-            final java.nio.file.Path staged = context.paths().buildContext(project.name())
-                    .resolve(tree.stagingName());
-            try {
-                if (upToDate(source, staged)) {
-                    // Staged by an earlier run of the same package. Unpacking hundreds of
-                    // megabytes again on every task would be the slowest thing a task run does.
-                    out.println("packaged  " + tree.target() + ", already staged");
-                } else if (tree.archive()) {
-                    unpack(source, staged);
-                    markStaged(source, staged);
-                } else {
-                    copyTree(source, staged);
-                    markStaged(source, staged);
-                }
-            } catch (java.io.IOException | RuntimeException ex) {
-                out.println("missing   could not stage " + source + ": " + ex.getMessage());
-                continue;
-            }
-            lines.add("COPY " + tree.stagingName() + " " + tree.target());
-            out.println("packaged  " + tree.target() + " from this agent's own package");
-        }
-        return java.util.List.copyOf(lines);
-    }
-
-    /** Records which source a staged directory came from, so it is not unpacked twice. */
-    private static java.nio.file.Path marker(java.nio.file.Path staged) {
-        return staged.resolveSibling(staged.getFileName() + ".from");
-    }
-
-    private static String stamp(java.nio.file.Path source) throws java.io.IOException {
-        return source + " " + java.nio.file.Files.size(source) + " "
-                + java.nio.file.Files.getLastModifiedTime(source).toMillis();
-    }
-
-    private static boolean upToDate(java.nio.file.Path source, java.nio.file.Path staged) {
-        try {
-            return java.nio.file.Files.isDirectory(staged)
-                    && java.nio.file.Files.exists(marker(staged))
-                    && java.nio.file.Files.readString(marker(staged)).equals(stamp(source));
-        } catch (java.io.IOException ex) {
-            return false;
-        }
-    }
-
-    private static void markStaged(java.nio.file.Path source, java.nio.file.Path staged)
-            throws java.io.IOException {
-        java.nio.file.Files.writeString(marker(staged), stamp(source));
-    }
-
-    /**
-     * Unpacks an archive into the build context.
-     *
-     * @param source Archive to unpack.
-     * @param target Directory to unpack into, replacing whatever was there.
-     * @throws IOException If it cannot be unpacked.
-     */
-    private void unpack(java.nio.file.Path source, java.nio.file.Path target)
-            throws java.io.IOException {
-
-        deleteTree(target);
-        java.nio.file.Files.createDirectories(target);
-        final var result = context.runner().run(org.fuin.sokar.core.process.Command.of(
-                java.util.List.of("tar", "-xzf", source.toString(), "-C", target.toString())));
-        if (!result.successful()) {
-            throw new java.io.IOException("tar failed: " + result.standardError().strip());
-        }
-    }
-
-    private static void deleteTree(java.nio.file.Path directory) throws java.io.IOException {
-        if (!java.nio.file.Files.exists(directory)) {
-            return;
-        }
-        try (var walk = java.nio.file.Files.walk(directory)) {
-            for (final java.nio.file.Path path
-                    : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                java.nio.file.Files.deleteIfExists(path);
-            }
-        }
-    }
-
-    /**
-     * Copies a directory, replacing whatever was there.
-     *
-     * @param source Directory to copy.
-     * @param target Where to put it.
-     * @throws IOException If it cannot be copied.
-     */
-    private static void copyTree(java.nio.file.Path source, java.nio.file.Path target)
-            throws java.io.IOException {
-
-        deleteTree(target);
-        try (var walk = java.nio.file.Files.walk(source)) {
-            for (final java.nio.file.Path path : walk.toList()) {
-                final java.nio.file.Path destination = target.resolve(source.relativize(path));
-                if (java.nio.file.Files.isDirectory(path)) {
-                    java.nio.file.Files.createDirectories(destination);
-                } else {
-                    java.nio.file.Files.createDirectories(destination.getParent());
-                    java.nio.file.Files.copy(path, destination,
-                            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                            java.nio.file.StandardCopyOption.COPY_ATTRIBUTES);
-                }
-            }
-        }
     }
 
     private org.fuin.sokar.agent.api.InstalledAgent select(
@@ -1571,92 +1438,5 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         // Only reaps when no container is running: a start that failed fires no poststop hook.
         runner.reapOrphans(container);
         return code;
-    }
-    /**
-     * Returns the hosts the project declared, each mapped to where it came from.
-     *
-     * @param project The project.
-     * @param sets Where the installed sets are found.
-     * @return Host to origin, empty when the project declared nothing.
-     */
-    static java.util.Map<String, String> projectEgress(Project project,
-            org.fuin.sokar.shield.EgressSetDirectory sets) {
-        final org.fuin.sokar.core.project.Egress egress = project.egress();
-        if (egress.isEmpty()) {
-            return java.util.Map.of();
-        }
-        final java.util.Map<String, String> origins = new java.util.LinkedHashMap<>();
-        sets.origins(egress.sets()).forEach((host, set) -> origins.put(host, "set " + set));
-        // A directly named host wins the label: an operator who wrote it down should see it
-        // reported as their own decision, not as whichever set happens to contain it too.
-        egress.domains().forEach(domain -> origins.put(domain, "project"));
-        return origins;
-    }
-
-    /**
-     * Returns the destinations an agent asks for and is deliberately not given.
-     *
-     * @param selected The chosen agent, or {@code null}.
-     * @return Hosts, empty when the agent names none.
-     */
-    static java.util.List<String> refused(
-            org.fuin.sokar.agent.api.InstalledAgent selected) {
-        return selected == null ? java.util.List.of() : selected.definition().refusedDomains();
-    }
-
-    /**
-     * Prints every destination a task may reach, with who decided it.
-     * <p>
-     * One list rather than a line per source, because the question an operator has is "what can
-     * this reach, and who said so" - and four differently shaped lines do not answer it. A
-     * destination that was deliberately refused is listed too, and marked: "we said no" and
-     * "nobody mentioned it" are different states, and only one of them is a thing to go and fix.
-     *
-     * @param project The project.
-     * @param origins Host to the origin that granted it, in the order the sources were consulted.
-     * @param refused Hosts an agent declares it asks for and is not given.
-     * @param out Where to report.
-     */
-    static void reportReachable(Project project, java.util.Map<String, String> origins,
-            java.util.List<String> refused, PrintWriter out) {
-
-        if (origins.isEmpty() && refused.isEmpty()) {
-            out.println("reachable      nothing - no agent, provider or project declared a host");
-            out.flush();
-            return;
-        }
-
-        final int width = java.util.stream.Stream.concat(origins.keySet().stream(),
-                        refused.stream())
-                .mapToInt(String::length).max().orElse(0);
-
-        String label = "reachable";
-        for (final java.util.Map.Entry<String, String> entry : origins.entrySet()) {
-            out.printf("%-14s %-" + width + "s  %s%n", label, entry.getKey(), entry.getValue());
-            label = "";
-        }
-        for (final String host : refused) {
-            out.printf("%-14s %-" + width + "s  %s%n", label, host, "refused on purpose");
-            label = "";
-        }
-        out.println("               ports 80 and 443; everything else is NXDOMAIN");
-
-        // Said once, here, where the grants are. Not refused: an agent legitimately clones
-        // dependencies from a forge.
-        final java.util.List<String> forges = origins.keySet().stream()
-                .filter(host -> FORGES.stream().anyMatch(forge ->
-                        host.equals(forge) || host.endsWith("." + forge)))
-                .toList();
-        if (!forges.isEmpty()
-                && project.securityClass() == org.fuin.sokar.core.project.SecurityClass.GUARDED) {
-            // Named, not listed: a whole set is eight hosts, and eight names in one sentence is a
-            // line nobody reads - which would defeat the point of warning at all.
-            final String what = forges.size() == 1 ? forges.get(0) + " is"
-                    : forges.get(0) + " and " + (forges.size() - 1) + " more forge host"
-                            + (forges.size() == 2 ? "" : "s") + " are";
-            out.println("               " + what + " reachable, so the gate now rests on this"
-                    + " container holding no credential for them");
-        }
-        out.flush();
     }
 }
