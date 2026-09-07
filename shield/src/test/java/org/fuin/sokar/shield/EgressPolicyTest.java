@@ -53,6 +53,17 @@ class EgressPolicyTest {
     }
 
     @Test
+    void treatsAnAddressThatIsAlreadyThereAsAllowed() {
+
+        // A watcher restarted against a container that kept running re-applies every decision it
+        // recorded. nft calls that File exists; the operator asked for the address to be allowed,
+        // and it is.
+        runner.failing("nft", 1, "Error: Could not process rule: File exists");
+
+        policy.allow("1.1.1.1");
+    }
+
+    @Test
     void reportsAFailureRatherThanClaimingTheAddressIsAllowed() {
 
         runner.failing("nft", 1, "Error: Could not process rule: No such file or directory");

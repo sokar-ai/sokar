@@ -19,7 +19,8 @@ import org.fuin.sokar.wire.varlink.VarlinkServer;
  *     namespace and cannot talk to the session bus from there.</li>
  * <li>{@code Subscribe} streams events to whatever wants to watch - a desktop client, a terminal,
  *     later a GUI. It is the reason this is varlink rather than a pipe: a pipe has exactly one
- *     reader, and the events are interesting to more than one.</li>
+ *     reader, and the events are interesting to more than one. Both the questions and the answers
+ *     go out on it; an answer is the same event carrying a {@code verdict}.</li>
  * <li>{@code Verdict} lets a subscriber answer, so a decision can come from somewhere other than
  *     the notification that Sokar itself raised.</li>
  * </ul>
@@ -47,6 +48,12 @@ public class ClearanceService implements AutoCloseable {
         this.hub = hub;
         this.server = new VarlinkServer(socket, INTERFACE);
 
+        // Every decision is broadcast as well, carrying the fields of the question plus what was
+        // decided. A subscriber that saw a question and never sees an answer cannot tell a prompt
+        // that ran out from one still on screen, and the one that ran out is the one that needs
+        // showing: nothing will ask again.
+        hub.onDecision(decision -> broadcast(decision.event()));
+
         server.method("Report", (parameters, replies) -> {
             final Map<String, Object> event = new LinkedHashMap<>(parameters);
             broadcast(event);
@@ -54,8 +61,7 @@ public class ClearanceService implements AutoCloseable {
             final String protocol = String.valueOf(parameters.get("protocol"));
             final int port = parameters.get("port") instanceof Number number ? number.intValue() : 0;
             final String shown = port == 0 ? destination : destination + ":" + port;
-            final Verdict verdict =
-                    hub.handle(key(protocol, destination, port), destination, shown, protocol);
+            final Verdict verdict = hub.handle(new Blocked(destination, port, protocol, shown));
             replies.last(Map.of("verdict", verdict.name().toLowerCase()));
         });
 

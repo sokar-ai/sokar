@@ -30,6 +30,9 @@ public class DesktopPrompt implements ClearancePrompt, AutoCloseable {
     /** Action key sent back when the operator presses Deny. */
     public static final String DENY = "deny";
 
+    /** How long the expired notice stays up: -1 leaves it to the notification server. */
+    private static final int EXPIRED_TIMEOUT = -1;
+
     /**
      * The part of {@code org.freedesktop.Notifications} Sokar uses.
      */
@@ -163,9 +166,7 @@ public class DesktopPrompt implements ClearancePrompt, AutoCloseable {
                     (int) timeout.toMillis()));
 
             if (!answered.await(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-                // Leaving it on screen after Sokar stopped waiting would invite an answer that
-                // nothing is listening for.
-                notifications.CloseNotification(shown.get());
+                expire(shown.get(), request);
             }
             return verdict.get();
 
@@ -175,6 +176,24 @@ public class DesktopPrompt implements ClearancePrompt, AutoCloseable {
         } catch (Exception ex) {
             throw new ClearanceException("Cannot ask about " + request.destination(), ex);
         }
+    }
+
+    /**
+     * Replaces a question nobody answered with what its silence did.
+     * <p>
+     * Replaced rather than closed. Leaving the question on screen would invite an answer nothing
+     * is listening for, but simply taking it away is worse: the destination stays blocked and will
+     * not be asked about again, so an operator who was away comes back to a machine that looks as
+     * though it was never asked. The buttons go with it, and the urgency drops - critical
+     * notifications never expire on their own, and this one has nothing left to decide.
+     *
+     * @param id The notification to replace.
+     * @param request What was asked.
+     */
+    private void expire(UInt32 id, ClearanceRequest request) {
+        notifications.Notify("Sokar", id, "network-error", request.expiredSummary(),
+                request.expiredBody(), List.of(), Map.of("urgency", new Variant<>((byte) 1)),
+                EXPIRED_TIMEOUT);
     }
 
     @Override

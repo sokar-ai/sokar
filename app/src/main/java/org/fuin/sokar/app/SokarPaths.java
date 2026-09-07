@@ -195,6 +195,22 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file holding one task's clearance decisions.
+     * <p>
+     * Under the state directory, not beside the rest of the task's files. Everything else a task
+     * writes is in the runtime directory, which the kernel clears at logout and
+     * {@code task stop --remove} deletes - and a record of what an agent tried to reach that goes
+     * when the task goes is not an audit record. Named by the container, so it is per run: a
+     * decision made for one run of a task is not silently in force for the next.
+     *
+     * @param container Container name.
+     * @return The journal file.
+     */
+    public Path clearanceJournal(String container) {
+        return xdg.state().resolve("clearance").resolve(container + ".jsonl");
+    }
+
+    /**
      * Returns the file podman is pointed at when Sokar starts a container.
      * <p>
      * Under the runtime directory rather than beside podman's own configuration: it applies to

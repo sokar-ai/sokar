@@ -150,6 +150,9 @@ type PendingPush (
 # This is the one event with a deadline. The task is blocked while it waits, and the watcher
 # gives up after its own timeout - so an interface that shows these must show them as they
 # arrive, which is why Prompts is a stream and not a poll.
+#
+# The answer comes back on the same stream: the same destination again, with verdict set. An
+# interface should match it to the question by task and key rather than showing it twice.
 type Prompt (
   # Container name, for routing the answer back to the right task.
   task: string,
@@ -164,7 +167,12 @@ type Prompt (
   # When it was blocked, ISO-8601.
   at: string,
   # Where in the ruleset it was stopped, for an operator who needs to know which rule fired.
-  prefix: string
+  prefix: string,
+  # Absent while the question is open. Once it is settled the same destination arrives again
+  # carrying "allow", "deny" or "timeout", and that is the only way an interface learns that a
+  # prompt ran out: nothing will ask about it again, so a question that simply stops arriving is
+  # indistinguishable from one still waiting for its operator.
+  verdict: ?string
 )
 
 # ---------------------------------------------------------------------------- what exists

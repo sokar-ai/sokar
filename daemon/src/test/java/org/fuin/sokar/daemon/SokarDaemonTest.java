@@ -294,7 +294,7 @@ class SokarDaemonTest {
         Files.createDirectories(state);
 
         final List<String> decided = new CopyOnWriteArrayList<>();
-        final ClearanceHub hub = new ClearanceHub("uc", request -> Verdict.TIMEOUT,
+        final ClearanceHub hub = new ClearanceHub("uc", "shell", request -> Verdict.TIMEOUT,
                 decided::add);
 
         try (ClearanceService watcher = new ClearanceService(state.resolve("clearance.sock"), hub)) {
@@ -326,6 +326,15 @@ class SokarDaemonTest {
                     assertThat(prompts.get(0))
                             .containsEntry("destination", "pypi.org")
                             .as("tagged with the task it came from, so an answer can go back")
+                            .containsEntry("task", "sokar-uc-shell-1");
+
+                    // Nobody answered, and that arrives too. Without it an interface cannot tell a
+                    // question that ran out from one still waiting, and this one will never be
+                    // asked again.
+                    waitFor(() -> prompts.size() > 1);
+                    assertThat(prompts.get(1))
+                            .containsEntry("destination", "pypi.org")
+                            .containsEntry("verdict", "timeout")
                             .containsEntry("task", "sokar-uc-shell-1");
 
                     // And the answer reaches the hub that is holding the task.

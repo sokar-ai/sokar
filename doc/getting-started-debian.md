@@ -500,11 +500,17 @@ Everything dropped is written to `events.jsonl` in the task's state directory,
 whether or not anyone is watching, so the audit trail does not depend on you being
 at the keyboard.
 
+What you decided is written to `~/.local/state/sokar/clearance/<container>.jsonl`,
+including the questions nobody answered. That file outlives the task - the state
+directory goes when the task is removed, this does not - and a resumed task reads it
+back, so nothing you have already answered is asked a second time.
+
 ## Where things are
 
 | Path | What |
 |---|---|
 | `/run/user/<uid>/sokar/<container>/` | one task's state: firewall ruleset, resolver config, `events.jsonl`, `vault.log`, `clearance.log` |
+| `~/.local/state/sokar/clearance/<container>.jsonl` | what that task was allowed and refused, kept after the task is gone |
 | `~/.local/share/sokar/vault.bin` | the encrypted credential store |
 | `~/.local/share/sokar/mirrors/<project>.git` | the gate's mirror, where pushes wait |
 | `~/.local/share/sokar/build/<project>/` | the generated `Containerfile`, meant to be read |

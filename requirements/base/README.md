@@ -16,7 +16,6 @@ feature.
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
-| B02 | [Clearance Prompts](B02-Clearance-Prompts.md) | A blocked destination becomes a question with enough context to answer it, and the answer reaches the waiting task. | yes |
 | B03 | [Credential Management](B03-Credential-Management.md) | Credentials are stored, listed and used without a value ever being displayed, logged or copied. |  |
 | B04 | [Egress Sets Editor](B04-Egress-Sets-Editor.md) | What a project may reach is readable and editable, with the effect of a change visible before it is applied. | yes |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |
@@ -26,7 +25,7 @@ feature.
 
 ## What was here and is finished
 
-Five requirements have been met and retired. Their files are gone; what each measured is in
+Six requirements have been met and retired. Their files are gone; what each measured is in
 [AGENT.md](../../AGENT.md), where it will be read again:
 
 - **The local daemon API.** `sokard` serves the domain over an owner-only varlink socket, and the
@@ -39,16 +38,24 @@ Five requirements have been met and retired. Their files are gone; what each mea
   success. The question it left - what the agent installed *inside* a container, which is lost
   with it and warns nobody - is part of [B07](B07-Recovery-And-Panic.md).
 - **What a project may reach.** Curated egress sets, declared per project.
+- **Clearance prompts.** A blocked destination is a question naming the project, the task and what
+  was reached; the answer takes effect on the waiting connection, is never asked twice for a task -
+  across a resume, which is where it used to leak - and is written to a record that outlives the
+  task. A question nobody answered is replaced on screen by one saying so, and reaches a client as
+  a verdict rather than as silence. The question it left, how long a prompt should wait for
+  somebody who is not at the machine, is part of [B06](B06-Remote-Access.md).
 
 ## To be checked
 
 Two open questions are worth knowing before any of this is planned in detail, because each
 changes what gets built rather than only how:
 
-- Whether the remote transport can carry the daemon's socket directly
-  ([B06](B06-Remote-Access.md)). It decides the transport posture, whether notifications are
-  achievable away from the machine, and how much of
-  [F20](https://github.com/fuinorg/sokar-frontend/blob/main/requirements/F20-Access-From-Elsewhere.md) is real.
+- Whether a person away from the machine can be reached at all ([B06](B06-Remote-Access.md)).
+  The transport itself is settled - the socket survives an ssh forward, measured - so what is left
+  is the half that decides how much of
+  [F20](https://github.com/fuinorg/sokar-frontend/blob/main/requirements/F20-Access-From-Elsewhere.md)
+  and [F23](https://github.com/fuinorg/sokar-frontend/blob/main/requirements/F23-Notifications.md)
+  is real, and how long a clearance prompt should wait for somebody who is not there.
 - Whether the guarantees can be re-derived at all on a second platform
   ([B08](B08-McSokar-Apple-Containers.md)). It decides whether that project offers the same
   product or a weaker one wearing the same name, and it constrains what may be added to the

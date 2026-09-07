@@ -5,12 +5,16 @@ import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.Callable;
+import org.fuin.sokar.clearance.Blocked;
 import org.fuin.sokar.clearance.ClearanceException;
 import org.fuin.sokar.clearance.ClearanceHub;
-import org.fuin.sokar.clearance.ClearanceService;
+import org.fuin.sokar.clearance.ClearanceJournal;
 import org.fuin.sokar.clearance.ClearancePrompt;
 import org.fuin.sokar.clearance.ClearanceRequest;
+import org.fuin.sokar.clearance.ClearanceService;
+import org.fuin.sokar.clearance.Decision;
 import org.fuin.sokar.clearance.DesktopPrompt;
 import org.fuin.sokar.clearance.Verdict;
 import org.fuin.sokar.core.process.ProcessCommandRunner;
@@ -49,6 +53,10 @@ public class ShieldWatchCommand implements Callable<Integer> {
             description = "Project name, shown in the prompt.")
     private String project;
 
+    @Option(names = "--task", paramLabel = "<name>",
+            description = "Task name, shown in the prompt beside the project.")
+    private String task = "";
+
     @Option(names = "--pid", paramLabel = "<n>", required = true,
             description = "Host process id of the container's init process.")
     private long containerPid;
@@ -86,6 +94,11 @@ public class ShieldWatchCommand implements Callable<Integer> {
             description = "Writes this process's id here, so the poststop hook can reap it.")
     private Path pidFile;
 
+    @Option(names = "--journal", paramLabel = "<file>",
+            description = "Where decisions are recorded and read back from. Default: beside the"
+                    + " clearance socket.")
+    private Path journal;
+
     @Spec
     private CommandSpec spec;
 
@@ -104,28 +117,55 @@ public class ShieldWatchCommand implements Callable<Integer> {
                     new java.util.concurrent.atomic.AtomicInteger();
             final java.util.concurrent.CountDownLatch enough = new java.util.concurrent.CountDownLatch(1);
 
-            final ClearanceHub hub = new ClearanceHub(project, request -> {
-                final Verdict verdict = ((ClearancePrompt) prompt).ask(request);
-                out.println("decided   " + verdict.name().toLowerCase() + "  " + request.destination());
+            final ClearanceJournal record = new ClearanceJournal(journalPath());
+
+            final ClearanceHub hub = new ClearanceHub(project, task,
+                    ((ClearancePrompt) prompt)::ask,
+                    address -> {
+                        try {
+                            policy.allow(address);
+                            out.println("allowed   " + address);
+                        } catch (RuntimeException ex) {
+                            // Never silent. A verdict of allow that did not take effect leaves the
+                            // operator believing they unblocked something they did not, and the
+                            // agent failing for a reason the log says was resolved.
+                            err.println("sokar: DECIDED ALLOW BUT COULD NOT APPLY IT for " + address
+                                    + ": " + ex.getMessage());
+                            err.flush();
+                        }
+                        out.flush();
+                    });
+
+            hub.onDecision(decision -> {
+                out.println("decided   " + decision.verdict().name().toLowerCase(Locale.ROOT)
+                        + "  " + decision.shown() + "  by " + decision.source());
                 out.flush();
+                try {
+                    record.record(decision);
+                } catch (ClearanceException ex) {
+                    // Never silent, for the same reason an allow that did not take effect is not:
+                    // the audit record is what says a destination was refused rather than never
+                    // asked about, and a gap in it is invisible from the file itself.
+                    err.println("sokar: DECIDED " + decision.verdict().name().toLowerCase(Locale.ROOT)
+                            + " FOR " + decision.shown() + " BUT COULD NOT RECORD IT: "
+                            + ex.getMessage());
+                    err.flush();
+                }
                 if (count > 0 && decisions.incrementAndGet() >= count) {
                     enough.countDown();
                 }
-                return verdict;
-            }, address -> {
-                try {
-                    policy.allow(address);
-                    out.println("allowed   " + address);
-                } catch (RuntimeException ex) {
-                    // Never silent. A verdict of allow that did not take effect leaves the
-                    // operator believing they unblocked something they did not, and the agent
-                    // failing for a reason the log says was resolved.
-                    err.println("sokar: DECIDED ALLOW BUT COULD NOT APPLY IT for " + address
-                            + ": " + ex.getMessage());
-                    err.flush();
-                }
-                out.flush();
             });
+
+            // Before anything is followed. A resumed task re-reads the events file from the start,
+            // so a destination decided in the previous run reaches the hub again within seconds -
+            // and without its decisions back, that is a second prompt for a question the operator
+            // has already answered, or a second chance for an agent whose first attempt was
+            // refused.
+            final List<Decision> earlier = record.read();
+            out.println("journal   " + record.file()
+                    + (earlier.isEmpty() ? "" : ", taking back " + earlier.size() + " decisions"));
+            out.flush();
+            hub.restore(earlier);
 
             try (ClearanceService service = new ClearanceService(socketPath(), hub)) {
 
@@ -193,7 +233,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
             final String shownAddress = port == 0 ? destination : destination + ":" + port;
             final String shown = name == null ? shownAddress
                     : name + (port == 0 ? "" : ":" + port) + " (" + destination + ")";
-            final String key = protocol + "/" + destination + "/" + port;
+            final Blocked blocked = new Blocked(destination, port, protocol, shown);
 
             // Published before it is decided: a subscriber - a terminal watching, or the daemon
             // carrying prompts to an interface - wants the question, and the line below blocks
@@ -205,7 +245,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
             // resolved name comes with it, because an address alone is not something an operator
             // can judge.
             final java.util.Map<String, Object> prompt = new java.util.LinkedHashMap<>();
-            prompt.put("key", key);
+            prompt.put("key", blocked.key());
             prompt.put("destination", destination);
             prompt.put("address", destination);
             prompt.put("protocol", protocol);
@@ -215,12 +255,27 @@ public class ShieldWatchCommand implements Callable<Integer> {
             prompt.put("project", project);
             service.publish(prompt);
 
-            return hub.handle(key, destination, shown, protocol);
+            return hub.handle(blocked);
         } catch (RuntimeException ex) {
             // A line the reader could not have produced is not worth stopping for; a partially
             // written last line is normal when following a file that is still being appended to.
             return null;
         }
+    }
+
+    /**
+     * Returns where decisions are recorded.
+     * <p>
+     * Beside the socket only when nothing said otherwise, which is the case for a watcher started
+     * by hand. A task's own watcher is pointed at the state directory instead: everything beside
+     * the socket is under the runtime directory, which {@code task stop --remove} deletes and the
+     * kernel clears at logout, and a record of what an agent tried to reach that goes when the
+     * task goes is not an audit record.
+     *
+     * @return The journal file.
+     */
+    private Path journalPath() {
+        return journal != null ? journal : socketPath().resolveSibling("clearance.jsonl");
     }
 
     private Path socketPath() {

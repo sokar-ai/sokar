@@ -61,7 +61,7 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
 
 ## Tests
 
-- **Descriptive method names, not `testXxx`.** All 467 test methods read as
+- **Descriptive method names, not `testXxx`.** All 551 test methods read as
   sentences — `refusesADomainThatIsBothAllowedAndRefused`,
   `readsTheDomainsAnAgentNeeds`. There is no `testXxx` left; do not reintroduce it.
 - **Every guard must be proven to fail.** A test that has never failed is a test
@@ -243,6 +243,34 @@ See [build.md](doc/build.md). Three things that will bite:
   watcher *follows the file* that hook appends to, and that path reached the hub without ever
   reaching a subscriber. A client subscribed to a live task saw nothing at all while the log
   beside it recorded the decisions. Both ways in now call `ClearanceService.publish`.
+- **A decision that lives only in the watcher is a retry loop.** The hub deduplicates in a map in
+  its own process, and a resumed task starts a fresh watcher that re-reads its events file from
+  the beginning - so every destination already decided arrived again within seconds and was asked
+  about a second time. An agent refused once only had to keep retrying until something restarted
+  the watcher. Decisions are now appended to `~/.local/state/sokar/clearance/<container>.jsonl` and
+  read back on start. Under the *state* directory because everything else a task writes is under
+  the runtime one, which the kernel clears at logout and `task stop --remove` deletes outright: a
+  record of what an agent reached that disappears with the task is not a record. Named by the
+  container, so a decision belongs to one run and is not silently in force for the next.
+- **A restored allow has to be put back into the firewall, not only remembered.** A resumed task
+  gets a fresh namespace and a ruleset the hook rebuilds from the project, so an address cleared
+  last time is no longer in it. Remembering the answer alone leaves the hub saying allow while the
+  packets are still dropped and nothing will ever ask again - worse than either honest state.
+- **`nft add element` answers `File exists` for an address already in the set.** A watcher
+  restarted against a container that kept running re-applies every decision it recorded, so this
+  is the normal case rather than an edge one. `EgressPolicy.allow` treats it as the outcome asked
+  for; anything else is still a failure.
+- **A notification that is closed rather than replaced destroys the only evidence it existed.**
+  An expired clearance prompt left the destination blocked forever and took the question off the
+  screen, so an operator who had been away could not tell it from one that was never raised. The
+  timeout now sends a second `Notify` carrying the first notification's id, without actions and
+  with urgency dropped from critical to normal - critical notifications never expire on their own,
+  which is also why the millisecond timeout passed to the first one does nothing.
+- **A question on a stream has to carry its own answer.** A subscriber that saw a prompt and never
+  saw a verdict cannot tell one that ran out from one still waiting, because the only other
+  evidence is an event that stops arriving. Every decision - allow, deny, or nobody answered - is
+  broadcast as the same event with a `verdict`, which is also what feeds the record, so an answer
+  given from a client is written down like one given at the machine.
 - **`sokard` speaks varlink on an owner-only socket, and that is the whole access story.**
   No listener on any interface, so remote access is a tunnelling problem rather than an
   authentication one, and another account on the same machine is refused by the kernel -

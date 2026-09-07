@@ -35,6 +35,12 @@ corresponding requirement dropped its browser criterion because of this.
 
 ## Notes
 
+**How long a clearance prompt should wait is this requirement's question now.** The watcher gives
+an operator 60 seconds, which was never measured against anybody. What the silence costs is
+smaller than it was - an expired question is recorded, replaced on screen by a notice saying the
+destination stays blocked, and can still be answered afterwards through `Decide` - but the answer
+has to reach somebody, and who can be reached is decided here rather than by the prompt.
+
 Notifications are the part this constrains that is not yet settled
 ([F23](https://github.com/fuinorg/sokar-frontend/blob/main/requirements/F23-Notifications.md)):
 a forwarded socket delivers events to a client that is connected, which is not the same as

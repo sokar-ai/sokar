@@ -2,6 +2,7 @@ package org.fuin.sokar.shield;
 
 import java.util.List;
 import org.fuin.sokar.core.process.Command;
+import org.fuin.sokar.core.process.CommandResult;
 import org.fuin.sokar.core.process.CommandRunner;
 
 /**
@@ -15,6 +16,9 @@ import org.fuin.sokar.core.process.CommandRunner;
  * should not be: everything this class can do widens access by exactly one address.
  */
 public class EgressPolicy {
+
+    /** What nft says about an element that is already in the set. */
+    private static final String ALREADY_THERE = "File exists";
 
     private final CommandRunner runner;
 
@@ -33,13 +37,21 @@ public class EgressPolicy {
 
     /**
      * Adds one address to the allow set.
+     * <p>
+     * An address that is already in the set is the outcome asked for, not a failure. {@code nft}
+     * disagrees - it answers {@code File exists} - and a watcher restarted against a container
+     * that kept running re-applies every decision it recorded, which would otherwise report each
+     * one as an allow that did not take effect.
      *
      * @param address IPv4 or IPv6 address.
      */
     public void allow(String address) {
         final String set = address.contains(":") ? "allowed_v6" : "allowed_v4";
-        runner.runOrFail(Command.of(nsenter("nft", "add", "element", "inet", "sokar", set,
-                "{ " + address + " }")));
+        final CommandResult result = runner.run(Command.of(
+                nsenter("nft", "add", "element", "inet", "sokar", set, "{ " + address + " }")));
+        if (!result.successful() && !result.standardError().contains(ALREADY_THERE)) {
+            result.orFail();
+        }
     }
 
     /**

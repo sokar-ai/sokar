@@ -23,4 +23,10 @@ everything immediately without caring why.
 
 ## Notes
 
+The only audit record that exists today is the clearance journal:
+`~/.local/state/sokar/clearance/<container>.jsonl`, what a task was allowed and refused, kept
+outside the task's own directory so that removing the task does not remove the record of what it
+reached. Whatever "complete" turns out to mean for the rest of a task's history, it has to hold
+after a purge for the same reason.
+
 Builds on the lifecycle operations that already exist - `task list`, `task stop` and `task resume`, and the same three over the daemon's socket.
