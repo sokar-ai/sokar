@@ -305,6 +305,15 @@ public final class SokarDaemon {
             replies.last(answer);
         });
 
+        server.method("DeleteProject", (parameters, replies) -> {
+            // Refuses rather than decides, and force is the only way past it. The list of what
+            // would go is filled even for a refusal, so a confirmation can show the cost beside
+            // the reason it was stopped rather than asking twice.
+            replies.last(new org.fuin.sokar.app.ProjectDeletion(context).delete(
+                    text(parameters, "project"), flag(parameters, "dryRun"),
+                    flag(parameters, "force")).asMap());
+        });
+
         server.method("Projects", (parameters, replies) -> {
             // The path in each answer is the one thing a client cannot work out: over a forwarded
             // socket there is no filesystem on this side to look in, and every gate method takes

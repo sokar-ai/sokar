@@ -368,6 +368,20 @@ public class Podman {
     }
 
     /**
+     * Removes a project image, if it is there.
+     * <p>
+     * An image that is not there is the outcome asked for, not a failure - the same rule as
+     * removing a container. A project whose image was never built, or was pruned, must not make a
+     * deletion look as though it went wrong.
+     *
+     * @param image Image name.
+     * @return {@code true} if podman removed something.
+     */
+    public boolean removeImage(String image) {
+        return runner.run(podman("rmi", "--force", image)).successful();
+    }
+
+    /**
      * Lists the project images Sokar has built, by name.
      * <p>
      * One call rather than {@link #hasImage} per project. Anything reporting on every project asks

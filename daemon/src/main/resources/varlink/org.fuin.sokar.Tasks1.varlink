@@ -889,6 +889,67 @@ method WidenTask(
 # This is the method that makes the gate reachable from an interface. Pending, Review, Approve,
 # Reject and Start all take a project file path, and a client on another machine has no
 # filesystem here to find one in.
+# One thing a project deletion removes.
+type Removal (
+  # MIRROR, IMAGE, BUILD, REGISTRY, UPSTREAM_RECORD or TASK.
+  kind: string,
+  # The thing itself - a path, an image name, a container name - as a person would recognise it.
+  what: string
+)
+
+type DeleteOutcome (
+  # Everything Sokar built for it is gone.
+  DELETED,
+  # What would go, having removed nothing.
+  PREVIEWED,
+  # Refused: work reached the gate and nobody reviewed it. The same name Stop uses, for the same
+  # situation, so it can read the same on a screen.
+  HOLDS_WORK,
+  # Refused: tasks are still up.
+  TASKS_RUNNING,
+  # Nothing here knows that project.
+  NO_SUCH_PROJECT,
+  # Something could not be removed. detail says what.
+  FAILED
+)
+
+# Removes what Sokar built for a project.
+#
+# NOT "deleting the project". The project file is the operator's, in their own directory, and so
+# are the checkout and the real upstream - none is touched, and 'keeps' names them so a
+# confirmation can say so without the interface having to know which things are Sokar's. What goes
+# is the mirror, the image, the build directory, the registry entry, the recorded upstream
+# distance, and every task with its container, state and logs.
+#
+# Afterwards the project file is still there and running a task in that directory builds all of it
+# again. That is the sentence somebody needs before they press it, more than they need the list.
+#
+# It REFUSES rather than decides. Unreviewed pushes exist only in the mirror - nothing else has
+# them anywhere - and a running task is work cut off mid-flight. 'force' is how somebody says they
+# meant it.
+method DeleteProject(
+  # Project name, as Projects reports it.
+  project: string,
+  # Reports what would go, having removed nothing.
+  dryRun: ?bool,
+  # Proceeds despite unreviewed work or running tasks.
+  force: ?bool
+) -> (
+  outcome: DeleteOutcome,
+  # What goes, or went. Also filled for a refusal, so a confirmation can show the cost beside the
+  # reason it was stopped.
+  removes: []Removal,
+  # What is deliberately NOT touched, named.
+  keeps: []string,
+  # Refs nobody reviewed. Non-empty with HOLDS_WORK, and also under force - it is what force
+  # destroys.
+  unreviewed: []string,
+  # Tasks that are up. Non-empty with TASKS_RUNNING, and also under force.
+  running: []string,
+  # Why it was refused or what went wrong. "" otherwise.
+  detail: string
+)
+
 method Projects() -> (projects: []Project)
 
 # Which logs a task has.
