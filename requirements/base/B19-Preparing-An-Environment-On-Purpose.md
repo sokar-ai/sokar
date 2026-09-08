@@ -1,6 +1,7 @@
 # B19 — Preparing An Environment On Purpose
 
-**Status:** open. Nothing prepares a project's environment except starting work in it.
+**Status:** built. `sokar task prepare` and `Prepare` build a project's environment at
+three depths without starting a task. One question left, below.
 
 `task run` builds what it needs on its way to running an agent. There is no way to say *"get this
 ready, I am not starting anything yet"*, and no way to say **how much** to rebuild.
@@ -42,9 +43,11 @@ line, for exactly this reason.
 
 ## To be checked
 
-- **Whether "replace the agent tooling only" is a real boundary** in the image, or whether the
-  layer it would rebuild drags the package layer with it. If it does, there are two depths, not
-  three, and promising three would be a lie about cost.
+- ~~Whether "replace the agent tooling only" is a real boundary~~ **Answered by building it: it
+  is.** The layers are base, then the packages every task needs, then the agent's, so invalidating
+  from the seam between them keeps the packages. It needs an `ARG` at that seam rather than a
+  podman flag, because there is none for "rebuild from here" - a mechanism, not a switch, and
+  worth having checked before three choices were promised.
 
 ## Built, 2026-09-08: `sokar task prepare` and `Prepare`
 

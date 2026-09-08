@@ -1,6 +1,9 @@
 # B11 — What A Task Says About Itself
 
-**Status:** open
+**Status:** built. Every field is on the contract - agent, mode, prompt, branch, since,
+activity and what it is waiting for - and arrives through `Watch` on the same terms as the
+rest. The three questions below are about how well *waiting* can be detected, not about
+whether a task says anything.
 
 A `Task` says what it is called, whose project it belongs to, what class it runs under, whether
 the runtime says it is up, and how many helpers are alive. That is enough to list tasks and not

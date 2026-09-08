@@ -1,6 +1,9 @@
 # B20 — Creating A Project
 
-**Status:** open. Nothing creates a project. A person writes `project.yml` by hand, and everything
+**Status:** built. `CreateProject` checks the answers against this machine and writes the file
+atomically. What follows describes what was missing.
+
+Nothing created a project. A person wrote `project.yml` by hand, and everything
 downstream behaves as though the project simply appeared.
 
 ## What it is not
@@ -70,9 +73,13 @@ the rename - and it is recorded as untested in the code rather than left to look
 
 ## Still open here
 
-- **Two things now write a project file.** `ProjectWizard` asks at a terminal when `task run`
-  finds no project, and this writes one after checking. They render slightly different files - the
-  wizard guesses egress sets from the base image - and neither validates what the other does. They
-  should be one thing, with the wizard supplying answers to this rather than writing its own file.
-  Not done, because a half-finished merge of the two would be worse than the duplication.
+- ~~Two things now write a project file~~ **Fixed: the wizard supplies answers to this and writes
+  nothing itself.** One renderer, one set of checks. Its guess at egress sets stayed on its own
+  side, as a suggested answer rather than something the renderer adds - otherwise every project
+  created over the contract would carry sets nobody asked for, in a file shown for review.
+
+  **And the merge immediately found a bug.** The wizard suggested sets by *name* without checking
+  the machine has them. That used to be invisible - the file was written and the name failed at
+  the first task start - and under the new validation it would have refused to create anything at
+  all on a machine missing the shipped sets. An absent set now drops out of the offer.
 

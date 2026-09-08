@@ -70,9 +70,17 @@ Where a probe cannot answer, it must say so rather than assume the good case.
   decision rather than a probe. Nothing refuses today; the gate binds every interface, says so,
   and leaves the per-task token as what keeps it shut.
 
-## The half that is built and cannot be asked for
+## Built, 2026-09-08: the diagnosis is on the wire
 
-**The diagnosis exists and only the CLI can see it.** `sokar doctor` probes nine dependencies with
+**`Doctor` answers the probes and a `ready` flag**, using the same rule the CLI exits non-zero on,
+so a machine cannot be called ready by one and unready by the other. Each probe carries the single
+next action, and a probe that fails and names none cannot be constructed - so an interface renders
+that field without checking whether it is there. It runs external programs, so it is a read that
+takes a moment and is not something to poll.
+
+What follows is why it was worth doing, and why the other half of the same request was refused.
+
+**The diagnosis existed and only the CLI could see it.** `sokar doctor` probes nine dependencies with
 four states and one next action each - a failure that names no next action cannot even be
 constructed - and none of it is on the daemon's contract. So the question it answers, *can this
 machine do the thing I am about to ask of it*, cannot be asked from anywhere else.

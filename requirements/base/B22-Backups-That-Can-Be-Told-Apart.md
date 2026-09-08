@@ -1,6 +1,8 @@
 # B22 — Backups That Can Be Told Apart
 
-**Status:** open. `gate backup` and `gate restore` exist. What is missing is everything around
+**Status:** partly built. Listing and deleting are done; triggering a sync and refusing a
+restore that would discard unreviewed work are not. `gate backup` and `gate restore` existed
+already, and what was missing was everything around
 them that makes a backup usable rather than merely taken.
 
 ## What is missing
@@ -41,9 +43,11 @@ has to be its own method rather than a flag on a read.
 
 ## To be checked
 
-- **Whether a fetch can be triggered at all**, or whether the upstream distance is deliberately
-  only ever a background measurement. Both are defensible; the difference decides whether an
-  interface offers a button or explains a timer.
+- ~~Whether a fetch can be triggered at all~~ **Answered: yes.**
+  `UpstreamDistance.measure(...)` is already a plain callable unit and `UpstreamWatch` is only a
+  timer around it. It must be **its own method** rather than a flag on a listing - a listing that
+  reached the network would make the queue cost what a listing must not, and there is an
+  architecture rule enforcing that. Not built; it is work rather than a question.
 
 ## Built, 2026-09-08: listing and deleting, and the thing that made it possible
 
