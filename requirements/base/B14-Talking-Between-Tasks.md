@@ -3,6 +3,11 @@
 **Status:** open, and the first question is whether it should be built at all. What follows argues
 that it can be built without giving anything up, and names the one thing it cannot promise.
 
+**How it would be built** is [B14-Talking-Between-Tasks_design.md](B14-Talking-Between-Tasks_design.md),
+written against this file: module by module, with the sockets, the record format and the interface
+additions named. Nothing in it is built or measured — it exists so the expensive decisions are
+visible before anything is written.
+
 Two tasks are running. One is writing code, the other is reviewing it, or holds the knowledge the
 first is missing. Today they cannot say a word to each other: a task is a container with its own
 network namespace, a deny-by-default ruleset, a resolver that answers `NXDOMAIN` for every name the
@@ -126,6 +131,52 @@ says about who it is, is an assertion by an agent. The socket is mounted into ex
 container, so the identity of an author is which socket the bytes arrived on — the same resolution
 the vault proxy already relies on.
 
+## Whether an agent should sign what it says
+
+Asked because it is the obvious next question, and the answer is no — not the agent. The signature
+would be issued by the one party here that is not trusted, over a path where nothing can alter the
+bytes, to prove something the mount already proves better.
+
+**The key would be in the hands of the thing it is meant to bind.** An agent controls its own
+container; that is what a container is for. A key it can reach in order to sign is a key it can
+read, copy, write into a message, or commit into its workspace. What the signature would then
+attest is *something inside this container signed this*, which is exactly what the socket attests —
+without a key, and without anything that can be carried off. A mount cannot be exfiltrated.
+
+**There is nothing in between to protect.** Between the agent's write and the daemon's read lies a
+unix socket: kernel memory, host-local, no network and no intermediary. Integrity protection is an
+answer to a transport that does not exist here.
+
+**And it would be the first credential inside a task container**, which is the rule that is not
+negotiable. The phantom token exists so the real one never gets in; the `online` class pushes
+through an ssh-agent socket whose key stays outside; the reference implementation answers signing
+requests over a per-container socket with the private key on the host. Follow that pattern for
+messages and the *host* signs on request — at which point the signature testifies to precisely what
+the socket already did.
+
+### What the question is right about
+
+Two real things are underneath it, and neither needs a key in a container.
+
+**The record is what wants protecting, not the message in flight.** Against later modification a
+signature held by the sender is no help at all; a **hash chain** is — each entry carrying the hash
+of the one before it, so that an entry changed or removed after the fact stops verifying. Nothing
+to distribute, nothing to rotate, nothing to revoke. It does not protect against the owner of the
+machine, and nothing can: [B13](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) says as much about
+the other door, and saying it here as well is cheaper than discovering later that somebody believed
+otherwise.
+
+**Across machines the signing party would be the daemon, never the agent**, and that belongs to the
+cross-machine question rather than to this one. It is the only place with an intermediary at all:
+ssh gives authenticity and integrity per hop, but the client terminates both connections and sees
+plaintext. What a daemon key would buy is narrower than it looks, and it is argued under *To be
+checked*.
+
+**What would change the answer**: a record that leaves the machine which produced it — exported to
+a SIEM, kept for a retention rule, carried by a broker the operator does not own. Then the thing to
+sign is the record, host-side, with a key that never sees a container. That is log signing, and it
+is a different requirement from this one.
+
 ## Seeing it, joining it, stopping it
 
 The four things asked for map onto machinery that exists.
@@ -212,6 +263,10 @@ task, and that is a property to keep rather than a gap to fill.
   message that cannot be recorded is not delivered.
 - The record names the author, and the author is established by the socket the bytes arrived on,
   never by what the sender claims to be.
+- The record is a chain: every entry carries the hash of the one before it, so that an entry
+  changed or removed after the fact stops verifying.
+- **No key is placed inside a task container for any of this.** Authorship rests on the socket a
+  message arrived on, not on a credential the sender holds and could carry off.
 - One subscription over the daemon's socket carries every conversation on the machine, including
   conversations that begin after the call.
 - A person can write into a conversation, and their message is distinguishable from an agent's in
@@ -236,7 +291,8 @@ frontend requirement waiting on it. That is a reason to be slower about it, not 
 breaks while it does not exist.
 
 **The honest framing, so it is not lost later.** Sokar can guarantee that every message is
-recorded, attributed, bounded, visible as it happens, and stoppable. It cannot guarantee that an
+recorded, attributed, bounded, visible as it happens, stoppable, and tamper-evident after the
+fact. It cannot guarantee that an
 agent treats a message as information rather than as an order — that is a property of the model, not
 of the container — and it cannot make the channel safe between two projects of different classes,
 which is why the class rule is a refusal and not a warning. A requirement that claimed more would
@@ -270,3 +326,12 @@ produce a feature people trust further than it deserves, which is worse than not
 - **Cross-machine, deferred above.** The shape is argued but nothing is measured, and the two costs
   named there — a conversation that stops with the client, and a record split across two machines
   with no shared clock — may be enough to leave it unbuilt.
+- **Whether a daemon should sign what it forwards, if cross-machine is ever built.** That is the
+  one place with an intermediary: the client terminates both ssh connections and sees plaintext, so
+  a daemon key would stop it injecting a message. The gain is narrow — the receiving daemon applies
+  its own policy and writes its own record, so an injected message is one that side authorized and
+  recorded anyway, and what is really bought is attribution to a particular remote task rather than
+  to whatever the client asserted. Against it: whoever controls the client holds ssh keys to both
+  machines and can already start tasks, approve gate pushes and unlock the vault, and the key would
+  be the first credential in the design that exists so two Sokars can trust each other — which is
+  precisely what [B06](B06-Remote-Access.md) avoids by having nothing to log in to.
