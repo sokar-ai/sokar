@@ -458,21 +458,6 @@ See [build.md](doc/build.md). Three things that will bite:
   as an empty string. `SetupContext.parameters()` is compared against the record's own components
   by a test for that reason.
 
-- **An nftables set holds addresses, not names, so a live grant and a live withdrawal are not
-  mirror images.** Adding an element for `example.test` covers what its subdomains already
-  resolved to; removing it does not close a subdomain that resolved to a different address. And an
-  already-refused connection is not recovered by adding the element afterwards - the packet was
-  dropped, and nothing retries it.
-
-- **The resolver cannot be told anything without being restarted**, so a live change to what a task
-  may reach has to reach two places that fail differently: the ruleset, which takes effect at once,
-  and the resolver, which does not. `servers-file` is the only part dnsmasq re-reads on SIGHUP.
-
-- **A live change does not survive `Resume`.** The prestart hook loads `<state>/ruleset.nft` on
-  every start, so anything applied to a running task and not written to disk is gone when the
-  container comes back. That is why a change has a scope - this run, or this run and the project -
-  rather than being one operation with two meanings.
-
 - **A session in a container costs one word in a layer Sokar already writes.** `tmux new-session -A
   -s sokar` is attach-or-create in one call, so returning and starting for the first time are the
   same operation and the one that matters is exercised every time rather than once. It fixes the
