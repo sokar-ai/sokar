@@ -142,7 +142,16 @@ type Task (
   # somebody types into sokar at the machine, so a row that showed only this would make the
   # interface and the command line disagree about what a thing is called. Absent and empty are
   # deliberately the same state.
-  label: string
+  label: string,
+  # Whether this task's own work is waiting at the gate. 1 when its ref is waiting for review, 0
+  # otherwise - and 0 for an online project, where nothing is ever reviewed, which is not a
+  # smaller number but a question the class does not have.
+  #
+  # Answered here rather than left to a join, because there is no join to make: 'name' is a
+  # CONTAINER name (sokar-<project>-<task>-<run>), PendingPush.name is a TASK name, and several
+  # containers over time share one ref. Anything lined up from the two would be right for at most
+  # one of them and silently wrong for the rest.
+  waiting: int
 )
 
 # What became of a Stop or a Resume.

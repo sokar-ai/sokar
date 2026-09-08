@@ -138,4 +138,94 @@ class TaskLabelTest {
         assertThat(new TaskInventory(context).tasks()).singleElement()
                 .satisfies(t -> assertThat(t.asMap()).containsEntry("label", ""));
     }
+
+    @Test
+    void aTaskSaysWhetherItsOwnWorkIsWaitingAtTheGate(@TempDir Path dir) throws IOException {
+
+        // F10 asks whether anything of this task is waiting for review. It cannot be joined from
+        // the outside: Task.name is a CONTAINER name and PendingPush.name is a TASK name, and
+        // several containers over time share one ref - so the answer has to come from here.
+        final SokarContext context = context(dir);
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+        new org.fuin.sokar.wire.Sidecar(org.fuin.sokar.wire.Sidecar.VERSION, "uc", "guarded",
+                state.resolve("r.nft").toString(), state.resolve("dns.conf").toString(),
+                "/usr/bin/sokar", state.toString()).writeTo(state.resolve("sidecar.json"));
+        new TaskProfile(TaskProfile.VERSION, "example", TaskMode.SHELL, null,
+                "refs/sokar/incoming/shell", "2026-09-08T06:00:00Z", "prompt").writeTo(state);
+        Files.createDirectories(dir.resolve("data/sokar/mirrors/uc.git"));
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("for-each-ref", "refs/sokar/incoming/shell\n");
+
+        assertThat(new TaskInventory(context).tasks()).singleElement()
+                .satisfies(t -> assertThat(t.asMap()).containsEntry("waiting", 1));
+    }
+
+    @Test
+    void aTaskWhoseRefIsNotWaitingSaysZero(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+        new org.fuin.sokar.wire.Sidecar(org.fuin.sokar.wire.Sidecar.VERSION, "uc", "guarded",
+                state.resolve("r.nft").toString(), state.resolve("dns.conf").toString(),
+                "/usr/bin/sokar", state.toString()).writeTo(state.resolve("sidecar.json"));
+        new TaskProfile(TaskProfile.VERSION, "example", TaskMode.SHELL, null,
+                "refs/sokar/incoming/shell", "2026-09-08T06:00:00Z", "prompt").writeTo(state);
+        Files.createDirectories(dir.resolve("data/sokar/mirrors/uc.git"));
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("for-each-ref", "refs/sokar/incoming/somebody-else\n");
+
+        assertThat(new TaskInventory(context).tasks()).singleElement()
+                .satisfies(t -> assertThat(t.asMap()).containsEntry("waiting", 0));
+    }
+
+    @Test
+    void anOnlineTaskIsNeverWaiting(@TempDir Path dir) throws IOException {
+
+        // Its ref is refs/heads/<task> and nothing is ever reviewed. Zero here is not a smaller
+        // number, it is a question the class does not have - and matching on the ref's tail would
+        // have claimed work was waiting for a name that coincided.
+        final SokarContext context = context(dir);
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+        new org.fuin.sokar.wire.Sidecar(org.fuin.sokar.wire.Sidecar.VERSION, "uc", "online",
+                state.resolve("r.nft").toString(), state.resolve("dns.conf").toString(),
+                "/usr/bin/sokar", state.toString()).writeTo(state.resolve("sidecar.json"));
+        new TaskProfile(TaskProfile.VERSION, "example", TaskMode.SHELL, null,
+                "refs/heads/shell", "2026-09-08T06:00:00Z", "prompt").writeTo(state);
+        Files.createDirectories(dir.resolve("data/sokar/mirrors/uc.git"));
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("for-each-ref", "refs/sokar/incoming/shell\n");
+
+        assertThat(new TaskInventory(context).tasks()).singleElement()
+                .satisfies(t -> assertThat(t.asMap()).containsEntry("waiting", 0));
+    }
+
+    @Test
+    void theMirrorIsAskedOncePerProjectHoweverManyTasks(@TempDir Path dir) throws IOException {
+
+        // A listing is read on every change. A git call per task would make it cost what a
+        // listing must not - the same reason 'prepared' asks podman once for the whole list.
+        final SokarContext context = context(dir);
+        for (final String container : java.util.List.of("sokar-uc-a-1", "sokar-uc-b-2",
+                "sokar-uc-c-3")) {
+            final Path state = dir.resolve("run/sokar").resolve(container);
+            Files.createDirectories(state);
+            new org.fuin.sokar.wire.Sidecar(org.fuin.sokar.wire.Sidecar.VERSION, "uc", "guarded",
+                    state.resolve("r.nft").toString(), state.resolve("dns.conf").toString(),
+                    "/usr/bin/sokar", state.toString()).writeTo(state.resolve("sidecar.json"));
+            new TaskProfile(TaskProfile.VERSION, "example", TaskMode.SHELL, null,
+                    "refs/sokar/incoming/" + container, "2026-09-08T06:00:00Z", "prompt")
+                    .writeTo(state);
+        }
+        Files.createDirectories(dir.resolve("data/sokar/mirrors/uc.git"));
+        runner.answering("ps", "sokar-uc-a-1\tUp 4 minutes\n"
+                + "sokar-uc-b-2\tUp 4 minutes\nsokar-uc-c-3\tUp 4 minutes\n");
+        runner.answering("for-each-ref", "refs/sokar/incoming/sokar-uc-a-1\n");
+
+        assertThat(new TaskInventory(context).tasks()).hasSize(3);
+        assertThat(runner.lines().stream().filter(line -> line.contains("for-each-ref")))
+                .hasSize(1);
+    }
 }

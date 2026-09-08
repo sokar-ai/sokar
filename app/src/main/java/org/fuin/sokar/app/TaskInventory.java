@@ -49,7 +49,7 @@ public final class TaskInventory {
             String state, boolean running, long helpers, @Nullable String agent,
             @Nullable String mode, @Nullable String prompt, @Nullable String branch,
             String since, Activity activity, @Nullable String waitingFor,
-            @Nullable String clearance, @Nullable String label) {
+            @Nullable String clearance, @Nullable String label, int waiting) {
 
         /**
          * Returns this task as plain values, for a caller that has to put it on a wire.
@@ -76,6 +76,11 @@ public final class TaskInventory {
             // Beside the name, never instead of it: the name is what every other call takes and
             // what somebody types at the machine. Empty means the row shows its real name.
             map.put("label", label == null ? "" : label);
+            // Whether this task's own work is waiting at the gate. Answered here rather than left
+            // as a join: Task.name is a CONTAINER name and PendingPush.name is a TASK name, and
+            // several containers over time share one ref - so nothing a client lined up could be
+            // right for more than one of them.
+            map.put("waiting", waiting);
             return map;
         }
     }
@@ -131,10 +136,46 @@ public final class TaskInventory {
      * @return Tasks, in the order the runtime lists them.
      */
     public List<Task> tasks() {
-        return context.podman().sokarTasks().stream().map(this::describe).toList();
+        // The refs waiting in each project's mirror, asked once per project rather than once per
+        // task: this list is read on every change, and a git call per task would make it cost
+        // what a listing must not.
+        final Map<String, java.util.Set<String>> waiting = new java.util.HashMap<>();
+        return context.podman().sokarTasks().stream()
+                .map(summary -> describe(summary, waiting)).toList();
     }
 
-    private Task describe(ContainerSummary summary) {
+    /**
+     * Returns the refs waiting for review in one project's mirror, reading each mirror once.
+     *
+     * @param cache Filled as projects are seen.
+     * @param project Project name, or {@code null} when nothing recorded one.
+     * @return Incoming ref names, without the namespace prefix.
+     */
+    private java.util.Set<String> waitingIn(Map<String, java.util.Set<String>> cache,
+            @Nullable String project) {
+        if (project == null) {
+            return java.util.Set.of();
+        }
+        return cache.computeIfAbsent(project, name -> {
+            final Path mirror = context.paths().xdg().data()
+                    .resolve("mirrors").resolve(name + ".git");
+            if (!java.nio.file.Files.isDirectory(mirror)) {
+                return java.util.Set.of();
+            }
+            try {
+                return java.util.Set.copyOf(new org.fuin.sokar.gate.GitGate(context.runner(),
+                        mirror, org.fuin.sokar.gate.GateMode.GATEKEEPING, null).pending());
+            } catch (RuntimeException ex) {
+                // A directory that is not a repository, or a git that would not run. Neither is
+                // worth failing a listing for, and a task that cannot be asked reads as none
+                // waiting rather than as broken.
+                return java.util.Set.of();
+            }
+        });
+    }
+
+    private Task describe(ContainerSummary summary,
+            Map<String, java.util.Set<String>> waitingCache) {
         final Sidecar sidecar = sidecarOf(summary.name());
         final Path state = context.paths().containerState(summary.name());
         final org.fuin.sokar.wire.TaskProfile profile =
@@ -156,7 +197,16 @@ public final class TaskInventory {
                 activityOf(summary, state, waitingFor),
                 waitingFor,
                 profile == null ? null : profile.clearance(),
-                profile == null ? null : profile.label());
+                profile == null ? null : profile.label(),
+                // Only for a gated ref. An online project pushes to refs/heads and is never
+                // reviewed, so "waiting" is not a smaller number there - it is a question the
+                // class does not have.
+                profile == null || profile.branch() == null
+                        || !profile.branch().startsWith(org.fuin.sokar.gate.GitGate.INCOMING)
+                        ? 0
+                        : waitingIn(waitingCache, sidecar == null ? null : sidecar.project())
+                                .contains(profile.branch().substring(
+                                        org.fuin.sokar.gate.GitGate.INCOMING.length())) ? 1 : 0);
     }
 
     /**
