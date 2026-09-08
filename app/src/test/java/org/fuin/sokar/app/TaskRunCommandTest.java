@@ -120,7 +120,7 @@ class TaskRunCommandTest {
 
         // The nft hook reads both files while the container is being created. Writing them
         // afterwards would leave a window with a container and no firewall.
-        execute(context(dir, true), "task", "run", "-p", projectFile(dir, MINIMAL).toString());
+        execute(context(dir, true), "task", "run", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString());
 
         final Path state = root.resolve("run/sokar").resolve(containerName());
         assertThat(state.resolve("ruleset.nft")).exists();
@@ -131,7 +131,7 @@ class TaskRunCommandTest {
     @Test
     void annotatesTheContainerSoTheHooksFire(@TempDir Path dir) throws IOException {
 
-        execute(context(dir, true), "task", "run", "-p", projectFile(dir, MINIMAL).toString());
+        execute(context(dir, true), "task", "run", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.only("create").describe())
                 .contains("--annotation org.fuin.sokar.sidecar=")
@@ -148,6 +148,34 @@ class TaskRunCommandTest {
         assertThat(execCalls.getFirst()).startsWith("podman", "exec", "--interactive", "--tty",
                 containerName(), "/bin/sh");
         assertThat(String.join(" ", execCalls.getFirst())).contains("exec /bin/sh -l");
+    }
+
+    @Test
+    void askingForTheAgentsSessionWithNoAgentIsRefusedBeforeAnythingIsCreated(@TempDir Path dir)
+            throws IOException {
+
+        // It used to attach a plain shell and record the mode as AGENT, so a task said it was
+        // something it was not - and the person who asked for an agent got a bare prompt with
+        // nothing explaining why. CanStart already answered NO_AGENT for this, so the check and
+        // the launch disagreed about the same machine.
+        final int code = execute(context(dir, true), "task", "run",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(code).isEqualTo(69);
+        assertThat(err.toString()).contains("no agent to attach");
+        assertThat(execCalls).as("refused before a container exists to attach to").isEmpty();
+    }
+
+    @Test
+    void aShellTaskNeedsNoAgentAtAll(@TempDir Path dir) throws IOException {
+
+        // Working inside the container by hand is exactly what a shell task is for, so refusing
+        // it for want of an agent would take away the case the refusal above points people at.
+        final int code = execute(context(dir, true), "task", "run", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(code).isZero();
+        assertThat(execCalls).hasSize(1);
     }
 
     @Test
@@ -169,7 +197,7 @@ class TaskRunCommandTest {
         // Nothing exists to hold, so the tidy-up runs as it always did.
         runner.failing("start", 125, "hook failed");
 
-        final int code = execute(context(dir, true), "task", "run",
+        final int code = execute(context(dir, true), "task", "run", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(70);
@@ -186,7 +214,7 @@ class TaskRunCommandTest {
         runner.answering("container inspect", "c0ffee\n");
         runner.failing("start", 125, "hook failed");
 
-        final int code = execute(context(dir, true), "task", "run",
+        final int code = execute(context(dir, true), "task", "run", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(70);
@@ -260,7 +288,7 @@ class TaskRunCommandTest {
         final Process helper = new ProcessBuilder("sleep", "120").start();
         Files.writeString(state.resolve("vault.pid"), String.valueOf(helper.pid()));
 
-        execute(context, "task", "run", "-p", projectFile(dir, MINIMAL).toString(), "--no-attach");
+        execute(context, "task", "run", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString(), "--no-attach");
 
         assertThat(helper.waitFor(10, java.util.concurrent.TimeUnit.SECONDS))
                 .as("the helper must be stopped, not left holding its socket").isTrue();
@@ -308,17 +336,6 @@ class TaskRunCommandTest {
         // that made this fail for the wrong reason.
         assertThat(runner.invocations()).noneSatisfy(command ->
                 assertThat(command.describe()).contains("rm --force"));
-    }
-
-    @Test
-    void startsTheAgentAndLeavesAShellBehind(@TempDir Path dir) throws IOException {
-
-        // The shell has to outlive the agent: when the agent ends the workspace is still there to
-        // look at, and its work can still be pushed by hand.
-        execute(context(dir, true), "task", "run", "-p", projectFile(dir, MINIMAL).toString());
-
-        assertThat(execCalls).isNotEmpty();
-        assertThat(String.join(" ", execCalls.getLast())).contains("exec /bin/bash -l");
     }
 
     @Test

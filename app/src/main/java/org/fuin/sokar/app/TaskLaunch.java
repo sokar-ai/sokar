@@ -277,6 +277,23 @@ public final class TaskLaunch {
                 }
             }
 
+            // A task asked to open the agent's session must have one. Before the workspace, the
+            // image and the container: attaching a plain shell instead and recording the mode as
+            // AGENT would say a task is something it is not, and the person who asked for an agent
+            // finds a bare prompt with nothing explaining why.
+            //
+            // Only for AGENT. A SHELL task deliberately needs no agent - working inside the
+            // container by hand is exactly what it is for.
+            if (request.mode() == org.fuin.sokar.wire.TaskMode.AGENT && select(agents) == null) {
+                err.println("sokar: no agent to attach"
+                        + (request.agentName() == null ? "; none is installed here"
+                                : ": no agent called '" + request.agentName() + "' is installed"));
+                err.println("sokar: nothing was created; run with '--attach shell' for a terminal"
+                        + " without one");
+                err.flush();
+                return 69;
+            }
+
             final TaskWorkspace workspace = workspace().openWorkspace(project,
                     !request.noGate() && !request.dryRun(), out, err);
 
