@@ -973,6 +973,40 @@ method Projects() -> (projects: []Project)
 #
 # The failure it prevents is not cosmetic. The same node listed twice delivers every clearance
 # question twice, and answering one leaves the other on screen until it expires.
+# Copies a credential an agent already holds on this machine into the vault.
+#
+# The one credential operation that carries no secret over this socket in either direction: the
+# daemon reads a file on its own disk and writes its own vault, and all that crosses is an agent's
+# name. So it is unaffected by whether storing a typed secret is ever allowed.
+#
+# It is the better first offer wherever an agent can log itself in, because nothing has to be
+# retyped - and the commonest typo when retyping is storing the guide's placeholder.
+method ImportCredential(
+  # Which agent to import from. Omit when only one is installed.
+  agent: ?string,
+  # Where it keeps its credentials. Omit for what the agent declares.
+  configDirectory: ?string
+) -> (
+  # IMPORTED, NO_SUCH_AGENT, NO_CONFIG_DIRECTORY, NOTHING_TO_IMPORT, VAULT_LOCKED or FAILED.
+  #
+  # NOTHING_TO_IMPORT is the ordinary case rather than a fault: the agent is installed and nobody
+  # has logged in with it here yet. VAULT_LOCKED is not a missing credential and must not be shown
+  # as one - it is "we cannot tell you until you unlock it at the machine".
+  outcome: string,
+  # The vault key it was stored under. "" when nothing was stored.
+  name: string,
+  # The kind, as the agent recorded it. "" when nothing was stored.
+  type: string,
+  # How many characters arrived, so somebody can see that it worked without seeing what worked.
+  # Never the value. 0 when nothing was stored.
+  length: int,
+  # The file it was read from, on the daemon's machine. "" when nothing was stored.
+  source: string,
+  # Why it failed, or a warning about what was stored - a credential that looks like a
+  # placeholder, or one a task will refuse. "" when there is nothing to say.
+  detail: string
+)
+
 # Which model providers this machine has, and which of them work could start against.
 #
 # The read half of authentication, and it carries no secret: names, kinds and whether something is

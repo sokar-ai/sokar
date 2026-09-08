@@ -83,81 +83,32 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        try (var agents = context.agents()) {
+        // The passphrase is the only thing that differs from the daemon's import: here there is a
+        // terminal to ask at, so a locked vault is a prompt rather than a refusal.
+        final char[][] typed = new char[1][];
+        final CredentialImport.Result result = CredentialImport.run(context, agentName,
+                configDirectory, () -> {
+                    typed[0] = context.requirePassphrase();
+                    return Optional.of(typed[0]);
+                });
 
-            final Optional<InstalledAgent> found = agentName != null ? agents.find(agentName)
-                    : agents.names().size() == 1 ? agents.find(agents.names().getFirst())
-                            : Optional.empty();
-            if (found.isEmpty()) {
-                err.println("sokar: no such agent; installed: "
-                        + String.join(", ", agents.names()));
-                err.flush();
-                return 69;
-            }
-            final InstalledAgent agent = found.get();
-
-            final String declared = configDirectory != null
-                    ? configDirectory : agent.definition().configDirectory();
-            if (declared == null) {
-                err.println("sokar: '" + agent.name() + "' does not say where it keeps its"
-                        + " credentials; pass --config-dir");
-                err.flush();
-                return 69;
-            }
-
-            final Path directory = expand(declared);
-            final Optional<Credential> credential = agent.extractCredential(directory);
-            if (credential.isEmpty()) {
-                err.println("sokar: nothing to import from " + directory
-                        + " - log in with the agent on this host first");
-                err.flush();
-                return 69;
-            }
-
-            final Credential value = credential.get();
-            final var selection = SelectedProvider.choose(context.providers(),
-                    agent.definition(), null);
-            // Stored under the provider's name: the credential is the provider's, and a second
-            // agent reaching the same one must find it rather than store its own copy.
-            final String key = selection == null ? agent.name() : selection.name();
-
-            final char[] passphrase = context.requirePassphrase();
-            context.vault().update(passphrase, entries -> {
-                entries.put(key, new VaultEntry(value.secret(), value.type()));
-                return entries;
-            });
-            cache(passphrase, out);
-            // The value is never echoed: what is useful is that it arrived and which kind it is.
-            out.println("imported  " + key + " (" + value.type() + ", "
-                    + value.secret().length() + " characters) from " + directory);
-            out.flush();
-
-            // The same check 'vault put' makes. An agent's own file is the likelier source of a
-            // real credential, but a half-written or logged-out one still reads as a success here.
-            final String suspicious = new VaultEntry(value.secret(), value.type()).suspicious();
-            if (suspicious != null) {
-                err.println("sokar: check what was imported - " + suspicious);
-                err.flush();
-            }
-
-            final String reason = selection == null ? null
-                    : selection.route().unbrokerableReason(value.type());
-            if (reason != null) {
-                err.println("sokar: stored, but a task will refuse it. " + reason + ".");
-                err.println("sokar: store a usable one with: sokar vault put " + key
-                        + " --type <kind>");
-                err.flush();
-            }
-            return 0;
-
-        } catch (VaultException ex) {
-            err.println("sokar: " + ex.getMessage());
+        if (result.outcome() != CredentialImport.Outcome.IMPORTED) {
+            err.println("sokar: " + result.detail());
             err.flush();
-            return 70;
-        } catch (RuntimeException ex) {
-            err.println("sokar: " + ex.getMessage());
-            err.flush();
-            return 70;
+            return result.outcome() == CredentialImport.Outcome.FAILED ? 70 : 69;
         }
+
+        if (typed[0] != null) {
+            cache(typed[0], out);
+        }
+        // The value is never echoed: what is useful is that it arrived and which kind it is.
+        out.println("imported  " + result.name() + " (" + result.type() + ", "
+                + result.length() + " characters) from " + result.source());
+        out.flush();
+        if (!result.detail().isEmpty()) {
+            err.println("sokar: " + result.detail());
+            err.flush();
+        }
+        return 0;
     }
 }

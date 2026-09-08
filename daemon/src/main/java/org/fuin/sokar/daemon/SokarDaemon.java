@@ -322,6 +322,20 @@ public final class SokarDaemon {
                     .map(ProjectInventory.Summary::asMap).toList()));
         });
 
+        server.method("ImportCredential", (parameters, replies) -> {
+            // No console tier: a daemon has no terminal to ask at, so a vault that is not already
+            // unlocked is answered as VAULT_LOCKED rather than hanging on a prompt nobody sees.
+            final org.fuin.sokar.app.CredentialImport.Result result =
+                    org.fuin.sokar.app.CredentialImport.run(context,
+                            absent(parameters, "agent"), absent(parameters, "configDirectory"),
+                            () -> new org.fuin.sokar.vault.PassphraseTiers(
+                                    org.fuin.sokar.vault.KernelKeyring.source(
+                                            context.paths().vaultKeyringKey())).passphrase());
+            replies.last(Map.of("outcome", result.outcome().name(), "name", result.name(),
+                    "type", result.type(), "length", result.length(),
+                    "source", result.source(), "detail", result.detail()));
+        });
+
         server.method("Providers", (parameters, replies) -> {
             final Map<String, org.fuin.sokar.agent.api.ProviderDefinition> declared =
                     context.providers();
@@ -1091,6 +1105,21 @@ public final class SokarDaemon {
      * @param name Parameter to read.
      * @return Its value, or {@code false}.
      */
+    /**
+     * Reads an optional string parameter, answering {@code null} when it was not given.
+     * <p>
+     * Distinct from {@link #text}, which answers "". Here the difference carries meaning: no agent
+     * named means "the only one installed", while an empty name is a name nothing matches.
+     *
+     * @param parameters What the call carried.
+     * @param name Parameter to read.
+     * @return Its value, or {@code null}.
+     */
+    @org.jspecify.annotations.Nullable
+    static String absent(Map<String, Object> parameters, String name) {
+        return parameters.get(name) instanceof String string && !string.isBlank() ? string : null;
+    }
+
     private static boolean flag(Map<String, Object> parameters, String name) {
         return Boolean.TRUE.equals(parameters.get(name));
     }

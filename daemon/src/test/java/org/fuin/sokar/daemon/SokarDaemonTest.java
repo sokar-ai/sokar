@@ -965,6 +965,55 @@ class SokarDaemonTest {
     }
 
     @Test
+    void anOmittedNameIsNotTheSameAsAnEmptyOne() {
+
+        // "no agent named" means "the only one installed"; an empty name is a name nothing
+        // matches. Reading both as "" would turn the first into a refusal on a machine with
+        // exactly one agent - the commonest machine there is.
+        assertThat(SokarDaemon.absent(Map.of(), "agent")).isNull();
+        assertThat(SokarDaemon.absent(Map.of("agent", ""), "agent")).isNull();
+        assertThat(SokarDaemon.absent(Map.of("agent", "   "), "agent")).isNull();
+        assertThat(SokarDaemon.absent(Map.of("agent", "claude"), "agent")).isEqualTo("claude");
+    }
+
+    @Test
+    void importingNeverAnswersWithTheCredentialItRead(@TempDir Path dir) throws Exception {
+
+        // The reason this one is allowed over the socket at all is that no secret crosses it in
+        // either direction. A field carrying the value would remove the whole justification.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(
+                        SokarDaemon.INTERFACE + ".ImportCredential", Map.of());
+
+                assertThat(reply.keySet()).containsExactlyInAnyOrder("outcome", "name", "type",
+                        "length", "source", "detail");
+                assertThat(reply.get("outcome")).asString()
+                        .isIn("IMPORTED", "NO_SUCH_AGENT", "NO_CONFIG_DIRECTORY",
+                                "NOTHING_TO_IMPORT", "VAULT_LOCKED", "FAILED");
+            }
+        });
+    }
+
+    @Test
+    void importingWithNoAgentInstalledSaysSoRatherThanFailing(@TempDir Path dir) throws Exception {
+
+        // A machine with no agents is an ordinary state, not a fault. Reporting it as FAILED
+        // would send somebody looking for a broken daemon.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(
+                        SokarDaemon.INTERFACE + ".ImportCredential", Map.of());
+
+                assertThat(reply).containsEntry("outcome", "NO_SUCH_AGENT")
+                        .containsEntry("name", "").containsEntry("source", "");
+                assertThat(((Number) reply.get("length")).intValue()).isZero();
+                assertThat(reply.get("detail")).asString().isNotBlank();
+            }
+        });
+    }
+
+    @Test
     void providersNeverAnswerWithACredentialValue(@TempDir Path dir) throws Exception {
 
         // The invariant the whole contract rests on. A field carrying a value would be one an
