@@ -573,6 +573,23 @@ public class Podman {
      * @param shell Shell to run.
      * @return Full argument list, starting with the podman executable.
      */
+    /**
+     * Returns the arguments that attach a terminal to a program in a running container.
+     * <p>
+     * The program and its arguments stay separate: joining them into one string would have podman
+     * look for an executable whose name contains spaces.
+     *
+     * @param container Container name.
+     * @param command Program and arguments to run inside it.
+     * @return Arguments.
+     */
+    public List<String> attachArguments(String container, List<String> command) {
+        final List<String> arguments = new ArrayList<>(
+                List.of(executable, "exec", "--interactive", "--tty", container));
+        arguments.addAll(command);
+        return List.copyOf(arguments);
+    }
+
     public List<String> attachArguments(String container, String shell) {
         return List.of(executable, "exec", "--interactive", "--tty", container, shell);
     }

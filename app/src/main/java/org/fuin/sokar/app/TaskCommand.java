@@ -9,7 +9,7 @@ import picocli.CommandLine.Command;
         mixinStandardHelpOptions = true,
         description = "Runs and inspects agent tasks.",
         subcommands = { TaskRunCommand.class, TaskListCommand.class, TaskStopCommand.class,
-                TaskResumeCommand.class, TaskLabelCommand.class })
+                TaskResumeCommand.class, TaskLabelCommand.class, TaskAttachCommand.class })
 public class TaskCommand {
 
 }

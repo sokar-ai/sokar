@@ -76,7 +76,7 @@ class ContainerfileTest {
 
         assertThat(Containerfile.render(
                 new Project("uc", "", SecurityClass.GUARDED, "scratch", null)))
-                .contains("no curl/git/ssh and no known package manager in scratch");
+                .contains("no curl/git/ssh/tmux and no known package manager in scratch");
     }
 
     @Test
