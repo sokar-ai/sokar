@@ -17,10 +17,11 @@ import org.jspecify.annotations.Nullable;
  * @param detail What was found, in one line.
  * @param action The single next action, or {@code null} only when the state is {@link State#OK}.
  */
-record Probe(String name, State state, String detail, @Nullable String action) {
+public record Probe(String name, State state, String detail,
+        @Nullable String action) {
 
     /** What a probe found. */
-    enum State {
+    public enum State {
 
         /** Present and usable. */
         OK,
@@ -49,7 +50,7 @@ record Probe(String name, State state, String detail, @Nullable String action) {
      * @param detail What was found.
      * @param action The next action, required unless the state is {@link State#OK}.
      */
-    Probe {
+    public Probe {
         if (state != State.OK && (action == null || action.isBlank())) {
             throw new IllegalArgumentException(
                     "The probe '" + name + "' is " + state + " and names no next action");

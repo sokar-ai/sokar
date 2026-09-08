@@ -322,6 +322,18 @@ public final class SokarDaemon {
                     .map(ProjectInventory.Summary::asMap).toList()));
         });
 
+        server.method("Doctor", (parameters, replies) -> {
+            // The same probes the CLI prints, through the same object, so a machine cannot be
+            // called ready here and unready there.
+            final java.util.List<org.fuin.sokar.app.Probe> found =
+                    org.fuin.sokar.app.DoctorCommand.probesFor(context);
+            replies.last(Map.of("probes", found.stream()
+                    .map(probe -> Map.of("name", probe.name(), "state", probe.state().name(),
+                            "detail", probe.detail(),
+                            "action", probe.action() == null ? "" : probe.action())).toList(),
+                    "ready", org.fuin.sokar.app.DoctorCommand.ready(found)));
+        });
+
         server.method("Node", (parameters, replies) -> {
             // Minted on first ask and kept. A client cannot work this out: a hostname has many
             // spellings and a forwarded socket looks nothing like your own tunnel to the same

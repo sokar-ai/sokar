@@ -973,6 +973,39 @@ method Projects() -> (projects: []Project)
 #
 # The failure it prevents is not cosmetic. The same node listed twice delivers every clearance
 # question twice, and answering one leaves the other on screen until it expires.
+# Whether this machine can actually run a task.
+#
+# Every dependency below fails far from its cause - without nft a container comes up with no
+# ruleset, without nsenter a clearance decision cannot reach a running task - so today a person
+# learns about them by starting work and watching it behave strangely. This is the question they
+# cannot otherwise ask: is this machine able to do the thing I am about to ask of it.
+#
+# It runs external programs to find out, so it takes a moment and is not something to poll. It is
+# still a read: nothing here changes anything.
+method Doctor() -> (
+  probes: []Probe,
+  # False when anything is MISSING. Not a summary a client should re-derive: this is the same rule
+  # the CLI exits non-zero on, so the two cannot come to different conclusions about one machine.
+  #
+  # DEGRADED and UNKNOWN leave this true. The machine runs tasks, and the probes say how well.
+  ready: bool
+)
+
+# One thing outside Sokar that a task depends on.
+type Probe (
+  # What is being reported, as an operator would name it.
+  name: string,
+  # OK, DEGRADED, MISSING or UNKNOWN. UNKNOWN is its own state rather than the good case: a probe
+  # that guesses well is indistinguishable from one that works.
+  state: string,
+  # What was found, in one line.
+  detail: string,
+  # The single next action. "" only when the state is OK - a probe that fails and names nothing to
+  # do about it cannot be constructed on this side, so an interface may render this without
+  # checking whether it is there.
+  action: string
+)
+
 method Node() -> (
   # Stable across restarts, and unique to this node. Random, and derived from nothing: it says
   # only whether two connections lead to the same place.

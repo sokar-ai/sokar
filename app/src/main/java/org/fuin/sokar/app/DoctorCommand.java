@@ -243,6 +243,40 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
      *
      * @return The probes.
      */
+    /**
+     * Returns what this machine has of everything a task depends on.
+     * <p>
+     * Exists so the daemon can answer the same question without building a command-line object to
+     * ask it. Both go through this, so a machine cannot be reported ready by one and unready by
+     * the other - which is the drift that makes a diagnostic worth less than no diagnostic.
+     *
+     * @param context The machine to probe.
+     * @return The probes, in the order they are reported.
+     */
+    public static java.util.List<Probe> probesFor(SokarContext context) {
+        final DoctorCommand command = new DoctorCommand();
+        command.setContext(context);
+        return command.probes();
+    }
+
+    /**
+     * Says whether this machine can run a task.
+     * <p>
+     * Anything missing means a task will fail, or run without something it needs and say nothing -
+     * hooks that never load a firewall being the worst of them. Degraded and unknown leave a
+     * machine ready: it does run tasks, and the report says how well.
+     * <p>
+     * One rule, used by the exit code and by the daemon's answer. Two summaries of one machine
+     * that can disagree are worse than one, because whichever a person saw last is the one they
+     * act on.
+     *
+     * @param probes What was found.
+     * @return Whether work can start here.
+     */
+    public static boolean ready(java.util.List<Probe> probes) {
+        return probes.stream().noneMatch(probe -> probe.state() == Probe.State.MISSING);
+    }
+
     java.util.List<Probe> probes() {
         return java.util.List.of(
                 podmanVersion(),
@@ -297,7 +331,7 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         // Anything missing means a task will fail, or run without something it needs and say
         // nothing - hooks that never load a firewall being the worst of them. Degraded and unknown
         // do not fail the command: the machine works, and the report says how well.
-        if (probes.stream().anyMatch(probe -> probe.state() == Probe.State.MISSING)) {
+        if (!ready(probes)) {
             return 69;
         }
 

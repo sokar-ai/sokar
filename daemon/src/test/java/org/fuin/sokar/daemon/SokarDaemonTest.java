@@ -887,6 +887,75 @@ class SokarDaemonTest {
     }
 
     @Test
+    void doctorAnswersEveryProbeWithANextActionForTheOnesThatFailed(@TempDir Path dir)
+            throws Exception {
+
+        // The whole value of this report is that each failing line ends with the one thing to do
+        // about it - the dependencies it covers all fail far from their cause. A probe that came
+        // back with an empty action would be a line an interface renders as a blank where the
+        // answer belongs.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Doctor", Map.of());
+
+                @SuppressWarnings("unchecked")
+                final List<Map<String, Object>> probes =
+                        (List<Map<String, Object>>) reply.get("probes");
+                assertThat(probes).isNotEmpty();
+                assertThat(probes).allSatisfy(probe -> {
+                    assertThat(probe.get("name")).asString().isNotBlank();
+                    assertThat(probe.get("state")).asString()
+                            .isIn("OK", "DEGRADED", "MISSING", "UNKNOWN");
+                    if (!"OK".equals(probe.get("state"))) {
+                        assertThat(probe.get("action")).asString()
+                                .as("a failing probe must name the next action").isNotBlank();
+                    }
+                });
+            }
+        });
+    }
+
+    @Test
+    void doctorIsNotReadyExactlyWhenSomethingIsMissing(@TempDir Path dir) throws Exception {
+
+        // 'ready' must mean what the CLI's exit code means. Two summaries of one machine that can
+        // disagree is worse than one, because whichever a person saw last is the one they act on.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Doctor", Map.of());
+
+                @SuppressWarnings("unchecked")
+                final List<Map<String, Object>> probes =
+                        (List<Map<String, Object>>) reply.get("probes");
+                final boolean anythingMissing = probes.stream()
+                        .anyMatch(probe -> "MISSING".equals(probe.get("state")));
+
+                assertThat(reply.get("ready")).isEqualTo(!anythingMissing);
+            }
+        });
+    }
+
+    @Test
+    void nodeAnswersTheSameIdentityToEveryCaller(@TempDir Path dir) throws Exception {
+
+        // Two clients reaching one node by different routes have to be able to tell that it is one
+        // node. If this differed per call they would conclude the opposite of the truth.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Object first = client.call(SokarDaemon.INTERFACE + ".Node", Map.of())
+                        .get("id");
+                final Object second = client.call(SokarDaemon.INTERFACE + ".Node", Map.of())
+                        .get("id");
+
+                assertThat(first).asString().isNotBlank();
+                assertThat(first).isEqualTo(second);
+            }
+        });
+    }
+
+    @Test
     void agentsSaysNothingIsShadowedWhenNothingIs(@TempDir Path dir) throws Exception {
 
         // A field that always names something teaches an interface to ignore it.
