@@ -75,17 +75,62 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         }
     }
 
+    /**
+     * Reads the credential, without putting it on the screen when a person is typing it.
+     * <p>
+     * <strong>This was a leak, and the product contradicted itself about it.</strong> The vault
+     * passphrase has always been read through {@code Console.readPassword}, which does not echo.
+     * A credential was read with a plain {@code readLine}, so pasting one into a terminal printed
+     * it and left it in the scrollback - which many terminals persist to disk. Advice to "store it
+     * at the machine rather than over the wire" was therefore recommending the path that wrote the
+     * secret down.
+     * <p>
+     * The piped form stays exactly as it was. {@code printf %s ... | sokar vault put} is how
+     * scripts do this and how the acceptance suite does it, and there is no terminal there to not
+     * echo to.
+     *
+     * @param interactive Whether a person is typing at a terminal.
+     * @param typed Reads without echo. Called only when {@code interactive}.
+     * @param piped Standard input. Read only when not {@code interactive}.
+     * @return The value, stripped, or empty when there was none.
+     * @throws IOException If standard input cannot be read.
+     */
+    static String readValue(boolean interactive, java.util.function.Supplier<char[]> typed,
+            BufferedReader piped) throws IOException {
+        if (interactive) {
+            final char[] secret = typed.get();
+            if (secret == null) {
+                return "";
+            }
+            try {
+                return new String(secret).strip();
+            } finally {
+                // The String is what gets stored, so this only shortens one copy's life. Worth
+                // doing anyway: it is the copy that exists for no reason after this point.
+                java.util.Arrays.fill(secret, '\0');
+            }
+        }
+        final String line = piped.readLine();
+        return line == null ? "" : line.strip();
+    }
+
     @Override
     public Integer call() throws IOException {
 
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
+        final java.io.Console tty = System.console();
+        // isTerminal() rather than a null check: since Java 22 a Console is handed out even when
+        // standard input is a pipe, and reading a piped secret through readPassword would hang.
+        final boolean interactive = tty != null && tty.isTerminal();
         final String value;
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
-            final String line = reader.readLine();
-            value = line == null ? "" : line.strip();
+            value = readValue(interactive,
+                    () -> tty == null ? new char[0]
+                            : tty.readPassword("Value for '%s': ", name),
+                    reader);
         }
         if (value.isEmpty()) {
             err.println("sokar: nothing on standard input. Use: echo <secret> | sokar vault put "
