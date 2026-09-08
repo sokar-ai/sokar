@@ -987,6 +987,32 @@ method Projects() -> (projects: []Project)
 #
 # The failure it prevents is not cosmetic. The same node listed twice delivers every clearance
 # question twice, and answering one leaves the other on screen until it expires.
+# What backups have been taken of a project's mirror.
+#
+# A bundle is written wherever an operator names it, so nothing could work this out afterwards -
+# this is read from a record written when each one was taken. An interface cannot offer to restore
+# from a list it cannot read, which is what this is for.
+#
+# Newest first. Empty is an ordinary answer: a project nobody has backed up, or one backed up by a
+# Sokar older than the record.
+method Backups(project: string) -> (backups: []Backup)
+
+type Backup (
+  # When it was written, ISO-8601.
+  taken: string,
+  # Absolute path on the daemon's machine.
+  bundle: string,
+  # How many pushes were waiting for review when it was taken. What a restore would bring back.
+  refs: int,
+  # Whether that file is still there. A record is not the bundle: the file can be moved, deleted
+  # or replaced afterwards and nothing here would know, so an absent one is shown rather than
+  # quietly dropped - somebody moved it, and that is worth seeing.
+  present: bool,
+  # Its size now, or 0 when it is gone. Not what it was when taken: this is read from disk, and
+  # claiming a size for a file that is not there would be inventing one.
+  bytes: int
+)
+
 # Copies a credential an agent already holds on this machine into the vault.
 #
 # The one credential operation that carries no secret over this socket in either direction: the

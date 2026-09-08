@@ -18,7 +18,8 @@ import picocli.CommandLine.Spec;
 @Command(name = "backup",
         mixinStandardHelpOptions = true,
         description = "Writes the mirror to a single verifiable bundle file.")
-public class GateBackupCommand implements Callable<Integer> {
+public class GateBackupCommand implements Callable<Integer>,
+        SokarFactory.ContextAware {
 
     @Parameters(index = "0", paramLabel = "<file>", description = "Where to write the bundle.")
     private Path bundle;
@@ -30,6 +31,13 @@ public class GateBackupCommand implements Callable<Integer> {
     @Spec
     private CommandSpec spec;
 
+    private SokarContext context = SokarContext.real();
+
+    @Override
+    public void setContext(SokarContext context) {
+        this.context = context;
+    }
+
     @Override
     public Integer call() {
 
@@ -40,6 +48,11 @@ public class GateBackupCommand implements Callable<Integer> {
             final Project project = GateSupport.project(projectFile);
             final GitGate gate = GateSupport.gate(project, null);
             gate.backup(bundle);
+            // Recorded here rather than inside the gate: the gate knows nothing about this
+            // machine's directories, and a bundle written wherever an operator names it is
+            // otherwise forgotten the moment this command returns.
+            new BackupRecords(context.paths().backupRecords())
+                    .add(project.name(), bundle, gate.pending().size());
             out.println("backed up " + gate.mirror() + " to " + bundle);
             out.println("verified  " + gate.verifyBackup(bundle));
             out.flush();

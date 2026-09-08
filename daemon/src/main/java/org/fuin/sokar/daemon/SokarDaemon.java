@@ -322,6 +322,19 @@ public final class SokarDaemon {
                     .map(ProjectInventory.Summary::asMap).toList()));
         });
 
+        server.method("Backups", (parameters, replies) -> {
+            replies.last(Map.of("backups",
+                    new org.fuin.sokar.app.BackupRecords(context.paths().backupRecords())
+                            .of(text(parameters, "project")).stream()
+                            .map(backup -> Map.<String, Object>of(
+                                    "taken", backup.taken().toString(),
+                                    "bundle", backup.bundle().toString(),
+                                    "refs", backup.refs(),
+                                    "present", backup.present(),
+                                    "bytes", backup.bytes()))
+                            .toList()));
+        });
+
         server.method("ImportCredential", (parameters, replies) -> {
             // No console tier: a daemon has no terminal to ask at, so a vault that is not already
             // unlocked is answered as VAULT_LOCKED rather than hanging on a prompt nobody sees.

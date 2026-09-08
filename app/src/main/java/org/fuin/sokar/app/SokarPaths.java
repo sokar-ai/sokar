@@ -216,6 +216,19 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
      *
      * @return The directory.
      */
+    /**
+     * Returns the directory recording what backups have been taken.
+     * <p>
+     * A bundle goes wherever the operator names it, so this is the only thing that knows one was
+     * ever taken. It records where, not what: the file it names can be moved or replaced
+     * afterwards and nothing here would know.
+     *
+     * @return The directory, which may not exist yet.
+     */
+    public Path backupRecords() {
+        return xdg.data().resolve("backups");
+    }
+
     public Path upstreamRecords() {
         return xdg.data().resolve("upstream");
     }
