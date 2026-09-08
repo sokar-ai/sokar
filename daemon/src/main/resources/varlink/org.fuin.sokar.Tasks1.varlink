@@ -1102,6 +1102,31 @@ method Prepare(
   detail: string
 )
 
+# Measures one project's distance from its upstream, now.
+#
+# Its own operation on purpose. The distance is otherwise measured on a timer and read from a
+# record, because measuring reaches the network - and a listing that fetched would make the queue
+# cost what a listing must not. So this cannot be a flag on a read; it is something somebody asked
+# for.
+#
+# It goes through the same measurement the timer uses and writes the same record, so a triggered
+# fetch and a timed one cannot disagree about how far behind a project is, and Projects shows
+# whichever ran last without being told.
+method SyncUpstream(project: string) -> (
+  # MEASURED, NO_SUCH_PROJECT, NO_MIRROR, UNREADABLE or FAILED.
+  #
+  # NO_MIRROR is ordinary: a project that has never used the gate has nothing to measure against.
+  outcome: string,
+  # Commits the upstream has that this project's mirror does not. MEANINGLESS unless 'measured'.
+  behind: int,
+  # Whether the number above means anything. False for a project with no upstream, and for one
+  # this machine could not reach.
+  measured: bool,
+  # What the measurement itself reported: MEASURED, NEVER_CHECKED, NO_UPSTREAM, OFFLINE or FAILED.
+  reason: string,
+  detail: string
+)
+
 # What backups have been taken of a project's mirror.
 #
 # A bundle is written wherever an operator names it, so nothing could work this out afterwards -
@@ -1126,6 +1151,31 @@ type Backup (
   # Its size now, or 0 when it is gone. Not what it was when taken: this is read from disk, and
   # claiming a size for a file that is not there would be inventing one.
   bytes: int
+)
+
+# Restores a project's mirror from a bundle.
+#
+# Refuses when the mirror holds pushes nobody has reviewed, and names them. Those exist ONLY in the
+# mirror - not on the upstream, not in a workspace, not in the bundle being restored - so
+# overwriting one destroys the only copy. Same outcome name as DeleteProject and Stop, for the same
+# situation.
+method RestoreBackup(
+  project: string,
+  # Absolute path of the bundle, as Backups reports it.
+  bundle: string,
+  # Says what would happen and changes nothing.
+  dryRun: ?bool,
+  # Proceeds although unreviewed work would be destroyed.
+  force: ?bool
+) -> (
+  # RESTORED, PREVIEWED, HOLDS_WORK, NO_SUCH_PROJECT, NO_SUCH_BACKUP or FAILED.
+  outcome: string,
+  # The mirror that would be written, or was.
+  mirror: string,
+  # Refs nobody reviewed. Non-empty with HOLDS_WORK, and also under force - it is what force
+  # destroys, so it is worth showing afterwards as well as before.
+  unreviewed: []string,
+  detail: string
 )
 
 # Removes one backup: the bundle file and the record of it.

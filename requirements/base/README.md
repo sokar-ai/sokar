@@ -86,8 +86,6 @@ and saying so cost a paragraph and bought a screen that is not lying.
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
-| B22 | [Backups That Can Be Told Apart](B22-Backups-That-Can-Be-Told-Apart.md) | Backups are listable, deletable and restorable by something other than a person at a terminal, and anything that would discard unreviewed work refuses by name first. | two, and the listing is built |
-| B12 | [Changing What Running Work May Reach](B12-Changing-What-Running-Work-May-Reach.md) | What a running task may reach can be widened or narrowed without restarting it, and enforcement can be turned off while it runs. | one - turning enforcement off mid-run |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three |
 | B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have |
@@ -113,7 +111,7 @@ above.
 
 ## What was here and is finished
 
-Eleven requirements have been met and retired. Their files are gone; what each measured is in
+Thirteen requirements have been met and retired. Their files are gone; what each measured is in
 [AGENT.md](../../AGENT.md), where it will be read again:
 
 - **The local daemon API.** `sokard` serves the domain over an owner-only varlink socket, and the
@@ -152,6 +150,22 @@ Eleven requirements have been met and retired. Their files are gone; what each m
   reached the gate. The question it left, what the agent installed *inside* a container, is
   answered rather than moved: `podman diff` counts it, and a removal now says how much it
   destroyed.
+- **Changing what running work may reach.** Widening, narrowing, and turning enforcement off or
+  back on while a task runs - the scope a required value rather than a default, and turning it off
+  deliberately not `WidenTask` with a special value, because folding "stop asking about anything"
+  into a method that grants names would make one method mean two unrelated things. What it measured
+  is in [AGENT.md](../../AGENT.md): a set holds addresses and not names, so a grant and a withdrawal
+  are not mirror images; the resolver cannot be told without being restarted; and nothing applied to
+  a running task survives `Resume` unless it was written down - which is why turning enforcement off
+  also takes the watcher out of what a resume would restart.
+
+- **Backups that can be told apart.** Listing, deleting, restoring and synchronising. Nothing had
+  ever recorded that a backup was taken - `gate backup <file>` writes a bundle wherever an operator
+  names it and forgets it - so the listing was never the missing part; the record was. A restore
+  refuses with `HOLDS_WORK` and names the refs, because unreviewed pushes exist only in the mirror
+  and overwriting one destroys the only copy. A triggered fetch is its own method rather than a flag
+  on a read: a listing that reached the network would make the queue cost what a listing must not.
+
 - **Working inside a running container.** `sokar task attach` opens a session that outlives leaving
   it, and says on returning exactly how much it can show rather than apologising for not knowing.
   The question it opened and closed is worth keeping: varlink cannot carry a session at all - it is

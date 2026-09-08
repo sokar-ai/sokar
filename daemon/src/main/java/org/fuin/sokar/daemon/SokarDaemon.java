@@ -370,6 +370,15 @@ public final class SokarDaemon {
                     "detail", result.detail()));
         });
 
+        server.method("RestoreBackup", (parameters, replies) -> {
+            final org.fuin.sokar.app.BackupRestore.Result result =
+                    org.fuin.sokar.app.BackupRestore.restore(context, text(parameters, "project"),
+                            java.nio.file.Path.of(text(parameters, "bundle")),
+                            flag(parameters, "dryRun"), flag(parameters, "force"));
+            replies.last(Map.of("outcome", result.outcome().name(), "mirror", result.mirror(),
+                    "unreviewed", result.unreviewed(), "detail", result.detail()));
+        });
+
         server.method("DeleteBackup", (parameters, replies) -> {
             final org.fuin.sokar.app.BackupRecords records =
                     new org.fuin.sokar.app.BackupRecords(context.paths().backupRecords());
@@ -399,6 +408,14 @@ public final class SokarDaemon {
                 replies.last(Map.of("outcome", "FAILED", "fileRemoved", false,
                         "refs", known.get().refs(), "detail", String.valueOf(ex.getMessage())));
             }
+        });
+
+        server.method("SyncUpstream", (parameters, replies) -> {
+            final org.fuin.sokar.app.UpstreamSync.Result result =
+                    org.fuin.sokar.app.UpstreamSync.sync(context, text(parameters, "project"));
+            replies.last(Map.of("outcome", result.outcome().name(), "behind", result.behind(),
+                    "measured", result.measured(), "reason", result.reason(),
+                    "detail", result.detail()));
         });
 
         server.method("Backups", (parameters, replies) -> {

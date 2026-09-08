@@ -406,7 +406,15 @@ public class GitGate {
         gitIn("update-ref", "-d", INCOMING + name);
     }
 
-    private void deleteMirror() {
+    /**
+     * Removes the mirror, so a restore has somewhere to write.
+     * <p>
+     * <strong>Irreversible, and the caller has to have earned it.</strong> Unreviewed pushes exist
+     * only here - not on the upstream, not in a workspace, not in the bundle - so this destroys the
+     * only copy of whatever was waiting. {@link #restore(Path)} deliberately refuses to write over
+     * a mirror rather than calling this itself.
+     */
+    public void deleteMirror() {
         // The half-made repository would otherwise sit there and make the next restore refuse,
         // telling the operator a mirror exists when what exists is the wreckage of this attempt.
         try (var paths = Files.walk(mirror)) {
