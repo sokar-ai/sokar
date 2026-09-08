@@ -102,7 +102,11 @@ public final class AgentDefinitionReader {
                 strings(install.get("as_root")),
                 strings(install.get("as_agent")),
                 packaged(install.get("packaged"), origin),
-                optional(root, "config_dir"));
+                optional(root, "config_dir"),
+                // How this agent logs in, as arguments to its own binary. Absent for most: an
+                // agent whose credential is an API key has nothing to log in to, and Sokar must
+                // not guess a verb - hardcoding one agent's would be wrong for every other.
+                strings(optionalSection(root, "login").get("arguments")));
     }
 
     /**

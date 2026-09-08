@@ -141,17 +141,38 @@ you, which is why it is worth reading before the first task rather than after.
 
 **First, get the credential — on the node.** Which one depends on how you pay:
 
-| You have | Where the value comes from | Store it with |
-|---|---|---|
-| an API key | your provider's console, as a long `sk-…` string | `--type api-key` |
-| a subscription | the agent's own login on this machine (see below) | `--type oauth` |
+| You have | How to get it into the vault |
+|---|---|
+| an API key | copy it from your provider's console and store it: `sokar vault put <provider> --type api-key` |
+| a subscription | **`sokar vault login`** — it runs the agent's own login for you |
+| an agent already logged in on this node | `sokar vault import <agent>` — nothing is retyped |
 
-For a subscription there is no key to copy from a web page: the value is produced by
-the agent's login, run **on the node**. For Claude Code that is `claude setup-token`,
-which needs the agent installed on the node and prints a long-lived token to paste
-below — see [the Claude Code guide](https://github.com/fuinorg/sokar-claude-code#readme). This is also why
-logging in inside the container is both blocked and pointless: the value has to end
-up in the vault, on the node, where the box cannot reach it.
+**For a subscription there is no key to copy from a web page.** The value is produced by
+the agent's own login, and on a machine where you have never installed that agent by hand
+there is nothing to run it with: the Sokar agent package installs a definition in
+`/usr/libexec/sokar/agents`, and the agent's tooling goes into the **task image** rather
+than onto the node.
+
+That is what `sokar vault login` is for:
+
+```
+sokar vault login claude
+```
+
+It builds a throwaway image containing the agent, runs the agent's own login in it on your
+terminal — follow whatever it prints — and puts the credential it produces straight into the
+vault. The container is removed afterwards.
+
+**That container is not a task container**, and the difference is the point: it carries no
+Sokar annotation, so none of the hooks fire. No egress ruleset, no resolver, no clearance
+watcher, no broker and no vault mounted into it. It has ordinary network access for the
+seconds a login takes, because a login has to reach the provider directly — which is
+exactly what a *task* is prevented from doing, so that an agent must go through the broker
+and never holds the real credential.
+
+**An agent has to say how it logs in**, in its own manifest, and one that does not is
+answered as unsupported rather than guessed at. Sokar does not know that Claude Code's verb
+is `setup-token`; hardcoding one agent's would be wrong for every other.
 
 **If the agent is already logged in here, import instead of typing.** An agent that
 keeps its own credentials on this node can hand them over:

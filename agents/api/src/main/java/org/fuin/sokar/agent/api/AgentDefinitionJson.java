@@ -69,6 +69,7 @@ public final class AgentDefinitionJson {
         out.put("allowedDomains", definition.allowedDomains());
         out.put("refusedDomains", definition.refusedDomains());
         putIfPresent(out, "configDirectory", definition.configDirectory());
+        out.put("loginArguments", definition.loginArguments());
         putIfPresent(out, "version", definition.version());
         out.put("artifacts", definition.artifacts().stream()
                 .map(AgentDefinitionJson::writeArtifact).toList());
@@ -113,7 +114,8 @@ public final class AgentDefinitionJson {
                 strings(source.get("installAsAgent")),
                 packaged(source.get("packaged")),
                 source.get("configDirectory") == null ? null
-                        : String.valueOf(source.get("configDirectory")));
+                        : String.valueOf(source.get("configDirectory")),
+                strings(source.get("loginArguments")));
     }
 
     private static Map<String, Object> writeArtifact(InstallArtifact artifact) {

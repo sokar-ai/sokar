@@ -40,7 +40,44 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
         List<InstallArtifact> artifacts,
         List<String> installAsRoot, List<String> installAsAgent,
-        List<PackagedTree> packaged, @Nullable String configDirectory) {
+        List<PackagedTree> packaged, @Nullable String configDirectory,
+        List<String> loginArguments) {
+
+    /**
+     * Constructor for an agent that does not say how to log in.
+     * <p>
+     * Most do not, and it is not a defect: an agent whose credential is an API key has nothing to
+     * log in to.
+     *
+     * @param name Name the binary calls itself by.
+     * @param label Human-readable name.
+     * @param binary Command it runs inside the container.
+     * @param gitIdentity What its commits are signed with.
+     * @param headless Flags for a non-interactive run.
+     * @param supportsResume Whether it can continue a previous session.
+     * @param resumeFlag Flag that continues one, or {@code null}.
+     * @param tokenEnvironment Variable its credential is read from, by kind.
+     * @param provider How it reaches a model provider, or {@code null}.
+     * @param allowedDomains Hosts it needs.
+     * @param refusedDomains Hosts it asked for and is not given.
+     * @param version Build it pins, or {@code null}.
+     * @param artifacts What it fetches when its image is built.
+     * @param installAsRoot Image lines that run as root.
+     * @param installAsAgent Image lines that run as the agent.
+     * @param packaged Trees copied into the image.
+     * @param configDirectory Where it keeps its credentials, or {@code null}.
+     */
+    public AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
+            HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
+            Map<String, String> tokenEnvironment, @Nullable AgentProvider provider,
+            List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
+            List<InstallArtifact> artifacts, List<String> installAsRoot,
+            List<String> installAsAgent, List<PackagedTree> packaged,
+            @Nullable String configDirectory) {
+        this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag,
+                tokenEnvironment, provider, allowedDomains, refusedDomains, version, artifacts,
+                installAsRoot, installAsAgent, packaged, configDirectory, List.of());
+    }
 
     /**
      * Constructor for an agent that keeps no credential of its own on the host.

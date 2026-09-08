@@ -1,0 +1,261 @@
+package org.fuin.sokar.app;
+
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import org.fuin.sokar.agent.api.Credential;
+import org.fuin.sokar.agent.api.InstalledAgent;
+import org.fuin.sokar.core.project.Project;
+import org.fuin.sokar.core.project.SecurityClass;
+import org.fuin.sokar.vault.VaultEntry;
+import org.jspecify.annotations.Nullable;
+
+/**
+ * Runs an agent's own login, in a throwaway container, and puts what it produces in the vault.
+ * <p>
+ * <strong>Why this has to exist.</strong> An agent's tooling is installed into the task image, not
+ * onto the node - {@code sokar-agent-claude} puts an agent definition in {@code /usr/libexec} and
+ * nothing else. So on a machine that has never had that agent installed by hand there is no binary
+ * to log in with, and {@code sokar vault put <provider> --type oauth} asks for a value with no
+ * source. That was reported by somebody following the getting-started guide on a clean machine.
+ * <p>
+ * <strong>Why a container rather than the node.</strong> The image already contains the agent,
+ * because Sokar built it. Installing the agent on the node as well would mean two copies that can
+ * differ, and the one somebody logs in with would not be the one that runs.
+ * <p>
+ * <strong>This is not a task container, and the difference matters.</strong> It carries no Sokar
+ * annotation, so none of the hooks fire: no egress ruleset, no resolver, no clearance watcher, no
+ * broker socket and no vault. It has ordinary network access for the seconds a login takes, and is
+ * removed afterwards. A task container is the opposite in every one of those respects - the
+ * provider's own host is denied there precisely so an agent must go through the broker.
+ * <p>
+ * <strong>Sokar does not know how any agent logs in.</strong> The verb comes from the agent's own
+ * manifest, and an agent that declares none is answered as unsupported rather than guessed at.
+ * Hardcoding one agent's verb would be wrong for every other, which is the same mistake as
+ * hardcoding the name of an instructions file.
+ */
+public final class AgentLogin {
+
+    /** Base image for the login container when nothing else says otherwise. */
+    static final String LOGIN_BASE_IMAGE = "ubuntu:24.04";
+
+    /** What happened. */
+    public enum Outcome {
+
+        /** Logged in, and the credential is in the vault. */
+        STORED,
+
+        /** What would be run, having run nothing. */
+        PREVIEWED,
+
+        /** No agent of that name, or none given and more than one installed. */
+        NO_SUCH_AGENT,
+
+        /** The agent does not say how to log in. */
+        UNSUPPORTED,
+
+        /** The agent does not say where it keeps its credentials, so nothing can be collected. */
+        NO_CONFIG_DIRECTORY,
+
+        /** The login ran and left no credential behind - cancelled, or it failed. */
+        NOTHING_TO_COLLECT,
+
+        /** The vault cannot be opened without a passphrase nobody can be asked for here. */
+        VAULT_LOCKED,
+
+        /** The image could not be built, or the container could not be run. */
+        FAILED
+    }
+
+    /**
+     * What a login did.
+     *
+     * @param outcome What happened.
+     * @param name The vault key it was stored under, or "".
+     * @param type The kind of credential, or "".
+     * @param length How many characters arrived, so a caller can show that it worked without
+     *        showing what worked. Zero when nothing was stored.
+     * @param detail Why it failed, or "".
+     */
+    public record Result(Outcome outcome, String name, String type, int length, String detail) { }
+
+    private AgentLogin() {
+        throw new UnsupportedOperationException("Utility class");
+    }
+
+    private static Result failed(Outcome outcome, String detail) {
+        return new Result(outcome, "", "", 0, detail);
+    }
+
+    /**
+     * The project a login image is built from.
+     * <p>
+     * Not a real project and never registered as one: it exists so the image builder has something
+     * to build from. Offline, because nothing about this image is a task and no egress set applies
+     * to it - the container it produces is run without any of Sokar's networking.
+     *
+     * @return A project describing the login image.
+     */
+    static Project loginProject() {
+        return new Project("sokar-login", "Throwaway image for an agent login",
+                SecurityClass.OFFLINE, LOGIN_BASE_IMAGE, null);
+    }
+
+    /**
+     * Logs in with an agent and stores what it produced.
+     *
+     * @param context The machine.
+     * @param agentName Which agent, or {@code null} for the only one installed.
+     * @param dryRun Says what it would run and runs nothing.
+     * @param out Where progress goes.
+     * @return What happened.
+     */
+    public static Result login(SokarContext context, @Nullable String agentName, boolean dryRun,
+            PrintWriter out) {
+
+        try (var agents = context.agents()) {
+
+            final java.util.Optional<InstalledAgent> found = agentName != null
+                    ? agents.find(agentName)
+                    : agents.names().size() == 1 ? agents.find(agents.names().getFirst())
+                            : java.util.Optional.empty();
+            if (found.isEmpty()) {
+                return failed(Outcome.NO_SUCH_AGENT,
+                        "no such agent; installed: " + String.join(", ", agents.names()));
+            }
+            final InstalledAgent agent = found.get();
+
+            final List<String> loginArguments = agent.definition().loginArguments();
+            if (loginArguments.isEmpty()) {
+                return failed(Outcome.UNSUPPORTED, "'" + agent.name() + "' does not say how to log"
+                        + " in, so there is nothing to run. Store its credential with"
+                        + " 'sokar vault put', or import one it already holds");
+            }
+            final String configDirectory = agent.definition().configDirectory();
+            if (configDirectory == null) {
+                return failed(Outcome.NO_CONFIG_DIRECTORY, "'" + agent.name() + "' does not say"
+                        + " where it keeps its credentials, so nothing could be collected"
+                        + " afterwards");
+            }
+
+            final List<String> command = new ArrayList<>(List.of(agent.definition().binary()));
+            command.addAll(loginArguments);
+            out.println("agent     " + agent.name());
+            out.println("runs      " + String.join(" ", command));
+            out.println("where     a throwaway container with ordinary network access - no egress"
+                    + " ruleset, no broker, no vault");
+            if (dryRun) {
+                out.println("previewed nothing was built or run");
+                out.flush();
+                return new Result(Outcome.PREVIEWED, "", "", 0, "");
+            }
+            out.flush();
+
+            return run(context, agent, command, configDirectory, out);
+
+        } catch (RuntimeException ex) {
+            return failed(Outcome.FAILED, String.valueOf(ex.getMessage()));
+        }
+    }
+
+    private static Result run(SokarContext context, InstalledAgent agent, List<String> command,
+            String configDirectory, PrintWriter out) {
+
+        final org.fuin.sokar.runtime.Podman podman = context.podman();
+        final Project project = loginProject();
+
+        org.fuin.sokar.runtime.ImageLayers layers = org.fuin.sokar.runtime.ImageLayers.none();
+        layers = layers.and(agent.definition().installAsRoot(),
+                org.fuin.sokar.agent.api.InstallScript.render(agent.definition().artifacts()));
+        layers = layers.and(java.util.List.of(), agent.definition().installAsAgent());
+
+        out.println("building  the login image - minutes the first time, seconds afterwards");
+        out.flush();
+        final String image;
+        try {
+            image = podman.buildImage(project, context.paths().buildContext("sokar-login"),
+                    layers);
+        } catch (RuntimeException ex) {
+            return failed(Outcome.FAILED, "the login image could not be built: " + ex.getMessage());
+        }
+
+        final String container = "sokar-login-" + System.currentTimeMillis();
+        Path collected = null;
+        try {
+            // The node's own network, so a login that redirects to a port on localhost reaches
+            // something. That is more access than a task ever gets, and it is why this container
+            // is removed rather than kept: it exists for the seconds a login takes.
+            final List<String> arguments = new ArrayList<>(List.of("run", "--interactive", "--tty",
+                    "--network", "host", "--name", container, image));
+            arguments.addAll(command);
+            out.println();
+            out.println("Follow whatever the agent prints. It ends when the login does.");
+            out.println();
+            out.flush();
+            final int code = context.exec().applyAsInt(podman.arguments(arguments));
+            if (code != 0) {
+                return failed(Outcome.NOTHING_TO_COLLECT,
+                        "the login exited with " + code + ", so nothing was stored");
+            }
+
+            collected = Files.createTempDirectory("sokar-login");
+            // Copied out rather than read in place: the extractor runs on this machine and knows
+            // each agent's own file layout, so the credential is read by the same code 'vault
+            // import' uses rather than by something written twice.
+            podman.copyOut(container, VaultImportCommand.expand(configDirectory).toString(),
+                    collected);
+
+            final java.util.Optional<Credential> credential = agent.extractCredential(collected);
+            if (credential.isEmpty()) {
+                return failed(Outcome.NOTHING_TO_COLLECT, "the login left no credential in "
+                        + configDirectory + " - it may have been cancelled");
+            }
+            final Credential value = credential.get();
+
+            final SelectedProvider selection =
+                    SelectedProvider.choose(context.providers(), agent.definition(), null);
+            final String key = selection == null ? agent.name() : selection.name();
+
+            final java.util.Optional<char[]> passphrase = new org.fuin.sokar.vault.PassphraseTiers(
+                    org.fuin.sokar.vault.KernelKeyring.source(
+                            context.paths().vaultKeyringKey()),
+                    new org.fuin.sokar.vault.ConsolePassphrase("Vault passphrase: "))
+                    .passphrase();
+            if (passphrase.isEmpty()) {
+                return failed(Outcome.VAULT_LOCKED, "logged in, but the vault is locked and"
+                        + " nothing could ask for a passphrase - unlock it and run this again");
+            }
+            context.vault().update(passphrase.get(), entries -> {
+                entries.put(key, new VaultEntry(value.secret(), value.type()));
+                return entries;
+            });
+            return new Result(Outcome.STORED, key, value.type(), value.secret().length(), "");
+
+        } catch (java.io.IOException | RuntimeException ex) {
+            return failed(Outcome.FAILED, String.valueOf(ex.getMessage()));
+        } finally {
+            podman.remove(container);
+            if (collected != null) {
+                // The credential was in here. Removed whatever happened above.
+                deleteTree(collected);
+            }
+        }
+    }
+
+    private static void deleteTree(Path directory) {
+        try (var walk = Files.walk(directory)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (java.io.IOException ignored) {
+                    // Best effort: what matters is that the vault has it, and a temporary
+                    // directory that outlives this is a smaller problem than failing here.
+                }
+            });
+        } catch (java.io.IOException ignored) {
+            // Same.
+        }
+    }
+}

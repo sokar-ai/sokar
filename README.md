@@ -100,8 +100,13 @@ an agent to work on.
 
 > [!NOTE]  
 > This is the quick path for the case where **Claude Code is already installed and signed
-> in on the host you run Sokar from** — `vault import` copies the credential it is holding,
+> in on the node you run Sokar from** — `vault import` copies the credential it is holding,
 > whether that is an API key or a subscription token, so nothing is retyped.
+>
+> **If it is not**, replace `sokar vault import claude` with **`sokar vault login claude`**,
+> which runs the agent's own login for you in a throwaway container and stores what it
+> produces. Sokar installs the agent's tooling into the task image rather than onto the
+> node, so there is otherwise nothing on a fresh machine to log in with.
 
 **Debian and Ubuntu**
 

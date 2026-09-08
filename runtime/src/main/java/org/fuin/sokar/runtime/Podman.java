@@ -668,6 +668,38 @@ public class Podman {
         return List.copyOf(arguments);
     }
 
+    /**
+     * Returns an argument list for the runtime, for a caller that runs it on this terminal.
+     * <p>
+     * Exists because an interactive login has to reach the person's own terminal: a command whose
+     * output this collected would show them nothing, and a login that prints a URL nobody sees is
+     * a login that never finishes.
+     *
+     * @param arguments What to pass to the runtime.
+     * @return The executable followed by those arguments.
+     */
+    public List<String> arguments(List<String> arguments) {
+        final List<String> all = new ArrayList<>();
+        all.add(executable);
+        all.addAll(arguments);
+        return List.copyOf(all);
+    }
+
+    /**
+     * Copies a path out of a container onto this machine.
+     * <p>
+     * Used to collect what a login left behind, so the credential is read by the same extractor
+     * that reads one from a directory on the node - rather than by a second implementation that
+     * would eventually disagree with the first about where an agent keeps things.
+     *
+     * @param container Container to copy from.
+     * @param source Path inside it.
+     * @param target Directory on this machine.
+     */
+    public void copyOut(String container, String source, Path target) {
+        runner.runOrFail(podman("cp", container + ":" + source, target.toString()));
+    }
+
     public List<String> attachArguments(String container, String shell) {
         return List.of(executable, "exec", "--interactive", "--tty", container, shell);
     }
