@@ -134,7 +134,15 @@ type Task (
   # "off" is the one to mark wherever the task appears: nothing asks and nothing is refused, so
   # the firewall is loaded and no decision is ever put to anybody. It is a state somebody chose,
   # and an interface that shows it like any other run is hiding the choice.
-  clearance: string
+  clearance: string,
+  # A changeable caption somebody gave this task. "" when nobody has, which is every task by
+  # default and is a normal state rather than a gap.
+  #
+  # BESIDE the name, never instead of it: 'name' is what every other method takes and what
+  # somebody types into sokar at the machine, so a row that showed only this would make the
+  # interface and the command line disagree about what a thing is called. Absent and empty are
+  # deliberately the same state.
+  label: string
 )
 
 # What became of a Stop or a Resume.
@@ -692,6 +700,29 @@ method CanStart(
   credential: string,
   # Prose for a person, always set. Never parsed.
   detail: string
+)
+
+# Gives a task a changeable caption, or removes one.
+#
+# NOT a rename. A task's name is its identity in four places - the container, the gate ref it
+# pushes to, the workspace and the log files - and moving a ref that may have unreviewed pushes
+# behind it is a different and much larger thing. This changes what a person reads in a list and
+# nothing else.
+method Label(
+  # Task name, as List reports it.
+  task: string,
+  # The caption. Omitted or blank removes it.
+  label: ?string
+) -> (
+  #   LABELLED      the caption was written down
+  #   CLEARED       the caption was removed
+  #   NOT_A_TASK    no such task, or its state directory is gone
+  #   NOT_RECORDED  it exists but recorded nothing about itself - started by an older Sokar
+  #   FAILED        the profile could not be written
+  outcome: string,
+  # What the task's caption is now. "" after CLEARED, and "" for every outcome that changed
+  # nothing.
+  label: string
 )
 
 # Reads one of a task's log files, and with "more" follows it as it is written.

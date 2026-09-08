@@ -49,7 +49,7 @@ public final class TaskInventory {
             String state, boolean running, long helpers, @Nullable String agent,
             @Nullable String mode, @Nullable String prompt, @Nullable String branch,
             String since, Activity activity, @Nullable String waitingFor,
-            @Nullable String clearance) {
+            @Nullable String clearance, @Nullable String label) {
 
         /**
          * Returns this task as plain values, for a caller that has to put it on a wire.
@@ -73,6 +73,9 @@ public final class TaskInventory {
             map.put("activity", activity.name());
             map.put("waitingFor", waitingFor == null ? "" : waitingFor);
             map.put("clearance", clearance == null ? "" : clearance);
+            // Beside the name, never instead of it: the name is what every other call takes and
+            // what somebody types at the machine. Empty means the row shows its real name.
+            map.put("label", label == null ? "" : label);
             return map;
         }
     }
@@ -152,7 +155,8 @@ public final class TaskInventory {
                 summary.since(),
                 activityOf(summary, state, waitingFor),
                 waitingFor,
-                profile == null ? null : profile.clearance());
+                profile == null ? null : profile.clearance(),
+                profile == null ? null : profile.label());
     }
 
     /**

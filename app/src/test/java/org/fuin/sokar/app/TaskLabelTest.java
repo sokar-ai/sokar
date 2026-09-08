@@ -1,0 +1,141 @@
+package org.fuin.sokar.app;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.fuin.sokar.core.config.XdgPaths;
+import org.fuin.sokar.testing.FakeCommandRunner;
+import org.fuin.sokar.wire.TaskMode;
+import org.fuin.sokar.wire.TaskProfile;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * Tests for giving a task a caption.
+ * <p>
+ * What has to stay true is that the identity does not move: a caption is read in a list, and the
+ * name is what every method takes and what somebody types at the machine.
+ */
+class TaskLabelTest {
+
+    private final FakeCommandRunner runner = new FakeCommandRunner();
+
+    private SokarContext context(Path dir) {
+        final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
+            case "XDG_DATA_HOME" -> dir.resolve("data").toString();
+            case "XDG_RUNTIME_DIR" -> dir.resolve("run").toString();
+            default -> null;
+        }, dir);
+        return new SokarContext(runner, new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0);
+    }
+
+    private Path task(Path dir, String container) throws IOException {
+        final Path state = dir.resolve("run/sokar").resolve(container);
+        Files.createDirectories(state);
+        new TaskProfile(TaskProfile.VERSION, "example", TaskMode.UNATTENDED, "fix the parser",
+                "sokar/work", "2026-09-08T06:00:00Z", "prompt").writeTo(state);
+        return state;
+    }
+
+    @Test
+    void writesACaptionIntoTheTasksOwnProfile(@TempDir Path dir) throws IOException {
+
+        // In the profile beside the mode and the prompt, so it survives a resume and outlives the
+        // container - exactly as durable as the other things a task says about itself.
+        final SokarContext context = context(dir);
+        final Path state = task(dir, "sokar-uc-shell-1");
+
+        assertThat(new TaskControl(context).label("sokar-uc-shell-1", "schema migration"))
+                .isEqualTo(TaskControl.Labelled.LABELLED);
+
+        assertThat(TaskProfile.readFrom(state).label()).isEqualTo("schema migration");
+    }
+
+    @Test
+    void changesNothingAboutTheIdentity(@TempDir Path dir) throws IOException {
+
+        // The whole reason this is a caption and not a rename. Everything that identifies the
+        // task has to read exactly as before: the container name, the ref its work goes to, and
+        // where its state lives.
+        final SokarContext context = context(dir);
+        final Path state = task(dir, "sokar-uc-shell-1");
+        final TaskProfile before = TaskProfile.readFrom(state);
+
+        new TaskControl(context).label("sokar-uc-shell-1", "second attempt");
+
+        final TaskProfile after = TaskProfile.readFrom(state);
+        assertThat(after.branch()).as("the ref its work goes to").isEqualTo(before.branch());
+        assertThat(after.agent()).isEqualTo(before.agent());
+        assertThat(after.mode()).isEqualTo(before.mode());
+        assertThat(after.prompt()).isEqualTo(before.prompt());
+        assertThat(after.startedAt()).isEqualTo(before.startedAt());
+        assertThat(Files.isDirectory(state)).as("its state is where it was").isTrue();
+    }
+
+    @Test
+    void anEmptyCaptionClearsItRatherThanStoringSpaces(@TempDir Path dir) throws IOException {
+
+        // A label of spaces is a row with an invisible caption and no way to tell it from one
+        // nobody set. Absent and empty are the same state on purpose.
+        final SokarContext context = context(dir);
+        final Path state = task(dir, "sokar-uc-shell-1");
+        final TaskControl control = new TaskControl(context);
+        control.label("sokar-uc-shell-1", "something");
+
+        assertThat(control.label("sokar-uc-shell-1", "   "))
+                .isEqualTo(TaskControl.Labelled.CLEARED);
+        assertThat(TaskProfile.readFrom(state).label()).isNull();
+    }
+
+    @Test
+    void aTaskWithNoProfileSaysSoRatherThanInventingOne(@TempDir Path dir) throws IOException {
+
+        // Writing one here would claim a mode and a start time nobody recorded. An operator
+        // cannot fix this by typing it differently, so it must not read like a typo.
+        final SokarContext context = context(dir);
+        Files.createDirectories(dir.resolve("run/sokar/sokar-uc-shell-1"));
+
+        assertThat(new TaskControl(context).label("sokar-uc-shell-1", "anything"))
+                .isEqualTo(TaskControl.Labelled.NOT_RECORDED);
+    }
+
+    @Test
+    void somethingThatIsNotATaskIsRefused(@TempDir Path dir) {
+
+        assertThat(new TaskControl(context(dir)).label("not-a-sokar-container", "x"))
+                .isEqualTo(TaskControl.Labelled.NOT_A_TASK);
+    }
+
+    @Test
+    void aLabelSurvivesBeingReadBackAsATask(@TempDir Path dir) throws IOException {
+
+        // The end-to-end claim: what was written is what a listing reports, under the key the
+        // contract declares.
+        final SokarContext context = context(dir);
+        task(dir, "sokar-uc-shell-1");
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        new TaskControl(context).label("sokar-uc-shell-1", "schema migration");
+
+        assertThat(new TaskInventory(context).tasks()).singleElement()
+                .satisfies(t -> {
+                    assertThat(t.label()).isEqualTo("schema migration");
+                    assertThat(t.name()).as("the name is untouched").isEqualTo("sokar-uc-shell-1");
+                    assertThat(t.asMap()).containsEntry("label", "schema migration");
+                });
+    }
+
+    @Test
+    void aTaskNobodyLabelledReportsAnEmptyStringNotNull(@TempDir Path dir) throws IOException {
+
+        // Every task by default. "" and never the four characters "null", which would render as
+        // a caption somebody had chosen.
+        final SokarContext context = context(dir);
+        task(dir, "sokar-uc-shell-1");
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+
+        assertThat(new TaskInventory(context).tasks()).singleElement()
+                .satisfies(t -> assertThat(t.asMap()).containsEntry("label", ""));
+    }
+}

@@ -139,6 +139,16 @@ public final class SokarDaemon {
             replies.last(answer);
         });
 
+        server.method("Label", (parameters, replies) -> {
+            // Through TaskControl, which is what the CLI drives too. A caption written by one
+            // surface and invisible to the other would be worse than none.
+            final String caption = text(parameters, "label");
+            final TaskControl.Labelled outcome =
+                    control.label(text(parameters, "task"), caption);
+            replies.last(Map.of("outcome", outcome.name(),
+                    "label", outcome == TaskControl.Labelled.LABELLED ? caption.strip() : ""));
+        });
+
         server.method("Panic", (parameters, replies) -> {
             // The same operation the CLI runs, not a faster one. Somebody reaches for this when
             // they do not know what is wrong, which is the worst moment for two implementations

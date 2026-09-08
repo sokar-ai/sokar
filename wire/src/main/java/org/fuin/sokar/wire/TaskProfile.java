@@ -35,13 +35,50 @@ import org.jspecify.annotations.Nullable;
  *        - nothing asks and nothing is refused - and until this was recorded it was invisible:
  *        nothing an interface listed could mark it, because nothing told the interface it was
  *        true.
+ * @param label A changeable caption a person gave this task, or {@code null} when nobody has.
+ *        <strong>Beside the identity, never instead of it.</strong> The task's name is what every
+ *        other call takes and what somebody types into {@code sokar} at the machine, so a label
+ *        that replaced it would make the interface and the command line disagree about what a
+ *        thing is called. Absent and empty are deliberately the same state: both mean the row
+ *        shows its real name, and a third would cost a value class to express a difference nobody
+ *        can act on.
  */
 public record TaskProfile(int version, @Nullable String agent, TaskMode mode,
         @Nullable String prompt, @Nullable String branch, String startedAt,
-        @Nullable String clearance) {
+        @Nullable String clearance, @Nullable String label) {
 
-    /** Current schema version. Bumped to 2 when the clearance mode was added. */
-    public static final int VERSION = 2;
+    /**
+     * Constructor for a task that has just started, which never has a label yet.
+     *
+     * @param version Schema version.
+     * @param agent Agent running in the task, or {@code null}.
+     * @param mode How a person is meant to be involved.
+     * @param prompt What an unattended task was asked to do, or {@code null}.
+     * @param branch Ref the work goes to, or {@code null}.
+     * @param startedAt When it started, ISO-8601.
+     * @param clearance What it does with a blocked connection.
+     */
+    public TaskProfile(int version, @Nullable String agent, TaskMode mode,
+            @Nullable String prompt, @Nullable String branch, String startedAt,
+            @Nullable String clearance) {
+        this(version, agent, mode, prompt, branch, startedAt, clearance, null);
+    }
+
+    /**
+     * Returns this profile with a different label.
+     *
+     * @param caption The new caption, or {@code null} to remove it. Blank counts as removing it:
+     *        a label of spaces is a row with an invisible caption and no way to tell it from one
+     *        that was never set.
+     * @return A copy.
+     */
+    public TaskProfile withLabel(@Nullable String caption) {
+        return new TaskProfile(version, agent, mode, prompt, branch, startedAt, clearance,
+                caption == null || caption.isBlank() ? null : caption.strip());
+    }
+
+    /** Current schema version. Bumped to 3 when a label could be given. */
+    public static final int VERSION = 3;
 
     /** Name of the file in a task's state directory. */
     public static final String FILE = "task.json";
@@ -61,6 +98,7 @@ public record TaskProfile(int version, @Nullable String agent, TaskMode mode,
         document.put("branch", branch == null ? "" : branch);
         document.put("startedAt", startedAt);
         document.put("clearance", clearance == null ? "" : clearance);
+        document.put("label", label == null ? "" : label);
         final Path file = stateDirectory.resolve(FILE);
         Files.writeString(file, Json.write(document), StandardCharsets.UTF_8);
         // A prompt is the operator's own words and may name anything they were working on; the
@@ -94,7 +132,11 @@ public record TaskProfile(int version, @Nullable String agent, TaskMode mode,
                     text(document, "branch"),
                     document.get("startedAt") == null ? ""
                             : String.valueOf(document.get("startedAt")),
-                    text(document, "clearance"));
+                    text(document, "clearance"),
+                    // A profile from before labels existed has no key at all, and reads as
+                    // unlabeled - which is the same state as a label somebody cleared, on
+                    // purpose.
+                    text(document, "label"));
         } catch (IOException | RuntimeException ex) {
             // A half-written file from a start that was killed. A task nobody can describe is
             // still a task somebody may need to stop.

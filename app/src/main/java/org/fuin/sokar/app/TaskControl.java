@@ -292,6 +292,64 @@ public final class TaskControl {
      * @param container Container name.
      * @return What happened.
      */
+    /** What labelling a task did. */
+    public enum Labelled {
+
+        /** The caption was written down. */
+        LABELLED,
+
+        /** The caption was removed, because it was blank or absent. */
+        CLEARED,
+
+        /** No such task, or its state directory is gone. */
+        NOT_A_TASK,
+
+        /** It exists but recorded nothing about itself - started by an older Sokar. */
+        NOT_RECORDED,
+
+        /** The profile could not be written. */
+        FAILED
+    }
+
+    /**
+     * Gives a task a changeable caption, beside the name that identifies it.
+     * <p>
+     * <strong>Nothing about the identity moves.</strong> The container keeps its name, the gate
+     * keeps its ref, the workspace and the logs stay where they are. A rename would have to move
+     * all four - including a ref that may have unreviewed pushes behind it - which is why what
+     * was asked for is a caption and not a rename.
+     * <p>
+     * Written into the task's own profile, so it survives a resume and outlives the container, and
+     * so it is exactly as durable as the mode and the prompt beside it.
+     *
+     * @param container Container name.
+     * @param caption The caption, or {@code null} / blank to remove one.
+     * @return What happened.
+     */
+    public Labelled label(String container, @Nullable String caption) {
+
+        if (!ContainerName.isSokar(container)) {
+            return Labelled.NOT_A_TASK;
+        }
+        final Path state = context.paths().containerState(container);
+        if (!Files.isDirectory(state)) {
+            return Labelled.NOT_A_TASK;
+        }
+        final org.fuin.sokar.wire.TaskProfile profile =
+                org.fuin.sokar.wire.TaskProfile.readFrom(state);
+        if (profile == null) {
+            // Nothing to change without inventing the rest of the profile, and a profile invented
+            // here would claim a mode and a start time nobody recorded.
+            return Labelled.NOT_RECORDED;
+        }
+        try {
+            profile.withLabel(caption).writeTo(state);
+        } catch (java.io.IOException ex) {
+            return Labelled.FAILED;
+        }
+        return caption == null || caption.isBlank() ? Labelled.CLEARED : Labelled.LABELLED;
+    }
+
     public Resumed resume(String container) {
 
         if (!ContainerName.isSokar(container)) {

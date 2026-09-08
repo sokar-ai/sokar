@@ -968,6 +968,23 @@ class SokarDaemonTest {
     }
 
     @Test
+    void labellingSomethingThatIsNotATaskAnswersRatherThanThrows(@TempDir Path dir)
+            throws Exception {
+
+        // An outcome a client branches on, like every other refusal here. A thrown error would
+        // put the interface back to reading text to find out what happened.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Label",
+                        Map.of("task", "not-a-sokar-container", "label", "anything"));
+
+                assertThat(reply).containsEntry("outcome", "NOT_A_TASK")
+                        .containsEntry("label", "");
+            }
+        });
+    }
+
+    @Test
     void aGateCallWithoutAProjectIsRefused(@TempDir Path dir) throws Exception {
 
         // A gate belongs to a project, and answering about the wrong one is worse than refusing.
