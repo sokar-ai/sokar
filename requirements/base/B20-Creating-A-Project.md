@@ -27,7 +27,9 @@ the composition, not the parts.
 
 Nothing here writes an instruction into a project file. That was settled: **a project file
 describes constraints, not instructions** — everything in it is a bound on what work here may do,
-and a prompt is the opposite kind of thing. See [B21](B21-Instructions-For-An-Agent.md).
+and a prompt is the opposite kind of thing. Standing instructions live in the repository
+and are not Sokar's business at all - the requirement that proposed managing them was
+withdrawn.
 
 ## To be checked
 

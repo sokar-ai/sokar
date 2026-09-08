@@ -34,7 +34,7 @@ what re-entering may claim is a scrollback figure rather than an apology.
 B18 to B22 arrived together, from the interface, as one list of everything a person could see and
 not do. They are filed separately because the work is separate, but the distinction that decides
 their cost is shared: **B18 and B22 are verbs that already exist and are only invisible**, while
-B19, B20 and B21 exist nowhere. `doctor` was the third of the already-built ones and it is not
+B19 and B20 existed nowhere and are built. B21 was withdrawn - see below. `doctor` was the third of the already-built ones and it is not
 here - it went into [B05](B05-Health-And-Diagnostics.md), which is the same work seen from the
 other side: B05 asks whether the machine reports what it can do, and the missing half is that
 nothing can ask it.
@@ -46,6 +46,23 @@ and reached opposite answers within a day, on reasoning that moved under both - 
 original arguments did not survive examination. The design records four options and what each is
 worth without choosing between them. **Until it is decided, both are entered at the node over ssh**,
 and an interface asks for neither.
+
+**Instructions for an agent are not Sokar's business, and B21 was withdrawn rather than built.**
+Standing instructions live in the repository, checked in or not, and Sokar does not know what they
+are called - `CLAUDE.md`, `AGENTS.md`, something else an agent invents next year. It cannot merge
+them, because how an agent combines several is that agent's rule and not ours. A team running more
+than one agent has to agree upfront how instructions are stored in their repository; that agreement
+is theirs to make and nothing here can help with it.
+
+**A hardcoded list of filenames would have been worse than nothing.** For a feature whose only job
+is to show what an agent was told, a name that goes out of date produces a confident "no
+instructions" for a task that had them - and a blank that looks like an answer is the failure this
+project keeps writing down.
+
+What Sokar knows about a repository it already offers: the gate shows the work under review, and
+the person has the repository. Three of these dissolved for the same reason as the agent roster,
+hardware access and key routing before them - the honest answer was *"that is not a thing this
+system has"*, and saying so cost a paragraph and bought a screen that is not lying.
 
 Two of that list dissolved rather than becoming requirements, and both are recorded where somebody
 will look rather than dropped. Provisioning a machine is refused and could not have worked anyway -
@@ -64,7 +81,6 @@ was already refused.
 | B16 | [Working Inside A Running Container](B16-Working-Inside-A-Running-Container.md) | A shell in a running task is reachable from the interface, leaving does not end it, coming back says what it can and cannot show, and being inside weakens nothing the container is held to. | none - built |
 | B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two |
 | B22 | [Backups That Can Be Told Apart](B22-Backups-That-Can-Be-Told-Apart.md) | Backups are listable, deletable and restorable by something other than a person at a terminal, and anything that would discard unreviewed work refuses by name first. | one |
-| B21 | [Instructions For An Agent](B21-Instructions-For-An-Agent.md) | Standing instructions are readable and writable at both levels, a project says which of the three positions it is in, and the resolved text a task receives is computed by the daemon. | two |
 | B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one |
 | B20 | [Creating A Project](B20-Creating-A-Project.md) | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
