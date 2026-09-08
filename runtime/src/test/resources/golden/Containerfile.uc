@@ -20,6 +20,14 @@ RUN set -eux; \
     else echo 'no curl/git/ssh/tmux and no known package manager in ubuntu:24.04' >&2; exit 1; \
     fi
 
+
+# How much a session remembers, pinned rather than inherited. What 'sokar task
+# attach' can honestly claim on returning is exactly this many lines, and a
+# figure nobody chose is a figure nobody can state. Written as a file so it is
+# readable in the image rather than hidden in a command line.
+RUN mkdir -p /etc/sokar \
+    && printf 'set -g history-limit 10000\n' > /etc/sokar/tmux.conf
+
 # The agent never runs as root. A rootless podman user namespace already maps this
 # to an unprivileged host uid, so this is defense in depth rather than the only line.
 # No uid is pinned: 1000 is already taken on several common base images.

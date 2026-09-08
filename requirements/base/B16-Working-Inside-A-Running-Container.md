@@ -1,6 +1,6 @@
 # B16 — Working Inside A Running Container
 
-**Status:** open, and fully designed. Nothing about it is undecided; what is left is building it
+**Status:** built. `sokar task attach`, a session that outlives leaving it, and a scrollback figure somebody chose
 
 A person can start work that is meant to be driven by hand — `Start` takes `mode: SHELL`, and the
 interface offers it — and then cannot get inside it. **Interactive work can be created and not
@@ -124,9 +124,12 @@ the multiplexer joins that line. It is not a burden on the operator's image and 
 mechanism - which is what an earlier draft of this file implied, wrongly.
 
 **It also answers what re-entering may claim, precisely rather than apologetically.** The honest
-answer is *"as much as the scrollback holds"*, and Sokar knows that number because it configures
-it. A criterion that asks an interface to be explicit about what it can show is met by having a
-figure to be explicit with.
+answer is *"the last 10000 lines"* - pinned in `/etc/sokar/tmux.conf` in the image and read
+explicitly by `task attach`, rather than inherited from whatever the base image or a dotfile
+happened to say. An earlier draft of this file said Sokar "knows that number because it configures
+it", and then it did not configure it: the figure was tmux's default and nobody had chosen it. A
+criterion asking an interface to be explicit is met by having a figure to be explicit with, and
+only a pinned one is that.
 
 **And it fixes the boundary at the container rather than at the window.** A session ends when the
 container does: `task stop` takes it, and `task resume` brings back an empty one. *"Survives
@@ -163,6 +166,27 @@ one where somebody has to work by hand, because the agent reaches nothing; forbi
 would take away the only way in and would be enforcing the class against something it does not
 describe. There is no class refusal in `task attach`.
 
+## Built, 2026-09-08
+
+`sokar task attach <container>` runs `tmux -f /etc/sokar/tmux.conf new-session -A -s sokar` in the
+container, over a pty an interface allocates with `ssh -t`. tmux is installed in the layer Sokar
+already writes, alongside `curl`, `git` and `openssh-client`, and the check for "already present"
+asks for it too - otherwise an image carrying the other three would skip the install.
+
+Two mistakes the tests caught rather than a reviewer:
+
+- **The program and its arguments were joined into one string**, which would have had podman look
+  for an executable named `tmux new-session -A -s sokar` and fail with "no such file" - reading as
+  a broken container rather than as a mistake here. There is now a test that fails if any argument
+  contains a space.
+- **`new-session` without `-A` starts a second session on returning** rather than finding the
+  first. That satisfies "leaving does not end it" while quietly breaking "coming back says what is
+  true", which is the harder half to notice.
+
+Refusals are two and need different sentences: a stopped task points at `Resume`, an unknown one at
+the list. There is no refusal by class, and a test says so, because that is the decision most
+likely to be "tidied up" later by somebody who assumes offline means no shell.
+
 ## To be checked
 
-Nothing. What remains is building it.
+Nothing.

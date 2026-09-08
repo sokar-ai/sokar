@@ -57,7 +57,8 @@ class TaskAttachCommandTest {
         assertThat(run(dir, "task", "attach", "sokar-uc-shell-1")).isZero();
 
         assertThat(attached).containsSubsequence("exec", "--interactive", "--tty",
-                "sokar-uc-shell-1", "tmux", "new-session", "-A", "-s", "sokar");
+                "sokar-uc-shell-1", "tmux", "-f", "/etc/sokar/tmux.conf",
+                "new-session", "-A", "-s", "sokar");
     }
 
     @Test
@@ -113,5 +114,18 @@ class TaskAttachCommandTest {
 
         assertThat(run(dir, "task", "attach", "sokar-offlineproj-shell-1")).isZero();
         assertThat(attached).contains("tmux");
+    }
+
+    @Test
+    void readsThePinnedConfigurationRatherThanWhateverIsAround(@TempDir Path dir) {
+
+        // What a session remembers IS the answer to "what may re-entering claim". Left to tmux's
+        // own search it would come from the image, or a dotfile, or a default nobody chose - and
+        // then the one process that has to state the figure does not know it.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+
+        run(dir, "task", "attach", "sokar-uc-shell-1");
+
+        assertThat(attached).containsSubsequence("tmux", "-f", "/etc/sokar/tmux.conf");
     }
 }

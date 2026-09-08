@@ -25,6 +25,15 @@ import org.fuin.sokar.core.project.Project;
  */
 public final class Containerfile {
 
+    /**
+     * How many lines a task's shell session remembers.
+     * <p>
+     * Pinned so that "what may re-entering claim" has an answer. Ten thousand lines is enough to
+     * hold a build somebody walked away from and small enough that a session left open costs
+     * nothing worth counting.
+     */
+    public static final String SCROLLBACK = "10000";
+
     private Containerfile() {
         throw new UnsupportedOperationException("Utility class");
     }
@@ -70,6 +79,14 @@ public final class Containerfile {
                 "    elif command -v dnf >/dev/null 2>&1; then dnf install -y curl ca-certificates git openssh-clients tmux && dnf clean all; \\",
                 "    else echo 'no curl/git/ssh/tmux and no known package manager in " + project.baseImage() + "' >&2; exit 1; \\",
                 "    fi",
+                "",
+                "",
+                "# How much a session remembers, pinned rather than inherited. What 'sokar task",
+                "# attach' can honestly claim on returning is exactly this many lines, and a",
+                "# figure nobody chose is a figure nobody can state. Written as a file so it is",
+                "# readable in the image rather than hidden in a command line.",
+                "RUN mkdir -p /etc/sokar \\",
+                "    && printf 'set -g history-limit " + SCROLLBACK + "\\n' > /etc/sokar/tmux.conf",
                 "",
                 "# The agent never runs as root. A rootless podman user namespace already maps this",
                 "# to an unprivileged host uid, so this is defense in depth rather than the only line.",

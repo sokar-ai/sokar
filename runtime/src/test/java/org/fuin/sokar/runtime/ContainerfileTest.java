@@ -93,4 +93,18 @@ class ContainerfileTest {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
+
+    @Test
+    void pinsHowMuchASessionRemembers() {
+
+        // The figure 'sokar task attach' claims on returning. Inherited rather than pinned, it
+        // would be whatever the base image or a dotfile happened to say, and an interface would
+        // have nothing true to put on the screen.
+        final Project project = new Project("uc", "Ultimate Container", SecurityClass.GUARDED,
+                "ubuntu:24.04", null);
+
+        assertThat(Containerfile.render(project))
+                .contains("history-limit " + Containerfile.SCROLLBACK)
+                .contains("/etc/sokar/tmux.conf");
+    }
 }

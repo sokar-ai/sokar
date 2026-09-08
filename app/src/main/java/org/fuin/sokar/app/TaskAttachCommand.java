@@ -21,7 +21,9 @@ import picocli.CommandLine.Spec;
  * <p>
  * <strong>Leaving does not end it.</strong> The session is a multiplexer inside the container, not
  * a process on the channel, so closing the window leaves it running and the next attachment finds
- * it as it was. It ends with the container: {@code task stop} takes it, and {@code task resume}
+ * it as it was, with the last {@value org.fuin.sokar.runtime.Containerfile#SCROLLBACK} lines it
+ * printed. That figure is pinned in the image rather than inherited, because what re-entering may
+ * claim has to be a number somebody chose. It ends with the container: {@code task stop} takes it, and {@code task resume}
  * brings back an empty one.
  * <p>
  * <strong>No refusal by security class.</strong> The class governs egress - what resolves and what
@@ -60,7 +62,12 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
      * @return Program and arguments, to run inside the container.
      */
     static java.util.List<String> sessionCommand() {
-        return java.util.List.of("tmux", "new-session", "-A", "-s", SESSION);
+        // The configuration file is read explicitly rather than left to tmux's search: what a
+        // session remembers is the answer to "what may re-entering claim", and inheriting it from
+        // whatever the image or a user's dotfile happened to say would make that answer unknown
+        // to the one process that has to state it.
+        return java.util.List.of("tmux", "-f", "/etc/sokar/tmux.conf",
+                "new-session", "-A", "-s", SESSION);
     }
 
     @Override
