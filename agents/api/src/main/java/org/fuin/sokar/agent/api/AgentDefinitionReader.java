@@ -103,10 +103,16 @@ public final class AgentDefinitionReader {
                 strings(install.get("as_agent")),
                 packaged(install.get("packaged"), origin),
                 optional(root, "config_dir"),
-                // How this agent logs in, as arguments to its own binary. Absent for most: an
-                // agent whose credential is an API key has nothing to log in to, and Sokar must
-                // not guess a verb - hardcoding one agent's would be wrong for every other.
-                strings(optionalSection(root, "login").get("arguments")));
+                // How this agent logs in, as arguments to its own binary. Null when the section
+                // is absent, which is most agents: one whose credential is an API key has nothing
+                // to log in to, and Sokar must not guess a verb - hardcoding one agent's would be
+                // wrong for every other.
+                //
+                // An EMPTY list is not the same as absent. An agent whose login is "just run me"
+                // declares the section with no arguments, and reading that as "cannot log in"
+                // would refuse the commonest shape there is.
+                root.get("login") == null ? null
+                        : strings(optionalSection(root, "login").get("arguments")));
     }
 
     /**

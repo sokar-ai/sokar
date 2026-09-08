@@ -41,7 +41,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         List<InstallArtifact> artifacts,
         List<String> installAsRoot, List<String> installAsAgent,
         List<PackagedTree> packaged, @Nullable String configDirectory,
-        List<String> loginArguments) {
+        @Nullable List<String> loginArguments) {
 
     /**
      * Constructor for an agent that does not say how to log in.
@@ -76,7 +76,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
             @Nullable String configDirectory) {
         this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag,
                 tokenEnvironment, provider, allowedDomains, refusedDomains, version, artifacts,
-                installAsRoot, installAsAgent, packaged, configDirectory, List.of());
+                installAsRoot, installAsAgent, packaged, configDirectory, null);
     }
 
     /**

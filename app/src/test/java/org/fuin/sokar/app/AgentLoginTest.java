@@ -64,6 +64,18 @@ class AgentLoginTest {
     }
 
     @Test
+    void aConfigDirectoryIsResolvedInsideTheContainerAndNotOnTheNode() {
+
+        // Off by one user, and it would have looked like a login that produced nothing: the agent
+        // runs as 'agent' in the image, so '~/.claude' is /home/agent/.claude there while the
+        // node's expansion gives whoever is running Sokar.
+        assertThat(AgentLogin.inContainer("~/.claude")).isEqualTo("/home/agent/.claude");
+        assertThat(AgentLogin.inContainer("/etc/somewhere")).isEqualTo("/etc/somewhere");
+        assertThat(AgentLogin.inContainer("~/.claude"))
+                .isNotEqualTo(VaultImportCommand.expand("~/.claude").toString());
+    }
+
+    @Test
     void nothingIsBuiltOrRunForAPreviewOnAMachineWithNoAgent(@TempDir Path dir) {
 
         AgentLogin.login(context(dir), null, true, new PrintWriter(out, true));

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.fuin.sokar.wire.Json;
@@ -250,17 +251,21 @@ public class HookInstaller {
      * @return Number of files removed.
      * @throws IOException If a file cannot be removed.
      */
-    public int uninstall() throws IOException {
-        int removed = 0;
+    public List<Path> uninstall() throws IOException {
+        final List<Path> removed = new ArrayList<>();
         for (final String name : descriptors().keySet()) {
-            if (Files.deleteIfExists(hooksDirectory.resolve(name))) {
-                removed++;
+            final Path file = hooksDirectory.resolve(name);
+            if (Files.deleteIfExists(file)) {
+                removed.add(file);
             }
         }
+        // In a different directory from the rest, which is why this returns paths rather than a
+        // count: a count with one directory beside it named the wrong place for this one file,
+        // and where things went is the whole point of saying anything.
         if (Files.deleteIfExists(dropInFile())) {
-            removed++;
+            removed.add(dropInFile());
         }
-        return removed;
+        return List.copyOf(removed);
     }
 
     /**

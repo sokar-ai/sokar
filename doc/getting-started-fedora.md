@@ -584,3 +584,35 @@ back, so nothing you have already answered is asked a second time.
 
 The state directory is under `/run`, so the kernel clears it when your session
 ends and no stale task state can be picked up by a later run.
+
+## Removing Sokar
+
+**The order matters, and one step has to come first.**
+
+```
+sokar setup --uninstall
+```
+
+That takes back the six hook descriptors and the podman drop-in. **Do it before removing the
+package**: those files live in your home, podman reads them per user, and no package can
+remove them - so uninstalling the package first leaves them behind pointing at binaries that
+are gone, with nothing left to run that would clean them up. It names each file it removes,
+and they are not all in one directory.
+
+Then the packages:
+
+```
+sudo dnf remove sokar 'sokar-agent-*'
+```
+
+**What is left after that is yours, and nothing removes it for you:**
+
+| Path | What |
+|---|---|
+| `~/.local/share/sokar/vault.bin` | your credentials. **There is no recovering this** |
+| `~/.local/share/sokar/mirrors/` | the gate's mirrors, including any push nobody reviewed |
+| `~/.local/share/sokar/projects/` | which project files this machine knows about |
+| `~/.local/share/sokar/agents/` | agents you installed yourself |
+
+The mirrors are the ones to look at before deleting anything: an unreviewed push exists only
+there, and `sokar gate pending` still answers while the package is installed.

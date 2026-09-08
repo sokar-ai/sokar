@@ -42,8 +42,15 @@ public class SetupCommand implements Callable<Integer>, SokarFactory.ContextAwar
         final HookInstaller installer = context.hooks();
 
         if (uninstall) {
-            out.println("removed   " + installer.uninstall() + " files from "
-                    + context.paths().hooksDirectory());
+            // One line per file, the same shape as installing. The count-and-one-directory form
+            // this replaced named the hooks directory for all of them, and the drop-in is not in
+            // it - so the one file somebody is most likely to go looking for by hand was the one
+            // reported in the wrong place.
+            final java.util.List<java.nio.file.Path> removed = installer.uninstall();
+            removed.forEach(file -> out.println("removed   " + file));
+            if (removed.isEmpty()) {
+                out.println("nothing   there was nothing of ours to remove");
+            }
             out.flush();
             return 0;
         }

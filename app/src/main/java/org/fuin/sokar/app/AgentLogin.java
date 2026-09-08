@@ -41,6 +41,14 @@ public final class AgentLogin {
     /** Base image for the login container when nothing else says otherwise. */
     static final String LOGIN_BASE_IMAGE = "ubuntu:24.04";
 
+    /**
+     * Home of the user an agent runs as inside the image.
+     * <p>
+     * The Containerfile creates {@code agent} with a home, and every agent's tooling installs
+     * under it. A path a manifest writes with {@code ~} means this one, not the node's.
+     */
+    static final String AGENT_HOME = "/home/agent";
+
     /** What happened. */
     public enum Outcome {
 
@@ -128,7 +136,9 @@ public final class AgentLogin {
             final InstalledAgent agent = found.get();
 
             final List<String> loginArguments = agent.definition().loginArguments();
-            if (loginArguments.isEmpty()) {
+            // Null, not empty: an agent whose login is "just run me" declares the section with no
+            // arguments, and treating that as "cannot log in" would refuse the commonest shape.
+            if (loginArguments == null) {
                 return failed(Outcome.UNSUPPORTED, "'" + agent.name() + "' does not say how to log"
                         + " in, so there is nothing to run. Store its credential with"
                         + " 'sokar vault put', or import one it already holds");
@@ -204,8 +214,7 @@ public final class AgentLogin {
             // Copied out rather than read in place: the extractor runs on this machine and knows
             // each agent's own file layout, so the credential is read by the same code 'vault
             // import' uses rather than by something written twice.
-            podman.copyOut(container, VaultImportCommand.expand(configDirectory).toString(),
-                    collected);
+            podman.copyOut(container, inContainer(configDirectory), collected);
 
             final java.util.Optional<Credential> credential = agent.extractCredential(collected);
             if (credential.isEmpty()) {
@@ -242,6 +251,22 @@ public final class AgentLogin {
                 deleteTree(collected);
             }
         }
+    }
+
+    /**
+     * Returns a declared config directory as it is inside the container.
+     * <p>
+     * <strong>Not {@code VaultImportCommand.expand}.</strong> That resolves {@code ~} against this
+     * machine's home, which is right when reading a directory on the node and wrong here by one
+     * user: the agent runs as {@code agent} inside the image, so {@code ~/.claude} is
+     * {@code /home/agent/.claude} there and {@code /home/somebody/.claude} on the node. Copying
+     * from the second would find nothing and report a login that produced no credential.
+     *
+     * @param declared The directory as the agent's manifest writes it.
+     * @return The absolute path inside the container.
+     */
+    static String inContainer(String declared) {
+        return declared.startsWith("~") ? AGENT_HOME + declared.substring(1) : declared;
     }
 
     private static void deleteTree(Path directory) {

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.fuin.sokar.wire.Json;
 import org.fuin.sokar.wire.Sidecar;
@@ -114,10 +115,19 @@ class HookInstallerTest {
     @Test
     void uninstallRemovesEverythingItWrote(@TempDir Path root) throws IOException {
 
-        installer(root).install();
+        final List<Path> written = installer(root).install();
 
-        assertThat(installer(root).uninstall()).isEqualTo(7);
-        assertThat(installer(root).uninstall()).isZero();
+        final List<Path> removed = installer(root).uninstall();
+
+        // Named rather than counted, and both directories among them: the drop-in does not live
+        // beside the hooks, so a count with one directory beside it reported the one file
+        // somebody is most likely to go looking for by hand in the wrong place.
+        assertThat(removed).containsExactlyInAnyOrderElementsOf(written);
+        assertThat(removed).anySatisfy(file ->
+                assertThat(file.getParent().getFileName()).hasToString("hooks.d"));
+        assertThat(removed).anySatisfy(file ->
+                assertThat(file.getParent().getFileName()).hasToString("containers.conf.d"));
+        assertThat(installer(root).uninstall()).isEmpty();
     }
 
     @Test
