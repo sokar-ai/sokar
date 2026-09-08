@@ -17,6 +17,50 @@ bytes are encrypted, and the byte array is wiped too.
 `VaultEntry.value()` is a `String`, and every caller that looks at a credential holds one. So the
 worst single copy is gone and the general property is not.
 
+## Found by a first-install test, 2026-09-08: hardening that is never applied
+
+`sokar doctor` ends with three lines that are not probes:
+
+```
+dumpable            1
+no new privileges   false
+hardening covers    the whole process
+```
+
+**`ProcessHardening` is fully implemented, has unit tests, and has no caller anywhere** - not in
+code, not in scripts, not in configuration. `disableDumping()` and `refuseNewPrivileges()` are
+never called, and none of the processes that hold a secret touch the class: not the broker
+(`vault serve`), which reads the real credential per request; not the ssh-agent (`vault agent`),
+which holds the signing key seed; not the relay.
+
+So **`dumpable 1` means the process holding a credential can be ptraced and core-dumped by
+anything running as that user.** A core dump is exactly the artifact this requirement is about -
+it is a heap dump under another name, written automatically, often to a place nobody remembers
+configuring.
+
+### Two separable defects
+
+**The report misleads.** Every other line `doctor` prints is a probe carrying one next action, and
+a failing probe that names none cannot be constructed. These three carry nothing to do about them,
+and they are not even describing one thing: the third is a *capability* - if hardening were
+applied, it would cover the whole process rather than one thread - while the first two are
+*current state*, and the current state is "not hardened". `dumpable 1` reads as a finding and
+`hardening covers the whole process` reads as reassurance, on adjacent lines, about different
+questions.
+
+**Or the hardening should be applied**, which is the substantive half. `disableDumping()` in the
+broker is one line and makes a core dump of the process holding the real credential impossible.
+
+### What it is worth, stated the same way as the rest of this requirement
+
+Reading another process's memory needs the same uid that can already read the vault file and the
+passphrase in the kernel keyring, so this is **defence in depth and crash artifacts, not a
+boundary somebody is being kept outside of**. That is the same conclusion this requirement reaches
+about the whole subject.
+
+But it is the cheapest thing on this page by a wide margin, and unlike the rest it needs no
+refactor: three call sites, in the three processes that hold something worth dumping.
+
 ## The ceiling, which is the reason this is not simply "do the rest"
 
 **In a managed runtime a secret cannot be reliably erased.** A moving collector copies objects, and
@@ -39,6 +83,8 @@ allows - and what cannot be achieved is written down rather than implied.**
 - Every buffer holding plaintext is overwritten when the work that needed it is done.
 - Where a guard cannot be tested, the code says so rather than looking covered.
 - The documentation states that erasure is not achieved, and why.
+- **A process holding a credential cannot be core-dumped**, and nothing reports hardening it does
+  not apply.
 
 ## Notes
 
@@ -53,6 +99,9 @@ alongside something else.
 
 ## To be checked
 
+- **Whether `doctor` should report hardening at all while nothing applies it**, or say plainly
+  that it is not applied. Printing the state of something nobody sets is how a line that looks
+  like a warning survives for months.
 - **Whether the broker can avoid a `String` at all.** It reads the real credential per request and
   puts it in an HTTP header, and the HTTP machinery takes strings. It may be that the last copy is
   unavoidable there, in which case this requirement should say so about that path specifically.
