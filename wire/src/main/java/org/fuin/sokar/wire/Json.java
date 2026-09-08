@@ -57,6 +57,20 @@ public final class Json {
         return out.toString();
     }
 
+    /**
+     * Writes a value into a buffer the caller owns.
+     * <p>
+     * Exists for the vault. {@link #write(Object)} hands back a {@code String}, which for the
+     * vault's document is every credential it holds in plaintext, immutable and impossible to
+     * clear. A caller that owns the buffer can overwrite it once the bytes have been encrypted.
+     *
+     * @param value Value to write.
+     * @param out Where to write it.
+     */
+    public static void write(Object value, StringBuilder out) {
+        writeValue(out, value);
+    }
+
     private static void writeValue(StringBuilder out, Object value) {
         switch (value) {
             case null -> out.append("null");

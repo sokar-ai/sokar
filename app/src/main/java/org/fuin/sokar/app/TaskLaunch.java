@@ -153,7 +153,7 @@ public final class TaskLaunch {
         if (!java.nio.file.Files.exists(request.projectFile()) && System.console() != null) {
             try (java.io.BufferedReader in = new java.io.BufferedReader(
                     new java.io.InputStreamReader(System.in, java.nio.charset.StandardCharsets.UTF_8))) {
-                if (!ProjectWizard.create(request.projectFile(), in, out)) {
+                if (!ProjectWizard.create(context, request.projectFile(), in, out)) {
                     out.flush();
                     return 2;
                 }

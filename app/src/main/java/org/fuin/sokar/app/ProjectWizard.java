@@ -62,39 +62,6 @@ final class ProjectWizard {
         return tidy.isEmpty() ? FALLBACK_NAME : tidy;
     }
 
-    /**
-     * Renders a project file.
-     * <p>
-     * The egress block is written rather than left out, which is what makes the strict default
-     * usable: absence means a task reaches nothing, so a project created here would otherwise fail
-     * its first build for a reason nobody chose. Written down, the grant is visible in a file that
-     * gets reviewed like any other - which is the property the whole feature rests on.
-     *
-     * @param name Project name.
-     * @param securityClass How much the agent is trusted.
-     * @param baseImage Image the task image is built from.
-     * @return The file's content.
-     */
-    static String render(String name, SecurityClass securityClass, String baseImage) {
-        final String egress = securityClass == SecurityClass.OFFLINE ? "" : """
-
-                # What this project's own tooling may reach. Nothing else resolves, on ports 80
-                # and 443 only. Run 'sokar shield sets' to see the names; add the ones your build
-                # needs, and 'domains' for a private mirror.
-                egress:
-                  sets: [%s, git-hosting]
-                """.formatted(osPackages(baseImage));
-        return """
-                # Written by 'sokar task run'. Everything here can be changed; see
-                # https://github.com/fuinorg/sokar#readme for what each field does.
-                project:
-                  name: "%s"
-                  security_class: "%s"
-                image:
-                  base_image: "%s"
-                """.formatted(name, securityClass.name().toLowerCase(Locale.ROOT), baseImage)
-                + egress;
-    }
 
     /**
      * Returns the package set matching a base image.
@@ -120,7 +87,32 @@ final class ProjectWizard {
      * @param out Where questions are written.
      * @return {@code true} if the file was written, {@code false} if the answer was no.
      */
-    static boolean create(Path file, BufferedReader in, PrintWriter out) {
+    /**
+     * Returns the sets to suggest for a base image.
+     * <p>
+     * A suggestion, and it stays on this side of the handover. Moving it into
+     * {@link ProjectCreation} would put sets nobody asked for into every project created over the
+     * contract, where the file is rendered for review before anybody agrees to it.
+     *
+     * @param baseImage The base image.
+     * @param securityClass The class; an offline project reaches nothing.
+     * @return Set names, possibly empty.
+     */
+    static java.util.List<String> suggestedSets(String baseImage, SecurityClass securityClass,
+            java.util.Set<String> available) {
+        if (securityClass == SecurityClass.OFFLINE) {
+            return java.util.List.of();
+        }
+        // Only what this machine has. Suggesting a set by name that is not installed used to be
+        // invisible - the file was written and the name failed at the first task start. Now the
+        // same suggestion would refuse to create the project at all, so an absent set has to drop
+        // out of the offer rather than block it.
+        return java.util.stream.Stream.of(osPackages(baseImage), "git-hosting")
+                .filter(available::contains).toList();
+    }
+
+    static boolean create(SokarContext context, Path file, BufferedReader in,
+            PrintWriter out) {
         out.println("No project definition here yet. One line each, Enter takes the default.");
         out.println();
 
@@ -149,14 +141,26 @@ final class ProjectWizard {
             return false;
         }
 
-        try {
-            Files.writeString(file, render(name, parsed, baseImage), StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
+        // Handed over rather than written here. One renderer and one set of checks, so a file the
+        // wizard writes and one the contract writes cannot come to differ - and the wizard gains
+        // the name rule and the egress-set check it never had.
+        final ProjectCreation.Result result = ProjectCreation.create(context, file, name, 
+                securityClass, baseImage, null, suggestedSets(baseImage, parsed,
+                        context.paths().egressSets().all().keySet()), false);
+        if (result.outcome() != ProjectCreation.Outcome.CREATED) {
+            out.println();
+            result.problems().stream().filter(ProjectCreation.Problem::fatal).forEach(problem ->
+                    out.println("sokar: " + problem.field() + ": " + problem.detail()));
+            if (!result.detail().isEmpty()) {
+                out.println("sokar: " + result.detail());
+            }
+            out.println("Nothing written.");
+            return false;
         }
-        out.println("written " + file);
+        out.println("Written " + file + ".");
         return true;
     }
+
 
     private static String ask(BufferedReader in, PrintWriter out, String question,
             String fallback) {

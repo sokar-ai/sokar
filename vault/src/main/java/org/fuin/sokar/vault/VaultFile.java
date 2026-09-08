@@ -199,9 +199,91 @@ public class VaultFile {
      * @throws VaultException If the file cannot be written.
      */
     public void write(Map<String, VaultEntry> entries, char[] passphrase) {
+        write(entries, passphrase, false);
+    }
+
+    /**
+     * Returns the salt the existing file was written with, if there is one.
+     * <p>
+     * Readable without the passphrase: the salt sits in the header in the clear, which is what a
+     * salt is for. Empty when there is no file yet, or when its header cannot be read - either way
+     * a new one is generated rather than the write being refused.
+     *
+     * @return The salt, or empty.
+     */
+    /**
+     * Overwrites a buffer's characters, so the plaintext does not sit in it until collection.
+     * <p>
+     * Best effort, and honestly so: growing a StringBuilder copies its contents, and the old array
+     * is left behind untouched. It is pre-sized to make that unlikely rather than impossible.
+     *
+     * @param text Buffer to clear.
+     */
+    static void wipe(StringBuilder text) {
+        for (int index = 0; index < text.length(); index++) {
+            text.setCharAt(index, '\0');
+        }
+    }
+
+    private java.util.Optional<byte[]> existingSalt() {
+        if (!exists()) {
+            return java.util.Optional.empty();
+        }
+        try {
+            final byte[] header = new byte[HEADER_LENGTH];
+            try (java.io.InputStream in = java.nio.file.Files.newInputStream(file)) {
+                if (in.readNBytes(header, 0, HEADER_LENGTH) != HEADER_LENGTH) {
+                    return java.util.Optional.empty();
+                }
+            }
+            final ByteBuffer buffer = ByteBuffer.wrap(header);
+            final byte[] magic = new byte[MAGIC.length];
+            buffer.get(magic);
+            if (!Arrays.equals(magic, MAGIC) || buffer.getInt() != VERSION) {
+                return java.util.Optional.empty();
+            }
+            buffer.getInt();
+            buffer.getInt();
+            buffer.getInt();
+            final byte[] salt = new byte[SALT_LENGTH];
+            buffer.get(salt);
+            return java.util.Optional.of(salt);
+        } catch (IOException | RuntimeException ex) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    /**
+     * Writes the vault, keeping or replacing the salt.
+     * <p>
+     * <strong>The salt belongs to the vault, not to the write.</strong> It exists so that
+     * precomputing against one vault's passphrase does not help against another, which needs it to
+     * be random once - per vault. Uniqueness of the encryption comes from the nonce, which is
+     * fresh every time.
+     * <p>
+     * It used to be regenerated on every write, which meant a full Argon2id derivation - 64 MiB,
+     * three passes - for every credential stored, bought nothing identifiable, and made it
+     * impossible to cache anything derived from the passphrase, because the derivation changed
+     * under it whenever anything was saved.
+     * <p>
+     * <strong>A new passphrase does get a new salt.</strong> That is the one case where keeping it
+     * would preserve an attacker's precomputation across the change, and it is why this is a
+     * parameter rather than always reusing.
+     *
+     * @param entries What to store.
+     * @param passphrase The passphrase to encrypt with.
+     * @param freshSalt Whether to generate a new salt rather than keep the file's.
+     */
+    private void write(Map<String, VaultEntry> entries, char[] passphrase, boolean freshSalt) {
 
         final byte[] salt = new byte[SALT_LENGTH];
-        random.nextBytes(salt);
+        final java.util.Optional<byte[]> kept = freshSalt
+                ? java.util.Optional.empty() : existingSalt();
+        if (kept.isPresent()) {
+            System.arraycopy(kept.get(), 0, salt, 0, SALT_LENGTH);
+        } else {
+            random.nextBytes(salt);
+        }
         final byte[] nonce = new byte[NONCE_LENGTH];
         random.nextBytes(nonce);
 
@@ -214,6 +296,21 @@ public class VaultFile {
         header.put(salt);
         header.put(nonce);
 
+        // Not Json.write(...).getBytes(...): that hands back a String holding every credential in
+        // this vault in plaintext, which cannot be cleared and lives until the collector gets to
+        // it. Written into a buffer this owns instead, and overwritten once it is encrypted.
+        //
+        // This reduces copies rather than erasing anything. Values are Strings elsewhere in this
+        // module, and a moving collector copies objects, so no wipe in a managed runtime is a
+        // guarantee - see the requirement for what a full pass would cost.
+        final StringBuilder json = new StringBuilder(1024);
+        Json.write(document(entries), json);
+        final java.nio.ByteBuffer encoded =
+                StandardCharsets.UTF_8.encode(java.nio.CharBuffer.wrap(json));
+        final byte[] plaintext = new byte[encoded.remaining()];
+        encoded.get(plaintext);
+        wipe(json);
+
         final byte[] key = deriveKey(passphrase, salt, ITERATIONS, MEMORY_KIB, PARALLELISM);
         final byte[] cipherText;
         try {
@@ -221,11 +318,16 @@ public class VaultFile {
             cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
                     new GCMParameterSpec(TAG_BITS, nonce));
             cipher.updateAAD(header.array());
-            cipherText = cipher.doFinal(Json.write(document(entries)).getBytes(StandardCharsets.UTF_8));
+            cipherText = cipher.doFinal(plaintext);
         } catch (GeneralSecurityException ex) {
             throw new VaultException("Cannot encrypt the vault", ex);
         } finally {
             Arrays.fill(key, (byte) 0);
+            // No test covers this line and none can from outside: the buffer is local and gone by
+            // the time anything could look at it. Kept because it is the same discipline as the
+            // key beside it, and noted so it is not deleted as dead on the grounds that nothing
+            // failed when it was.
+            Arrays.fill(plaintext, (byte) 0);
         }
 
         atomicWrite(header.array(), cipherText);
@@ -307,16 +409,17 @@ public class VaultFile {
      * @throws VaultException If the vault cannot be locked, read with the old, or written.
      */
     public void rekey(char[] passphrase, char[] fresh) {
-        update(passphrase, entries -> entries, fresh);
+        update(passphrase, entries -> entries, fresh, true);
     }
 
     public void update(char[] passphrase,
             java.util.function.UnaryOperator<Map<String, VaultEntry>> change) {
-        update(passphrase, change, passphrase);
+        update(passphrase, change, passphrase, false);
     }
 
     private void update(char[] passphrase,
-            java.util.function.UnaryOperator<Map<String, VaultEntry>> change, char[] writeWith) {
+            java.util.function.UnaryOperator<Map<String, VaultEntry>> change, char[] writeWith,
+            boolean freshSalt) {
 
         final Path absolute = file.toAbsolutePath();
         final Path lockFile = absolute.resolveSibling(absolute.getFileName() + ".lock");
@@ -331,7 +434,7 @@ public class VaultFile {
                     FileLock lock = raf.getChannel().lock()) {
                 final Map<String, VaultEntry> current =
                         exists() ? new LinkedHashMap<>(read(passphrase)) : new LinkedHashMap<>();
-                write(change.apply(current), writeWith);
+                write(change.apply(current), writeWith, freshSalt);
             }
         } catch (IOException ex) {
             throw new VaultException("Cannot lock " + lockFile, ex);

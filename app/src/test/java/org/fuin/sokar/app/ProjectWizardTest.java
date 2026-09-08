@@ -19,10 +19,25 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class ProjectWizardTest {
 
+    private final org.fuin.sokar.testing.FakeCommandRunner runner =
+            new org.fuin.sokar.testing.FakeCommandRunner();
+
+    private SokarContext context(Path directory) {
+        final org.fuin.sokar.core.config.XdgPaths xdg =
+                org.fuin.sokar.core.config.XdgPaths.of(name -> switch (name) {
+                    case "XDG_DATA_HOME" -> directory.resolve("data").toString();
+                    case "XDG_RUNTIME_DIR" -> directory.resolve("run").toString();
+                    default -> null;
+                }, directory);
+        return new SokarContext(runner, new SokarPaths(xdg, directory.resolve("bin")),
+                command -> 0);
+    }
+
     private String create(Path file, String answers) {
         final StringWriter written = new StringWriter();
         try (PrintWriter out = new PrintWriter(written)) {
-            ProjectWizard.create(file, new BufferedReader(new StringReader(answers)), out);
+            ProjectWizard.create(context(file.getParent()), file,
+                    new BufferedReader(new StringReader(answers)), out);
         }
         return written.toString();
     }
@@ -107,54 +122,45 @@ class ProjectWizardTest {
                 .contains("[" + ProjectWizard.DEFAULT_BASE_IMAGE + "]");
     }
     @Test
-    void writesAStarterEgressBlockSoTheFirstBuildWorks() {
+    void suggestsAStarterEgressSetSoTheFirstBuildWorks() {
 
-        // Absence means a task reaches nothing, so a project created here would otherwise fail its
-        // first build for a reason nobody chose. The grant is written down, not implied.
-        final String rendered = ProjectWizard.render("demo", SecurityClass.GUARDED, "ubuntu:24.04");
-
-        assertThat(rendered).contains("egress:").contains("os-packages-debian")
-                .contains("git-hosting");
-
-        final Project project = ProjectReader.read(new java.io.StringReader(rendered), "test");
-        assertThat(project.egress().sets()).containsExactly("os-packages-debian", "git-hosting");
+        // A guess, and it stays on this side of the handover: sets nobody asked for must not
+        // appear in a project created over the contract, where the file is shown for review
+        // before anybody agrees to it.
+        assertThat(ProjectWizard.suggestedSets("ubuntu:24.04", SecurityClass.GUARDED,
+                java.util.Set.of("os-packages-debian", "git-hosting")))
+                .containsExactly("os-packages-debian", "git-hosting");
     }
 
     @Test
     void picksThePackageSetFromTheBaseImage() {
 
-        assertThat(ProjectWizard.render("demo", SecurityClass.GUARDED, "fedora:41"))
+        assertThat(ProjectWizard.suggestedSets("fedora:41", SecurityClass.GUARDED,
+                java.util.Set.of("os-packages-fedora", "git-hosting")))
                 .contains("os-packages-fedora");
-        assertThat(ProjectWizard.render("demo", SecurityClass.GUARDED, "debian:13"))
+        assertThat(ProjectWizard.suggestedSets("debian:13", SecurityClass.GUARDED,
+                java.util.Set.of("os-packages-debian", "git-hosting")))
                 .contains("os-packages-debian");
     }
 
     @Test
-    void writesNoEgressBlockForAnOfflineProject() {
+    void suggestsOnlyWhatThisMachineHas() {
 
-        // An offline project refuses a declaration, so a block here would produce a file the
-        // reader rejects the moment it is used - written by Sokar itself.
-        final String rendered = ProjectWizard.render("demo", SecurityClass.OFFLINE, "ubuntu:24.04");
-
-        assertThat(rendered).doesNotContain("egress");
-        assertThat(ProjectReader.read(new java.io.StringReader(rendered), "test").egress().isEmpty())
-                .isTrue();
+        // A name that is not installed here used to be written into the file and fail at the
+        // first task start. It would now refuse to create the project at all, so it drops out of
+        // the offer instead of blocking it.
+        assertThat(ProjectWizard.suggestedSets("ubuntu:24.04", SecurityClass.GUARDED,
+                java.util.Set.of("git-hosting"))).containsExactly("git-hosting");
+        assertThat(ProjectWizard.suggestedSets("ubuntu:24.04", SecurityClass.GUARDED,
+                java.util.Set.of())).isEmpty();
     }
 
     @Test
-    void namesOnlySetsThatAreActuallyShipped() {
+    void suggestsNothingForAProjectThatReachesNothing() {
 
-        // A starter block naming a set that does not exist would stop the first task with
-        // "Unknown egress set", which is worse than the missing block it replaced.
-        final var shipped = new org.fuin.sokar.shield.EgressSetDirectory(
-                java.util.List.of(Path.of("..", "egress"))).all();
-
-        for (final String image : new String[] {"ubuntu:24.04", "fedora:41"}) {
-            final Project project = ProjectReader.read(new java.io.StringReader(
-                    ProjectWizard.render("demo", SecurityClass.GUARDED, image)), "test");
-            assertThat(shipped).as("sets for %s", image).containsKeys(
-                    project.egress().sets().toArray(new String[0]));
-        }
+        // An offline project resolves nothing at all, so an egress block would be a list of
+        // destinations it is not allowed to reach.
+        assertThat(ProjectWizard.suggestedSets("ubuntu:24.04", SecurityClass.OFFLINE,
+                java.util.Set.of("os-packages-debian"))).isEmpty();
     }
-
 }

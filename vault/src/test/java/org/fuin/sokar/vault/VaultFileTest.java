@@ -337,4 +337,86 @@ class VaultFileTest {
         assertThat(vault.accepts("old one".toCharArray()))
                 .as("the vault still opens with what it always did").isTrue();
     }
+
+    @Test
+    void theSaltBelongsToTheVaultAndNotToEachWrite(@TempDir Path dir) throws Exception {
+
+        // It used to be regenerated every time anything was stored, which cost a full Argon2id
+        // derivation - 64 MiB, three passes - per credential, bought nothing identifiable, and
+        // made it impossible to cache anything derived from the passphrase.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("one", VaultEntry.of("a")), "pass".toCharArray());
+        final byte[] first = saltOf(dir.resolve("vault.bin"));
+
+        vault.write(Map.of("one", VaultEntry.of("a"), "two", VaultEntry.of("b")),
+                "pass".toCharArray());
+
+        assertThat(saltOf(dir.resolve("vault.bin"))).isEqualTo(first);
+        assertThat(vault.read("pass".toCharArray())).containsKeys("one", "two");
+    }
+
+    @Test
+    void theNonceStillChangesOnEveryWrite(@TempDir Path dir) throws Exception {
+
+        // Uniqueness of the encryption comes from here, not from the salt. Reusing a nonce with
+        // one key is the failure that breaks AES-GCM outright, so keeping the salt must not have
+        // quietly frozen this too.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("one", VaultEntry.of("a")), "pass".toCharArray());
+        final byte[] first = nonceOf(dir.resolve("vault.bin"));
+
+        vault.write(Map.of("one", VaultEntry.of("b")), "pass".toCharArray());
+
+        assertThat(nonceOf(dir.resolve("vault.bin"))).isNotEqualTo(first);
+    }
+
+    @Test
+    void changingThePassphraseDoesGetANewSalt(@TempDir Path dir) throws Exception {
+
+        // The one case where keeping it would preserve an attacker's precomputation across the
+        // change.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("one", VaultEntry.of("a")), "old".toCharArray());
+        final byte[] before = saltOf(dir.resolve("vault.bin"));
+
+        vault.rekey("old".toCharArray(), "new".toCharArray());
+
+        assertThat(saltOf(dir.resolve("vault.bin"))).isNotEqualTo(before);
+        assertThat(vault.read("new".toCharArray())).containsKey("one");
+    }
+
+    @Test
+    void aFirstWriteGeneratesASaltRatherThanFailing(@TempDir Path dir) throws Exception {
+
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("one", VaultEntry.of("a")), "pass".toCharArray());
+
+        assertThat(saltOf(dir.resolve("vault.bin"))).isNotEmpty()
+                .isNotEqualTo(new byte[16]);
+    }
+
+    @Test
+    void theDocumentBufferIsOverwrittenRatherThanLeftForTheCollector() {
+
+        // Building the document used to hand back a String holding every credential in plaintext,
+        // which cannot be cleared. It is written into a buffer this owns instead - and a buffer
+        // that is owned and not cleared would be the same exposure with more code.
+        final StringBuilder text = new StringBuilder("sk-secret-value");
+
+        VaultFile.wipe(text);
+
+        // Emptying it would leave the characters in the backing array, which is the exposure
+        // rather than the length.
+        assertThat(text.toString()).isEqualTo("\0".repeat("sk-secret-value".length()));
+    }
+
+    /** The salt, read straight out of the header where it sits in the clear. */
+    private static byte[] saltOf(Path file) throws Exception {
+        return java.util.Arrays.copyOfRange(java.nio.file.Files.readAllBytes(file), 24, 40);
+    }
+
+    /** The nonce, immediately after the salt. */
+    private static byte[] nonceOf(Path file) throws Exception {
+        return java.util.Arrays.copyOfRange(java.nio.file.Files.readAllBytes(file), 40, 52);
+    }
 }
