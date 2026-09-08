@@ -182,6 +182,63 @@ IME.
 Note that the operator already ruled `--for` gets **no default** — a bound arriving as a default
 would start asking people for a passphrase they were never asked for before.
 
+### E — keyslots: send a per-device share, never the secret
+
+**The strongest option on this page, and it dissolves the question rather than answering it.** From
+a design note by the operator, adapted from what LUKS does.
+
+The vault master key is stored only in wrapped form, once per credential allowed to open it.
+
+- **Keyslot 0 is the passphrase**, which becomes a *recovery* credential: typed by a human in an
+  emergency, never stored anywhere.
+- **One keyslot per device.** At enrollment the client generates a random 32-byte share, keeps it
+  in the platform keystore, and sends it once. The node derives `KEK = HKDF(share)`, stores
+  `Enc(KEK, masterKey)`, and discards the share. To unlock, the client releases the share; the node
+  unwraps the master key for the session and persists neither.
+- **Revocation is deleting one wrapped blob.** A leaked share is useless without the node's blob; a
+  stolen vault file is useless without a share.
+
+**Why it beats C and D at their own arguments:**
+
+| the objection | what a keyslot does to it |
+|---|---|
+| the passphrase would pass through a GUI | it never leaves the person at all |
+| client-side Argon2id needs a native library on four platforms | **HKDF only** - the whole platform problem disappears |
+| typed daily, so something will cache it | the share sits in the keystore; nothing is typed |
+| a leaked passphrase cannot be revoked without re-keying | delete one keyslot |
+| people reuse passphrases | a random share is reused nowhere |
+
+**The trap, worth writing down because it is easy to get backwards:** deriving the wrapping key from
+ECDH between the *node's* private key and the device's public key lets the node compute it alone,
+which collapses the whole design back into "the node can open the vault by itself". The private key
+in the agreement must be the one the node does not have.
+
+### What E costs
+
+**A format change, to version 2.** Today `VaultFile` is one salt, one Argon2id-derived key and one
+AEAD blob, and the reader rejects any version but 1 outright. Keyslots mean a wrapped master key per
+credential and a reader that understands both.
+
+**Accepted by the operator on the grounds that nothing is using it yet.** That is a true reason with
+a shelf life: it stops being true the first time somebody stores a credential they cannot retype, so
+the change is cheap now and expensive later. If E is chosen, the format is the part to do first.
+
+**And it is honestly weaker on Linux than the table implies.** On Ubuntu and Fedora the share lands
+in a Secret Service keyring that unlocks at login and stays unlocked for the session, with no
+hardware backing and no application scoping - so any process running as that user can ask for it.
+That is roughly the protection a stored passphrase would have. It is still better, because a share
+is scoped and revocable where a passphrase is neither, but a keyslot is not a hardware story on a
+Linux desktop. **Windows sits closer to Linux here than the platform table suggests**: DPAPI is
+keyed to the user's logon, not to the application, so same-user code can decrypt too. The real split
+is *application-scoped* (iOS, Android, macOS with code signing) against *user-scoped* (Windows,
+Linux), and it is not a Linux-versus-the-rest split.
+
+Where a device is worth more than that, the share should not be stored at all: derive it at unlock
+time from a FIDO2 token's `hmac-secret` or a TPM2 object sealed behind a PIN, so releasing it needs
+a physical touch or a PIN that same-user code cannot supply. That is available on Linux
+(`systemd-cryptenroll`, libfido2, tpm2-tss) and is the honest answer to making the weak platforms
+strong.
+
 ## The ceiling, which applies to every option
 
 **In a managed runtime a secret cannot be reliably erased.** A moving collector copies objects, and
@@ -200,6 +257,8 @@ of lie the requirements warn about.
   here. It also blocks option C. Worth answering on its own merits.
 - **What Wayland actually offers**, per compositor, versus X11's nothing.
 - **What Argon2id at these parameters costs** in the client's language on a low-end Android device.
+- **Whether E's share may be stored at all on a user-scoped platform**, or whether Windows and
+  Linux clients should derive it from a token per unlock rather than keep one.
 - **Whether the forced-command case should be served at all**, or documented as a dead end. It is
   the one case where the current rule denies a capability rather than an convenience.
 
