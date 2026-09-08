@@ -15,76 +15,94 @@ unfinished.
 
 ## Work, in the order to do it
 
-Ordered by consequence, not by number; the number is only the file's identity. The first is live
-on somebody's machine today. The last is a second platform, which is a project rather than a
-feature. B11 came from the interface, which was short of fields rather than of methods; it is
-built, and the three questions it still carries are about how well *waiting* can be detected rather
-than about whether a task says anything.
+Ordered by consequence, not by number; the number is only the file's identity. Anything already
+built is not here - it is in the second table below, or gone entirely.
 
-B14 sits directly below B13 because the two are the same question from opposite sides - work
-leaving by a door that is not the gate - and B14's own first open question is whether it should
-wait for B13. B15 follows B14 because it is the same shape again for bytes rather than text, and
-reuses B14's policy and record wholesale: settling B14 settles most of it. Neither is waiting on an
-interface requirement, which both files argue is a reason to be slower about them rather than
-faster - and both begin by asking whether the gate already answers the need, which for source it
-does.
+**B01 leads because it is the one that breaks work already running.** An agent that renews an
+expiring credential and finds a task-scoped one instead fails in the middle of a long task, and
+Sokar's own expiry is only half of it: provider-side renewal is untouched, and answering it needs a
+credential kind that expires, which there is none to test with.
 
-B18 to B22 arrived together, from the interface, as one list of everything a person could see and
-not do. They are filed separately because the work is separate, but the distinction that decides
-their cost is shared: **B18 and B22 are verbs that already exist and are only invisible**, while
-B19 and B20 existed nowhere and are built. B21 was withdrawn - see below. `doctor` was the third of the already-built ones and it is not
-here - it went into [B05](B05-Health-And-Diagnostics.md), which is the same work seen from the
-other side: B05 asks whether the machine reports what it can do, and the missing half is that
-nothing can ask it.
+**B22 is next because what is left of it has teeth.** Listing and deleting are done; a restore that
+would discard unreviewed work is not, and unreviewed pushes exist only in the mirror. The refusal
+shape exists twice already - `DeleteProject` and `Stop` both answer `HOLDS_WORK` - so this is a
+third use of it rather than a fourth invention.
 
-**B18 states what must be true if a credential becomes storable from an interface; whether it does
-is not decided there.** That question is held together with the vault passphrase in
-[secrets from elsewhere](Secrets-From-Elsewhere_design.md), because the two were argued separately
-and reached opposite answers within a day, on reasoning that moved under both - two of the three
-original arguments did not survive examination. The design records four options and what each is
-worth without choosing between them. **Until it is decided, both are entered at the node over ssh**,
-and an interface asks for neither.
+**B10 is decided and only unbuilt**, which makes it the cheapest thing on this list: the four
+questions it was written to ask were settled, and what remains is the work plus one smaller
+question that appeared once the others were answered. A destination that cannot be written as a
+host name is silently unreachable today.
 
-**Instructions for an agent are not Sokar's business, and B21 was withdrawn rather than built.**
-Standing instructions live in the repository, checked in or not, and Sokar does not know what they
-are called - `CLAUDE.md`, `AGENTS.md`, something else an agent invents next year. It cannot merge
-them, because how an agent combines several is that agent's rule and not ours. A team running more
-than one agent has to agree upfront how instructions are stored in their repository; that agreement
-is theirs to make and nothing here can help with it.
+**B06 decides how much of the remote story is real**, so it is above the things that would be built
+on top of it. The transport itself is settled - the socket survives an ssh forward, measured - and
+what is left is how long a clearance prompt should wait for somebody who is not there.
 
-**A hardcoded list of filenames would have been worse than nothing.** For a feature whose only job
-is to show what an agent was told, a name that goes out of date produces a confident "no
-instructions" for a task that had them - and a blank that looks like an answer is the failure this
-project keeps writing down.
+**B18 and B23 are waiting on decisions rather than on effort.** B18 states what must be true *if* a
+credential becomes storable from an interface; whether it does is held together with the vault
+passphrase in [secrets from elsewhere](Secrets-From-Elsewhere_design.md), because the two were
+argued separately and reached opposite answers within a day on reasoning that moved under both -
+two of the three original arguments did not survive examination. **Until it is decided, both are
+entered at the node over ssh**, and an interface asks for neither. B23 is deliberately later, and
+honest that erasure is not achievable in a managed runtime at all.
 
-What Sokar knows about a repository it already offers: the gate shows the work under review, and
-the person has the repository. Three of these dissolved for the same reason as the agent roster,
-hardware access and key routing before them - the honest answer was *"that is not a thing this
-system has"*, and saying so cost a paragraph and bought a screen that is not lying.
+**B14 and B15 are last before the second platform because the first question in B14 is whether to
+build it.** They are the same question twice - a conversation, then the same shape again for bytes
+rather than text - and B15 reuses B14's policy and record wholesale, so settling B14 settles most
+of it. Neither is waiting on an interface requirement, which both files argue is a reason to be
+slower rather than faster, and both begin by asking whether the gate already answers the need,
+which for source it does.
 
-Two of that list dissolved rather than becoming requirements, and both are recorded where somebody
-will look rather than dropped. Provisioning a machine is refused and could not have worked anyway -
-a machine that is not ready has no daemon to ask - and it is argued in B05. Routing credentials to
-projects describes a relation that does not exist, and it is argued in
+**B08 is a second platform, which is a project rather than a feature.**
+
+### Two things that dissolved rather than becoming requirements
+
+Both are recorded where somebody will look rather than dropped.
+
+**Provisioning a machine** is refused and could not have worked anyway - a machine that is not
+ready has no daemon to ask - and it is argued in [B05](B05-Health-And-Diagnostics.md). **Routing
+credentials to projects** describes a relation that does not exist, and it is argued in
 [B18](B18-Storing-A-Credential-From-Elsewhere.md); restated correctly it is the agent roster, which
 was already refused.
 
+**And instructions for an agent are not Sokar's business at all.** They live in the repository,
+checked in or not, and Sokar does not know what they are called - `CLAUDE.md`, `AGENTS.md`,
+something an agent invents next year. It cannot merge them, because how an agent combines several
+is that agent's rule and not ours. A team running more than one agent has to agree upfront how
+instructions are stored in their repository; that agreement is theirs to make.
+
+A hardcoded list of filenames would have been worse than nothing: for a feature whose only job is
+to show what an agent was told, a name that goes out of date produces a confident *"no
+instructions"* for a task that had them, and a blank that looks like an answer is the failure this
+project keeps writing down. That is the fourth of the same shape, after the agent roster, hardware
+access and key routing - each time the honest answer was *"that is not a thing this system has"*,
+and saying so cost a paragraph and bought a screen that is not lying.
+
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
-| B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | three, and it is built |
-| B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | three, and the guard is built |
+| B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
+| B22 | [Backups That Can Be Told Apart](B22-Backups-That-Can-Be-Told-Apart.md) | Backups are listable, deletable and restorable by something other than a person at a terminal, and anything that would discard unreviewed work refuses by name first. | two, and the listing is built |
+| B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
+| B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three |
+| B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have |
+| B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | two, and deliberately later |
 | B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | eight, including whether to build it |
 | B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 |
-| B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have |
-| B22 | [Backups That Can Be Told Apart](B22-Backups-That-Can-Be-Told-Apart.md) | Backups are listable, deletable and restorable by something other than a person at a terminal, and anything that would discard unreviewed work refuses by name first. | two, and the listing is built |
+| B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | two |
+
+## Built, and still carrying questions
+
+These are not work waiting to be done: every acceptance criterion is met and each is in
+use. What each still carries is a question whose answer could change what the requirement
+says - which is why they are not retired, and why they are not at the top of the list
+above.
+
+| # | Requirement | What must be true | Open question |
+|---|---|---|---|
+| B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | one, and `doctor` is on the wire |
+| B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | three, and it is built |
+| B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | three, and the guard is built |
 | B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one - which agent an image was built for |
 | B20 | [Creating A Project](B20-Creating-A-Project.md) | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one - whether creating also prepares |
-| B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | two, and deliberately later |
-| B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
-| B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
-| B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | one, and `doctor` is on the wire |
-| B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three |
-| B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | two |
 
 ## What was here and is finished
 
