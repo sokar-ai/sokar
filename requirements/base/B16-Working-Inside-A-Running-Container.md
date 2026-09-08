@@ -1,6 +1,6 @@
 # B16 — Working Inside A Running Container
 
-**Status:** open
+**Status:** open. What carries a session is decided; what a session IS between attachments is not
 
 A person can start work that is meant to be driven by hand — `Start` takes `mode: SHELL`, and the
 interface offers it — and then cannot get inside it. **Interactive work can be created and not
@@ -66,23 +66,65 @@ what is true* are criteria of their own rather than details of the first one.
 is a way to carry bytes in both directions to a process in the container, and a way to be told what
 it may claim about what it is showing. How that is drawn is this end's problem.
 
-## To be checked
+## Decided, 2026-09-08
 
-- **Whether the protocol can carry it at all.** varlink's `more` streams replies from the service;
-  there is no matching way for a client to keep sending into a call that is already open. So this
-  may not be one method — it may be a second channel the daemon hands out, a socket path of its
-  own, or something else entirely. **Settle this before anything else**, because it decides
-  whether the interface draws a terminal or hands somebody a line to paste.
-- **What a session is, when nobody is attached.** A process that keeps running and can be
-  re-entered needs somewhere to live between attachments. Whether that is a multiplexer inside the
-  container, a process the supervisor owns, or the container's own primary process is a decision
-  with different costs for what *coming back* can honestly show.
-- **What re-entering may claim.** If nothing keeps a scrollback, coming back shows a prompt and
-  nothing behind it, and the interface has to say so. If something does keep one, how much, and
-  what happens when it is longer than that. Either answer is workable; not knowing which is not.
-- **Whether a class may forbid it.** An `offline` project's tasks reach nothing; whether a person
-  may still open a shell inside one is a policy question, and if the answer is no it wants a named
-  outcome rather than a surprise.
-- **What it costs to leave one open.** A person who attaches to six tasks and closes the window
-  leaves six of whatever this turns out to be. Whether that is bounded, and by what, is worth
-  deciding before it is built rather than after somebody finds out.
+### varlink cannot carry it, and that is settled
+
+Measured against the implementation and true of the protocol: **one call in, many replies out.**
+`more` streams replies *from* the service; there is no message a client can send that a service
+would attach to a call already in flight. `send()` writes once and everything after it is
+`receive()`. So attaching is not a method in the sense the other methods are, and no amount of
+naming makes it one.
+
+Sending a keystroke per call was considered and rejected: each call is independent, so the protocol
+guarantees no ordering between two of them, a session id would have to be invented to tie them
+together, and every keypress costs a round trip.
+
+### The session is carried by ssh, and the command it runs is Sokar's
+
+**The client opens a second ssh channel with a pty and runs `sokar task attach <task>` on the
+node.** Not `podman exec`, and not a daemon method.
+
+This is what a person already does by hand, and it is the reason it works: **ssh is the byte pipe
+varlink is not.** A pty over ssh is a correct terminal without anything being rebuilt - window
+size, `SIGWINCH`, signals, escape sequences and `TERM` all arrive right. Piping the same bytes
+through the daemon would mean reimplementing pty allocation and resize, and getting that subtly
+wrong is exactly the failure this requirement is about: colours work, and then `Ctrl-C` ends the
+wrong thing.
+
+**Running Sokar's own verb rather than the runtime's is what keeps the rest.** The client does not
+learn which container runtime is underneath, which [B08](B08-McSokar-Apple-Containers.md) needs;
+Sokar can refuse by class before it execs anything; and it can record that somebody was inside. A
+client that ran `podman exec` itself would have none of those and would hard-code the runtime.
+
+**No privilege is added by this.** Whoever forwards the daemon socket over ssh already has an
+account on the node and can already run anything the operator can - so a second channel grants
+nothing new. That holds because the operator's key is a normal one; a key restricted with
+`restrict,permitopen=` could forward and not execute, and this design deliberately does not
+support that shape. It is written down here rather than discovered by somebody hardening a key and
+losing the terminal.
+
+**Containment is untouched either way.** The egress ruleset, the clearance watcher and the gate are
+in the kernel and in the OCI hooks. They hold for every process in the container however it got
+there, so a shell is a person working under the rules and not a way around them.
+
+## What is still open, and it is the hard half
+
+**Leaving does not end it - and ssh does not give that.** `sokar task attach` over a channel that
+closes takes the process with it. Persisting a session across detachments needs something that
+lives between them, and that decision is untouched by the transport:
+
+- a multiplexer inside the container, which means installing one into every image;
+- a process the supervisor owns beside the other helpers, which is the shape everything else here
+  uses;
+- or attaching to the container's own primary process, which is one session and not several.
+
+**What re-entering may claim** follows from that answer and not from this one. If nothing keeps a
+scrollback, coming back shows a prompt and nothing behind it and must say so.
+
+**Whether a class may forbid it.** An `offline` project's tasks reach nothing; whether a person may
+still open a shell in one is a policy question, and the answer belongs in `task attach` where it
+can be refused before anything is exec'd.
+
+**What it costs to leave one open.** Six attachments and a closed window leaves six of whatever the
+session turns out to be. Worth bounding before it is built.
