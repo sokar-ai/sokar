@@ -143,6 +143,38 @@ method ImportCredential(agent: string, dryRun: ?bool) -> (
 own disk, and only an agent name crosses. It is therefore unaffected by whatever the parked
 decision decides, and is the better default wherever an agent can log itself in.
 
+### `Login` - later, and nice to have rather than needed
+
+**Kept open deliberately, and not blocking anything.** What follows is a design nobody should
+build yet, with the reason it is not urgent written beside it so it is not rediscovered as a gap.
+
+**Three different things get called "login", and this is only the first of them:**
+
+| | what happens | where |
+|---|---|---|
+| getting the credential | the agent's own flow - `claude setup-token` and its equivalents - opens a browser and produces a long-lived token | **on the node**, once, outside any container |
+| a task authenticating | nothing logs in: the agent holds a phantom token and the broker swaps the real credential in on the way out | in the container, per request |
+| logging in inside a container | blocked and pointless - the ruleset denies the provider's own host so an agent must use the proxy socket, and the value would land in a container that is removed | - |
+
+**Why it is not needed.** Somebody at a remote interface already holds a terminal on that machine:
+the socket only reaches them because it is forwarded over ssh. So this would save them typing one
+command in a window they already have, and the browser half works remotely through an `ssh -L`
+forward either way. The complete story without it is: run the agent's own login on the node, then
+`ImportCredential`, which moves no secret at all.
+
+**Why it is not free.** Nothing tells Sokar how to log an agent in - `AgentDefinition` has no such
+field and the agent protocol has two verbs, `describe` and `serve`. The knowledge exists only in
+prose, in each agent's own documentation. Building this means a new field in the **agent manifest**,
+landing in every agent repository, after which Sokar owns a flow it cannot test for agents it does
+not ship. That is the shape of the instructions problem: per-agent knowledge that goes stale
+silently, where being wrong produces a confident failure rather than an obvious one.
+
+**The smaller version, if the gap turns out to be real.** Two strings the agent declares and Sokar
+only *displays*, never runs - a login command and a documentation link - shown beside the
+`storeCommand` that already says where to put the value. Same principle as instructions: Sokar
+shows what an agent says about itself and runs nothing. Worth doing only if somebody is observed
+getting stuck at *"where does the value come from?"*.
+
 ```
 method Login(agent: string, dryRun: ?bool) -> (
   outcome: LoginOutcome,   # WAITING, FORWARD_NEEDED, SUCCEEDED, FAILED, UNSUPPORTED, VAULT_LOCKED
@@ -158,6 +190,11 @@ out of the printed `redirect_uri` rather than assumed - most CLIs pick a free po
 it is `0` rather than absent because **a device-code flow needs no port, no forward and no browser
 on the client's machine.** Whether a forward is needed is the agent's property, so nothing may be
 built as though the redirect flow were the only one.
+
+The measurements this would rest on are already taken and are in
+[secrets from elsewhere](Secrets-From-Elsewhere_design.md): the forward is a local one, the port
+cannot be remapped, there is no ordering problem, IPv6 is not a trap, and a port collision exits
+zero while binding only half. They keep whether or not this is ever built.
 
 An OAuth login is also the case where the parked decision matters least: the token is minted by the
 provider and delivered straight into the node's process, so it never crosses anything either way.
