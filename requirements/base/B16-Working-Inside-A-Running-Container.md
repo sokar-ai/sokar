@@ -1,6 +1,6 @@
 # B16 — Working Inside A Running Container
 
-**Status:** open, and designed. What carries a session and what one IS between attachments are both decided; what a dozen of them cost is not
+**Status:** open, and fully designed. Nothing about it is undecided; what is left is building it
 
 A person can start work that is meant to be driven by hand — `Start` takes `mode: SHELL`, and the
 interface offers it — and then cannot get inside it. **Interactive work can be created and not
@@ -143,16 +143,26 @@ multiplexer. Somebody who wants to watch one of those wants `Tail` on `task.log`
 Two different things that look like one action - *"see what this task is doing"* - and offering a
 session for a task that has no shell to attach to is the confusing half.
 
+### The three that were open, 2026-09-08
+
+**A session costs nothing that is not already bounded.** `tmux new-session -A -s sokar` makes one
+named session per container and a second attachment finds the same one, so there can never be more
+sessions than there are tasks, and each dies with its container. The controls that already exist
+therefore cover it: `task list` shows them, `task stop` takes one, `panic` takes all. An earlier
+draft worried that "cheap times unbounded is still unbounded" - it is cheap times the number of
+tasks, which is governed already. A reaper would be a second limit on something that has one.
+
+**`tmux`, installed and pinned by Sokar.** Both it and `screen` are in apt and dnf and Sokar writes
+the install line, so what the base image happened to carry is irrelevant. `tmux` has
+`new-session -A` as a single call for attach-or-create, and a configurable `history-limit`, which is
+the figure that makes *"what may re-entering claim"* answerable rather than apologetic.
+
+**An `offline` project may be attached to.** The security class governs egress - what resolves and
+what leaves - and a person typing in a container is neither. An offline project is precisely the
+one where somebody has to work by hand, because the agent reaches nothing; forbidding the shell
+would take away the only way in and would be enforcing the class against something it does not
+describe. There is no class refusal in `task attach`.
+
 ## To be checked
 
-- **What it costs to leave sessions open.** Somebody attaches to six tasks and closes the window,
-  leaving six multiplexers. Each is cheap, and cheap times unbounded is still unbounded. Whether
-  there is a limit, and whether an idle session is ever reaped, is worth deciding before somebody
-  finds out.
-- **Whether a class may forbid it.** An `offline` project's tasks reach nothing; whether a person
-  may still open a shell inside one is a policy question rather than a technical one. The answer
-  belongs in `task attach`, where it can be refused before anything is exec'd - and the refusal
-  has to be one of the distinguishable ones the acceptance asks for.
-- **Which multiplexer.** `tmux` and `screen` both do this; `tmux` is the more common today and
-  `screen` the more likely to be present already. Whichever is chosen is installed by Sokar and
-  pinned, so a task never depends on what the base image happened to carry.
+Nothing. What remains is building it.
