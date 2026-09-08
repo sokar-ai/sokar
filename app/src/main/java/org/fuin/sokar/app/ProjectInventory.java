@@ -49,7 +49,7 @@ public final class ProjectInventory {
      */
     public record Summary(String name, @Nullable String securityClass, @Nullable String file,
             @Nullable String mirror, int pending, int tasks, int running, boolean prepared,
-            org.fuin.sokar.gate.UpstreamDistance.Distance behind) {
+            Readiness readiness, org.fuin.sokar.gate.UpstreamDistance.Distance behind) {
 
         /**
          * Constructor for a project whose image has not been looked for yet.
@@ -65,6 +65,7 @@ public final class ProjectInventory {
         Summary(String name, @Nullable String securityClass, @Nullable String file,
                 @Nullable String mirror, int pending, int tasks, int running) {
             this(name, securityClass, file, mirror, pending, tasks, running, false,
+                    Readiness.ABSENT,
                     org.fuin.sokar.gate.UpstreamDistance.Distance.neverChecked());
         }
 
@@ -74,9 +75,9 @@ public final class ProjectInventory {
          * @param built Whether an image for it exists.
          * @return A copy.
          */
-        Summary prepared(boolean built) {
+        Summary prepared(boolean built, Readiness state) {
             return new Summary(name, securityClass, file, mirror, pending, tasks, running, built,
-                    behind);
+                    state, behind);
         }
 
         /**
@@ -87,7 +88,7 @@ public final class ProjectInventory {
          */
         Summary behind(org.fuin.sokar.gate.UpstreamDistance.Distance distance) {
             return new Summary(name, securityClass, file, mirror, pending, tasks, running,
-                    prepared, distance);
+                    prepared, readiness, distance);
         }
 
         /**
@@ -108,6 +109,7 @@ public final class ProjectInventory {
             // Whether a task can start here without building an image first. Not a claim that the
             // image matches the project file as it stands now - only that one is there.
             map.put("prepared", prepared);
+            map.put("preparedState", readiness.name());
             // Three fields, not one. A bare number would have to be shown as though it were
             // current, and the only thing worse than a stale answer is a stale answer that looks
             // fresh - so the age travels with it, and the reason says whether there is a number
@@ -182,9 +184,75 @@ public final class ProjectInventory {
 
         return found.values().stream()
                 .sorted(java.util.Comparator.comparing(Summary::name))
-                .map(summary -> summary.prepared(images.contains("sokar/" + summary.name()))
-                        .behind(upstream.get(summary.name())))
+                .map(summary -> {
+                    final boolean built = images.contains("sokar/" + summary.name());
+                    return summary.prepared(built, readiness(context, summary.name(),
+                            summary.file() == null ? null : java.nio.file.Path.of(summary.file()),
+                            built)).behind(upstream.get(summary.name()));
+                })
                 .toList();
+    }
+
+    /** What an interface can say about a project's task image. */
+    public enum Readiness {
+
+        /** No image. The first task here spends minutes building before anything happens. */
+        ABSENT,
+
+        /** An image built from this project file as it stands. */
+        READY,
+
+        /**
+         * An image built before the project file changed under it.
+         * <p>
+         * The state that could not be answered at all until the image began recording what it was
+         * built from: work would start, run in something that was not what the file describes, and
+         * nothing would say so.
+         */
+        STALE,
+
+        /**
+         * An image exists and does not say what it was built from.
+         * <p>
+         * Built by a Sokar that wrote no recipe label. Not stale - nothing here knows either way -
+         * and reporting it as stale would send somebody rebuilding for no reason.
+         */
+        UNKNOWN
+    }
+
+    /**
+     * Says what this project's image is, for a project whose file can still be read.
+     *
+     * @param context The machine.
+     * @param name Project name.
+     * @param file The project file, or {@code null} when it is not there any more.
+     * @param exists Whether an image for it exists at all.
+     * @return What an interface can say.
+     */
+    static Readiness readiness(SokarContext context, String name,
+            java.nio.file.@Nullable Path file, boolean exists) {
+        if (!exists) {
+            return Readiness.ABSENT;
+        }
+        if (file == null) {
+            // The image is there and the file that would say whether it is current is not.
+            return Readiness.UNKNOWN;
+        }
+        final java.util.Optional<String> recorded =
+                context.podman().imageRecipe("sokar/" + name);
+        if (recorded.isEmpty()) {
+            return Readiness.UNKNOWN;
+        }
+        try {
+            final org.fuin.sokar.core.project.Project project =
+                    org.fuin.sokar.core.project.ProjectReader.read(file);
+            return recorded.get().equals(
+                    org.fuin.sokar.runtime.Containerfile.fingerprint(project))
+                    ? Readiness.READY : Readiness.STALE;
+        } catch (RuntimeException ex) {
+            // A file that cannot be read cannot say the image is out of date.
+            return Readiness.UNKNOWN;
+        }
     }
 
     /**

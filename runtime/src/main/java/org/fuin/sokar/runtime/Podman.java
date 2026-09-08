@@ -454,6 +454,27 @@ public class Podman {
     }
 
     /**
+     * Returns what an image records about the recipe it was built from.
+     * <p>
+     * Empty when there is no such image, and also when the image predates the label - an older
+     * image cannot be called stale on the strength of a label nobody wrote, so it reads as built
+     * and unknown rather than as out of date.
+     *
+     * @param image Image name or tag.
+     * @return The recipe fingerprint, or empty.
+     */
+    public Optional<String> imageRecipe(String image) {
+        final CommandResult result = runner.run(podman("image", "inspect", "--format",
+                "{{index .Labels \"org.fuin.sokar.recipe\"}}", image));
+        if (!result.successful()) {
+            return Optional.empty();
+        }
+        final String label = result.trimmedOutput();
+        // podman prints "<no value>" for a label an image does not carry.
+        return label.isBlank() || label.startsWith("<") ? Optional.empty() : Optional.of(label);
+    }
+
+    /**
      * Lists Sokar's containers with the state the runtime reports for each.
      *
      * @return Summaries, running or not, in the runtime's own order.

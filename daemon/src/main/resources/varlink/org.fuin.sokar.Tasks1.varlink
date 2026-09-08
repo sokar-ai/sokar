@@ -371,6 +371,20 @@ type Project (
   # it stands now. A project that has never run answers false, which is a normal state and not a
   # fault - it means the first task here will spend minutes building before anything happens.
   prepared: bool,
+  # ABSENT, READY, STALE or UNKNOWN - what 'prepared' cannot say.
+  #
+  # STALE means an image exists and was built before the project file changed under it, so work
+  # would start in something the file no longer describes and nothing would mention it. That is
+  # the state this field exists for; a bool could only ever say whether something was there.
+  #
+  # UNKNOWN is an image that does not record what it was built from - built by an older Sokar, or
+  # belonging to a project whose file has moved. Not stale: nothing here knows either way, and
+  # reporting it as stale would send somebody rebuilding for no reason.
+  #
+  # Only the base image and the image snippet decide this. Egress, limits and the upstream change
+  # what a task may do rather than what it is built from, and counting them would call an image
+  # stale after an edit that could not have changed it - which teaches people to ignore the word.
+  preparedState: string,
   # Commits the upstream has that this project's mirror does not. MEANINGLESS unless
   # behindReason is MEASURED - it is 0 for every other reason, and 0 there does not mean up to
   # date. Never render this number without behindMeasured beside it.

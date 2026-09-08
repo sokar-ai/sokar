@@ -44,6 +44,36 @@ public final class Containerfile {
      * @param project The project.
      * @return File content, ending in a line separator.
      */
+    /**
+     * Returns a short digest of everything about a project that decides its image.
+     * <p>
+     * <strong>Deliberately not the whole project file.</strong> Egress, limits and the upstream
+     * change what a task may do rather than what it is built from, and hashing them would report
+     * an image as stale after an edit that could not have changed it - which teaches people to
+     * ignore the word.
+     * <p>
+     * The agent is not in it either: which agent runs is chosen per task rather than per project,
+     * so an image is not stale because somebody picked a different one.
+     *
+     * @param project The project.
+     * @return Sixteen hex characters - enough to tell two recipes apart, short enough to read.
+     */
+    public static String fingerprint(Project project) {
+        final String recipe = project.baseImage() + "\u0000"
+                + (project.imageSnippet() == null ? "" : project.imageSnippet());
+        try {
+            final byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(recipe.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            final StringBuilder text = new StringBuilder();
+            for (int index = 0; index < 8; index++) {
+                text.append(String.format("%02x", digest[index]));
+            }
+            return text.toString();
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is required by every Java platform", ex);
+        }
+    }
+
     public static String render(Project project) {
         return render(project, ImageLayers.none());
     }
@@ -116,6 +146,10 @@ public final class Containerfile {
 
         lines.add("");
         lines.add("LABEL org.fuin.sokar.project=\"" + project.name() + "\"");
+        // What this image was built from, so an image built before the project file changed can
+        // be told from one that is simply absent. Without it "prepared" says only that something
+        // exists, and "this will not be what you expect" is discoverable only by starting work.
+        lines.add("LABEL org.fuin.sokar.recipe=\"" + fingerprint(project) + "\"");
         lines.add("LABEL org.fuin.sokar.security-class=\""
                 + project.securityClass().name().toLowerCase() + "\"");
 

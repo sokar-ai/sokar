@@ -44,4 +44,5 @@ WORKDIR /workspace
 ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 LABEL org.fuin.sokar.project="uc"
+LABEL org.fuin.sokar.recipe="8f8861f457dfcdd4"
 LABEL org.fuin.sokar.security-class="guarded"
