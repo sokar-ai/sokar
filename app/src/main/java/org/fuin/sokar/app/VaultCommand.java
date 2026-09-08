@@ -13,7 +13,7 @@ import picocli.CommandLine.Command;
                 VaultServeCommand.class,
                 VaultRelayCommand.class,
                 VaultAgentCommand.class, VaultUnlockCommand.class,
-                VaultLockCommand.class })
+                VaultLockCommand.class, VaultPassphraseCommand.class })
 public class VaultCommand {
 
 }

@@ -287,8 +287,36 @@ public class VaultFile {
      * @param change Receives the current entries and returns what should be stored.
      * @throws VaultException If the vault cannot be locked, read or written.
      */
+    /**
+     * Re-encrypts the vault under a different passphrase.
+     * <p>
+     * Under the same advisory lock {@link #update} holds, and for the same reason: another
+     * {@code sokar} storing a credential halfway through would either be lost or be written under
+     * the old passphrase. Read with the old, written with the new, in one cycle - and
+     * {@link #write} replaces the file atomically, so an interruption leaves the vault readable
+     * with one passphrase or the other and never with neither.
+     * <p>
+     * <strong>What this does not touch.</strong> A running task's credential proxy read what it
+     * needed when the task started and holds it in its own memory, so nothing running is locked
+     * out. Anything holding the OLD passphrase in the kernel keyring now holds the wrong one -
+     * dropping it is the caller's job, and not doing so turns the next command into a confusing
+     * failure.
+     *
+     * @param passphrase The current passphrase.
+     * @param fresh What to encrypt under from now on.
+     * @throws VaultException If the vault cannot be locked, read with the old, or written.
+     */
+    public void rekey(char[] passphrase, char[] fresh) {
+        update(passphrase, entries -> entries, fresh);
+    }
+
     public void update(char[] passphrase,
             java.util.function.UnaryOperator<Map<String, VaultEntry>> change) {
+        update(passphrase, change, passphrase);
+    }
+
+    private void update(char[] passphrase,
+            java.util.function.UnaryOperator<Map<String, VaultEntry>> change, char[] writeWith) {
 
         final Path absolute = file.toAbsolutePath();
         final Path lockFile = absolute.resolveSibling(absolute.getFileName() + ".lock");
@@ -303,7 +331,7 @@ public class VaultFile {
                     FileLock lock = raf.getChannel().lock()) {
                 final Map<String, VaultEntry> current =
                         exists() ? new LinkedHashMap<>(read(passphrase)) : new LinkedHashMap<>();
-                write(change.apply(current), passphrase);
+                write(change.apply(current), writeWith);
             }
         } catch (IOException ex) {
             throw new VaultException("Cannot lock " + lockFile, ex);

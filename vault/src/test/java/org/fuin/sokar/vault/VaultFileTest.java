@@ -289,4 +289,52 @@ class VaultFileTest {
         // The negative case: warning about a real key would teach the operator to ignore it.
         assertThat(VaultEntry.of("sk-ant-api03-" + "x".repeat(90)).suspicious()).isNull();
     }
+
+    @Test
+    void rekeyReadsWithTheOldAndWritesWithTheNew(@TempDir Path dir) {
+
+        // The whole operation in one assertion: afterwards the old passphrase does not open it
+        // and the new one does. Until this existed the product could not change a passphrase at
+        // all, and the only way round was to store every credential again - which needs the
+        // values, which this file deliberately will not hand back.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("anthropic", VaultEntry.of("sk-test-value")), "old one".toCharArray());
+
+        vault.rekey("old one".toCharArray(), "new one".toCharArray());
+
+        assertThat(vault.accepts("old one".toCharArray())).isFalse();
+        assertThat(vault.accepts("new one".toCharArray())).isTrue();
+    }
+
+    @Test
+    void rekeyKeepsEveryEntryExactly(@TempDir Path dir) {
+
+        // Re-encrypting must not be a way to lose a credential. There is no second copy anywhere,
+        // so anything dropped here is gone for good.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        final Map<String, VaultEntry> before = Map.of(
+                "anthropic", new VaultEntry("sk-one", "api-key"),
+                "openai", new VaultEntry("sk-two", "api-key"),
+                "github", VaultEntry.of("ghp-three"));
+        vault.write(before, "old one".toCharArray());
+
+        vault.rekey("old one".toCharArray(), "new one".toCharArray());
+
+        assertThat(vault.read("new one".toCharArray())).isEqualTo(before);
+    }
+
+    @Test
+    void rekeyWithTheWrongCurrentPassphraseChangesNothing(@TempDir Path dir) {
+
+        // Fails on the read, before anything is written. A vault re-encrypted under a passphrase
+        // derived from a failed read would be a vault nobody can open.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("anthropic", VaultEntry.of("sk-test-value")), "old one".toCharArray());
+
+        assertThatThrownBy(() -> vault.rekey("wrong".toCharArray(), "new one".toCharArray()))
+                .isInstanceOf(VaultException.class);
+
+        assertThat(vault.accepts("old one".toCharArray()))
+                .as("the vault still opens with what it always did").isTrue();
+    }
 }
