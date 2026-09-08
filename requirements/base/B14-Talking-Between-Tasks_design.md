@@ -378,6 +378,33 @@ thing must fail:
 Anything needing podman — the mount, the socket from inside the container, an agent actually
 receiving — belongs in `buildtools/e2e-tier1.sh`, not in surefire.
 
+## Alternatives considered
+
+Whether an existing, maintained, open-source tool could take over the hub, leaving only an adapter
+to write. The answer is no, and it is the same answer for every candidate: what a message bus or a
+chat server takes off the pile is transport and storage, and what this requirement is made of is
+policy, holding and a record. Adopting one leaves all of that to build anyway, and adds a daemon
+with its own authentication database, its own upgrade cycle and its own CVE stream.
+
+| Tool | What it would give | Why not |
+|---|---|---|
+| [NATS](https://nats.io/about/) + JetStream (CNCF, 2.14.5, August 2026, one binary) | The best transport of the three: subject ACLs, persistent replayable streams, sub-millisecond latency | **Client connections are TCP only** — a unix domain socket exists only when the server is embedded in a Go process, so this would mean a loopback port where every other helper has a mounted socket. Subject ACLs are per user rather than per pair, there is no holding a message, and a JetStream stream is append-only without being tamper-evident. |
+| [Matrix](https://spec.matrix.org/latest/) via [continuwuity](https://continuwuity.org/introduction) (Rust, a release every week or two) | On paper a direct hit: rooms as the pair, power levels as moderation, a **hash-linked, server-signed event DAG** — from room version 3 the event id *is* the reference hash — redaction instead of deletion, and existing clients a person could read and write with | Every message would still have to pass through Sokar to enforce the class rules, the journal and the hold, so the access control gets written twice — the failure this design avoids by putting `TalkPolicy` in one place. A homeserver is a large dependency with its own user database. Note also that `conduwuit` is archived; the maintained line is `continuwuity`. |
+| [Prosody](https://prosody.im/) (13.0.6, May 2026, Lua, genuinely small) | MUC for rooms, MAM for archives, ACLs, at a fraction of the size | The archive is a database, not a tamper-evident log. It is a weaker "who did what" than Matrix for the same structural cost. |
+| [halo-record](https://www.helpnetsecurity.com/2026/08/31/halo-record-open-source-ai-agent-audit-trail/) (August 2026) | An append-only file where each line carries the hash of the one before it, verifiable with no key and no account | Python, and very new. Its value here is as evidence rather than as a dependency: the journal above is the conventional construction, not something invented for this. |
+| [Rekor](https://github.com/sigstore/rekor), [immudb](https://immudb.io/) | A Merkle transparency log with inclusion and consistency proofs, both runnable standalone | More than a hash chain buys on a single machine against an adversary who owns the disk. Worth revisiting under the one condition named above: a record that leaves the machine which produced it. |
+
+**Reachability was not the obstacle, and saying so matters.** Sokar can already put a TCP-only
+service behind a container's own loopback — `sokar vault relay` binds `127.0.0.1` inside the task's
+network namespace and forwards to a host-side socket, and the git gate is a loopback service today.
+Any of the servers above could be reached that way. They were rejected on what they fail to remove
+from the work, not on whether a container could talk to them.
+
+**What is worth adopting is the schema.** `Talk1`'s payload should be an
+[A2A](https://a2a-protocol.org/latest/) message (Linux Foundation, v1.0.1 May 2026) rather than a
+shape invented here, so that an agent already speaking A2A needs no adapter later. It is a format,
+it costs nothing at runtime, and it commits to no server.
+
 ## Deliberately not designed here
 
 - **Cross-machine.** Argued in the requirement: the daemon binds no network interface in any

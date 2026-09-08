@@ -14,6 +14,29 @@ One machine. A task produces artifacts; a person sees them; another task in a de
 receives the ones its own project asked for. Out of scope: anything crossing machines, publishing to
 a repository manager, expiry, and any inspection of what an artifact contains.
 
+## What is reused
+
+The two host-side halves of this — a content-addressed store, and a way to get bytes into a
+container — do not need building. **podman already has both**, and Sokar already requires podman.
+
+| Need | Reused | Left to build |
+|---|---|---|
+| Content-addressed storage | `podman artifact add` / `ls` / `inspect` / `rm` — the local OCI artifact store | The per-project namespace and the index over it |
+| Delivery into a container | `podman run --mount type=artifact,src=…,dst=…`, read-only, one blob selectable by digest | The mid-run case, which a mount cannot serve |
+| Identity | The OCI digest, which the store computes anyway | Nothing |
+| Provenance format | in-toto attestation | Filling it in |
+| Policy, refusals, record, quota | Nothing | All of it |
+
+`podman artifact` was experimental when it appeared and **is stable as of podman 5.6**; 5.7 added
+`inspect --format` and artifact lifecycle events. Both acceptance legs are above that floor —
+Ubuntu 26.04 ships podman 5.7.x, Fedora 44 ships 5.8.x — but Sokar today only refuses podman *4*,
+so **using this raises the minimum to 5.6**, which needs a `doctor` probe that names it rather than
+a put that fails strangely.
+
+What podman does **not** provide is everything this requirement is actually about. Its store is per
+*user*, not per project, and it has no notion of who may hand what to whom. The namespace, the
+policy, the quota, the record and the refusals below are unchanged by this.
+
 ## The shape
 
 ```
@@ -21,10 +44,10 @@ a repository manager, expiry, and any inspection of what an artifact contains.
   ┌──────────────────────┐   ┌──────────────────────────────┐        ┌──────────────┐
   │ agent writes a file  │   │ sokar store serve (A)        │        │ frontend/CLI │
   │  /run/sokar/out/  ───┼──▶│  1 rename out of reach       │        └──────┬───────┘
-  │                      │   │  2 copy → digest → quota     │               │
-  │  /run/sokar/in/   ◀──┼───│  3 journal (chained)         │──── store     │ varlink
-  │    (read-only)       │   │  4 publish                   │     (per      │
-  └──────────────────────┘   │                              │      project) │
+  │                      │   │  2 copy, count, quota        │               │
+  │  /run/sokar/in/   ◀──┼───│  3 podman artifact add       │─── podman's   │ varlink
+  │    (read-only)       │   │  4 journal (chained)         │    artifact   │
+  └──────────────────────┘   │  5 publish                   │    store      │
                              │              sokard ◀────────┼───────────────┘
   task B container           │                │             │
   ┌──────────────────────┐   │        StorePolicy decides   │
@@ -40,10 +63,10 @@ of mount `/run/sokar/vault.sock` already is.
 
 | Module | What is added |
 |---|---|
-| `store/` (new) | `Artifact`, `ArtifactStore`, `ArtifactJournal`, `StorePolicy`, `StoreService`, `Digest`, `PutOutcome`, `StoreException`. |
+| `store/` (new) | `Artifact`, `ArtifactIndex`, `ArtifactJournal`, `StorePolicy`, `StoreService`, `PutOutcome`, `StoreException`. There is no `ArtifactStore` and no `Digest`: podman holds the bytes and computes the digest. |
 | `core/project` | `Store` record on `Project`; `ProjectReader` learns one key. |
-| `app/` | `StoreCommand` and subcommands, `StoreServeCommand`, `StoreWiring`, `StoreEdit`, one entry in `TaskHelpers`, two methods on `SokarPaths`. |
-| `runtime/` | Nothing. `ContainerSpec.volume` already mounts a directory, with `:Z` for SELinux. |
+| `app/` | `StoreCommand` and subcommands, `StoreServeCommand`, `StoreWiring`, `StoreEdit`, one entry in `TaskHelpers`, one method on `SokarPaths`, and one more `Probe` in `DoctorCommand` for the podman floor. |
+| `runtime/` | `Podman` learns the `artifact` subcommands; `ContainerSpec` learns `--mount type=artifact`. |
 | `daemon/` | New types and methods on `org.fuin.sokar.Tasks1`. |
 | `agents/api` | Nothing. This needs no agent capability at all — see below. |
 
@@ -82,6 +105,19 @@ the helper may read, and nothing anywhere may run a program out of either direct
 clearance journal is not under the runtime directory. An artifact produced by a run that then failed
 is still on the host.
 
+### Delivery: a mount at start, the same directory mid-run
+
+**At container start** an artifact the project already accepts is given to podman directly:
+`--mount type=artifact,src=<ref>,dst=/run/sokar/in/<name>`. Nothing is copied and nothing is
+extracted, and read-only is the runtime's property rather than a permission Sokar has to keep
+correct. A single blob can be selected by digest where an artifact holds several.
+
+**Mid-run it cannot be.** A mount is decided at `create`/`run`, which is the shape B12 already
+records for the ruleset and the resolver: what a container has is built when it starts. So an
+artifact handed to a task that is already running is **extracted** into that task's own `in/`
+instead. The two paths deliberately land in the same directory, so an agent has one place to look
+and never has to know which way it arrived.
+
 ## Ingest, step by step, and why the order is that order
 
 1. **Rename out of reach.** `Files.move` from `out/` into a staging directory in the task's state
@@ -92,12 +128,14 @@ is still on the host.
    the operator's vault file, `~/.ssh/id_ed25519` or `/etc/passwd` would otherwise have the helper
    read it, hash it, store it and hand it to another project. This is the single most important line
    in this design.
-3. **Copy into the store, hashing during the copy, counting bytes during the copy.** Not `stat`
-   then read: an open file descriptor the agent still holds can change the length between the two,
-   and the quota must be enforced against what is actually written. What is stored is the copy, so
-   whatever happens to the agent's descriptor afterwards changes nothing.
-4. **Quota and size limits are checked as the bytes arrive**, and exceeding one aborts the copy and
-   removes the partial file. The refusal names the number.
+3. **Copy it to a private file, counting bytes as they are copied.** A rename is not enough on its
+   own: the agent may still hold an open descriptor to that inode and write through it, so what is
+   handed on must be a copy nothing else has a handle on. The count comes from the copy rather than
+   from `stat`, because the length can change between the two and the quota is the thing being
+   cheated. Exceeding the quota or the per-artifact limit aborts the copy, removes the partial file,
+   and names the number.
+4. **`podman artifact add` the copy.** The digest is the store's own, so nothing hashes twice, and a
+   failure here is a failure to store rather than a half-stored artifact.
 5. **Journal, then publish.** The entry is appended before the artifact is visible anywhere. A
    journal that cannot be written means the artifact is not published — the same ordering B14 uses,
    and for the same reason.
@@ -107,19 +145,31 @@ is still on the host.
 Failure at any step leaves the file in staging and says so, rather than deleting the only copy of
 something a run spent an hour producing.
 
-## The store
+## The store is podman's
 
-**`~/.local/share/sokar/artifacts/<project>/<aa>/<rest-of-digest>`**, reached through a new
-`SokarPaths.artifactStore(String project)`. Under the data directory, beside `mirrors/`, because it
-is content an operator would back up — not under the runtime directory the kernel clears at logout.
+Sokar lays out no directory of its own. It owns the **names** and the **index**; podman owns the
+bytes.
 
-**Mode `0644`, owner-only directories, and the executable bit is never set**, whatever the file was
-written with. Delivery is a read-only mount on top of that. Two independent reasons an artifact
-should not be executable are one reason each too few.
+**The reference carries the project** — `sokar/<project>/<name>` — so `podman artifact ls` is
+readable by a person looking for what a project holds. It is not the authority: podman has no notion
+of a project and cannot be asked to enforce one, so Sokar's own index decides what exists, and the
+journal below is what it is rebuilt from.
 
-**Per project, and no cross-project deduplication.** A machine-wide content-addressed store answers
-"does this digest exist" for anybody who can ask, which is a covert channel with a one-bit payload
-and unlimited retries. Two projects that both produce identical bytes store them twice.
+**Nothing in a task can reach the store.** No podman socket is mounted into any container, which is
+what keeps a per-*user* store from being a per-machine channel. That was already true; it becomes
+load-bearing here, so it is asserted in a test rather than assumed.
+
+**The deduplication nuance, written down because it reads like a contradiction of the
+requirement.** OCI blobs are addressed by digest, so two projects producing identical bytes share
+one blob on disk whether or not Sokar would like them to. The rule the requirement states is about
+what is *observable*: the index is per project, `Artifacts` never answers across projects, and a
+digest belonging to another project is answered exactly as a digest that exists nowhere. The
+physical deduplication happens; the oracle does not — unless somebody measures free disk, which is
+an open question below rather than a solved one.
+
+**Not executable, and read-only where it lands.** An artifact mount is read-only by construction,
+and anything extracted into an inbox is written `0644` with no executable bit, whatever the dropped
+file carried.
 
 ## The record
 
@@ -128,11 +178,25 @@ exactly as B14's journal is: `prev` is the previous line's `hash`, the first lin
 zeros, `hash` is SHA-256 over the line's canonical `Json.write` serialization with `hash` removed.
 `sokar store verify <project>` walks it and names the first line that does not verify.
 
+**Each line carries an in-toto attestation rather than a shape invented here.** in-toto is
+CNCF-graduated and its subject is exactly this: recording who did what, where and how. A statement
+names a *subject* — an artifact, by digest, which is how in-toto already addresses one — and a
+*predicate* carrying the rest. It is a format, not a service, so it costs nothing at runtime and
+means the record can be read by tooling nobody here wrote.
+
 ```json
-{"seq":12,"at":"2026-09-08T11:02:44Z","event":"put","project":"sokar",
- "task":"sokar-a1b2","artifact":"sha256:9c1e…","name":"build.tar.zst","bytes":48210114,
- "media":"application/zstd","commit":"6e4187a…","prev":"…","hash":"…"}
+{"seq":12,"prev":"…","hash":"…","statement":{
+  "_type":"https://in-toto.io/Statement/v1",
+  "subject":[{"name":"build.tar.zst","digest":{"sha256":"9c1e…"}}],
+  "predicateType":"https://sokar.fuin.org/Handover/v1",
+  "predicate":{"event":"put","project":"sokar","task":"sokar-a1b2","bytes":48210114,
+               "media":"application/zstd","commit":"6e4187a…","at":"2026-09-08T11:02:44Z"}}}
 ```
+
+**The statement is not wrapped in a signed DSSE envelope**, which is how in-toto is usually carried.
+The chain is the integrity mechanism here and no key goes near a container — the same answer B14
+gives about signing. An envelope becomes worth adding under exactly the condition B14 names: a
+record that leaves the machine which produced it.
 
 `event` is `put`, `hand`, `receive`, `withdraw` or `refused`. **A refusal is recorded too**: a
 policy that only writes down what it allowed cannot answer the question anybody actually asks after
@@ -244,9 +308,9 @@ remotely that the machine's own tooling says is impossible.
 
 | Event | What happens |
 |---|---|
-| `task run` | The helper starts in phase `BEFORE`; `out/` and `in/` are created `0700` on the host and mounted; the command is recorded in `resume.json`. |
+| `task run` | The helper starts in phase `BEFORE`; `out/` and `in/` are created `0700` on the host and mounted; artifacts the project already accepts are mounted with `--mount type=artifact`; the command is recorded in `resume.json`. |
 | A file appears in `out/` | Ingest, as above. Watched with a directory watch, with a sweep on helper start so nothing dropped while it was down is missed. |
-| `store hand` | Policy, journal, then the file appears in the receiver's `in/` and its `manifest.json`. In that order. |
+| `store hand` | Policy, journal, then it appears in the receiver's `in/` and its `manifest.json` — mounted if the receiver has not started, extracted if it is already running. In that order. |
 | `task stop` | The poststop hook reaps the helper by its pid file. `out/` is swept once more before it is given up, so a file written at the end is not lost. |
 | `task resume` | The recorded command is replayed. `in/` is rebuilt from the record, so a resumed task finds what it had. |
 | A container that never started | `TaskRunner.reapOrphans` covers the helper, since no hook fires for a container that never ran. |
@@ -265,7 +329,9 @@ remotely that the machine's own tooling says is impossible.
 | The receiving project does not accept the name | Refused as `NOT_ACCEPTED` and recorded. | The consumer declares; discovery would be the covert channel. |
 | An artifact is withdrawn after being handed | Removed here, recorded, and the answer says it cannot be recalled from where it went. | Bytes cannot be un-given, and saying otherwise is the dangerous lie. |
 | Two tasks produce identical bytes in one project | One artifact, one set of bytes, both provenances recorded. | Dedup within a project is free and correct. |
-| The same bytes in two projects | Two copies. | Cross-project dedup is a digest oracle. |
+| The same bytes in two projects | One blob on disk, two index entries, and no way to observe the sharing. | The oracle is closed at Sokar's API, not at podman's storage layer. |
+| A hand-over to a task that is already running | Extracted into its `in/`, never mounted. | A mount is decided at create; pretending otherwise produces an artifact nobody can find. |
+| podman is older than 5.6 | `doctor` says so by name and a put refuses. | The artifact suite was experimental before that, and an experimental store is not a record. |
 
 ## What must be proven to fail
 
@@ -286,10 +352,33 @@ Per the rule that a test nobody has watched fail is a test nobody has checked �
 - Make the journal unwritable and assert the receiving task's `in/` stays empty.
 - Ask for an artifact by a digest belonging to another project and assert the answer is the same as
   for a digest that does not exist anywhere. **The two must be indistinguishable**, or the oracle is
-  back.
+  back. This is now a test of Sokar's index rather than of its storage, because podman's store does
+  deduplicate across projects.
+- Assert that no podman socket is reachable from inside a task container. It was always true; it is
+  now the thing that keeps a per-user store from being a per-machine channel.
+- Run the put path against a podman older than 5.6 and watch `doctor` name it, rather than watching
+  a put fail for a reason nobody can read.
 
 Everything involving a real mount, a real container writing into `out/`, and a read-only `in/`
 belongs in `buildtools/e2e-tier1.sh` — unit tests must run without a container runtime.
+
+## Alternatives considered
+
+The question this design was re-examined against: can an existing, maintained, open-source tool take
+the host-side halves, leaving only an adapter? For storage, **yes** — and it is already installed.
+For everything else, no.
+
+| Tool | What it gives | Verdict |
+|---|---|---|
+| **[`podman artifact`](https://docs.podman.io/en/latest/markdown/podman-artifact.1.html)** | A local OCI artifact store with `add`/`ls`/`inspect`/`extract`/`push`/`rm`, digests, and `--mount type=artifact` into a container. Stable [since podman 5.6](https://github.com/podman-container-tools/podman/releases/tag/v5.6.0); Ubuntu 26.04 ships 5.7.x, Fedora 44 ships 5.8.x | **Taken.** No new dependency, no port, no credential, no egress. |
+| **[in-toto](https://in-toto.io/) attestations** (CNCF graduated, February 2025) | A standard statement for *who did what, where and how*, addressed by artifact digest | **Taken**, as the journal's line format. A format, not a service. |
+| [zot](https://github.com/project-zot/zot) + [ORAS](https://oras.land/docs/) | A full OCI registry with htpasswd auth and identity-based **per-repository** authorization over glob paths — the same shape the git gate already runs on loopback | **Later, not now.** The right answer once artifacts must leave the machine; `podman artifact push` reaches it with the format unchanged, so nothing has to be redesigned to get there. |
+| [git-annex](https://git-annex.branchable.com/special_remotes/) | The honest version of the LFS idea: pointers in git, content-addressed bytes, and a plain local directory as a special remote — **no server** | Rejected, but on cost rather than principle: a Haskell runtime, symlink-based worktrees that are awkward inside a container, and the *agent* would have to drive it. Evidence of current maintenance is indirect. |
+| Git LFS, Artifactory, Nexus | — | Rejected in the requirement: a second service, a second credential, permanent egress, and an incomplete mirror. |
+
+**What did not get taken off the pile:** the per-project namespace, the class rules, the quota, the
+record, the refusals, and the drop directory with its symlink and descriptor traps. Those are the
+requirement, and no store answers them.
 
 ## Deliberately not designed here
 
@@ -319,6 +408,18 @@ belongs in `buildtools/e2e-tier1.sh` — unit tests must run without a container
 - **Whether a directory watch is enough.** A sweep at start and stop covers the gaps this design
   knows about; whether an agent writing a large file in place produces a partial ingest depends on
   how the watch fires, and that has to be measured rather than assumed.
+- **Whether free disk is a usable oracle.** podman deduplicates blobs by digest across the whole
+  user store, so writing bytes that already exist consumes nothing. A project that can observe its
+  own quota accounting closely enough might learn that another project holds the same bytes. The fix
+  if it matters is to charge a project for what it put rather than for what was stored, which is
+  cheap — what is unknown is whether the difference is measurable from inside a task at all.
+- **How the reference is named.** `sokar/<project>/<name>` is readable and it is also a namespace
+  podman does not enforce, so two Sokars sharing a user account would collide. Nothing does that
+  today, and the alternative — an opaque reference and a lookup — costs the `podman artifact ls`
+  legibility that makes the store debuggable by hand.
+- **Whether the podman floor should be 5.6 or higher.** 5.7 added artifact lifecycle events, which
+  would let the helper notice changes it did not make instead of assuming it is the only writer.
+  Both test legs are already above 5.7; the floor is about what an operator's machine must have.
 - **Whether the quota should be bytes, count, or both.** A thousand small artifacts is a different
   problem from one enormous one, and `Limits` currently models memory, cpus and pids — none of which
   is a precedent for storage.
