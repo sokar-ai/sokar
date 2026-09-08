@@ -322,6 +322,37 @@ public final class SokarDaemon {
                     .map(ProjectInventory.Summary::asMap).toList()));
         });
 
+        server.method("DeleteBackup", (parameters, replies) -> {
+            final org.fuin.sokar.app.BackupRecords records =
+                    new org.fuin.sokar.app.BackupRecords(context.paths().backupRecords());
+            final String project = text(parameters, "project");
+            final java.nio.file.Path bundle =
+                    java.nio.file.Path.of(text(parameters, "bundle")).toAbsolutePath();
+            final var known = records.of(project).stream()
+                    .filter(backup -> backup.bundle().equals(bundle)).findFirst();
+            if (known.isEmpty()) {
+                replies.last(Map.of("outcome", "NO_SUCH_BACKUP", "fileRemoved", false,
+                        "refs", 0, "detail", "no backup of '" + project + "' at " + bundle));
+                return;
+            }
+            if (flag(parameters, "dryRun")) {
+                replies.last(Map.of("outcome", "PREVIEWED", "fileRemoved", known.get().present(),
+                        "refs", known.get().refs(), "detail", ""));
+                return;
+            }
+            try {
+                final boolean removed = java.nio.file.Files.deleteIfExists(bundle);
+                records.forget(project, bundle);
+                replies.last(Map.of("outcome", "DELETED", "fileRemoved", removed,
+                        "refs", known.get().refs(), "detail", ""));
+            } catch (java.io.IOException | RuntimeException ex) {
+                // The record is left alone when the file could not go: forgetting it would hide a
+                // bundle that is still on disk, which is worse than an entry somebody retries.
+                replies.last(Map.of("outcome", "FAILED", "fileRemoved", false,
+                        "refs", known.get().refs(), "detail", String.valueOf(ex.getMessage())));
+            }
+        });
+
         server.method("Backups", (parameters, replies) -> {
             replies.last(Map.of("backups",
                     new org.fuin.sokar.app.BackupRecords(context.paths().backupRecords())

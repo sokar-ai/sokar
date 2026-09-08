@@ -977,6 +977,151 @@ class SokarDaemonTest {
     }
 
     @Test
+    void backupsAreEmptyForAProjectNobodyHasBackedUp(@TempDir Path dir) throws Exception {
+
+        // An ordinary answer rather than an error: it is also what a project backed up by an
+        // older Sokar looks like, and neither deserves a fault on screen.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThat(client.call(SokarDaemon.INTERFACE + ".Backups",
+                        Map.of("project", "demo"))).containsEntry("backups", List.of());
+            }
+        });
+    }
+
+    @Test
+    void aBackupIsListedWithWhetherItsFileIsStillThere(@TempDir Path dir) throws Exception {
+
+        final Path bundle = dir.resolve("one.bundle");
+        Files.writeString(bundle, "not really a bundle");
+        new org.fuin.sokar.app.BackupRecords(dir.resolve("data/sokar/backups"))
+                .add("demo", bundle, 2);
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                @SuppressWarnings("unchecked")
+                final List<Map<String, Object>> backups = (List<Map<String, Object>>)
+                        client.call(SokarDaemon.INTERFACE + ".Backups", Map.of("project", "demo"))
+                                .get("backups");
+
+                assertThat(backups).singleElement().satisfies(backup -> {
+                    assertThat(backup).containsEntry("bundle", bundle.toAbsolutePath().toString())
+                            .containsEntry("present", true);
+                    assertThat(((Number) backup.get("refs")).intValue()).isEqualTo(2);
+                    assertThat(((Number) backup.get("bytes")).longValue()).isPositive();
+                });
+            }
+        });
+    }
+
+    @Test
+    void aPreviewedDeleteRemovesNothing(@TempDir Path dir) throws Exception {
+
+        // The bundle may be somebody's only copy of work that never reached the gate. A preview
+        // that removed it would be the worst thing this contract could do.
+        final Path bundle = dir.resolve("one.bundle");
+        Files.writeString(bundle, "not really a bundle");
+        new org.fuin.sokar.app.BackupRecords(dir.resolve("data/sokar/backups"))
+                .add("demo", bundle, 3);
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(
+                        SokarDaemon.INTERFACE + ".DeleteBackup",
+                        Map.of("project", "demo", "bundle", bundle.toAbsolutePath().toString(),
+                                "dryRun", true));
+
+                assertThat(reply).containsEntry("outcome", "PREVIEWED");
+                assertThat(((Number) reply.get("refs")).intValue())
+                        .as("what a person is giving up, named before they give it up")
+                        .isEqualTo(3);
+                assertThat(bundle).exists();
+            }
+        });
+    }
+
+    @Test
+    void deletingABackupTakesTheFileAndTheRecord(@TempDir Path dir) throws Exception {
+
+        final Path bundle = dir.resolve("one.bundle");
+        Files.writeString(bundle, "not really a bundle");
+        new org.fuin.sokar.app.BackupRecords(dir.resolve("data/sokar/backups"))
+                .add("demo", bundle, 1);
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThat(client.call(SokarDaemon.INTERFACE + ".DeleteBackup",
+                        Map.of("project", "demo", "bundle", bundle.toAbsolutePath().toString())))
+                        .containsEntry("outcome", "DELETED").containsEntry("fileRemoved", true);
+
+                assertThat(bundle).doesNotExist();
+                assertThat(client.call(SokarDaemon.INTERFACE + ".Backups",
+                        Map.of("project", "demo"))).containsEntry("backups", List.of());
+            }
+        });
+    }
+
+    @Test
+    void deletingSomethingNoRecordNamesIsRefusedRatherThanGuessed(@TempDir Path dir)
+            throws Exception {
+
+        // Never delete a path this machine did not write down. A method that removed whatever it
+        // was handed would be a file-deletion primitive wearing a backup's name.
+        final Path stranger = dir.resolve("somebody-elses.bundle");
+        Files.writeString(stranger, "important");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThat(client.call(SokarDaemon.INTERFACE + ".DeleteBackup",
+                        Map.of("project", "demo", "bundle", stranger.toAbsolutePath().toString())))
+                        .containsEntry("outcome", "NO_SUCH_BACKUP");
+
+                assertThat(stranger).exists();
+            }
+        });
+    }
+
+    @Test
+    void aBundleThatCouldNotBeDeletedKeepsItsRecord(@TempDir Path dir) throws Exception {
+
+        // Forgetting the record when the file is still on disk would hide a bundle that exists -
+        // and a backup nobody can see is worse than one somebody has to delete twice.
+        //
+        // Skipped as root, which ignores directory permissions: the fixture cannot create the
+        // failure it needs, and a test that quietly proves nothing is worse than one that says so.
+        org.junit.jupiter.api.Assumptions.assumeFalse("root".equals(System.getProperty("user.name")),
+                "root ignores the permissions this test relies on");
+
+        final Path locked = Files.createDirectories(dir.resolve("locked"));
+        final Path bundle = locked.resolve("one.bundle");
+        Files.writeString(bundle, "not really a bundle");
+        new org.fuin.sokar.app.BackupRecords(dir.resolve("data/sokar/backups"))
+                .add("demo", bundle, 4);
+        Files.setPosixFilePermissions(locked,
+                java.nio.file.attribute.PosixFilePermissions.fromString("r-x------"));
+
+        try {
+            serving(dir, socket -> {
+                try (VarlinkClient client = new VarlinkClient(socket)) {
+                    assertThat(client.call(SokarDaemon.INTERFACE + ".DeleteBackup",
+                            Map.of("project", "demo",
+                                    "bundle", bundle.toAbsolutePath().toString())))
+                            .containsEntry("outcome", "FAILED");
+
+                    @SuppressWarnings("unchecked")
+                    final List<Map<String, Object>> left = (List<Map<String, Object>>)
+                            client.call(SokarDaemon.INTERFACE + ".Backups",
+                                    Map.of("project", "demo")).get("backups");
+                    assertThat(left).as("the record stays while the bundle does").hasSize(1);
+                }
+            });
+        } finally {
+            Files.setPosixFilePermissions(locked,
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        }
+    }
+
+    @Test
     void importingNeverAnswersWithTheCredentialItRead(@TempDir Path dir) throws Exception {
 
         // The reason this one is allowed over the socket at all is that no secret crosses it in

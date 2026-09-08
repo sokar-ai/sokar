@@ -1013,6 +1013,28 @@ type Backup (
   bytes: int
 )
 
+# Removes one backup: the bundle file and the record of it.
+#
+# The bundle may be somebody's only copy of work that never reached the gate, so this takes the
+# path rather than an index - a list that shifted between reading it and acting on it would
+# otherwise delete a different backup than the one somebody chose.
+method DeleteBackup(
+  project: string,
+  # Absolute path, exactly as Backups reported it.
+  bundle: string,
+  # Reports what would go, having removed nothing.
+  dryRun: ?bool
+) -> (
+  # DELETED, PREVIEWED, NO_SUCH_BACKUP or FAILED.
+  outcome: string,
+  # Whether the file itself was there to remove. False with DELETED means the record was cleared
+  # for a bundle somebody had already moved - which is a tidy-up, not a loss.
+  fileRemoved: bool,
+  # How many pushes it held, from the record. What a person is giving up.
+  refs: int,
+  detail: string
+)
+
 # Copies a credential an agent already holds on this machine into the vault.
 #
 # The one credential operation that carries no secret over this socket in either direction: the

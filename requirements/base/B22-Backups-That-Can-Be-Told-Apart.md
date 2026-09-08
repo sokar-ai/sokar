@@ -44,3 +44,43 @@ has to be its own method rather than a flag on a read.
 - **Whether a fetch can be triggered at all**, or whether the upstream distance is deliberately
   only ever a background measurement. Both are defensible; the difference decides whether an
   interface offers a button or explains a timer.
+
+## Built, 2026-09-08: listing and deleting, and the thing that made it possible
+
+**Nothing recorded that a backup had ever been taken.** `gate backup <file>` writes a bundle
+wherever the operator names it and forgets it the moment the command returns, so *"what has been
+taken"* was not a question this machine could answer - it had no data to answer it from. The
+listing was never the missing part; the record was.
+
+- **`Backups(project)`** answers what was taken, newest first, from a record written when each one
+  was taken. Empty is ordinary: a project nobody has backed up, and also one backed up by a Sokar
+  older than the record.
+- **`DeleteBackup(project, bundle, dryRun)`** removes the bundle and the record, previews first,
+  and **refuses a path no record names** - otherwise it would be a file-deletion primitive wearing
+  a backup's name.
+
+**A record is not the bundle**, and the listing says so rather than implying otherwise. The file
+can be moved, deleted or replaced afterwards and nothing here would know, so every answer checks
+the disk: `present` and the size are read now, `taken` and `refs` are what was true then. A bundle
+somebody moved is **shown as absent rather than dropped** - it was taken, somebody moved it, and
+that is exactly what they need to see.
+
+**When the file cannot be deleted the record stays.** Forgetting it would hide a bundle that is
+still on disk, and a backup nobody can see is worse than one somebody has to delete twice.
+
+### Two things the tests found
+
+- **Two guards covering for each other.** A length check in front of a try/catch, both handling a
+  half-written line: neither could be shown to matter, because removing either left the other. The
+  length check was removed; the remaining one is proven.
+- **A path recorded as typed.** `sokar gate backup out.bundle` is run from a project directory and
+  the record is read by a daemon started somewhere else, so a relative path would name a different
+  file to whoever read it - or none, which reads as a backup somebody deleted.
+
+## Still open here
+
+- **Synchronising with the upstream as one action.** Answered in principle - a fetch *can* be
+  triggered, and must be its own method rather than a side effect of a listing - and not built.
+- **A restore that would discard unreviewed work.** The refusal shape exists twice already
+  (`DeleteProject`, `Stop`); this should be a third use of it rather than a fourth invention.
+
