@@ -44,6 +44,53 @@ class HeadlessCommandTest {
     }
 
     @Test
+    void turnsTheAgentsOwnPermissionPromptsOffWithoutBeingAsked() {
+
+        // No flag, no request field, no condition: an agent inside a task is unrestricted by
+        // construction, and one that stops to ask whether it may run a command is asking about a
+        // restriction the container already imposes. Unattended there is nobody to answer.
+        final var command = agent(FULL + """
+
+                sandboxed:
+                  arguments: ["--dangerously-skip-permissions"]
+                """).headlessCommand(RunRequest.of("do the thing"));
+
+        // Directly after the binary, so it cannot land after a positional prompt.
+        assertThat(command)
+                .containsExactly("example-cli", "--dangerously-skip-permissions", "-p",
+                        "do the thing");
+    }
+
+    @Test
+    void startsAnAttachedAgentTheSameWayAsAnUnattendedOne() {
+
+        // The attached path takes this list and the unattended one builds on it, so the flags
+        // cannot differ between them. Reported the other way round: an attached claude asked to
+        // approve a command, while the same run unattended would have hung on the question.
+        final AgentDefinition definition = agent(FULL + """
+
+                sandboxed:
+                  arguments: ["--dangerously-skip-permissions"]
+                """).definition();
+
+        assertThat(definition.sandboxedCommand())
+                .containsExactly("example-cli", "--dangerously-skip-permissions");
+    }
+
+    @Test
+    void startsAnAgentWithNothingToTurnOffAsItself() {
+        assertThat(agent(FULL).definition().sandboxedCommand()).containsExactly("example-cli");
+    }
+
+    @Test
+    void addsNothingForAnAgentThatHasNoPromptsToTurnOff() {
+
+        // The absent section is the common case and must not become an empty argument.
+        assertThat(agent(FULL).headlessCommand(RunRequest.of("do the thing")))
+                .containsExactly("example-cli", "-p", "do the thing");
+    }
+
+    @Test
     void takesThePromptPositionallyWhenThereIsNoFlagForIt() {
 
         // 'pi --print --mode json "<prompt>"'. An empty flag is a real shape, not a missing value:

@@ -496,6 +496,15 @@ See [build.md](doc/build.md). Three things that will bite:
   `sokar-login-shell-25471` is a real task, and what separates them is that a login carries only a
   timestamp where a task carries a task name and a run id.
 
+- **An agent's permission prompts are turned off by Sokar's decision, not by an option.** The
+  manifest declares only *how* — `sandboxed: arguments:`, because the flag is the agent's own and
+  guessing it would be wrong for every other agent. Whether is never asked: inside a task the
+  answer is always yes, since an agent stopping to ask whether it may run a command is asking
+  about a restriction the container already imposes, and in an unattended run nobody is there to
+  answer. Both start paths go through `AgentDefinition.sandboxedCommand()` so the attached and
+  unattended runs cannot drift — reported as an attached claude asking for approval, which
+  unattended would have been a hang.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

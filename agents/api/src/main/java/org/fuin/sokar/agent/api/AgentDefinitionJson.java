@@ -70,6 +70,7 @@ public final class AgentDefinitionJson {
         out.put("refusedDomains", definition.refusedDomains());
         putIfPresent(out, "configDirectory", definition.configDirectory());
         putIfPresent(out, "loginArguments", definition.loginArguments());
+        out.put("sandboxedArguments", definition.sandboxedArguments());
         putIfPresent(out, "version", definition.version());
         out.put("artifacts", definition.artifacts().stream()
                 .map(AgentDefinitionJson::writeArtifact).toList());
@@ -116,7 +117,8 @@ public final class AgentDefinitionJson {
                 source.get("configDirectory") == null ? null
                         : String.valueOf(source.get("configDirectory")),
                 source.get("loginArguments") == null ? null
-                        : strings(source.get("loginArguments")));
+                        : strings(source.get("loginArguments")),
+                strings(source.get("sandboxedArguments")));
     }
 
     private static Map<String, Object> writeArtifact(InstallArtifact artifact) {

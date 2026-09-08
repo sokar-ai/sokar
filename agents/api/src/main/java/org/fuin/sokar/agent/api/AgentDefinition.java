@@ -33,6 +33,15 @@ import org.jspecify.annotations.Nullable;
  * @param installAsRoot Container build fragments run as root, possibly empty.
  * @param installAsAgent Container build fragments run as the agent user, possibly empty.
  * @param packaged Directories shipped in the agent's own package, copied into the image.
+ * @param configDirectory Where the agent keeps its credentials, or {@code null}.
+ * @param loginArguments What runs the agent's own login, or {@code null} if it does not say.
+ * @param sandboxedArguments Arguments that turn off the agent's own permission prompts.
+ *        <p>
+ *        <strong>Sokar decides whether, the manifest says only how.</strong> Inside a task the
+ *        answer is always yes: the box is the whole point, and an agent stopping to ask whether
+ *        it may run a command is asking about a restriction that was already lifted. So there is
+ *        no flag and no setting to turn this on - it is on, and an agent that declares nothing
+ *        here simply has no prompts to turn off.
  */
 public record AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
         HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
@@ -41,7 +50,23 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         List<InstallArtifact> artifacts,
         List<String> installAsRoot, List<String> installAsAgent,
         List<PackagedTree> packaged, @Nullable String configDirectory,
-        @Nullable List<String> loginArguments) {
+        @Nullable List<String> loginArguments, List<String> sandboxedArguments) {
+
+    /**
+     * Returns the agent's binary followed by whatever turns its own permission prompts off.
+     * <p>
+     * <strong>Both ways of starting an agent go through here</strong>, so an attached run and an
+     * unattended one cannot drift apart on the one question a person would only notice in the
+     * attached case - and only after the agent had already stopped to ask.
+     *
+     * @return Command and arguments, never empty.
+     */
+    public List<String> sandboxedCommand() {
+        final List<String> command = new java.util.ArrayList<>();
+        command.add(binary);
+        command.addAll(sandboxedArguments);
+        return List.copyOf(command);
+    }
 
     /**
      * Constructor for an agent that does not say how to log in.
@@ -76,7 +101,8 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
             @Nullable String configDirectory) {
         this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag,
                 tokenEnvironment, provider, allowedDomains, refusedDomains, version, artifacts,
-                installAsRoot, installAsAgent, packaged, configDirectory, null);
+                installAsRoot, installAsAgent, packaged, configDirectory, null,
+                List.of());
     }
 
     /**

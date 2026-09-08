@@ -178,8 +178,14 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 return 0;
             }
 
+            // The same arguments the unattended path passes. An attached run is still a run
+            // inside the box, so an agent that would stop to ask permission is turned off here
+            // too - reported from the test machine, where an attached claude asked to approve a
+            // command the container had already made safe.
             final String startWith = "agent".equals(attach) && running.selected() != null
-                    ? running.selected().definition().binary() : null;
+                    ? org.fuin.sokar.runtime.ShellWords.quote(
+                            running.selected().definition().sandboxedCommand())
+                    : null;
             out.println(keep
                     ? "Attaching. The container is left in place; remove it with"
                             + " 'podman rm -f " + running.container() + "'."

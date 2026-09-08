@@ -112,7 +112,13 @@ public final class AgentDefinitionReader {
                 // declares the section with no arguments, and reading that as "cannot log in"
                 // would refuse the commonest shape there is.
                 root.get("login") == null ? null
-                        : strings(optionalSection(root, "login").get("arguments")));
+                        : strings(optionalSection(root, "login").get("arguments")),
+                // What this agent needs to be told so that it stops asking permission for things
+                // the container already prevents. Declared because the flag is the agent's own
+                // and Sokar must not guess it - but never conditional: inside a task the answer
+                // is always yes, which is what the box is for. An agent that needs nothing says
+                // nothing and gets nothing added.
+                strings(optionalSection(root, "sandboxed").get("arguments")));
     }
 
     /**
