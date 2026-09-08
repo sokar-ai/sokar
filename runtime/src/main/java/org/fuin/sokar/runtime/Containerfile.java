@@ -34,6 +34,15 @@ public final class Containerfile {
      */
     public static final String SCROLLBACK = "10000";
 
+    /**
+     * Build argument marking where the agent's layers begin.
+     * <p>
+     * Passing a value podman has not seen invalidates its cache from this line down, so the
+     * agent's tooling is rebuilt and the packages above it are not. Nothing in the image reads it:
+     * it exists to be changed.
+     */
+    public static final String LAYER_EPOCH = "SOKAR_LAYER_EPOCH";
+
     private Containerfile() {
         throw new UnsupportedOperationException("Utility class");
     }
@@ -124,6 +133,17 @@ public final class Containerfile {
                 "RUN id -u agent >/dev/null 2>&1 || useradd --create-home --shell /bin/bash agent",
                 "",
                 "RUN mkdir -p /workspace && chown agent:agent /workspace"));
+
+        // Everything above is the base image and the packages every task needs. Everything below
+        // is the agent's. This ARG is the seam between them: podman invalidates its cache from the
+        // line whose text changed, so passing a different value here rebuilds the agent's layers
+        // and keeps the package layer - which is the difference between a rebuild that takes
+        // seconds and one that downloads a distribution again.
+        //
+        // It is declared even when no agent contributes anything, so the seam is in the image
+        // rather than appearing only when something happens to sit below it.
+        lines.add("");
+        lines.add("ARG " + LAYER_EPOCH + "=0");
 
         if (!layers.asRoot().isEmpty()) {
             lines.add("");

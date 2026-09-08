@@ -987,6 +987,46 @@ method Projects() -> (projects: []Project)
 #
 # The failure it prevents is not cosmetic. The same node listed twice delivers every clearance
 # question twice, and answering one leaves the other on screen until it expires.
+# Builds a project's task image without starting anything.
+#
+# The first task in a project otherwise waits minutes for something that has nothing to do with
+# the work. Use with "more": a build takes minutes, and showing nothing for that long is
+# indistinguishable from having hung.
+method Prepare(
+  # Absolute path of the project file, as Projects reports it.
+  project: string,
+  # Whose tooling to install. Omit when only one agent is installed. An image with no agent is a
+  # real thing to want - it is what somebody working in the container by hand needs - so this is
+  # not refused when no agent is found.
+  agent: ?string,
+  # CACHED, AGENT or EVERYTHING. Default CACHED.
+  #
+  # CACHED is not "skip the build": the build runs and podman's cache decides layer by layer, so
+  # an edited project file rebuilds what it changed and nothing else. It is what every task start
+  # already does.
+  #
+  # AGENT replaces the agent's tooling and keeps the base image and its packages. There is no
+  # podman flag for "rebuild from here" - it works by changing a build argument placed where the
+  # agent's layers begin, which invalidates the cache from that line down. So it is real, and it
+  # is a mechanism rather than a switch.
+  #
+  # EVERYTHING discards the base image's packages too, which means downloading them again.
+  rebuild: ?string,
+  # Says what it would do and does nothing.
+  dryRun: ?bool
+) -> (
+  # PREPARED, PREVIEWED, NO_SUCH_PROJECT or FAILED.
+  outcome: string,
+  # The image name, or "" when nothing was built.
+  image: string,
+  # The depth actually used, so an unrecognised one is visible rather than silently defaulted.
+  rebuild: string,
+  # Progress, when this was not called with "more". Empty when it was streamed.
+  output: []string,
+  # Why it failed, naming the step. "" otherwise.
+  detail: string
+)
+
 # What backups have been taken of a project's mirror.
 #
 # A bundle is written wherever an operator names it, so nothing could work this out afterwards -
@@ -1260,6 +1300,12 @@ error StreamRequired(method: string)
 error NoClearance(task: string)
 
 # A gate method was called without naming a project file.
+# A rebuild depth this daemon does not know.
+#
+# Refused rather than treated as the default: quietly doing the cheapest thing when somebody asked
+# for the most expensive is exactly the failure the depths exist to prevent.
+error UnknownRebuild(rebuild: string)
+
 error ProjectRequired()
 
 # WidenTask was called without saying how far the change goes.

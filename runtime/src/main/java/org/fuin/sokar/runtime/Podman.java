@@ -198,8 +198,65 @@ public class Podman {
         } catch (IOException ex) {
             throw new ContainerException("Cannot write " + containerfile, ex);
         }
-        runner.runOrFail(podman("build", "--tag", project.imageName(),
-                "--file", containerfile.toString(), contextDirectory.toString()));
+        return buildImage(project, contextDirectory, layers, Rebuild.CACHED);
+    }
+
+    /** How much of a previous build to discard. */
+    public enum Rebuild {
+
+        /**
+         * Whatever podman's cache still considers valid is reused.
+         * <p>
+         * What every task start does. Not "skip the build": the build runs and the cache decides
+         * layer by layer, so an edited project file rebuilds what it changed and nothing else.
+         */
+        CACHED,
+
+        /**
+         * The agent's tooling is rebuilt; the base image and its packages are kept.
+         * <p>
+         * Done by passing a value podman has not seen for the argument that marks where the
+         * agent's layers begin, which invalidates the cache from that line down. There is no
+         * podman flag for "rebuild from here", so this is a mechanism rather than an option.
+         */
+        AGENT,
+
+        /** Nothing is reused. Downloads the base image's packages again. */
+        EVERYTHING
+    }
+
+    /**
+     * Builds a project's task image, discarding as much of the previous build as asked.
+     *
+     * @param project The project.
+     * @param contextDirectory Where the Containerfile is written.
+     * @param layers What the agent and the project contribute.
+     * @param rebuild How much to discard.
+     * @return The image name.
+     */
+    public String buildImage(Project project, Path contextDirectory, ImageLayers layers,
+            Rebuild rebuild) {
+        final Path containerfile = contextDirectory.resolve("Containerfile");
+        try {
+            Files.createDirectories(contextDirectory);
+            Files.writeString(containerfile, Containerfile.render(project, layers),
+                    StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new ContainerException("Cannot write " + containerfile, ex);
+        }
+        final List<String> arguments = new ArrayList<>(List.of("build",
+                "--tag", project.imageName(), "--file", containerfile.toString()));
+        if (rebuild == Rebuild.EVERYTHING) {
+            arguments.add("--no-cache");
+        } else if (rebuild == Rebuild.AGENT) {
+            // A value podman has not seen before. The clock is enough: this only has to differ
+            // from whatever the last build used, and nothing in the image reads it.
+            arguments.add("--build-arg");
+            arguments.add(Containerfile.LAYER_EPOCH + "="
+                    + java.time.Instant.now().toEpochMilli());
+        }
+        arguments.add(contextDirectory.toString());
+        runner.runOrFail(podman(arguments.toArray(String[]::new)));
         return project.imageName();
     }
 

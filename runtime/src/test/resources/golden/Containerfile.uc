@@ -35,6 +35,8 @@ RUN id -u agent >/dev/null 2>&1 || useradd --create-home --shell /bin/bash agent
 
 RUN mkdir -p /workspace && chown agent:agent /workspace
 
+ARG SOKAR_LAYER_EPOCH=0
+
 USER agent
 WORKDIR /workspace
 

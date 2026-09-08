@@ -322,6 +322,38 @@ public final class SokarDaemon {
                     .map(ProjectInventory.Summary::asMap).toList()));
         });
 
+        server.method("Prepare", (parameters, replies) -> {
+            final java.io.StringWriter collected = new java.io.StringWriter();
+            // Streamed as it happens, for the same reason Start is: a build takes minutes.
+            final PrintWriter sink = replies.streaming()
+                    ? new PrintWriter(new StreamingWriter(replies), true)
+                    : new PrintWriter(collected, true);
+
+            final String asked = text(parameters, "rebuild");
+            final org.fuin.sokar.runtime.Podman.Rebuild rebuild;
+            try {
+                rebuild = asked.isEmpty() ? org.fuin.sokar.runtime.Podman.Rebuild.CACHED
+                        : org.fuin.sokar.runtime.Podman.Rebuild.valueOf(asked);
+            } catch (IllegalArgumentException ex) {
+                // Refused rather than defaulted: silently doing the cheapest thing when somebody
+                // asked for the most expensive is the failure this whole feature exists to avoid.
+                throw new VarlinkException(INTERFACE + ".UnknownRebuild",
+                        Map.of("rebuild", asked));
+            }
+
+            final org.fuin.sokar.app.Preparation.Result result =
+                    org.fuin.sokar.app.Preparation.prepare(context,
+                            java.nio.file.Path.of(text(parameters, "project")),
+                            absent(parameters, "agent"), rebuild, flag(parameters, "dryRun"),
+                            sink);
+            sink.flush();
+            replies.last(Map.of("outcome", result.outcome().name(), "image", result.image(),
+                    "rebuild", result.rebuild().name(),
+                    "output", replies.streaming() ? List.of()
+                            : collected.toString().lines().toList(),
+                    "detail", result.detail()));
+        });
+
         server.method("DeleteBackup", (parameters, replies) -> {
             final org.fuin.sokar.app.BackupRecords records =
                     new org.fuin.sokar.app.BackupRecords(context.paths().backupRecords());
