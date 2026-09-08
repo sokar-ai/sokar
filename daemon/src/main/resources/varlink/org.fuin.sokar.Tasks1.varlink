@@ -987,6 +987,51 @@ method Projects() -> (projects: []Project)
 #
 # The failure it prevents is not cosmetic. The same node listed twice delivers every clearance
 # question twice, and answering one leaves the other on screen until it expires.
+# Creates a project file, having checked the answers against this machine first.
+#
+# The checking is what a client cannot do for itself: whether a security class is spelled right,
+# whether an egress set exists on this machine, whether the name survives becoming an image tag
+# and an nftables set name. An answer accepted here and rejected at the first task start is
+# rejected far from where it was given.
+method CreateProject(
+  # Absolute path of the project.yml to write.
+  file: string,
+  name: string,
+  # offline, guarded or online.
+  securityClass: string,
+  baseImage: string,
+  # Required by 'online', which pushes to it directly. Ignored by the other classes, which reach
+  # their upstream only through the gate.
+  upstream: ?string,
+  # Egress set names, checked against the sets this machine has.
+  sets: []string,
+  # Checks and renders, writing nothing.
+  dryRun: ?bool
+) -> (
+  # CREATED, PREVIEWED, ALREADY_EXISTS, INVALID or FAILED.
+  #
+  # ALREADY_EXISTS is a refusal and never an overwrite: the file may be somebody's whole
+  # configuration, and this is the one operation that would replace it with nothing to restore
+  # from.
+  outcome: string,
+  file: string,
+  # The file as it would be written, for review. Filled even on a refusal - seeing what was
+  # rejected is most of understanding why.
+  content: string,
+  problems: []Problem,
+  detail: string
+)
+
+# Something wrong with one answer.
+type Problem (
+  # Which answer, named as the call named it.
+  field: string,
+  what: string,
+  # Whether it stops the project being created. A non-fatal one is worth showing and not worth
+  # blocking on - a base image that is not on the machine yet will simply be pulled.
+  fatal: bool
+)
+
 # Builds a project's task image without starting anything.
 #
 # The first task in a project otherwise waits minutes for something that has nothing to do with

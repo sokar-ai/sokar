@@ -322,6 +322,22 @@ public final class SokarDaemon {
                     .map(ProjectInventory.Summary::asMap).toList()));
         });
 
+        server.method("CreateProject", (parameters, replies) -> {
+            final org.fuin.sokar.app.ProjectCreation.Result result =
+                    org.fuin.sokar.app.ProjectCreation.create(context,
+                            java.nio.file.Path.of(text(parameters, "file")),
+                            text(parameters, "name"), text(parameters, "securityClass"),
+                            text(parameters, "baseImage"), absent(parameters, "upstream"),
+                            strings(parameters, "sets"), flag(parameters, "dryRun"));
+            replies.last(Map.of("outcome", result.outcome().name(), "file", result.file(),
+                    "content", result.content(),
+                    "problems", result.problems().stream()
+                            .map(problem -> Map.<String, Object>of("field", problem.field(),
+                                    "what", problem.detail(), "fatal", problem.fatal()))
+                            .toList(),
+                    "detail", result.detail()));
+        });
+
         server.method("Prepare", (parameters, replies) -> {
             final java.io.StringWriter collected = new java.io.StringWriter();
             // Streamed as it happens, for the same reason Start is: a build takes minutes.
