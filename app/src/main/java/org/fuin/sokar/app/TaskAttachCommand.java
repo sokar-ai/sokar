@@ -75,7 +75,7 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
 
         final PrintWriter err = spec.commandLine().getErr();
 
-        if (!ContainerName.isSokar(container)) {
+        if (!ContainerName.isTask(container)) {
             err.println("sokar: '" + container + "' is not a task of this machine");
             err.flush();
             return 69;

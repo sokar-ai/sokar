@@ -473,6 +473,29 @@ See [build.md](doc/build.md). Three things that will bite:
   in the container and hands nobody the node. The image carries `curl`, `ca-certificates`, `git`,
   `openssh-client` and `tmux`, and nothing else.
 
+- **Ctrl-C left a task running without its gate, its broker or its watcher.** A `finally` covers
+  every way an attached `task run` can end except the one that happens: a signal reaches the whole
+  foreground process group, so the helpers — plain children, not detached — die with the CLI while
+  the container, its ruleset and its resolver keep running. Measured on the test machine: a
+  container up eleven minutes with the agent still working inside, nothing to push through and no
+  way to reach the provider. `Teardown` arms a shutdown hook so the cleanup runs on a signal too,
+  and it takes a lock rather than a flag — the runtime waits for hook threads and not for the main
+  thread, so a hook that saw "somebody else has it" and returned would let the process exit with
+  the container half stopped. **Measured, not assumed:** the native image runs shutdown hooks on
+  SIGINT, SIGTERM and SIGHUP, with no `--install-exit-handlers` in the build arguments.
+
+- **A signalled run is kept, not removed.** The teardown starts at exit code 130, so it takes
+  `cleanUp`'s failure branch: the container is stopped and held, because a run somebody
+  interrupted may hold commits that never reached the gate.
+
+- **Not every `sokar-` container is a task.** `vault login` runs an agent's own login in a
+  throwaway container, which carries the prefix so a cleanup can find it — and it turned up in
+  `sokar task list`, where every column describes something it does not have. `ContainerName`
+  splits `isSokar` (Sokar made it) from `isTask` (it has a workspace, a gate, a ruleset and a
+  clearance). The prefix alone cannot make that split: `login` is a legal project name, so
+  `sokar-login-shell-25471` is a real task, and what separates them is that a login carries only a
+  timestamp where a task carries a task name and a run id.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

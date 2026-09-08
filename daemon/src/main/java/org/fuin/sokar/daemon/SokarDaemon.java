@@ -944,7 +944,7 @@ public final class SokarDaemon {
      * @return The socket, or {@code null}.
      */
     private static Path clearanceSocket(SokarContext context, String task) {
-        if (!ContainerName.isSokar(task)) {
+        if (!ContainerName.isTask(task)) {
             return null;
         }
         final Path socket = context.paths().containerState(task).resolve("clearance.sock");
@@ -990,7 +990,7 @@ public final class SokarDaemon {
      * @return The file, or {@code null}.
      */
     private static Path logOf(SokarContext context, String task, String log) {
-        if (!ContainerName.isSokar(task) || log.isEmpty() || !log.endsWith(".log")
+        if (!ContainerName.isTask(task) || log.isEmpty() || !log.endsWith(".log")
                 || log.contains("/") || log.contains("..")) {
             return null;
         }

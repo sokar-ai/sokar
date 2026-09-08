@@ -271,6 +271,19 @@ class PodmanTest {
     }
 
     @Test
+    void leavesALoginContainerOutOfTheTaskList() {
+
+        // Reported from the test machine: 'sokar vault login' left a container behind and it
+        // showed up as a task, which has a workspace, a gate and a clearance that a login has
+        // none of. It stays in sokarContainers(), which is what a cleanup sweeps.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\n"
+                + "sokar-login-1788886971400\tExited (0) 2 minutes ago\t1700000000\t1700000100\n");
+
+        assertThat(podman.sokarTasks()).extracting(ContainerSummary::name)
+                .containsExactly("sokar-uc-shell-1");
+    }
+
+    @Test
     void removalToleratesAContainerThatIsAlreadyGone() {
 
         runner.failing("stop", 125, "no such container");

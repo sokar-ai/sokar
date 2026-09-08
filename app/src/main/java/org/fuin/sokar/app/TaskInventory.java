@@ -294,7 +294,7 @@ public final class TaskInventory {
      */
     public List<Log> logs(String container) {
         final Path state = context.paths().containerState(container);
-        if (!org.fuin.sokar.runtime.ContainerName.isSokar(container)
+        if (!org.fuin.sokar.runtime.ContainerName.isTask(container)
                 || !Files.isDirectory(state)) {
             return List.of();
         }

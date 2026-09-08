@@ -565,7 +565,7 @@ public class Podman {
                 .map(String::strip)
                 .filter(line -> !line.isEmpty())
                 .map(line -> line.split("\t", 4))
-                .filter(parts -> ContainerName.isSokar(parts[0]))
+                .filter(parts -> ContainerName.isTask(parts[0]))
                 .map(parts -> new ContainerSummary(parts[0], parts.length > 1 ? parts[1] : "",
                         since(parts)))
                 .toList();

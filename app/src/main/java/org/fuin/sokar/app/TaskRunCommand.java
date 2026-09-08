@@ -22,6 +22,15 @@ import picocli.CommandLine.Spec;
         description = "Runs a task in a fresh container for the given project.")
 public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
+    /**
+     * Exit code recorded for a run that was signalled rather than ended.
+     * <p>
+     * 128 plus SIGINT, the shell's own convention. The value matters less than that it is not
+     * zero: {@code cleanUp} stops and keeps a task that ended badly, and an interrupted run is
+     * one - the workspace may hold commits that never reached the gate.
+     */
+    static final int INTERRUPTED = 130;
+
     @Parameters(index = "0", arity = "0..1", paramLabel = "<task>",
             description = "Name of the task. Defaults to an interactive shell.")
     private String task = "shell";
@@ -174,7 +183,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             out.println(keep
                     ? "Attaching. The container is left in place; remove it with"
                             + " 'podman rm -f " + running.container() + "'."
-                    : "Attaching. The container is removed when the shell exits.");
+                    : "Attaching. Leaving the shell removes the container; Ctrl-C stops it and"
+                            + " keeps it, because an interrupted run may hold work.");
             if (startWith != null) {
                 out.println("Starting " + startWith + " first; you get a shell when it exits.");
             }
@@ -182,9 +192,21 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
             // Waits rather than replacing this process, so there is still something here to
             // remove the container when the shell ends.
-            return running.cleanUp().applyAsInt(context.exec().applyAsInt(
-                    running.runner().attachCommand(running.container(), shell, startWith,
-                            running.project().name() + "/" + task)));
+            //
+            // Through a Teardown rather than a plain finally, because the way this ends most
+            // often is not a return: Ctrl-C and a closed terminal signal the whole process group,
+            // which kills the gate, the broker and the watcher and leaves the container running
+            // without them. The status starts at "interrupted" so that a signal takes the
+            // keep-and-stop branch - work that never reached the gate is still in there.
+            final java.util.concurrent.atomic.AtomicInteger status =
+                    new java.util.concurrent.atomic.AtomicInteger(INTERRUPTED);
+            try (Teardown teardown =
+                    Teardown.arm(() -> running.cleanUp().applyAsInt(status.get()))) {
+                status.set(context.exec().applyAsInt(
+                        running.runner().attachCommand(running.container(), shell, startWith,
+                                running.project().name() + "/" + task)));
+            }
+            return status.get();
         });
     }
 

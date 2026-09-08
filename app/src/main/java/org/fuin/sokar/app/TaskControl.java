@@ -129,7 +129,7 @@ public final class TaskControl {
      */
     public Stopped stop(String container, boolean purge, boolean rescue, boolean force) {
 
-        if (!ContainerName.isSokar(container)) {
+        if (!ContainerName.isTask(container)) {
             return new Stopped(Outcome.NOT_A_TASK, null, null, false, 0, List.of(), null, null, 0);
         }
 
@@ -328,7 +328,7 @@ public final class TaskControl {
      */
     public Labelled label(String container, @Nullable String caption) {
 
-        if (!ContainerName.isSokar(container)) {
+        if (!ContainerName.isTask(container)) {
             return Labelled.NOT_A_TASK;
         }
         final Path state = context.paths().containerState(container);
@@ -352,7 +352,7 @@ public final class TaskControl {
 
     public Resumed resume(String container) {
 
-        if (!ContainerName.isSokar(container)) {
+        if (!ContainerName.isTask(container)) {
             return new Resumed(Outcome.NOT_A_TASK, 0, 0, null, null, List.of());
         }
         final Path state = context.paths().containerState(container);

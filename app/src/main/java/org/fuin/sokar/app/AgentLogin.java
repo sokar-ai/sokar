@@ -225,9 +225,12 @@ public final class AgentLogin {
         }
         out.println();
 
-        final String container = "sokar-login-" + System.currentTimeMillis();
+        final String container = org.fuin.sokar.runtime.ContainerName.login();
         Path collected = null;
-        try {
+        // The finally below covers every ending except the usual one: a login somebody gives up
+        // on is a Ctrl-C, and the signal reaches this process before the finally does. Reported
+        // as containers left behind after an abandoned login.
+        try (Teardown teardown = Teardown.arm(() -> podman.remove(container))) {
             // The node's own network, so a login that redirects to a port on localhost reaches
             // something. That is more access than a task ever gets, and it is why this container
             // is removed rather than kept: it exists for the seconds a login takes.
@@ -295,7 +298,6 @@ public final class AgentLogin {
         } catch (java.io.IOException | RuntimeException ex) {
             return failed(Outcome.FAILED, String.valueOf(ex.getMessage()));
         } finally {
-            podman.remove(container);
             if (collected != null) {
                 // The credential was in here. Removed whatever happened above.
                 deleteTree(collected);

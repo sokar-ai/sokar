@@ -117,7 +117,7 @@ public final class RunningClearance {
             return new Result(Outcome.UNKNOWN_MODE, "", "",
                     "expected one of " + String.join(", ", MODES.stream().sorted().toList()));
         }
-        if (!org.fuin.sokar.runtime.ContainerName.isSokar(container)) {
+        if (!org.fuin.sokar.runtime.ContainerName.isTask(container)) {
             return new Result(Outcome.NO_SUCH_TASK, "", "", container + " is not a Sokar task");
         }
         final Path state = context.paths().containerState(container);
