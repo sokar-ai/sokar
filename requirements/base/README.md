@@ -16,11 +16,17 @@ on somebody's machine today. The last is a second platform, which is a project r
 feature. B11 and B12 came from the interface, which is short of fields rather than of methods:
 B11 is built, and B12 is what F17 is still waiting on.
 
+B14 sits directly below B13 because the two are the same question from opposite sides - work
+leaving by a door that is not the gate - and B14's own first open question is whether it should
+wait for B13. It is also the only one here that no interface requirement is waiting on, which the
+file argues is a reason to be slower about it rather than faster.
+
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | yes |
 | B12 | [Changing What Running Work May Reach](B12-Changing-What-Running-Work-May-Reach.md) | What a running task may reach can be widened or narrowed without restarting it, and a task says whether enforcement is on. | yes |
 | B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | yes |
+| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | yes, including whether to build it |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |
