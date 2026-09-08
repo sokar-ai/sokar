@@ -1,6 +1,6 @@
 # B16 — Working Inside A Running Container
 
-**Status:** open. What carries a session is decided; what a session IS between attachments is not
+**Status:** open, and designed. What carries a session and what one IS between attachments are both decided; what a dozen of them cost is not
 
 A person can start work that is meant to be driven by hand — `Start` takes `mode: SHELL`, and the
 interface offers it — and then cannot get inside it. **Interactive work can be created and not
@@ -42,10 +42,11 @@ The gap shows up in three places at once:
   the beginning as though it were live, are both worse than saying which it is.
 - **More than one session at once**, against different tasks, each identifiable by the task it
   belongs to.
-- **A session that cannot be opened answers with a named outcome rather than an exception**, in
-  the way `SetEgress` and `WidenTask` already refuse — a task that is not running, a container
-  that has no shell, a class that forbids it. An interface can then say which, rather than
-  reporting that something broke.
+- **A session that cannot be opened says which reason it was**, distinguishably — a task that is
+  not running, a container with no shell, a class that forbids it. There is no method to carry an
+  outcome value, so this is an exit code and a sentence from `task attach`; an interface reads
+  those rather than being told something broke. `Task.running` and `Task.mode` already let it
+  decide whether to offer the action at all.
 - **Nothing about being inside weakens what the container is held to.** The same egress ruleset,
   the same clearance watcher, the same gate. A shell is a person working under the rules, not a
   way around them.
@@ -108,23 +109,50 @@ losing the terminal.
 in the kernel and in the OCI hooks. They hold for every process in the container however it got
 there, so a shell is a person working under the rules and not a way around them.
 
-## What is still open, and it is the hard half
+### The session is a multiplexer inside the container
 
-**Leaving does not end it - and ssh does not give that.** `sokar task attach` over a channel that
-closes takes the process with it. Persisting a session across detachments needs something that
-lives between them, and that decision is untouched by the transport:
+**`task attach` runs `tmux new-session -A -s sokar` in the container**, which attaches to the
+session if it is there and creates it if it is not. That single call is most of the verb.
 
-- a multiplexer inside the container, which means installing one into every image;
-- a process the supervisor owns beside the other helpers, which is the shape everything else here
-  uses;
-- or attaching to the container's own primary process, which is one session and not several.
+This answers the criterion ssh cannot: **the multiplexer is a process in the container, not on the
+ssh channel**, so closing the channel leaves it running and the next attachment finds it exactly
+as it was.
 
-**What re-entering may claim** follows from that answer and not from this one. If nothing keeps a
-scrollback, coming back shows a prompt and nothing behind it and must say so.
+**It costs one word in a layer Sokar already writes.** The generated Containerfile installs `curl`,
+`ca-certificates`, `git` and `openssh-client` through whichever package manager the base image has;
+the multiplexer joins that line. It is not a burden on the operator's image and not a new
+mechanism - which is what an earlier draft of this file implied, wrongly.
 
-**Whether a class may forbid it.** An `offline` project's tasks reach nothing; whether a person may
-still open a shell in one is a policy question, and the answer belongs in `task attach` where it
-can be refused before anything is exec'd.
+**It also answers what re-entering may claim, precisely rather than apologetically.** The honest
+answer is *"as much as the scrollback holds"*, and Sokar knows that number because it configures
+it. A criterion that asks an interface to be explicit about what it can show is met by having a
+figure to be explicit with.
 
-**What it costs to leave one open.** Six attachments and a closed window leaves six of whatever the
-session turns out to be. Worth bounding before it is built.
+**And it fixes the boundary at the container rather than at the window.** A session ends when the
+container does: `task stop` takes it, and `task resume` brings back an empty one. *"Survives
+closing the window"* is true; *"survives restarting the task"* is not, and an interface must say
+the first without implying the second.
+
+**Containment is untouched.** The multiplexer is a process in the same namespace under the same
+ruleset as everything else in there.
+
+### This is about SHELL, and the distinction matters on screen
+
+An `AGENT` or `UNATTENDED` task has the agent as its main process, not running under the
+multiplexer. Somebody who wants to watch one of those wants `Tail` on `task.log`, which exists.
+Two different things that look like one action - *"see what this task is doing"* - and offering a
+session for a task that has no shell to attach to is the confusing half.
+
+## To be checked
+
+- **What it costs to leave sessions open.** Somebody attaches to six tasks and closes the window,
+  leaving six multiplexers. Each is cheap, and cheap times unbounded is still unbounded. Whether
+  there is a limit, and whether an idle session is ever reaped, is worth deciding before somebody
+  finds out.
+- **Whether a class may forbid it.** An `offline` project's tasks reach nothing; whether a person
+  may still open a shell inside one is a policy question rather than a technical one. The answer
+  belongs in `task attach`, where it can be refused before anything is exec'd - and the refusal
+  has to be one of the distinguishable ones the acceptance asks for.
+- **Which multiplexer.** `tmux` and `screen` both do this; `tmux` is the more common today and
+  `screen` the more likely to be present already. Whichever is chosen is installed by Sokar and
+  pinned, so a task never depends on what the base image happened to carry.

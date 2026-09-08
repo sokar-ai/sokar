@@ -27,8 +27,9 @@ behind it exists, and its first open question - whether varlink can carry a sess
 already answered. It cannot: varlink is one call in and many replies out, with no way for a client
 to keep sending into an open call. So it is carried by ssh - a second channel with a pty, running
 Sokar's own `task attach` rather than the runtime's command, which is what a person already does by
-hand and is a correct terminal without anything being rebuilt. What remains open is not the
-transport but what a session is when nobody is attached.
+hand and is a correct terminal without anything being rebuilt. A session is a multiplexer inside the
+container, which Sokar installs in the layer it already writes - so leaving does not end it, and
+what re-entering may claim is a scrollback figure rather than an apology.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
@@ -37,7 +38,7 @@ transport but what a session is when nobody is attached.
 | B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | yes |
 | B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | yes, including whether to build it |
 | B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | yes, and it turns on B14 |
-| B16 | [Working Inside A Running Container](B16-Working-Inside-A-Running-Container.md) | A shell in a running task is reachable from the interface, leaving does not end it, coming back says what it can and cannot show, and being inside weakens nothing the container is held to. | what carries it is settled; what a session is between attachments is not |
+| B16 | [Working Inside A Running Container](B16-Working-Inside-A-Running-Container.md) | A shell in a running task is reachable from the interface, leaving does not end it, coming back says what it can and cannot show, and being inside weakens nothing the container is held to. | what carries it and what a session is are settled; what a dozen open ones cost is not |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |
