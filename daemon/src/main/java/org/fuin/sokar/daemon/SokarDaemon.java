@@ -374,6 +374,13 @@ public final class SokarDaemon {
                     entry.put("refusedDomains", agent.definition().refusedDomains());
                     entry.put("artifacts", agent.definition().artifacts().stream()
                             .map(SokarDaemon::artifact).toList());
+                    // What an agent's commits are signed with. Nothing surfaced this until a
+                    // pre-push guard started deciding on it, and "did a person or an agent write
+                    // this commit?" had no answer anybody could look up.
+                    final Map<String, Object> identity = new LinkedHashMap<>();
+                    identity.put("name", agent.definition().gitIdentity().name());
+                    identity.put("email", agent.definition().gitIdentity().email());
+                    entry.put("commitsAs", identity);
                     return entry;
                 }).toList();
                 // Which copy of a shadowed name runs is a rule, and it lives in AgentDirectory

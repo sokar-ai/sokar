@@ -51,6 +51,44 @@ class InterfaceDescriptionTest {
     /** {@code error Name(...)}, same shape. */
     private static final Pattern ERROR = Pattern.compile("(?m)^error\\s+([A-Za-z][A-Za-z0-9]*)\\s*\\(");
 
+    /** {@code type Name (} at the start of a line. */
+    private static final Pattern TYPE = Pattern.compile("(?m)^type\\s+([A-Za-z][A-Za-z0-9]*)\\s*\\(");
+
+    /** A field's type: {@code name: Thing}, {@code name: []Thing}, {@code name: ?Thing}. */
+    private static final Pattern REFERENCE =
+            Pattern.compile("(?m)^\\s*[a-z][A-Za-z0-9]*\\s*:\\s*\\??(?:\\[\\])?\\??([A-Za-z][A-Za-z0-9]*)");
+
+    /** What varlink defines itself, so a reference to one is not a reference to anything here. */
+    private static final Set<String> BUILT_IN =
+            Set.of("string", "int", "float", "bool", "object");
+
+    @Test
+    void namesNoTypeItDoesNotDeclare() throws IOException {
+
+        // A description is only worth anything if somebody can write a client from it alone, and
+        // a field whose type is named but never declared stops exactly that - the reader has to
+        // come and read this daemon's Java, which is the thing the file exists to avoid. Found
+        // worth guarding when a new named type was added for an agent's commit identity: nothing
+        // here would have noticed if it had been referenced and never written down.
+        final String description = SokarDaemon.description();
+        final Set<String> declared = new TreeSet<>();
+        final Matcher types = TYPE.matcher(description);
+        while (types.find()) {
+            declared.add(types.group(1));
+        }
+        // Enums are declared the same way, so this list is every name the file introduces.
+        final Set<String> referenced = new TreeSet<>();
+        final Matcher fields = REFERENCE.matcher(description);
+        while (fields.find()) {
+            if (!BUILT_IN.contains(fields.group(1))) {
+                referenced.add(fields.group(1));
+            }
+        }
+
+        assertThat(referenced).isNotEmpty();
+        assertThat(declared).containsAll(referenced);
+    }
+
     @Test
     void describesEveryMethodItAnswersAndAnswersEveryMethodItDescribes(@TempDir Path dir)
             throws IOException {

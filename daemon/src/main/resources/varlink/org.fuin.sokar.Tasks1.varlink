@@ -207,7 +207,19 @@ type Agent (
   # What this agent fetches when its image is built, each with the digest that pins it. Empty is
   # a real state and not a gap: an agent that writes its tool into the image fetches nothing, so
   # it has a pinned version and no digest at all.
-  artifacts: []InstallArtifact
+  artifacts: []InstallArtifact,
+  # The identity this agent's commits carry, from its own manifest. This is what tells a person
+  # looking at a commit whether an agent or a person wrote it, and it is what the pre-push guard
+  # on an operator's own checkout matches on.
+  commitsAs: GitIdentity
+)
+
+# How an agent signs its work.
+type GitIdentity (
+  # Author name on its commits.
+  name: string,
+  # Author address on its commits.
+  email: string
 )
 
 # One file an agent fetches while its image is built.
