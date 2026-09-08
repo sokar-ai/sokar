@@ -236,6 +236,27 @@ public class Podman {
      */
     public String buildImage(Project project, Path contextDirectory, ImageLayers layers,
             Rebuild rebuild) {
+        runner.runOrFail(Command.of(buildArguments(project, contextDirectory, layers, rebuild)));
+        return project.imageName();
+    }
+
+    /**
+     * Writes the Containerfile and returns the command that would build it.
+     * <p>
+     * Exists so a caller that has a terminal can run the build on it rather than through the
+     * runner, which collects output and hands it over at the end. A build takes minutes and says
+     * a great deal while it works - which layer is cached, what is being fetched - and none of
+     * that reached anybody: the only line was Sokar's own "building", followed by silence long
+     * enough to look like a hang.
+     *
+     * @param project The project.
+     * @param contextDirectory Where the Containerfile is written.
+     * @param layers What the agent and the project contribute.
+     * @param rebuild How much of any previous build to discard.
+     * @return The executable and its arguments.
+     */
+    public List<String> buildArguments(Project project, Path contextDirectory, ImageLayers layers,
+            Rebuild rebuild) {
         final Path containerfile = contextDirectory.resolve("Containerfile");
         try {
             Files.createDirectories(contextDirectory);
@@ -256,8 +277,7 @@ public class Podman {
                     + java.time.Instant.now().toEpochMilli());
         }
         arguments.add(contextDirectory.toString());
-        runner.runOrFail(podman(arguments.toArray(String[]::new)));
-        return project.imageName();
+        return arguments(arguments);
     }
 
     /**

@@ -56,6 +56,24 @@ class AgentLoginTest {
     }
 
     @Test
+    void theLoginImageCarriesSomethingForTheAgentToOpenAUrlWith() {
+
+        // Without it the login stops dead: an agent asked to authenticate tries to open a
+        // browser, a container has none and no display, and the attempt neither succeeds nor
+        // reports anything - leaving somebody at a prompt that never continues, inside a
+        // container they did not know how to leave. That is what happened the first time.
+        final String rendered = org.fuin.sokar.runtime.Containerfile.render(
+                AgentLogin.loginProject(),
+                org.fuin.sokar.runtime.ImageLayers.none()
+                        .and(AgentLogin.browserShim(), java.util.List.of()));
+
+        // All three standard names, because which one an agent reaches for is its own business.
+        assertThat(rendered).contains("/usr/local/bin/xdg-open")
+                .contains("sensible-browser").contains("www-browser")
+                .contains("ENV BROWSER=");
+    }
+
+    @Test
     void theLoginImageIsOfflineAndNamedForWhatItIs() {
 
         // It is never registered as a project and never runs a task. Offline because none of

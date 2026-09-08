@@ -169,9 +169,25 @@ That is what `sokar vault login` is for:
 sokar vault login claude
 ```
 
-It builds a throwaway image containing the agent, runs the agent's own login in it on your
-terminal — follow whatever it prints — and puts the credential it produces straight into the
-vault. The container is removed afterwards.
+It builds a throwaway image containing the agent and runs **the agent's own login** in it, on
+your terminal. Sokar does not perform the login and cannot: what the agent asks for, and how,
+is its own. When the login exits, Sokar collects the credential it wrote and puts it in the
+vault, and the container is removed.
+
+**Two things to expect, because the login happens in a container:**
+
+- **There is no browser in there.** The agent prints a URL and you open it yourself, on
+  whatever machine you are sitting at.
+- **If that machine is not this one, forward the port first.** A redirect back to `localhost`
+  otherwise lands on the machine running the container rather than on the one with your
+  browser. In a second terminal:
+
+  ```
+  ssh -L <port>:localhost:<port> <this machine>
+  ```
+
+  The container shares this machine's network, so the callback arrives here and the forward
+  carries it to your browser. The port is the one in the URL the agent printed.
 
 **That container is not a task container**, and the difference is the point: it carries no
 Sokar annotation, so none of the hooks fire. No egress ruleset, no resolver, no clearance

@@ -200,19 +200,30 @@ public final class AgentLogin {
         final Project project = loginProject();
 
         org.fuin.sokar.runtime.ImageLayers layers = org.fuin.sokar.runtime.ImageLayers.none();
+        layers = layers.and(browserShim(), java.util.List.of());
         layers = layers.and(agent.definition().installAsRoot(),
                 org.fuin.sokar.agent.api.InstallScript.render(agent.definition().artifacts()));
         layers = layers.and(java.util.List.of(), agent.definition().installAsAgent());
 
         out.println("building  the login image - minutes the first time, seconds afterwards");
+        out.println();
         out.flush();
-        final String image;
+        final String image = project.imageName();
         try {
-            image = podman.buildImage(project, context.paths().buildContext("sokar-login"),
-                    layers);
+            // On this terminal rather than through the runner, which collects the output and
+            // hands it over at the end. A build says a great deal while it works and none of it
+            // reached anybody: one line, then silence long enough to look like a hang.
+            final int built = context.exec().applyAsInt(podman.buildArguments(project,
+                    context.paths().buildContext("sokar-login"), layers,
+                    org.fuin.sokar.runtime.Podman.Rebuild.CACHED));
+            if (built != 0) {
+                return failed(Outcome.FAILED,
+                        "the login image could not be built - podman exited with " + built);
+            }
         } catch (RuntimeException ex) {
             return failed(Outcome.FAILED, "the login image could not be built: " + ex.getMessage());
         }
+        out.println();
 
         final String container = "sokar-login-" + System.currentTimeMillis();
         Path collected = null;
@@ -224,7 +235,23 @@ public final class AgentLogin {
                     "--network", "host", "--name", container, image));
             arguments.addAll(command);
             out.println();
-            out.println("Follow whatever the agent prints. It ends when the login does.");
+            out.println("What follows is " + agent.name() + "'s own login, not Sokar's - it will"
+                    + " ask you things, and Sokar takes over again when it exits.");
+            out.println();
+            out.println("Two things about doing it in here:");
+            out.println();
+            out.println("  * There is no browser in this container. Anything the agent tries to"
+                    + " open prints the URL instead, marked with '=== Open this ... ==='. Open it"
+                    + " on whatever machine you are sitting at.");
+            out.println("  * Nothing is stored unless the login finishes. Ctrl-C or leaving the"
+                    + " agent aborts it, and the container is removed either way.");
+            out.println("  * If that machine is not this one, a redirect back to 'localhost' will"
+                    + " not reach you. Open a second terminal and forward the port the URL names:");
+            out.println();
+            out.println("        ssh -L <port>:localhost:<port> " + hostname());
+            out.println();
+            out.println("    The container shares this machine's network, so the callback lands"
+                    + " here and the forward carries it to your browser.");
             out.println();
             out.flush();
             final int code = context.exec().applyAsInt(podman.arguments(arguments));
@@ -290,6 +317,51 @@ public final class AgentLogin {
      */
     static String inContainer(String declared) {
         return declared.startsWith("~") ? AGENT_HOME + declared.substring(1) : declared;
+    }
+
+    /**
+     * Returns this machine's name, for the forward somebody may have to set up.
+     * <p>
+     * Printed rather than left as {@code <this machine>}: whoever needs the command is already
+     * doing something fiddly, and a line they can edit beats one they have to compose.
+     *
+     * @return The host name, or a placeholder when it cannot be read.
+     */
+    /**
+     * Returns image lines installing something for the agent to "open a browser" with.
+     * <p>
+     * <strong>Without this the login stops dead.</strong> An agent asked to authenticate tries to
+     * open a browser - through {@code xdg-open}, {@code sensible-browser} or {@code $BROWSER} -
+     * and a container has none of them and no display. Measured: the attempt neither succeeds nor
+     * reports anything, so the person is left at a prompt that never continues, in a container
+     * they did not know how to leave.
+     * <p>
+     * The shim is not a browser and does not pretend to be one. It prints the URL, loudly, which
+     * is exactly what somebody sitting at a different machine needs - and the same trick works
+     * for any agent, because all three names are the standard ones.
+     *
+     * @return Lines to run as root while the login image is built.
+     */
+    static java.util.List<String> browserShim() {
+        return java.util.List.of(
+                "# There is no browser in here and no display. Anything trying to open one gets",
+                "# this instead: it prints the URL rather than swallowing it, which is what",
+                "# somebody at another machine actually needs.",
+                "RUN printf '%s\\n' '#!/bin/sh' 'echo' "
+                        + "'echo \"=== Open this in a browser on your own machine: ===\"' "
+                        + "'echo \"$@\"' 'echo' > /usr/local/bin/xdg-open \\",
+                "    && chmod 0755 /usr/local/bin/xdg-open \\",
+                "    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/sensible-browser \\",
+                "    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/www-browser",
+                "ENV BROWSER=/usr/local/bin/xdg-open");
+    }
+
+    private static String hostname() {
+        try {
+            return java.net.InetAddress.getLocalHost().getHostName();
+        } catch (java.net.UnknownHostException ex) {
+            return "<this machine>";
+        }
     }
 
     private static void deleteTree(Path directory) {

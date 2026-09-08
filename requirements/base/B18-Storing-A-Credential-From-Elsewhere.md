@@ -143,6 +143,28 @@ method ImportCredential(agent: string, dryRun: ?bool) -> (
 own disk, and only an agent name crosses. It is therefore unaffected by whatever the parked
 decision decides, and is the better default wherever an agent can log itself in.
 
+### Built, 2026-09-08: `sokar vault login`, which is this flow from the CLI
+
+The half below was parked as *later*. What was built instead is the same thing driven from a
+terminal rather than from an interface, and it is worth saying that they are one mechanism:
+
+- the agent's own login runs in a **throwaway container** - not on the node, because the agent's
+  tooling lives in the task image and a fresh machine has nothing to log in with;
+- the container **shares the node's network**, so a redirect to `localhost` lands on the node;
+- reaching it from another machine is the **`ssh -L` forward measured for the interface**, with
+  the same findings: a local forward, a port that cannot be remapped, no ordering problem, IPv6
+  not a trap, and a collision that exits zero while binding only half.
+
+**One thing the design did not anticipate, found by somebody following the guide.** A container
+has no browser and no display, so the agent's attempt to open one neither succeeds nor reports
+anything - leaving a person at a prompt that never continues, inside a container they did not know
+how to leave. The login image now installs a shim at `xdg-open`, `sensible-browser` and
+`www-browser`, and sets `BROWSER`, which prints the URL and exits zero. The agent believes a
+browser opened and waits for the callback, which is what it should do.
+
+**An interface would need exactly the same shim**, because the container is the same one. That is
+the part of `Login` below which is now answered rather than designed.
+
 ### `Login` - later, and nice to have rather than needed
 
 **Kept open deliberately, and not blocking anything.** What follows is a design nobody should

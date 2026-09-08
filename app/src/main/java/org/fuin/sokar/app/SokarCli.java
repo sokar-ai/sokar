@@ -39,6 +39,7 @@ public class SokarCli implements Callable<Integer> {
     public static void main(String[] args) {
         try {
             System.exit(new CommandLine(new SokarCli(), new SokarFactory(SokarContext.real()))
+                    .setParameterExceptionHandler(CliErrors.handler())
                     .execute(args));
         } catch (final Error ex) {
             // Anything else is rethrown untouched.

@@ -100,8 +100,11 @@ an agent to work on.
 
 > [!NOTE]  
 > **Nothing has to be installed on this machine first.** Sokar puts an agent's tooling into
-> the task image rather than onto the node, so `vault login` runs the agent's own login for
-> you in a throwaway container.
+> the task image rather than onto the node, so `vault login` starts **the agent's own login**
+> in a throwaway container and collects what it produces. You still complete that login: the
+> agent asks the questions, and since there is no browser in the container it prints a URL for
+> you to open. Working over ssh? Forward the port it names, or the redirect has nowhere to
+> land.
 >
 > **If Claude Code is already signed in here, use `vault import claude` instead.** It copies
 > what that install is holding and logs in nowhere. `vault login` would start a second,
