@@ -3,6 +3,7 @@ package org.fuin.sokar.vault;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -115,5 +116,38 @@ class KernelKeyringTest {
         final PassphraseTiers tiers = new PassphraseTiers(KernelKeyring.source(description));
 
         assertThat(vault.read(tiers.require())).containsEntry("k", VaultEntry.of("v"));
+    }
+
+    @Test
+    void aBoundedPassphraseIsDiscardedByTheKernelItself() throws InterruptedException {
+
+        // The whole point of a bound: nothing in Sokar has to remember to drop it, no timer runs,
+        // and a process that dies leaves nothing behind that outlives its welcome. Measured
+        // against the real kernel, because "we asked for a timeout" is not the same claim as
+        // "the passphrase is gone".
+        assumeTrue(KernelKeyring.available(), "libkeyutils is not installed");
+
+        keyring.store("correct horse battery staple".toCharArray(), Duration.ofSeconds(1));
+        assertThat(keyring.read()).as("stored, before the bound runs out").isPresent();
+
+        for (int i = 0; i < 60 && keyring.read().isPresent(); i++) {
+            Thread.sleep(100);
+        }
+
+        assertThat(keyring.read()).as("after the bound ran out").isEmpty();
+    }
+
+    @Test
+    void withoutABoundThePassphraseStays() throws InterruptedException {
+
+        // The default is unchanged: one behaviour, kept until it is dropped or the session ends.
+        // A bound that crept in as a default would start asking people for a passphrase they
+        // never used to be asked for.
+        assumeTrue(KernelKeyring.available(), "libkeyutils is not installed");
+
+        keyring.store("correct horse battery staple".toCharArray(), null);
+        Thread.sleep(1200);
+
+        assertThat(keyring.read()).isPresent();
     }
 }

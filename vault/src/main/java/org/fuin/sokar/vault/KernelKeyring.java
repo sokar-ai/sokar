@@ -99,6 +99,24 @@ public class KernelKeyring {
      * @throws VaultException If the keyring is unavailable or the kernel refuses.
      */
     public void store(char[] passphrase) {
+        store(passphrase, null);
+    }
+
+    /**
+     * Stores a passphrase in the keyring, replacing any previous one, and optionally bounds how
+     * long the kernel keeps it.
+     * <p>
+     * <strong>The kernel discards it, not Sokar.</strong> Nothing has to remember to, no timer
+     * runs, and a process that dies leaves nothing behind that outlives its welcome. Without a
+     * bound the passphrase lives until it is dropped or until the user's last session ends, which
+     * is one behaviour and no choice - the bound is the choice.
+     *
+     * @param passphrase What to store.
+     * @param timeout How long the kernel should keep it, or {@code null} for no bound.
+     * @throws VaultException If the keyring is unavailable or the kernel refuses.
+     */
+    public void store(char[] passphrase, java.time.@org.jspecify.annotations.Nullable
+            Duration timeout) {
 
         requireAvailable();
         final byte[] bytes = new String(passphrase).getBytes(StandardCharsets.UTF_8);
@@ -138,6 +156,19 @@ public class KernelKeyring {
             if (permissions == -1L) {
                 throw new VaultException("Cannot restrict the keyring entry"
                         + " (errno=" + errorNumber(errno) + ")");
+            }
+
+            if (timeout != null) {
+                // Set last, on a key that is already stored and already restricted: a bound on a
+                // key that failed to be locked down would be the wrong thing to get right.
+                final MethodHandle setTimeout = handle("keyctl_set_timeout",
+                        ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT);
+                final long bounded = (long) setTimeout.invokeExact(errno, serial,
+                        (int) Math.max(1L, timeout.toSeconds()));
+                if (bounded == -1L) {
+                    throw new VaultException("Cannot bound how long the passphrase is kept"
+                            + " (errno=" + errorNumber(errno) + ")");
+                }
             }
 
         } catch (VaultException ex) {
