@@ -380,6 +380,29 @@ public class GitGate {
      * @param name Incoming ref name, without the namespace prefix.
      */
     public void reject(String name) {
+        reject(name, false, false);
+    }
+
+    /**
+     * Discards an incoming ref without forwarding it.
+     * <p>
+     * <strong>Refused when the upstream already has the work.</strong> A push made by hand does
+     * what {@code approve} does to the upstream and not what it does to the queue, so the ref
+     * stays behind. Somebody tidying up then marks it discarded while the code is live - the
+     * record says the opposite of what happened, which is the dangerous one of the three things a
+     * hand push breaks. Whoever means it says {@code force}.
+     *
+     * @param name Incoming ref name, without the namespace prefix.
+     * @param alreadyUpstream Whether the upstream is known to have this work.
+     * @param force Whether to discard it anyway.
+     * @throws GateException If it is upstream and force was not given.
+     */
+    public void reject(String name, boolean alreadyUpstream, boolean force) {
+        if (alreadyUpstream && !force) {
+            throw new GateException("'" + name + "' is already on the upstream, so discarding it"
+                    + " would record the opposite of what happened. Somebody pushed it by hand"
+                    + " rather than approving it here. Use force to clear the ref anyway.");
+        }
         gitIn("update-ref", "-d", INCOMING + name);
     }
 

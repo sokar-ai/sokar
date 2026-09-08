@@ -52,9 +52,31 @@ public final class UpstreamDistance {
      * @param measured When it was measured, or {@code null} when it never was.
      * @param reason Why the number is what it is.
      * @param detail What went wrong, for {@link Reason#FAILED}. Never shown as a number.
+     * @param alreadyUpstream Incoming refs whose commit the upstream already has, by short name.
+     *        Somebody pushed that work by hand, so it is not waiting for anything - and the gate
+     *        would otherwise list it as waiting for ever, because only {@code approve} deletes the
+     *        ref and a hand push does not.
      */
     public record Distance(int behind, @Nullable Instant measured, Reason reason,
-            @Nullable String detail) {
+            @Nullable String detail, List<String> alreadyUpstream) {
+
+        /**
+         * Constructor for a measurement that looked at no refs.
+         *
+         * @param behind Commits the upstream has that the mirror does not.
+         * @param measured When, or {@code null}.
+         * @param reason Why the number is what it is.
+         * @param detail What went wrong, or {@code null}.
+         */
+        public Distance(int behind, @Nullable Instant measured, Reason reason,
+                @Nullable String detail) {
+            this(behind, measured, reason, detail, List.of());
+        }
+
+        /** Defensive copy. */
+        public Distance {
+            alreadyUpstream = List.copyOf(alreadyUpstream);
+        }
 
         /**
          * Returns the answer for a project nothing has looked at.
@@ -109,11 +131,49 @@ public final class UpstreamDistance {
         }
         try {
             return new Distance(Integer.parseInt(counted.standardOutput().strip()), Instant.now(),
-                    Reason.MEASURED, null);
+                    Reason.MEASURED, null, alreadyUpstream(runner, mirror));
         } catch (NumberFormatException ex) {
             return new Distance(0, null, Reason.FAILED,
                     "git answered '" + counted.standardOutput().strip() + "'");
         }
+    }
+
+    /**
+     * Returns the incoming refs the upstream already has.
+     * <p>
+     * <strong>Why this is worth a second question during a fetch we are doing anyway.</strong>
+     * {@code approve} pushes and then deletes the ref; a push made by hand does the first and not
+     * the second. So the ref stays and the gate lists it as waiting for review permanently - a
+     * queue that always has something in it is a queue nobody reads, and then the entry that
+     * really is waiting does not stand out. Worse, {@code reject} afterwards records it as
+     * discarded while the code is upstream.
+     * <p>
+     * <strong>What it can and cannot see.</strong> {@code FETCH_HEAD} is the upstream's default
+     * branch, so this answers "the upstream's main line already has this". Work pushed by hand to
+     * some other branch is not found, and reads as still waiting - which is the safe direction to
+     * be wrong in: it leaves the entry in the queue rather than clearing something that is not
+     * really there.
+     *
+     * @param runner Runs git.
+     * @param mirror The bare mirror, with FETCH_HEAD from the fetch just made.
+     * @return Short ref names, without the incoming namespace.
+     */
+    private static List<String> alreadyUpstream(CommandRunner runner, Path mirror) {
+        final CommandResult listed = git(runner, mirror, "for-each-ref", "--format=%(refname)",
+                GitGate.INCOMING);
+        if (!listed.successful()) {
+            return List.of();
+        }
+        final List<String> found = new java.util.ArrayList<>();
+        listed.standardOutput().lines().map(String::strip)
+                .filter(line -> line.startsWith(GitGate.INCOMING))
+                .forEach(ref -> {
+                    if (git(runner, mirror, "merge-base", "--is-ancestor", ref, "FETCH_HEAD")
+                            .successful()) {
+                        found.add(ref.substring(GitGate.INCOMING.length()));
+                    }
+                });
+        return List.copyOf(found);
     }
 
     @Nullable

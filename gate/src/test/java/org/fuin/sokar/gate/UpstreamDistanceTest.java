@@ -217,4 +217,62 @@ class UpstreamDistanceTest {
         assertThat(distance.detail()).isNotBlank();
         assertThat(distance.measured()).isNull();
     }
+
+    @Test
+    void findsWorkSomebodyPushedByHand(@TempDir Path root) throws Exception {
+
+        // The whole reason for asking. 'approve' pushes AND deletes the ref; a hand push does the
+        // first only, so the ref stays and the gate lists it as waiting for ever - and a 'reject'
+        // afterwards records it as discarded while the code is upstream.
+        final Path upstream = upstreamWithOneCommit(root);
+        final Path mirror = root.resolve("mirror.git");
+        git(root, "clone", "--quiet", "--bare", upstream.toString(), mirror.toString());
+
+        // An agent pushes work into the mirror...
+        final Path work = root.resolve("work");
+        java.nio.file.Files.writeString(work.resolve("agent.txt"), "written by the agent\n");
+        git(work, "add", ".");
+        git(work, "commit", "--quiet", "-m", "agent work");
+        git(work, "push", "--quiet", mirror.toString(),
+                "HEAD:" + GitGate.INCOMING + "shell");
+        // ...and a person then pushes the same commit upstream themselves, past the gate.
+        git(work, "push", "--quiet", upstream.toString(), "main");
+
+        final UpstreamDistance.Distance distance =
+                UpstreamDistance.measure(runner, mirror, GateMode.GATEKEEPING);
+
+        assertThat(distance.alreadyUpstream()).containsExactly("shell");
+    }
+
+    @Test
+    void workNobodyPushedIsNotReportedAsUpstream(@TempDir Path root) throws Exception {
+
+        // The entry that really is waiting has to keep standing out. Clearing something that is
+        // not there would be the dangerous direction of this mistake.
+        final Path upstream = upstreamWithOneCommit(root);
+        final Path mirror = root.resolve("mirror.git");
+        git(root, "clone", "--quiet", "--bare", upstream.toString(), mirror.toString());
+
+        final Path work = root.resolve("work");
+        java.nio.file.Files.writeString(work.resolve("agent.txt"), "written by the agent\n");
+        git(work, "add", ".");
+        git(work, "commit", "--quiet", "-m", "agent work");
+        git(work, "push", "--quiet", mirror.toString(), "HEAD:" + GitGate.INCOMING + "shell");
+
+        final UpstreamDistance.Distance distance =
+                UpstreamDistance.measure(runner, mirror, GateMode.GATEKEEPING);
+
+        assertThat(distance.alreadyUpstream()).isEmpty();
+    }
+
+    @Test
+    void anOfflineProjectIsNotAskedAboutAtAll(@TempDir Path root) throws Exception {
+
+        final Path upstream = upstreamWithOneCommit(root);
+        final Path mirror = root.resolve("mirror.git");
+        git(root, "clone", "--quiet", "--bare", upstream.toString(), mirror.toString());
+
+        assertThat(UpstreamDistance.measure(runner, mirror, GateMode.OFFLINE).alreadyUpstream())
+                .isEmpty();
+    }
 }

@@ -79,7 +79,10 @@ final class UpstreamRecords {
     private static String line(UpstreamDistance.Distance distance) {
         return String.join("\t", distance.reason().name(), String.valueOf(distance.behind()),
                 distance.measured() == null ? "" : distance.measured().toString(),
-                distance.detail() == null ? "" : distance.detail().replace('\t', ' '))
+                distance.detail() == null ? "" : distance.detail().replace('\t', ' '),
+                // Comma-separated in a tab-separated line: a ref name cannot contain either, so
+                // neither separator can be produced by the content.
+                String.join(",", distance.alreadyUpstream()))
                 + "\n";
     }
 
@@ -90,7 +93,12 @@ final class UpstreamRecords {
                 parts.length > 1 ? Integer.parseInt(parts[1]) : 0,
                 instant(parts.length > 2 ? parts[2] : ""),
                 reason,
-                parts.length > 3 && !parts[3].isEmpty() ? parts[3] : null);
+                parts.length > 3 && !parts[3].isEmpty() ? parts[3] : null,
+                // A record written before this field existed has no fifth column, and reads as
+                // "nothing is known to be upstream" - which leaves every entry in the queue, the
+                // safe direction.
+                parts.length > 4 && !parts[4].isEmpty()
+                        ? java.util.List.of(parts[4].split(",")) : java.util.List.of());
     }
 
     @Nullable

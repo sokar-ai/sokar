@@ -533,4 +533,47 @@ class GitGateTest {
         assertThatThrownBy(() -> gate.checkout("never-pushed", root.resolve("opened")))
                 .isInstanceOf(GateException.class);
     }
+
+    @Test
+    void refusesToDiscardWorkTheUpstreamAlreadyHas() throws Exception {
+
+        // The dangerous one of the three things a hand push breaks. approve pushes AND deletes
+        // the ref; a hand push does the first only, so the ref stays - and somebody tidying up
+        // then writes down "discarded" about code that is live.
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushWork("shell", "one.txt");
+
+        assertThatThrownBy(() -> gate.reject("shell", true, false))
+                .isInstanceOf(GateException.class)
+                .hasMessageContaining("already on the upstream")
+                .hasMessageContaining("force");
+
+        assertThat(gate.pending()).as("and it is still there").containsExactly("shell");
+    }
+
+    @Test
+    void discardsItAnywayWhenSomebodySaysForce() throws Exception {
+
+        // A person who means it can still do it - the same property the whole requirement rests
+        // on. What must not happen is doing it without being told.
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushWork("shell", "one.txt");
+
+        gate.reject("shell", true, true);
+
+        assertThat(gate.pending()).isEmpty();
+    }
+
+    @Test
+    void discardsWorkNobodyPushedUpstreamWithoutBeingAskedTwice() throws Exception {
+
+        // The ordinary case has to stay ordinary. A refusal that fired on everything would be
+        // trained past within a day.
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushWork("shell", "one.txt");
+
+        gate.reject("shell", false, false);
+
+        assertThat(gate.pending()).isEmpty();
+    }
 }

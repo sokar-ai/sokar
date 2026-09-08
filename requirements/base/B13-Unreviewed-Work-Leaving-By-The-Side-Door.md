@@ -187,6 +187,28 @@ the case the requirement describes. It is not a control, and four documented pat
 Anything that presented it as prevention rather than as a loud accident-catcher would be the lie
 this requirement's own notes warn against.
 
+## Built, 2026-09-08: the gate stops saying something untrue
+
+The second half of what a hand push breaks is fixed, and it needed no new machinery: the timer that
+already fetches each project's upstream now also asks which incoming refs that upstream already
+has - `merge-base --is-ancestor <ref> FETCH_HEAD`, one question during a fetch that was happening
+anyway.
+
+- **`reject` refuses to discard work that is already upstream.** This was the dangerous one: the
+  record said the opposite of what happened. It now names what it found and points at `force`, so
+  a person who means it can still clear the ref.
+- **A push is marked**, so a queue that will never empty by itself is distinguishable from the
+  entry that really is waiting.
+
+**What it can and cannot see, stated because the limit is real.** `FETCH_HEAD` is the upstream's
+default branch, so this answers *"the upstream's main line already has this"*. Work pushed by hand
+to some other branch is not found and reads as still waiting. That is the safe direction to be
+wrong in - it leaves an entry in the queue rather than clearing one that is genuinely there.
+
+**Nothing here reaches the network on the way to answering.** The finding is recorded beside the
+upstream distance and read back, the same shape as `prepared` and `behind`: a listing that fetched
+would make the queue cost what a listing must not.
+
 ## To be checked
 
 - **Whether the guard is worth building, given the four ways round it.** Measured above. Still a

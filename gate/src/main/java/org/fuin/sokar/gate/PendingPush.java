@@ -11,7 +11,34 @@ import java.time.Instant;
  * @param subject Subject line of that commit.
  * @param at When the commit was made.
  */
-public record PendingPush(String name, String commit, String subject, Instant at) {
+public record PendingPush(String name, String commit, String subject, Instant at,
+        boolean upstream) {
+
+    /**
+     * Constructor for a push nothing has checked against the upstream.
+     * <p>
+     * Whether the upstream already has it is measured on a timer, not by the gate, so the gate
+     * itself builds these unmarked and whatever reports them fills it in. False is the safe
+     * default: it leaves an entry in the queue rather than clearing one that is really waiting.
+     *
+     * @param name Ref name, without the namespace prefix.
+     * @param commit Commit it points at.
+     * @param subject First line of the commit message.
+     * @param at When it was committed.
+     */
+    public PendingPush(String name, String commit, String subject, Instant at) {
+        this(name, commit, subject, at, false);
+    }
+
+    /**
+     * Returns this push, marked according to whether the upstream already has it.
+     *
+     * @param already Whether it is already upstream.
+     * @return A copy.
+     */
+    public PendingPush upstream(boolean already) {
+        return new PendingPush(name, commit, subject, at, already);
+    }
 
     /**
      * Returns how long this push has been waiting.
