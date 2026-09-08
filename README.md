@@ -135,7 +135,7 @@ sokar vault import claude
 
 # Run one. With no project.yml here it offers to write one, taking the project
 # name from this directory - Enter accepts every default. What it writes includes an
-# 'egress' block: a task reaches only what the file names, so add 'maven', 'node' or
+# 'egress' block: a task reaches only what the file names, so add 'maven', 'nodejs' or
 # whatever your build needs. 'sokar shield sets' lists them.
 sokar task run
 ```
@@ -174,7 +174,7 @@ sokar vault import claude
 
 # Run one. With no project.yml here it offers to write one, taking the project
 # name from this directory - Enter accepts every default. What it writes includes an
-# 'egress' block: a task reaches only what the file names, so add 'maven', 'node' or
+# 'egress' block: a task reaches only what the file names, so add 'maven', 'nodejs' or
 # whatever your build needs. 'sokar shield sets' lists them.
 sokar task run
 ```
@@ -188,6 +188,10 @@ what goes wrong when it is skipped:
 ## What each security class actually does
 See [the three security classes](doc/security-classes.md) — one picture each for `offline`,
 `guarded` and `online`: who is involved, how work gets in and out, and where somebody reads it.
+
+## What the words mean
+See [the glossary](doc/glossary.md) — node, project, task, agent, provider, gate, vault and the
+rest, including the ones this product deliberately does not use.
 
 ## Not sure what any of that meant
 See [Sokar for dummies](doc/sokar-for-dummies.md) — the hardening and the features explained point by point, assuming no prior knowledge.
