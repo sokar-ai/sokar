@@ -189,6 +189,11 @@ what goes wrong when it is skipped:
 See [the three security classes](doc/security-classes.md) — one picture each for `offline`,
 `guarded` and `online`: who is involved, how work gets in and out, and where somebody reads it.
 
+## Where credentials live, and what never holds one
+See [authentication](doc/authentication.md) — what a container actually gets instead of your
+credential, the three ways one reaches the vault, and how an API key or an OAuth login works when
+you are not sitting at the machine.
+
 ## What the words mean
 See [the glossary](doc/glossary.md) — node, project, task, agent, provider, gate, vault and the
 rest, including the ones this product deliberately does not use.

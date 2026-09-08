@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" width="880" height="300" role="img" aria-label="Three ways a credential reaches the vault. An operator types an API key on standard input. An agent logs itself in, writes its own config file on the node, and vault import copies the token out of it. An operator stores an ssh key seed the same way as any other secret. All three end in the vault, and all three happen on the node.">
+  <rect x="0" y="0" width="880" height="300" rx="8" fill="#ffffff"/>
+  <defs>
+    <marker id="e-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+  <g font-family="'Fira Sans','DejaVu Sans',sans-serif">
+    <rect x="16" y="22" width="844" height="240" rx="8" fill="none" stroke="#d0d7de" stroke-dasharray="5 4"/>
+    <text x="30" y="42" font-size="11" fill="#8c959f" font-family="'IBM Plex Mono',monospace">NODE — all three happen here</text>
+
+    <rect x="700" y="58" width="146" height="180" rx="6" fill="none" stroke="#57606a"/>
+    <text x="773" y="142" font-size="14" text-anchor="middle" fill="#24292f">Vault</text>
+    <text x="773" y="162" font-size="10.5" text-anchor="middle" fill="#57606a" font-family="'IBM Plex Mono',monospace">encrypted at rest</text>
+
+    <rect x="34" y="62" width="150" height="42" rx="6" fill="none" stroke="#57606a"/>
+    <text x="109" y="88" font-size="12.5" text-anchor="middle" fill="#24292f">Operator</text>
+    <rect x="238" y="62" width="300" height="42" rx="6" fill="none" stroke="#57606a"/>
+    <text x="388" y="80" font-size="11.5" text-anchor="middle" fill="#24292f" font-family="'IBM Plex Mono',monospace">sokar vault put anthropic</text>
+    <text x="388" y="96" font-size="10.5" text-anchor="middle" fill="#57606a">the value on standard input, never in an argument</text>
+    <path d="M 190 83 L 232 83" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#e-ink)"/>
+    <path d="M 544 83 L 694 83" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#e-ink)"/>
+    <text x="619" y="75" font-size="10.5" text-anchor="middle" fill="#57606a" font-family="'IBM Plex Mono',monospace">api-key</text>
+
+    <rect x="34" y="136" width="150" height="42" rx="6" fill="none" stroke="#57606a"/>
+    <text x="109" y="156" font-size="12.5" text-anchor="middle" fill="#24292f">Agent's own login</text>
+    <text x="109" y="171" font-size="10.5" text-anchor="middle" fill="#57606a">a browser, somewhere</text>
+    <rect x="238" y="136" width="300" height="42" rx="6" fill="none" stroke="#57606a"/>
+    <text x="388" y="154" font-size="11.5" text-anchor="middle" fill="#24292f" font-family="'IBM Plex Mono',monospace">sokar vault import claude</text>
+    <text x="388" y="170" font-size="10.5" text-anchor="middle" fill="#57606a">reads the config file the agent just wrote</text>
+    <path d="M 190 157 L 232 157" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#e-ink)"/>
+    <path d="M 544 157 L 694 157" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#e-ink)"/>
+    <text x="619" y="149" font-size="10.5" text-anchor="middle" fill="#57606a" font-family="'IBM Plex Mono',monospace">oauth</text>
+
+    <rect x="34" y="210" width="150" height="42" rx="6" fill="none" stroke="#57606a"/>
+    <text x="109" y="236" font-size="12.5" text-anchor="middle" fill="#24292f">Operator</text>
+    <rect x="238" y="210" width="300" height="42" rx="6" fill="none" stroke="#57606a"/>
+    <text x="388" y="228" font-size="11.5" text-anchor="middle" fill="#24292f" font-family="'IBM Plex Mono',monospace">sokar vault put ssh.default</text>
+    <text x="388" y="244" font-size="10.5" text-anchor="middle" fill="#57606a">an ed25519 seed, for signing pushes</text>
+    <path d="M 190 231 L 232 231" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#e-ink)"/>
+    <path d="M 544 231 L 694 231" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#e-ink)"/>
+    <text x="619" y="223" font-size="10.5" text-anchor="middle" fill="#57606a" font-family="'IBM Plex Mono',monospace">key seed</text>
+
+    <text x="440" y="284" font-size="11.5" text-anchor="middle" fill="#57606a">Nothing leaves the vault as a value. What a task gets is a phantom token or a signing socket.</text>
+  </g>
+</svg>
