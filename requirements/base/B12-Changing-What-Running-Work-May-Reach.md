@@ -1,9 +1,11 @@
 # B12 — Changing What Running Work May Reach
 
-**Status:** partly built, and it was wrongly retired on 2026-09-08 before being restored the same
-day. Widening and narrowing are built and the question narrowing turned on is answered. **Turning
-enforcement off on a running task is not**, and that criterion is the one the interface is still
-waiting on.
+**Status:** built. Widening, narrowing, and turning enforcement off or back on while a task runs.
+
+It was wrongly retired on 2026-09-08 and restored the same day: every criterion had been checked
+except the fourth, and the fourth was the one nothing answered. Worth keeping as a note about how
+retiring works - a requirement is met when *every* criterion is, and the one that is easiest to
+skim past is the one no method implements.
 
 The retirement was a reading error worth recording: every criterion was checked except the fourth,
 and the fourth is the one no method answers. `Start` takes `clearance`, so it is choosable when a
@@ -220,9 +222,38 @@ and the test that proves it failed first on correct code, which is how it emerge
 cannot be granted separately *after* its parent at all, because the covering rule makes that a
 no-op.
 
+## Built, 2026-09-08: `sokar task clearance` and `SetClearance`
+
+`prompt`, `allow`, `deny` or `off`, on a task that is already up. The state used to be chosen when
+a task started and never again, so somebody watching a task ask about the same host for the
+twentieth time had to stop it and start again to make it stop.
+
+**Deliberately not `WidenTask` with a special value.** Those grant and withdraw names, and that the
+firewall stays loaded is what they mean. Folding "stop asking about anything" into them would make
+one method mean two unrelated things, and the quiet one would be the dangerous one.
+
+**What it cannot undo, and says so.** Turning enforcement off does not recall a connection that was
+already refused - the packet was dropped and nothing retries it - and turning it back on does not
+recall anything waved through while it was off. The ruleset is loaded throughout, so this never
+opens a destination by itself; what changes is whether a blocked connection produces a question.
+
+**The part that would have been missed.** A resume rebuilds a task's helpers from `resume.json`,
+so turning enforcement off has to take the watcher out of that record too. Otherwise the mode
+somebody just turned off comes back at the next resume - silently, and only after a restart. There
+is a test for it, and the mutation that leaves the record alone fails.
+
+**One thing that could only be got right by knowing the project.** A container is
+`sokar-<project>-<task>-<run>` and a project name may contain hyphens, so the task name is only
+answerable once the project is known - which is read from the sidecar rather than guessed. The
+first version split on the first hyphen and would have named `code` for a task called
+`code-review`, putting a prompt in front of somebody about something that does not exist.
+
 ## To be checked
 
-- **How enforcement is turned off on a task that is already running.** `Start` takes `clearance`
+- ~~How enforcement is turned off on a task that is already running~~ **Built, above.**
+  What was left open with it: turning it back *on* mid-run is a different promise, because the
+  connections waved through while it was off are not recalled by switching it back. That is stated
+  rather than solved, because there is nothing to solve - the packets are gone. `Start` takes `clearance`
   and nothing changes it afterwards, so the state a task is in was chosen before anybody saw what
   it would do. What is not obvious is whether it should be reachable in both directions - turning
   it back *on* mid-run is a different promise, because the connections that were waved through

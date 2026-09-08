@@ -859,6 +859,36 @@ method SetEgress(
 #
 # 'scope' is required, exactly as for WidenTask. Narrowing only the run when somebody meant the
 # project too leaves the next task starting with the host still open.
+# Turns enforcement on or off on a task that is already running.
+#
+# Deliberately not WidenTask with a special value. Those grant and withdraw names, and that the
+# firewall stays loaded is what they mean; folding "stop asking about anything" into them would
+# make one method mean two unrelated things, and the quiet one would be the dangerous one.
+#
+# What it cannot undo: turning enforcement off does not recall a connection that was already
+# refused - the packet was dropped and nothing retries it - and turning it back on does not recall
+# anything waved through while it was off. The ruleset is loaded throughout, so this never opens a
+# destination by itself; what changes is whether a blocked connection produces a question.
+method SetClearance(
+  task: string,
+  # prompt, allow, deny or off.
+  mode: string,
+  # Says what would happen and changes nothing.
+  dryRun: ?bool
+) -> (
+  # CHANGED, UNCHANGED, PREVIEWED, NO_SUCH_TASK, NOT_RUNNING, UNKNOWN_MODE, NOT_RECORDED or
+  # FAILED.
+  #
+  # UNCHANGED is not a failure: it was already in that mode and nothing was restarted, which is
+  # worth saying rather than reporting a change that did not happen.
+  outcome: string,
+  # The mode before. "" for a task started before this was recorded.
+  was: string,
+  # The mode after. "" when nothing changed.
+  now: string,
+  detail: string
+)
+
 method NarrowTask(
   # Task name, as List reports it.
   task: string,

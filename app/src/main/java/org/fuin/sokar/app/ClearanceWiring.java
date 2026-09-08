@@ -45,6 +45,47 @@ final class ClearanceWiring {
      * during an interactive session needs a prompt just as much as one during a headless run. The
      * watcher writes a pid file, and the supervisor hook reaps it at poststop.
      */
+    /**
+     * Returns the command that runs a watcher for one task.
+     * <p>
+     * One place, because enforcement can also be changed on a task that is already running - and a
+     * watcher started by that path with different arguments would behave differently from one
+     * started at the beginning, in a way nothing would report.
+     *
+     * @param context The machine.
+     * @param project Project name, which is what a prompt shows.
+     * @param task Task name, likewise.
+     * @param pid The container's process, whose network namespace the watcher enters.
+     * @param container The container.
+     * @param mode prompt, allow or deny. Never "off" - that is the absence of a watcher.
+     * @return Command and arguments.
+     */
+    static java.util.List<String> watcherCommand(SokarContext context, String project, String task,
+            long pid, String container, String mode) {
+
+        final java.nio.file.Path state = context.paths().containerState(container);
+        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
+                SokarBinary.path(),
+                "shield", "watch",
+                // What the prompt shows. A container name carries a pid and identifies nothing
+                // an operator recognizes; project and task are what they chose.
+                "--project", project,
+                "--task", task,
+                "--pid", String.valueOf(pid),
+                "--events", state.resolve(org.fuin.sokar.wire.ReaderEvents.FILE).toString(),
+                "--socket", state.resolve("clearance.sock").toString(),
+                // Outside the state directory on purpose: this one has to survive the task it
+                // records, and a resumed watcher reads it back so nothing is asked twice.
+                "--journal", context.paths().clearanceJournal(container).toString(),
+                "--pid-file", state.resolve("watcher.pid").toString()));
+        switch (mode) {
+            case "allow" -> command.add("--allow-all");
+            case "deny" -> command.add("--deny-all");
+            default -> { }
+        }
+        return java.util.List.copyOf(command);
+    }
+
     void startClearance(TaskRunner runner, Project project, String container,
             PrintWriter out, PrintWriter err) {
 
@@ -67,25 +108,8 @@ final class ClearanceWiring {
         final java.nio.file.Path events =
                 state.resolve(org.fuin.sokar.wire.ReaderEvents.FILE);
 
-        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
-                SokarBinary.path(),
-                "shield", "watch",
-                // What the prompt shows. A container name carries a pid and identifies nothing
-                // an operator recognizes; project and task are what they chose.
-                "--project", project.name(),
-                "--task", task,
-                "--pid", String.valueOf(pid.get()),
-                "--events", events.toString(),
-                "--socket", state.resolve("clearance.sock").toString(),
-                // Outside the state directory on purpose: this one has to survive the task it
-                // records, and a resumed watcher reads it back so nothing is asked twice.
-                "--journal", context.paths().clearanceJournal(container).toString(),
-                "--pid-file", state.resolve("watcher.pid").toString()));
-        switch (mode) {
-            case "allow" -> command.add("--allow-all");
-            case "deny" -> command.add("--deny-all");
-            default -> { }
-        }
+        final java.util.List<String> command = watcherCommand(context, project.name(), task,
+                pid.get(), container, mode);
 
         try {
             new ProcessBuilder(command)

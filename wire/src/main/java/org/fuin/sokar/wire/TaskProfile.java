@@ -77,6 +77,20 @@ public record TaskProfile(int version, @Nullable String agent, TaskMode mode,
                 caption == null || caption.isBlank() ? null : caption.strip());
     }
 
+    /**
+     * Returns a copy recording a different clearance mode.
+     * <p>
+     * Written when enforcement is changed on a task that is already running, so that what a task
+     * reports is what it is doing rather than what it was started with. A field that kept saying
+     * "prompt" for a task nobody is being asked about would be worse than not having it.
+     *
+     * @param mode prompt, allow, deny or off.
+     * @return A copy.
+     */
+    public TaskProfile withClearance(String mode) {
+        return new TaskProfile(version, agent, this.mode, prompt, branch, startedAt, mode, label);
+    }
+
     /** Current schema version. Bumped to 3 when a label could be given. */
     public static final int VERSION = 3;
 

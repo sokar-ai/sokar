@@ -428,6 +428,16 @@ public final class SokarDaemon {
                     "source", result.source(), "detail", result.detail()));
         });
 
+        server.method("SetClearance", (parameters, replies) -> {
+            final java.io.StringWriter said = new java.io.StringWriter();
+            final org.fuin.sokar.app.RunningClearance.Result result =
+                    org.fuin.sokar.app.RunningClearance.set(context, text(parameters, "task"),
+                            text(parameters, "mode"), flag(parameters, "dryRun"),
+                            new PrintWriter(said, true));
+            replies.last(Map.of("outcome", result.outcome().name(), "was", result.was(),
+                    "now", result.now(), "detail", result.detail()));
+        });
+
         server.method("Providers", (parameters, replies) -> {
             final Map<String, org.fuin.sokar.agent.api.ProviderDefinition> declared =
                     context.providers();
