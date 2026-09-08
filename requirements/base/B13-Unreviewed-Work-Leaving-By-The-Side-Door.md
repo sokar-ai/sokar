@@ -200,13 +200,16 @@ this requirement's own notes warn against.
 - **Whether the mirror should be harder to fetch from.** Making it unreadable would break `gate
   review`, which is how anybody looks at the work at all. Probably nothing to do here, but it is
   the other end of the same path.
-- **A working copy on the host, from the mirror, is probably the answer.** Something like
-  `sokar gate checkout <task>`: materialise the incoming ref into a directory the operator opens
-  with the editor they already have pointed at that machine. The agent never touched it, no
-  container access is needed, and the copy can be made safe by construction - no remote to the
-  upstream, `core.hooksPath` pointed at nothing, so a hook the agent committed cannot run and there
-  is nowhere to push except back to the gate. That would make the safe path the convenient one,
-  which is the only durable fix for an accident of convenience.
+- ~~A working copy on the host~~ **Built: `sokar gate checkout <name>`.** It materialises the
+  incoming ref into a new directory, with the mirror as its only remote, `core.hooksPath` pointed
+  at an empty directory of its own, and a detached HEAD so nothing looks like work to carry on. Not
+  a warning somebody can click past: there is no address that reaches the upstream, so a push from
+  there cannot arrive by mistake.
+
+  The test for that last property was written against a gate with **no** upstream and therefore
+  could not fail; a mutation adding the upstream as a remote sailed past it. Rewritten against a
+  gate that has one, it fails as it should. That is the third fixture today that could not
+  reproduce the thing it was asserting.
 - **Or review on a forge, which is a different trade.** Pushing the incoming ref to a review branch
   on the upstream would give a person the diff view they already know - and it gives up the
   property that unreviewed work never leaves the machine. Worth naming as an option rather than

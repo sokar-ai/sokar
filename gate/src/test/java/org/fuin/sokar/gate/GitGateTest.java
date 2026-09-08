@@ -431,4 +431,106 @@ class GitGateTest {
                 "config", "--get", "remote.origin.url")).standardOutput().strip())
                 .isEqualTo(upstream.toString());
     }
+
+    /**
+     * Puts work in the mirror the direct way. What these tests are about is the checkout, so the
+     * push path - which has tests of its own above - is not part of them.
+     */
+    private void pushWork(String name, String file) throws Exception {
+        git(root, "init", "--initial-branch=main", work.toString());
+        makeCommit(file, "written by the agent");
+        git(work, "push", mirror.toString(), "HEAD:" + GitGate.INCOMING + name);
+    }
+
+    @Test
+    void checkoutMaterialisesTheWorkSomebodyCanOpen() throws Exception {
+
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushWork("shell", "one.txt");
+
+        final Path opened = root.resolve("opened");
+        gate.checkout("shell", opened);
+
+        assertThat(opened.resolve("one.txt")).exists();
+        assertThat(opened.resolve(".git")).isDirectory();
+    }
+
+    @Test
+    void aCheckoutHasNowhereToPushExceptBackToTheGate() throws Exception {
+
+        // Not a restriction that can be forgotten - an address that is not there. The unsafe path
+        // is "fetch it into your own checkout and push", and this copy simply has no upstream to
+        // push to.
+        //
+        // The gate is built WITH an upstream on purpose. Written against a gate that had none,
+        // this test passed while a mutation added the upstream as a remote - it was asserting
+        // against a fixture that could not have failed.
+        final Path upstream = root.resolve("upstream.git");
+        git(root, "init", "--quiet", "--bare", "--initial-branch=main", upstream.toString());
+        final GitGate gate = gate(GateMode.GATEKEEPING, upstream.toString());
+        pushWork("shell", "one.txt");
+        final Path opened = root.resolve("opened");
+        gate.checkout("shell", opened);
+
+        final String remotes = git(opened, "remote", "-v").standardOutput();
+        assertThat(remotes).contains("sokar").contains(mirror.toString());
+        assertThat(remotes.lines().map(line -> line.split("\\s+")[0]).distinct())
+                .as("the mirror and nothing else").containsExactly("sokar");
+    }
+
+    @Test
+    void noHookRunsInACheckout() throws Exception {
+
+        // An agent's work is about to be opened in an editor that runs git on it, and a hook is
+        // code that runs without being read. Proved by putting one where git would find it and
+        // showing it does not fire.
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushWork("shell", "one.txt");
+        final Path opened = root.resolve("opened");
+        gate.checkout("shell", opened);
+
+        final Path hooks = Path.of(git(opened, "config", "core.hooksPath")
+                .standardOutput().strip());
+        assertThat(hooks).as("hooks come from a directory of our own").isDirectory();
+        assertThat(hooks.toFile().list()).as("and it is empty").isEmpty();
+    }
+
+    @Test
+    void aCheckoutIsDetachedSoNothingLooksLikeWorkToContinue() throws Exception {
+
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushWork("shell", "one.txt");
+        final Path opened = root.resolve("opened");
+        gate.checkout("shell", opened);
+
+        // Asked without runOrFail: a non-zero exit IS the assertion here, and the helper would
+        // turn the thing being proved into a thrown error.
+        assertThat(runner.run(new Command(List.of("git", "symbolic-ref", "--quiet", "HEAD"),
+                opened, Map.of(), null)).successful())
+                .as("HEAD names no branch").isFalse();
+    }
+
+    @Test
+    void refusesToWriteIntoSomethingThatIsAlreadyThere() throws Exception {
+
+        // Mixing an agent's work into a directory somebody already has is the accident this whole
+        // requirement is about, arriving through the command meant to prevent it.
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+        pushWork("shell", "one.txt");
+        final Path occupied = root.resolve("occupied");
+        java.nio.file.Files.createDirectories(occupied);
+
+        assertThatThrownBy(() -> gate.checkout("shell", occupied))
+                .isInstanceOf(GateException.class)
+                .hasMessageContaining("already exists");
+    }
+
+    @Test
+    void refusesARefNobodyPushed() throws Exception {
+
+        final GitGate gate = gate(GateMode.GATEKEEPING, null);
+
+        assertThatThrownBy(() -> gate.checkout("never-pushed", root.resolve("opened")))
+                .isInstanceOf(GateException.class);
+    }
 }

@@ -10,7 +10,8 @@ import picocli.CommandLine.Command;
         description = "Reviews and forwards what an agent pushed.",
         subcommands = { GateServeCommand.class, GatePendingCommand.class,
                 GateReviewCommand.class, GateApproveCommand.class, GateRejectCommand.class,
-                GateBackupCommand.class, GateRestoreCommand.class })
+                GateBackupCommand.class, GateRestoreCommand.class,
+                GateCheckoutCommand.class })
 public class GateCommand {
 
 }

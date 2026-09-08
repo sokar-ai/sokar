@@ -294,6 +294,64 @@ public class GitGate {
     }
 
     /**
+     * Materialises an incoming ref into a working copy somebody can open.
+     * <p>
+     * <strong>This exists so the safe way is also the convenient one.</strong> The unsafe path -
+     * fetch the agent's branch into your own checkout and push it - is two ordinary git commands
+     * and needs no privilege, so nothing prevents it. What can be changed is which path is easier,
+     * and an accident of convenience is only ever fixed by convenience.
+     * <p>
+     * <strong>Safe by construction rather than by warning:</strong>
+     * <ul>
+     * <li><strong>The only remote is the mirror.</strong> There is nowhere to push except back to
+     *     the gate, so a push from here cannot reach the upstream by mistake - it is not a
+     *     restriction that can be forgotten, it is an address that is not there.</li>
+     * <li><strong>{@code core.hooksPath} points at an empty directory</strong>, so no hook runs in
+     *     this copy whatever put one there. An agent's work is about to be opened in an editor
+     *     that runs git on it, and a hook is code that runs without being read.</li>
+     * <li><strong>It is a detached checkout of the ref</strong>, not a branch, so nothing here
+     *     looks like work in progress that somebody should continue.</li>
+     * </ul>
+     *
+     * @param name Incoming ref name, without the namespace prefix.
+     * @param into Directory to create. Must not exist.
+     * @throws GateException If the ref is not there, or the copy cannot be made.
+     */
+    public void checkout(String name, Path into) {
+
+        requirePending(name);
+        if (Files.exists(into)) {
+            throw new GateException(into + " already exists; a checkout writes a new directory so"
+                    + " it cannot quietly mix with something already there");
+        }
+        final String target = into.toString();
+        git("init", "--quiet", target);
+
+        // The mirror, under the name the container's own working copy uses, so the two read the
+        // same to anybody who has seen both.
+        gitAt(target, "remote", "add", "sokar", mirror.toString());
+        gitAt(target, "fetch", "--quiet", "sokar", INCOMING + name);
+
+        // Set before anything is checked out: a hook cannot run in a tree that does not exist yet,
+        // and after the checkout would be one command too late.
+        final Path noHooks = into.resolve(".git").resolve("sokar-no-hooks");
+        try {
+            Files.createDirectories(noHooks);
+        } catch (java.io.IOException ex) {
+            throw new GateException("Cannot make " + noHooks, ex);
+        }
+        gitAt(target, "config", "core.hooksPath", noHooks.toString());
+
+        gitAt(target, "checkout", "--quiet", "--detach", "FETCH_HEAD");
+    }
+
+    private CommandResult gitAt(String directory, String... arguments) {
+        final List<String> command = new java.util.ArrayList<>(List.of("git", "-C", directory));
+        command.addAll(List.of(arguments));
+        return runner.runOrFail(Command.of(command));
+    }
+
+    /**
      * Forwards an incoming ref to the upstream.
      * <p>
      * The only method that sends anything off the machine, and it is never called by anything the
