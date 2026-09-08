@@ -886,6 +886,140 @@ class SokarDaemonTest {
         });
     }
 
+    /** Puts a provider on the machine, so a listing of them has something to list. */
+    private void declareProvider(Path dir) throws Exception {
+        final Path providers = Files.createDirectories(dir.resolve("data/sokar/providers"));
+        Files.writeString(providers.resolve("anthropic.yaml"), """
+                name: anthropic
+                label: Anthropic
+                upstream: https://api.anthropic.com
+                dialects:
+                  anthropic-messages: ""
+                auth_header:
+                  _default: x-api-key
+                auth_prefix:
+                  _default: ""
+                token_env:
+                  _default: ANTHROPIC_API_KEY
+                """);
+    }
+
+    private static org.fuin.sokar.agent.api.ProviderDefinition anthropic() {
+        return new org.fuin.sokar.agent.api.ProviderDefinition("anthropic", "Anthropic",
+                "https://api.anthropic.com", Map.of("anthropic-messages", ""),
+                Map.of("_default", "x-api-key"), Map.of("_default", ""), Map.of(),
+                Map.of("_default", "ANTHROPIC_API_KEY"));
+    }
+
+    private static org.fuin.sokar.vault.VaultEntry entry(String type) {
+        return new org.fuin.sokar.vault.VaultEntry("sk-secret", type);
+    }
+
+    @Test
+    void aCredentialStoredUnderAnAgentsOwnNameIsStillFound() {
+
+        // A vault written before credentials were keyed by provider. The key stays the agent's,
+        // so upgrading does not stop anybody authenticating - and an interface that recomputed
+        // this from the provider list alone would report a missing credential for exactly the
+        // vault that has one.
+        final Map<String, Object> row = SokarDaemon.provider(anthropic(),
+                Map.of("claude", entry("oauth")), "claude");
+
+        assertThat(row).containsEntry("credentialName", "claude")
+                .containsEntry("authenticated", true)
+                .containsEntry("credentialType", "oauth")
+                .containsEntry("storeCommand", "sokar vault put claude");
+    }
+
+    @Test
+    void theProvidersOwnNameWinsWhenBothAreStored() {
+
+        // Two agents reaching one provider must find one entry. Where both names exist the
+        // provider's is the live one, and the agent's is a leftover.
+        final Map<String, Object> row = SokarDaemon.provider(anthropic(),
+                Map.of("claude", entry("oauth"), "anthropic", entry("api-key")), "claude");
+
+        assertThat(row).containsEntry("credentialName", "anthropic")
+                .containsEntry("credentialType", "api-key");
+    }
+
+    @Test
+    void anEmptyVaultPointsAtWhereANewCredentialBelongs() {
+
+        final Map<String, Object> row = SokarDaemon.provider(anthropic(), Map.of(), null);
+
+        assertThat(row).containsEntry("credentialName", "anthropic")
+                .containsEntry("authenticated", false)
+                .containsEntry("credentialType", "")
+                .containsEntry("storeCommand", "sokar vault put anthropic");
+    }
+
+    @Test
+    void aStoredCredentialOfUnstatedKindReadsAsEmptyRatherThanNull() {
+
+        // "" and not the four characters "null", which an interface would render as a kind.
+        final Map<String, Object> row = SokarDaemon.provider(anthropic(),
+                Map.of("anthropic", entry(null)), null);
+
+        assertThat(row).containsEntry("credentialType", "").containsEntry("authenticated", true);
+    }
+
+    @Test
+    void providersNeverAnswerWithACredentialValue(@TempDir Path dir) throws Exception {
+
+        // The invariant the whole contract rests on. A field carrying a value would be one an
+        // interface could render, log or put in a crash report without anybody deciding to.
+        declareProvider(dir);
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".Providers", Map.of());
+
+                @SuppressWarnings("unchecked")
+                final List<Map<String, Object>> providers =
+                        (List<Map<String, Object>>) reply.get("providers");
+                assertThat(providers).allSatisfy(provider ->
+                        assertThat(provider.keySet()).containsExactlyInAnyOrder("name", "label",
+                                "upstream", "dialects", "authenticated", "credentialType",
+                                "credentialName", "storeCommand"));
+                assertThat(providers).as("a vacuous pass here would prove nothing").isNotEmpty();
+                // A vault that does not exist is readable and empty. Reporting it unreadable
+                // would send somebody to unlock a store that is not there - the one instruction
+                // that cannot help them.
+                assertThat(reply).containsEntry("readable", true);
+            }
+        });
+    }
+
+    @Test
+    void providersNameTheKeyAndTheCommandThatStoresOne(@TempDir Path dir) throws Exception {
+
+        // storeCommand is the whole answer to "where do I type it", and it is rendered verbatim.
+        // A wrong key name makes that advice useless in the way that is hardest to notice: the
+        // command succeeds and stores the credential where nothing will look for it.
+        declareProvider(dir);
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                @SuppressWarnings("unchecked")
+                final List<Map<String, Object>> providers = (List<Map<String, Object>>)
+                        client.call(SokarDaemon.INTERFACE + ".Providers", Map.of())
+                                .get("providers");
+
+                assertThat(providers).singleElement().satisfies(provider -> {
+                    assertThat(provider).containsEntry("name", "anthropic")
+                            .containsEntry("label", "Anthropic")
+                            .containsEntry("upstream", "https://api.anthropic.com")
+                            .containsEntry("dialects", List.of("anthropic-messages"))
+                            // Nothing is stored, so the key is where a new one belongs.
+                            .containsEntry("credentialName", "anthropic")
+                            .containsEntry("authenticated", false)
+                            .containsEntry("credentialType", "")
+                            .containsEntry("storeCommand", "sokar vault put anthropic");
+                });
+            }
+        });
+    }
+
     @Test
     void doctorAnswersEveryProbeWithANextActionForTheOnesThatFailed(@TempDir Path dir)
             throws Exception {
