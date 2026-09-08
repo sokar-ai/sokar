@@ -159,12 +159,27 @@ print(total)
     rm -f /tmp/sokar-bom-count /tmp/sokar-bom-error
 }
 
+# The version a bill records is the MAVEN one, and since snapshot packages carry a build number
+# the two are no longer the same string: the package is 0.1.0~snapshot.69, the bill says
+# 0.1.0-SNAPSHOT. Derived here rather than compared directly, which is the inverse of what the
+# POMs do when they build the package version.
+#
+# Worth knowing what this therefore does NOT catch: every build of a release line writes the same
+# bill version, so a bill left over from an earlier build is invisible to this check. It catches a
+# missing bill, a bill for the wrong package, and an empty one.
+bom_version() {
+    case "$1" in
+        *~snapshot.*|*~SNAPSHOT) echo "${1%%~*}-SNAPSHOT" ;;
+        *)                       echo "$1" ;;
+    esac
+}
+
 SOKAR_VERSION="$(dpkg-deb -f "$DEB" Version)"
 AGENT_VERSION="$(dpkg-deb -f "$AGENT_DEB" Version)"
-check_bom "the sokar deb" "$DEB" "sokar" "${SOKAR_VERSION/\~/-}"
-check_bom "the sokar rpm" "$RPM" "sokar" "${SOKAR_VERSION/\~/-}"
-check_bom "the agent deb" "$AGENT_DEB" "sokar-agent-stub" "${AGENT_VERSION/\~/-}"
-check_bom "the agent rpm" "$AGENT_RPM" "sokar-agent-stub" "${AGENT_VERSION/\~/-}"
+check_bom "the sokar deb" "$DEB" "sokar" "$(bom_version "$SOKAR_VERSION")"
+check_bom "the sokar rpm" "$RPM" "sokar" "$(bom_version "$SOKAR_VERSION")"
+check_bom "the agent deb" "$AGENT_DEB" "sokar-agent-stub" "$(bom_version "$AGENT_VERSION")"
+check_bom "the agent rpm" "$AGENT_RPM" "sokar-agent-stub" "$(bom_version "$AGENT_VERSION")"
 
 DEB_VERSION="$(dpkg-deb -f "$DEB" Version)"
 RPM_VERSION="$(podman run --rm -v "$(dirname "$RPM")":/pkg:ro,Z fedora:41 \
