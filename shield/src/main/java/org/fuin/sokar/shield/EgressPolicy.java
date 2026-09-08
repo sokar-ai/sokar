@@ -17,6 +17,9 @@ import org.fuin.sokar.core.process.CommandRunner;
  */
 public class EgressPolicy {
 
+    /** What nft says about an element that is not in the set. */
+    private static final String NOT_THERE = "No such file or directory";
+
     /** What nft says about an element that is already in the set. */
     private static final String ALREADY_THERE = "File exists";
 
@@ -50,6 +53,29 @@ public class EgressPolicy {
         final CommandResult result = runner.run(Command.of(
                 nsenter("nft", "add", "element", "inet", "sokar", set, "{ " + address + " }")));
         if (!result.successful() && !result.standardError().contains(ALREADY_THERE)) {
+            result.orFail();
+        }
+    }
+
+    /**
+     * Takes one address back out of the allow set.
+     * <p>
+     * <strong>This stops new connections and not the one already running.</strong> The ruleset
+     * accepts {@code ct state established,related} without consulting the set again, so a transfer
+     * in progress runs to its end. That is deliberate - severing a live connection reaches an
+     * agent as a network fault it cannot distinguish from a broken link - and it is why anything
+     * reporting a withdrawal has to say so rather than claiming the host is now unreachable.
+     * <p>
+     * An address that is not in the set is the outcome asked for, not a failure: two withdrawals
+     * of the same name, or a name whose address was never reached, both arrive here.
+     *
+     * @param address IPv4 or IPv6 address.
+     */
+    public void withdraw(String address) {
+        final String set = address.contains(":") ? "allowed_v6" : "allowed_v4";
+        final CommandResult result = runner.run(Command.of(
+                nsenter("nft", "delete", "element", "inet", "sokar", set, "{ " + address + " }")));
+        if (!result.successful() && !result.standardError().contains(NOT_THERE)) {
             result.orFail();
         }
     }

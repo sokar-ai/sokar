@@ -27,7 +27,7 @@ class ClearanceHubTest {
         final ClearanceHub hub = new ClearanceHub("uc", "shell", request -> {
             asked.incrementAndGet();
             return answer;
-        }, allowed::add);
+        }, (address, name) -> allowed.add(address));
         hub.onDecision(announced::add);
         return hub;
     }
@@ -103,7 +103,7 @@ class ClearanceHubTest {
             asked.incrementAndGet();
             holder[0].handle(ONE_ONE_ONE_ONE);
             return Verdict.ALLOW;
-        }, allowed::add);
+        }, (address, name) -> allowed.add(address));
 
         holder[0].handle(ONE_ONE_ONE_ONE);
 

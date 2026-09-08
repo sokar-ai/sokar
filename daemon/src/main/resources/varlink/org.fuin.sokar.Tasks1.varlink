@@ -283,6 +283,8 @@ type Scope (
 type WidenOutcome (
   # Applied to the running task. persisted says whether the file was written too.
   WIDENED,
+  # NarrowTask: taken back from the running task.
+  NARROWED,
   # What it would do, having changed nothing.
   PREVIEWED,
   # Every name was already granted to this run.
@@ -808,6 +810,48 @@ method SetEgress(
 # **The attempt that was already refused is not retried.** The packet was dropped; whether the
 # agent tries again is the agent's business. An interface may say the host is now reachable and
 # must not say that the request which just failed will now succeed.
+# Takes names back from a running task, and optionally from its project file.
+#
+# THIS STOPS NEW CONNECTIONS AND NOT THE ONES ALREADY RUNNING. The name stops resolving and its
+# recorded addresses come out of the firewall, so nothing new can be reached - but the ruleset
+# accepts established traffic without consulting the set again, so a transfer in progress runs to
+# its end. Do not render this as "the host is now unreachable": it is not, yet. If a transfer has
+# to stop, stopping the task is what does that.
+#
+# The addresses removed are the ones recorded when each grant was applied, never the answer to
+# resolving the name again now - a CDN or round-robin answers the daemon and the container
+# differently, and the addresses that differ are exactly the ones that would be left open.
+#
+# 'scope' is required, exactly as for WidenTask. Narrowing only the run when somebody meant the
+# project too leaves the next task starting with the host still open.
+method NarrowTask(
+  # Task name, as List reports it.
+  task: string,
+  # Names to take back. Anything not currently granted to this run is ignored, not an error.
+  domains: []string,
+  # RUN or RUN_AND_PROJECT. Required; there is no default.
+  scope: Scope,
+  # Reports what it would take back, having changed nothing.
+  dryRun: ?bool
+) -> (
+  #   NARROWED         taken back from the run; persisted says whether the file was too
+  #   PREVIEWED        what it would take back, having changed nothing
+  #   NO_CHANGE        none of these names is granted to this run
+  #   NOT_RUNNING      no such task, or it is not up
+  #   NO_PROJECT_FILE  the RUN was narrowed and the file was not; NOT a failure
+  #   FAILED           the run could not be narrowed; detail says why
+  outcome: WidenOutcome,
+  # Names taken back, in the order they were asked for.
+  closes: []string,
+  # How many addresses came out of the firewall. Zero with a non-empty 'closes' is a real state:
+  # the name was granted and the container never reached it, so nothing was in the set.
+  addresses: int,
+  # Whether the project file was changed as well.
+  persisted: bool,
+  # Why it was refused or what went wrong. "" otherwise.
+  detail: string
+)
+
 method WidenTask(
   # Container name, from Task.name.
   task: string,

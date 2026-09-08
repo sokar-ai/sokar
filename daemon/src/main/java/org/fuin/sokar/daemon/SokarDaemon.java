@@ -262,6 +262,28 @@ public final class SokarDaemon {
             replies.last(answer);
         });
 
+        server.method("NarrowTask", (parameters, replies) -> {
+            // The scope is required here for the same reason it is for widening, and the mistake
+            // it prevents is worse in this direction: narrowing only the run when somebody meant
+            // the project too leaves the next task starting with the host still open.
+            final String scope = text(parameters, "scope");
+            if (scope.isEmpty()) {
+                throw new VarlinkException(INTERFACE + ".ScopeRequired", Map.of());
+            }
+            final RunningEgress.Withdrawal taken = new RunningEgress(context).narrow(
+                    text(parameters, "task"), strings(parameters, "domains"),
+                    "RUN_AND_PROJECT".equalsIgnoreCase(scope)
+                            ? RunningEgress.Scope.RUN_AND_PROJECT : RunningEgress.Scope.RUN,
+                    flag(parameters, "dryRun"));
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("outcome", taken.outcome().name());
+            answer.put("closes", taken.closes());
+            answer.put("addresses", taken.addresses());
+            answer.put("persisted", taken.persisted());
+            answer.put("detail", taken.detail() == null ? "" : taken.detail());
+            replies.last(answer);
+        });
+
         server.method("WidenTask", (parameters, replies) -> {
             // The scope is read without a default on purpose: "this run only" and "this run and
             // the project" are different intentions, and a client that did not say which one it

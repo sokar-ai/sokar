@@ -134,9 +134,30 @@ public class ShieldWatchCommand implements Callable<Integer> {
                             waiting.answered();
                         }
                     },
-                    address -> {
+                    (address, name) -> {
                         try {
                             policy.allow(address);
+                            // Written down at the one moment both are known. Resolving the name
+                            // again later to find out what to withdraw was rejected in B12: a
+                            // CDN, GeoDNS or plain round-robin answers Sokar and the container
+                            // differently, and the addresses that differ are exactly the ones
+                            // that would be left open.
+                            if (name != null) {
+                                try {
+                                    org.fuin.sokar.wire.GrantedAddresses.add(
+                                            socketPath().getParent(), name, address);
+                                } catch (java.io.IOException ex) {
+                                    // NOT the same failure as the allow not taking effect, and it
+                                    // must not borrow that sentence: the host IS open. What is
+                                    // lost is the pair a later withdrawal would need, so the
+                                    // withdrawal will say it could not find the address rather
+                                    // than silently leaving it open.
+                                    err.println("sokar: allowed " + address + " but could not"
+                                            + " record that it is " + name + ": " + ex.getMessage()
+                                            + " - withdrawing " + name + " will not remove it");
+                                    err.flush();
+                                }
+                            }
                             out.println("allowed   " + address);
                         } catch (RuntimeException ex) {
                             // Never silent. A verdict of allow that did not take effect leaves the

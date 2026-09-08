@@ -48,6 +48,44 @@ public final class GrantedNames {
     }
 
     /**
+     * Takes a name back out of the grants.
+     * <p>
+     * Exact, never by suffix: {@link #covers} lets a grant for {@code example.com} answer for
+     * {@code api.example.com}, but removing the parent must not silently remove a child somebody
+     * granted separately and still means.
+     * <p>
+     * The file is rewritten rather than appended to - the only operation here that is not an
+     * append - because a grant that is still in the file is one the watcher will still honour.
+     *
+     * @param stateDirectory Where the task keeps its files.
+     * @param name Host name to withdraw.
+     * @return {@code true} if it was there.
+     * @throws IOException If the file cannot be rewritten.
+     */
+    public static boolean remove(Path stateDirectory, String name) throws IOException {
+        final Path file = stateDirectory.resolve(FILE);
+        if (!Files.isRegularFile(file)) {
+            return false;
+        }
+        final String wanted = name.strip();
+        final List<String> kept = new java.util.ArrayList<>();
+        boolean found = false;
+        for (final String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+            if (line.strip().equals(wanted)) {
+                found = true;
+            } else if (!line.isBlank()) {
+                kept.add(line.strip());
+            }
+        }
+        if (found) {
+            Files.writeString(file, kept.isEmpty() ? ""
+                    : String.join(System.lineSeparator(), kept) + System.lineSeparator(),
+                    StandardCharsets.UTF_8);
+        }
+        return found;
+    }
+
+    /**
      * Returns the names granted to this run, in the order they were granted.
      *
      * @param stateDirectory Where the task keeps its files.

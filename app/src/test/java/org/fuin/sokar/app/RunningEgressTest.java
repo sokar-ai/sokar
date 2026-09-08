@@ -197,4 +197,146 @@ class RunningEgressTest {
         Files.writeString(entry, file + "\n", StandardCharsets.UTF_8);
         return file;
     }
+
+    private RunningEgress.Withdrawal narrow(SokarContext context, String... names) {
+        return new RunningEgress(context).narrow("sokar-uc-shell-1", List.of(names),
+                RunningEgress.Scope.RUN, false);
+    }
+
+    @Test
+    void takesTheNameOutOfTheResolverAndTheGrant(@TempDir Path dir) throws IOException {
+
+        // Appending cannot remove a line, so the servers file is rewritten and the resolver
+        // signalled. A line still in it is a name dnsmasq still answers.
+        final SokarContext context = context(dir);
+        final Path state = task("sokar-uc-shell-1", "guarded");
+        widen(context, "example.test");
+
+        final RunningEgress.Withdrawal taken = narrow(context, "example.test");
+
+        assertThat(taken.outcome()).isEqualTo(RunningEgress.Outcome.NARROWED);
+        assertThat(taken.closes()).containsExactly("example.test");
+        assertThat(Files.readString(state.resolve(DnsPolicy.SERVERS_FILE)))
+                .doesNotContain("server=/example.test/")
+                .as("a name nobody withdrew is untouched").contains("server=/declared.test/");
+        assertThat(org.fuin.sokar.wire.GrantedNames.all(state)).doesNotContain("example.test");
+        assertThat(runner.lines()).anyMatch(line -> line.contains("kill -HUP 4711"));
+    }
+
+    @Test
+    void removesTheAddressesThatWereRecordedWhenTheGrantWasApplied(@TempDir Path dir)
+            throws IOException {
+
+        // The load-bearing claim. B12 rejected resolving the name again here: a CDN, GeoDNS or
+        // round-robin answers Sokar and the container differently, and the addresses that differ
+        // are exactly the ones a withdrawal would leave open. So what comes out of the firewall is
+        // what went in, recorded at the moment it did.
+        final SokarContext context = context(dir);
+        final Path state = task("sokar-uc-shell-1", "guarded");
+        widen(context, "example.test");
+        org.fuin.sokar.wire.GrantedAddresses.add(state, "example.test", "203.0.113.7");
+        org.fuin.sokar.wire.GrantedAddresses.add(state, "example.test", "203.0.113.8");
+        org.fuin.sokar.wire.GrantedAddresses.add(state, "other.test", "198.51.100.1");
+        runner.answering("inspect", "4242\n");
+
+        final RunningEgress.Withdrawal taken = narrow(context, "example.test");
+
+        assertThat(taken.addresses()).isEqualTo(2);
+        assertThat(runner.lines()).anyMatch(line -> line.contains("delete element")
+                && line.contains("203.0.113.7"));
+        assertThat(runner.lines()).anyMatch(line -> line.contains("delete element")
+                && line.contains("203.0.113.8"));
+        assertThat(runner.lines()).noneMatch(line -> line.contains("198.51.100.1"));
+    }
+
+    @Test
+    void withdrawingAParentLeavesASubdomainGrantedSeparately(@TempDir Path dir)
+            throws IOException {
+
+        // A grant for example.test COVERS api.example.test when deciding what to let through -
+        // that is what GrantedNames.covers does. A withdrawal must not inherit that: api was
+        // granted in its own right here, is still granted, and its address must stay in the
+        // firewall. Matching by suffix would take it out and the container would lose a host
+        // nobody withdrew.
+        final SokarContext context = context(dir);
+        final Path state = task("sokar-uc-shell-1", "guarded");
+        // The subdomain FIRST. The other order is not a scenario at all: once example.test is
+        // granted, GrantedNames.covers answers for api.example.test and widening it is a no-op -
+        // which this test discovered by failing on correct code.
+        widen(context, "api.example.test");
+        new RunningEgress(context).widen("sokar-uc-shell-1", List.of("example.test"),
+                RunningEgress.Scope.RUN, false);
+        org.fuin.sokar.wire.GrantedAddresses.add(state, "example.test", "203.0.113.7");
+        org.fuin.sokar.wire.GrantedAddresses.add(state, "api.example.test", "203.0.113.9");
+        runner.answering("inspect", "4242\n");
+
+        final RunningEgress.Withdrawal taken = narrow(context, "example.test");
+
+        assertThat(taken.addresses()).as("only the parent's own address").isEqualTo(1);
+        assertThat(runner.lines()).anyMatch(line -> line.contains("delete element")
+                && line.contains("203.0.113.7"));
+        assertThat(runner.lines()).as("the subdomain's address stays")
+                .noneMatch(line -> line.contains("203.0.113.9"));
+        assertThat(org.fuin.sokar.wire.GrantedNames.all(state))
+                .as("and the subdomain is still granted").contains("api.example.test");
+    }
+
+    @Test
+    void aNameNobodyGrantedIsNotAnError(@TempDir Path dir) throws IOException {
+
+        // Asking to close what was never open is the outcome asked for. Two withdrawals of the
+        // same name land here as well.
+        final SokarContext context = context(dir);
+        task("sokar-uc-shell-1", "guarded");
+
+        final RunningEgress.Withdrawal taken = narrow(context, "never-granted.test");
+
+        assertThat(taken.outcome()).isEqualTo(RunningEgress.Outcome.NO_CHANGE);
+        assertThat(taken.addresses()).isZero();
+    }
+
+    @Test
+    void aPreviewOfNarrowingChangesNothingAtAll(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        final Path state = task("sokar-uc-shell-1", "guarded");
+        widen(context, "example.test");
+        org.fuin.sokar.wire.GrantedAddresses.add(state, "example.test", "203.0.113.7");
+
+        final RunningEgress.Withdrawal taken = new RunningEgress(context).narrow(
+                "sokar-uc-shell-1", List.of("example.test"), RunningEgress.Scope.RUN, true);
+
+        assertThat(taken.outcome()).isEqualTo(RunningEgress.Outcome.PREVIEWED);
+        assertThat(taken.closes()).containsExactly("example.test");
+        assertThat(taken.addresses()).as("what it would remove").isEqualTo(1);
+        assertThat(Files.readString(state.resolve(DnsPolicy.SERVERS_FILE)))
+                .as("still resolving").contains("server=/example.test/");
+        assertThat(org.fuin.sokar.wire.GrantedNames.all(state)).contains("example.test");
+        assertThat(runner.lines()).noneMatch(line -> line.contains("delete element"));
+    }
+
+    @Test
+    void narrowingRefusesATaskThatIsNotRunning(@TempDir Path dir) {
+
+        assertThat(narrow(context(dir), "example.test").outcome())
+                .isEqualTo(RunningEgress.Outcome.NOT_RUNNING);
+    }
+
+    @Test
+    void aGrantedNameWithNoRecordedAddressIsStillClosed(@TempDir Path dir) throws IOException {
+
+        // A real state, not an edge case: the name was granted and the container never reached
+        // it, so nothing was ever put in the firewall. The name must still stop resolving, and
+        // 'addresses: 0' beside a non-empty 'closes' is the honest report of that.
+        final SokarContext context = context(dir);
+        final Path state = task("sokar-uc-shell-1", "guarded");
+        widen(context, "example.test");
+
+        final RunningEgress.Withdrawal taken = narrow(context, "example.test");
+
+        assertThat(taken.outcome()).isEqualTo(RunningEgress.Outcome.NARROWED);
+        assertThat(taken.addresses()).isZero();
+        assertThat(Files.readString(state.resolve(DnsPolicy.SERVERS_FILE)))
+                .doesNotContain("server=/example.test/");
+    }
 }

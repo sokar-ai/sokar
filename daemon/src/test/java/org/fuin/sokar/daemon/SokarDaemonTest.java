@@ -610,7 +610,7 @@ class SokarDaemonTest {
 
         final List<String> decided = new CopyOnWriteArrayList<>();
         final ClearanceHub hub = new ClearanceHub("uc", "shell", request -> Verdict.TIMEOUT,
-                decided::add);
+                (address, name) -> decided.add(address));
 
         try (ClearanceService watcher = new ClearanceService(state.resolve("clearance.sock"), hub)) {
             watcher.start();

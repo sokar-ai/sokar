@@ -31,7 +31,7 @@ public class ClearanceHub {
 
     private final ClearancePrompt prompt;
 
-    private final Consumer<String> allow;
+    private final java.util.function.BiConsumer<String, String> allow;
 
     private final Map<String, Verdict> decided = new ConcurrentHashMap<>();
 
@@ -51,7 +51,7 @@ public class ClearanceHub {
      * @param allow Called with the address when the answer is yes.
      */
     public ClearanceHub(String project, String task, ClearancePrompt prompt,
-            Consumer<String> allow) {
+            java.util.function.BiConsumer<String, String> allow) {
         this.project = project;
         this.task = task;
         this.prompt = prompt;
@@ -104,7 +104,7 @@ public class ClearanceHub {
         if (blocked.name() != null && granted.test(blocked.name())) {
             decided.put(key, Verdict.ALLOW);
             seen.put(key, blocked);
-            allow.accept(blocked.destination());
+            allow.accept(blocked.destination(), blocked.name());
             announce(blocked, Verdict.ALLOW, Decision.GRANTED);
             return Verdict.ALLOW;
         }
@@ -119,7 +119,7 @@ public class ClearanceHub {
         decided.put(key, verdict);
 
         if (verdict.allows()) {
-            allow.accept(blocked.destination());
+            allow.accept(blocked.destination(), blocked.name());
         }
         announce(blocked, verdict, Decision.PROMPT);
         return verdict;
@@ -142,7 +142,9 @@ public class ClearanceHub {
                 Blocked.fromKey(unknown, address));
         final Verdict previous = decided.put(key, verdict);
         if (verdict.allows() && (previous == null || !previous.allows())) {
-            allow.accept(address);
+            // No name here: a verdict from a client names an address, and the name it
+            // was reached by is not part of that call.
+            allow.accept(address, null);
         }
         announce(blocked, verdict, Decision.CLIENT);
     }
@@ -173,7 +175,9 @@ public class ClearanceHub {
             seen.put(decision.key(), new Blocked(decision.destination(), decision.port(),
                     decision.protocol(), decision.shown()));
             if (decision.verdict().allows()) {
-                allow.accept(decision.destination());
+                // Replayed after a restart. The name is not in the journal, and it does not
+                // need to be: what was recorded at grant time is already on disk.
+                allow.accept(decision.destination(), null);
             }
         }
     }

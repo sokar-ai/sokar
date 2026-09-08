@@ -1,6 +1,6 @@
 # B12 — Changing What Running Work May Reach
 
-**Status:** built for widening; narrowing is the one thing left, and it is the open question
+**Status:** built. Widening and narrowing both, and the question narrowing turned on is answered
 below. A task says what enforces its egress, and a running task can be given a name to reach
 without being stopped - from the CLI and over the socket, with the scope stated rather than
 assumed.
@@ -179,11 +179,33 @@ can now reach the host.
 **Neither surface pretends the refused attempt is retried.** Both say the host is reachable from
 the agent's next attempt. The packet that was dropped is gone.
 
-## To be checked
+## Decided and built, 2026-09-08
 
-- **What narrowing means for what is already open.** The acceptance asks for narrowing as well as
-  widening, and the two are not symmetrical: taking a name out of the resolver stops it resolving,
-  and does nothing about the addresses already in the firewall set - the clearance path only ever
-  adds. Removing them is possible (`nft delete element`) and it is the first thing in this product
-  that would take a grant away from a running container, so it wants deciding rather than
-  assuming.
+**Narrowing takes the name and the addresses, and lets running connections finish.** The open
+question was what a withdrawal means for what is already open, and the three possible answers were
+not equally honest:
+
+- *the name only* leaves a container that already resolved it connecting by address, so calling
+  that "narrowed" is a half-truth;
+- *the name and its addresses* stops every new connection, which is what somebody means;
+- *and the established flows too* is the only thing that stops a transfer in progress, and it
+  reaches an agent as a network fault it cannot tell from a broken link.
+
+The middle one was chosen. The ruleset accepts `ct state established,related` without consulting
+the set again - measured, not assumed - so **`NarrowTask` says what it did rather than claiming the
+host is unreachable**, and the contract says so where a client will read it. If a transfer has to
+stop, stopping the task is what does that.
+
+**The addresses come from a record written when each grant was applied**, in
+`granted-addresses` beside the granted names. Re-resolving the name at withdrawal time was
+rejected here for the reason widening already had: a CDN, GeoDNS or round-robin answers Sokar and
+the container differently, and the addresses that differ are exactly the ones a withdrawal would
+leave open. Recording it needed the clearance hub to pass the resolved name alongside the address
+it lets through - it had both and was discarding one.
+
+**A grant covers subdomains; a withdrawal does not.** `example.test` answers for
+`api.example.test` when deciding what to let through, but taking the parent back must not remove an
+address let through under a name somebody granted separately and still means. Proved by mutation -
+and the test that proves it failed first on correct code, which is how it emerged that a subdomain
+cannot be granted separately *after* its parent at all, because the covering rule makes that a
+no-op.
