@@ -55,7 +55,7 @@ class EgressSetDirectoryTest {
         final var sets = new EgressSetDirectory(List.of(SHIPPED)).all();
 
         assertThat(sets).isNotEmpty();
-        assertThat(sets).containsKeys("git-hosting", "python", "node", "rust", "go", "containers");
+        assertThat(sets).containsKeys("git-hosting", "python", "nodejs", "rust", "go", "containers");
         sets.forEach((name, set) -> {
             assertThat(set.domains()).as("%s grants something", name).isNotEmpty();
             assertThat(name).as("%s is named like its file", name).matches("[a-z0-9][a-z0-9-]*");
@@ -76,7 +76,7 @@ class EgressSetDirectoryTest {
     void resolvesNamesToHostsInTheOrderDeclared() {
 
         final List<String> domains =
-                new EgressSetDirectory(List.of(SHIPPED)).resolve(List.of("python", "node"));
+                new EgressSetDirectory(List.of(SHIPPED)).resolve(List.of("python", "nodejs"));
 
         assertThat(domains).startsWith("pypi.org", "files.pythonhosted.org")
                 .contains("registry.npmjs.org");
@@ -113,11 +113,11 @@ class EgressSetDirectoryTest {
     void letsAnOperatorOverrideAPackagedSet(@TempDir Path mine, @TempDir Path packaged)
             throws Exception {
 
-        Files.writeString(mine.resolve("node.yaml"), "name: node\ndomains:\n  - mine.example\n");
-        Files.writeString(packaged.resolve("node.yaml"),
-                "name: node\ndomains:\n  - registry.npmjs.org\n");
+        Files.writeString(mine.resolve("nodejs.yaml"), "name: nodejs\ndomains:\n  - mine.example\n");
+        Files.writeString(packaged.resolve("nodejs.yaml"),
+                "name: nodejs\ndomains:\n  - registry.npmjs.org\n");
 
-        assertThat(new EgressSetDirectory(List.of(mine, packaged)).resolve(List.of("node")))
+        assertThat(new EgressSetDirectory(List.of(mine, packaged)).resolve(List.of("nodejs")))
                 .containsExactly("mine.example");
     }
 }

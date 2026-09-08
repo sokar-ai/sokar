@@ -196,13 +196,13 @@ class ProjectReaderTest {
                   name: "uc"
                   security_class: "guarded"
                 egress:
-                  sets: [maven, node]
+                  sets: [maven, nodejs]
                   domains: ["nexus.corp.example"]
                 image:
                   base_image: "ubuntu:24.04"
                 """);
 
-        assertThat(project.egress().sets()).containsExactly("maven", "node");
+        assertThat(project.egress().sets()).containsExactly("maven", "nodejs");
         assertThat(project.egress().domains()).containsExactly("nexus.corp.example");
     }
 

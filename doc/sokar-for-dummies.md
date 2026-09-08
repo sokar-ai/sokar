@@ -249,7 +249,7 @@ egress:
   domains: ["nexus.corp.example"]     # a private mirror, if you have one
 ```
 
-A **set** is a named, pre-reviewed group of hosts — `maven`, `node` and so on; run
+A **set** is a named, pre-reviewed group of hosts — `maven`, `nodejs` and so on; run
 `sokar shield sets` to list them. Writing a set once means "reaching npm" is the same
 thing in every project instead of each one inventing its own list. `domains` is the
 escape hatch for a host no set covers. Anything you did not name does not resolve.

@@ -279,7 +279,7 @@ sokar shield sets              # names and how many hosts each grants
 sokar shield sets --verbose    # and the hosts themselves
 ```
 
-Add what your build needs — `maven`, `node`, `python`, `rust`, `go`, `containers` — and, for a
+Add what your build needs — `maven`, `nodejs`, `python`, `rust`, `go`, `containers` — and, for a
 host no set covers, name it directly. Either edit the file, or let Sokar do it and tell you what
 the change opens in hosts rather than in set names:
 
