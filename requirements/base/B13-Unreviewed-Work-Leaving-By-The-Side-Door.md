@@ -151,12 +151,48 @@ with their own credentials, and pretending otherwise would produce a feature tha
 irritating and untrue. What it can do is make the accidental case loud: the moment somebody pushes
 commits an agent wrote and nobody approved, they should hear about it.
 
+## Measured, 2026-09-08: what a pre-push hook actually sees
+
+Against real repositories, because the guard's whole value is whether it fires.
+
+**It fires, and it can tell what is being pushed.** Each line on standard input is
+`<local ref> <local sha> <remote ref> <remote sha>`, so the commits are
+`git rev-list <remote sha>..<local sha>`. Verified for the three cases that matter:
+
+| | fires | remote sha |
+|---|---|---|
+| first push of a new branch | yes | forty zeros - "everything not already there" |
+| an ordinary push | yes | the previous tip |
+| a **force** push | yes | the previous tip, so a rewrite is visible too |
+
+**Three ways it does not fire, and they decide what this feature may claim:**
+
+- **`git push --no-verify` skips it.** That is not a flaw - it is the acceptance criterion *"a
+  person who means it can still do it"*, arriving for free and by a name people already know.
+- **`core.hooksPath` pointing elsewhere silently disables it.** Measured: with that set, the
+  repository's own hook is never found and the push goes through with no output at all. This is
+  the dangerous one, because it is a **team-wide setting** somebody may have configured for shared
+  hooks long ago, and the guard would then never fire for anybody while appearing installed.
+  `gate protect` has to check it and say so, rather than write a file and report success.
+- **The hook is not versioned.** `git ls-files` shows nothing under `hooks/`, so it is per clone: a
+  colleague's fresh clone has no guard, and neither does the same person's second checkout.
+
+**Not measured here: whether a client that uses a git library runs hooks at all.** JGit and libgit2
+are reported not to, and some editors and desktop clients are built on them. Nothing on this
+machine could test it, so it is stated as unmeasured rather than assumed either way - and it is
+the fourth way the guard may not fire.
+
+**What this means for the claim.** The guard catches an accident by somebody using git, which is
+the case the requirement describes. It is not a control, and four documented paths go around it.
+Anything that presented it as prevention rather than as a loud accident-catcher would be the lie
+this requirement's own notes warn against.
+
 ## To be checked
 
-- **Where the guard lives.** A `pre-push` hook in the operator's own checkout is the only place
-  that sees the push before it happens, and that repository is not Sokar's to change. Installing
-  one has to be a deliberate act - `sokar gate protect` or similar - and has to survive the fact
-  that git hooks are per-clone and not committed.
+- **Whether the guard is worth building, given the four ways round it.** Measured above. Still a
+  decision rather than a fact: a guard that catches the ordinary accident and is silently absent
+  under `core.hooksPath` may be worth having, or may be worse than nothing because people will
+  believe they are protected.
 - **What the guard tests.** Author identity is the cheap signal and it is spoofable and easy to
   lose in a rebase. A trailer that the gate adds when it forwards - so that *approved* commits are
   the marked ones and everything else is suspect - inverts it into the safer direction, at the cost
