@@ -130,7 +130,7 @@ Point the build at it as usual, with a `settings.xml` for Maven or an `.npmrc` f
 declared is not reachable, which is what makes the mirror the only route rather than the
 preferred one.
 
-**A mirror on your own machine, no.** The firewall opens one thing toward the host - the git
+**A mirror on your own machine, no.** The firewall opens one thing toward the node - the git
 gate's address and port - so a repository proxy listening on `localhost` is as unreachable from
 inside a task as an undeclared registry. Give it a name the container can resolve, or run it
 somewhere the container can reach.

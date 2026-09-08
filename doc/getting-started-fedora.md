@@ -1,7 +1,7 @@
 # Getting started on Fedora and RHEL
 
 By the end of this you will have an agent working inside a hardened container, with your
-real credential still on the host, and its work waiting for you to review before it goes
+real credential still on the node, and its work waiting for you to review before it goes
 anywhere. For the whole thing as one block to paste, see
 [the README](../README.md#getting-started).
 
@@ -136,10 +136,10 @@ you, which is why it is worth reading before the first task rather than after.
 > sign-in URL, something is wrong here, not there — the container has no browser,
 > and the sign-in endpoints are firewalled off on purpose. Completing such a flow
 > would also mint a fresh key *inside* the container, which is the one thing this
-> whole design exists to prevent. Authenticate on the host, once, and store the
+> whole design exists to prevent. Authenticate on the node, once, and store the
 > result below.
 
-**First, get the credential — on the host.** Which one depends on how you pay:
+**First, get the credential — on the node.** Which one depends on how you pay:
 
 | You have | Where the value comes from | Store it with |
 |---|---|---|
@@ -147,14 +147,14 @@ you, which is why it is worth reading before the first task rather than after.
 | a subscription | the agent's own login on this machine (see below) | `--type oauth` |
 
 For a subscription there is no key to copy from a web page: the value is produced by
-the agent's login, run **on the host**. For Claude Code that is `claude setup-token`,
-which needs the agent installed on the host and prints a long-lived token to paste
+the agent's login, run **on the node**. For Claude Code that is `claude setup-token`,
+which needs the agent installed on the node and prints a long-lived token to paste
 below — see [the Claude Code guide](https://github.com/fuinorg/sokar-claude-code#readme). This is also why
 logging in inside the container is both blocked and pointless: the value has to end
-up in the vault, on the host, where the box cannot reach it.
+up in the vault, on the node, where the box cannot reach it.
 
 **If the agent is already logged in here, import instead of typing.** An agent that
-keeps its own credentials on this host can hand them over:
+keeps its own credentials on this node can hand them over:
 
 ```
 sokar vault unlock
@@ -170,12 +170,20 @@ and the vault's copy is behind.
 
 ```
 sokar vault unlock
-printf '%s' 'sk-ant-...' | sokar vault put anthropic --type api-key   # your real key here
+sokar vault put anthropic --type api-key      # asks, and does not echo what you type
 ```
 
-The order is not a style preference. `vault put` reads the credential from
-standard input, so it has nothing left to read a passphrase from — do it the other
-way round and you get:
+**Type or paste it at the prompt rather than piping it in.** A pipe puts the key in
+your shell history; the prompt reads it the way a password is read, so it does not
+appear on screen or in the terminal's scrollback. The piped form still works, for
+scripts:
+
+```
+printf '%s' 'sk-ant-...' | sokar vault put anthropic --type api-key
+```
+
+The order is not a style preference. When the credential is piped in, `vault put`
+has nothing left to read a passphrase from — do it the other way round and you get:
 
 ```
 sokar: No passphrase available, tried: kernel-keyring, prompt
@@ -312,7 +320,7 @@ egress:
 
 Four things worth knowing before you widen it:
 
-- **The package set follows the base image, not your machine.** A Fedora host running a task on
+- **The package set follows the base image, not your machine.** A Fedora node running a task on
   `ubuntu:24.04` needs `os-packages-debian`; the wizard picks the right one from the base image
   you chose.
 - **Ports 80 and 443 only.** A declared name opens web ports at the addresses it resolves to,
@@ -334,7 +342,7 @@ the provider, the upstream, or this file.
 so a runaway build is a normal outcome rather than an attack. `--pids-limit` also
 contains a fork bomb; podman defaults it to 2048, and Sokar pins it so the
 protection does not depend on a distribution default. Memory is the one that takes
-the host down, so it is capped by default and a project raises it when it needs to.
+the node down, so it is capped by default and a project raises it when it needs to.
 CPU is left alone: starving a task only makes it slow.
 
 Sokar also passes `--init`. The container's main process is `sleep infinity`, which
@@ -379,7 +387,7 @@ Two things follow from it being a *bare clone*, and both surprise people:
 - **Only committed history is copied.** A bare repository has no working tree, so
   uncommitted changes stay on your side. Commit before you run.
 - **Seeding happens once.** `initialize` returns early if the mirror is already
-  there, so later commits on the host do not flow in by themselves, and re-running
+  there, so later commits on the node do not flow in by themselves, and re-running
   with a different `--upstream` changes nothing. To start over, delete
   `~/.local/share/sokar/mirrors/<project>.git`.
 
@@ -482,7 +490,7 @@ never on a branch, so nothing you are looking at moves underneath you.
 
 ## 7. Review it
 
-Back on the host, in the project directory:
+Back on the node, in the project directory:
 
 ```
 sokar gate pending
