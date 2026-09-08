@@ -110,11 +110,21 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
      */
     private int widen(PrintWriter out, PrintWriter err) {
 
-        if (!addSets.isEmpty() || !removeSets.isEmpty() || !removeDomains.isEmpty()) {
-            err.println("sokar: --task takes --add-domain only; a running task cannot be narrowed"
-                    + " and sets are not granted one host at a time");
+        if (!addSets.isEmpty() || !removeSets.isEmpty()) {
+            err.println("sokar: --task takes --add-domain and --remove-domain; sets are not"
+                    + " granted or taken back one host at a time");
             err.flush();
             return 2;
+        }
+        if (!addDomains.isEmpty() && !removeDomains.isEmpty()) {
+            // Refused rather than ordered. Opening and closing in one call would have to say
+            // which happened first, and whichever answer it gave would be somebody's surprise.
+            err.println("sokar: give --add-domain or --remove-domain for a running task, not both");
+            err.flush();
+            return 2;
+        }
+        if (!removeDomains.isEmpty()) {
+            return narrow(out, err);
         }
 
         final RunningEgress.Effect effect = new RunningEgress(context).widen(task, addDomains,
@@ -156,6 +166,66 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
             out.println("written        " + projectFile + " as well");
         } else if (effect.outcome() == RunningEgress.Outcome.NO_PROJECT_FILE) {
             err.println("sokar: " + effect.detail());
+            err.flush();
+            out.flush();
+            return 0;
+        }
+        out.flush();
+        return 0;
+    }
+
+    /**
+     * Takes names back from a running task.
+     *
+     * @param out Where to report.
+     * @param err Where to report a refusal.
+     * @return Exit code.
+     */
+    private int narrow(PrintWriter out, PrintWriter err) {
+
+        final RunningEgress.Withdrawal taken = new RunningEgress(context).narrow(task,
+                removeDomains,
+                alsoProject ? RunningEgress.Scope.RUN_AND_PROJECT : RunningEgress.Scope.RUN,
+                dryRun);
+
+        switch (taken.outcome()) {
+            case NOT_RUNNING, FAILED -> {
+                err.println("sokar: " + taken.detail());
+                err.flush();
+                return taken.outcome() == RunningEgress.Outcome.FAILED ? 70 : 2;
+            }
+            case NO_CHANGE -> {
+                out.println("no change      this run was not reaching that");
+                out.flush();
+                return 0;
+            }
+            default -> {
+                // Narrowed, previewed, or narrowed without the file. All three print what closes.
+            }
+        }
+
+        String label = "closes";
+        for (final String name : taken.closes()) {
+            out.printf("%-14s %s%n", label, name);
+            label = "";
+        }
+        if (taken.outcome() == RunningEgress.Outcome.PREVIEWED) {
+            out.printf("%-14s %d would come out of the firewall%n", "addresses",
+                    taken.addresses());
+            out.println("dry run        nothing was written");
+            out.flush();
+            return 0;
+        }
+        out.printf("%-14s %d removed from the firewall%n", "addresses", taken.addresses());
+        // Said every time, because it is the difference between what this did and what somebody
+        // may believe it did. A transfer already running is not cut: the ruleset accepts
+        // established traffic without consulting the set again.
+        out.println("stopped        new connections only - anything already transferring runs to"
+                + " its end; stop the task to end that");
+        if (taken.persisted()) {
+            out.println("written        " + projectFile + " as well");
+        } else if (taken.outcome() == RunningEgress.Outcome.NO_PROJECT_FILE) {
+            err.println("sokar: " + taken.detail());
             err.flush();
             out.flush();
             return 0;

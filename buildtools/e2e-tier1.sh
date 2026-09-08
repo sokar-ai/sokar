@@ -597,6 +597,83 @@ case "$(egress_port github.com 22)" in
     *) fail "port 22 to a declared host was reachable" ;;
 esac
 
+# ----------------------------------------------- widening and narrowing a live run
+#
+# Both halves of B12, against the running container rather than against a fake command runner. The
+# unit tests prove the right arguments are built; only this proves the arguments do anything - a
+# real dnsmasq re-reading its servers file on SIGHUP, and a real 'nft delete element' inside the
+# container's own network namespace.
+#
+# pypi.org is used because the checks above have already established it does NOT resolve here: the
+# project declares maven and git-hosting and not python, so it is a host this run cannot reach and
+# nothing else in the suite depends on.
+echo
+echo "-- widening and narrowing a live run --"
+
+if podman exec "$CONTAINER" getent hosts pypi.org >/dev/null 2>&1; then
+    fail "pypi.org resolved before anything widened it, so this check proves nothing"
+else
+    (cd "$WORK" && "$SOKAR" shield egress --task "$CONTAINER" --add-domain pypi.org) \
+        > "$WORK/widen.log" 2>&1 || true
+
+    if podman exec "$CONTAINER" getent hosts pypi.org >/dev/null 2>&1; then
+        pass "widening a running task makes the name resolve, without restarting it"
+    else
+        fail "widening did not make pypi.org resolve; see $WORK/widen.log"
+    fi
+fi
+
+# Reach it once, so an address really enters the firewall and is really recorded against the
+# name. Without this the narrowing would have nothing to take out and would prove only half.
+podman exec "$CONTAINER" sh -c 'curl -s -o /dev/null --max-time 12 https://pypi.org/ || true' \
+    >/dev/null 2>&1 || true
+GRANTED_FILE="$STATE_DIR/granted-addresses"
+if [ -s "$GRANTED_FILE" ] && grep -q "^pypi.org	" "$GRANTED_FILE" 2>/dev/null; then
+    pass "the address it was reached at is recorded against the name"
+    info "$(grep '^pypi.org	' "$GRANTED_FILE" | head -1 | tr '\t' ' ')"
+else
+    info "no address recorded for pypi.org - it was never reached, so the withdrawal removes none"
+fi
+
+# The dry run first: it must report what it would take back and change nothing.
+(cd "$WORK" && "$SOKAR" shield egress --task "$CONTAINER" --remove-domain pypi.org --dry-run) \
+    > "$WORK/narrow-dry.log" 2>&1 || true
+if podman exec "$CONTAINER" getent hosts pypi.org >/dev/null 2>&1; then
+    pass "a dry run changed nothing - the name still resolves"
+else
+    fail "a dry run took the name away; see $WORK/narrow-dry.log"
+fi
+
+(cd "$WORK" && "$SOKAR" shield egress --task "$CONTAINER" --remove-domain pypi.org) \
+    > "$WORK/narrow.log" 2>&1 || true
+
+if podman exec "$CONTAINER" getent hosts pypi.org >/dev/null 2>&1; then
+    fail "narrowing did not stop the name resolving; see $WORK/narrow.log"
+else
+    pass "narrowing takes the name back, and the resolver stops answering it"
+fi
+
+# The half a resolver check cannot see: the address has to come out of the firewall too, or a
+# container that already knows the IP keeps connecting. Asked of nft inside the namespace.
+NARROWED_ADDRESS="$(grep '^pypi.org	' "$GRANTED_FILE" 2>/dev/null | head -1 | cut -f2)"
+# The container's init pid on the host, which is how anything reaches its network namespace.
+CONTAINER_PID="$(podman inspect --format '{{.State.Pid}}' "$CONTAINER" 2>/dev/null)"
+if [ -z "$NARROWED_ADDRESS" ]; then
+    info "no address was granted for pypi.org, so there is none to look for in the set"
+elif podman unshare nsenter --target "$CONTAINER_PID" --net \
+        nft list set inet sokar allowed_v4 2>/dev/null | grep -q "$NARROWED_ADDRESS"; then
+    fail "$NARROWED_ADDRESS is still in the firewall after narrowing"
+else
+    pass "the address came out of the firewall as well, so a known IP is no way back in"
+fi
+
+# And what narrowing deliberately does NOT do, said out loud because somebody will assume it does.
+if grep -q "runs to its end" "$WORK/narrow.log"; then
+    pass "it says that a transfer already running is not cut"
+else
+    fail "narrowing did not say what it leaves alone; see $WORK/narrow.log"
+fi
+
 # ------------------------------------------------------------ workspace and gate
 #
 # The agent gets its repository through Sokar's git gate, not from a bind mount: the
