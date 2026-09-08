@@ -18,8 +18,11 @@ B11 is built, and B12 is what F17 is still waiting on.
 
 B14 sits directly below B13 because the two are the same question from opposite sides - work
 leaving by a door that is not the gate - and B14's own first open question is whether it should
-wait for B13. It is also the only one here that no interface requirement is waiting on, which the
-file argues is a reason to be slower about it rather than faster.
+wait for B13. B15 follows B14 because it is the same shape again for bytes rather than text, and
+reuses B14's policy and record wholesale: settling B14 settles most of it. Neither is waiting on an
+interface requirement, which both files argue is a reason to be slower about them rather than
+faster - and both begin by asking whether the gate already answers the need, which for source it
+does.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
@@ -27,6 +30,7 @@ file argues is a reason to be slower about it rather than faster.
 | B12 | [Changing What Running Work May Reach](B12-Changing-What-Running-Work-May-Reach.md) | What a running task may reach can be widened or narrowed without restarting it, and a task says whether enforcement is on. | yes |
 | B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | yes |
 | B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | yes, including whether to build it |
+| B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | yes, and it turns on B14 |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |
