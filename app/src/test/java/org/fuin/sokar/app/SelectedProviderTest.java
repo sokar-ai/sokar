@@ -245,4 +245,65 @@ class SelectedProviderTest {
         assertThat(directory.all().get("anthropic").upstreamHost())
                 .isEqualTo("api.anthropic.com");
     }
+
+    @Test
+    void considerSaysWhyRatherThanOnlyThat() {
+
+        // The same three refusals choose() throws for, as values. Anything answering "could this
+        // start" has to tell them apart, and reading them out of an exception's message would be
+        // parsing prose for a decision - which is the one thing this contract refuses everywhere.
+        final AgentDefinition noDefault = agent("""
+                provider:
+                  dialect: anthropic-messages
+                  endpoint: socket
+                  socket_env: EXAMPLE_SOCKET
+                """);
+
+        assertThat(SelectedProvider.consider(shipped(), noDefault, null).refusal())
+                .isEqualTo(SelectedProvider.Refusal.NO_PROVIDER_CHOSEN);
+        assertThat(SelectedProvider.consider(shipped(), noDefault, "nowhere").refusal())
+                .isEqualTo(SelectedProvider.Refusal.UNKNOWN_PROVIDER);
+    }
+
+    @Test
+    void considerNamesTheProviderItLookedFor() {
+
+        // Which provider was wanted is what a person acts on, and it is not recoverable from the
+        // refusal alone once several are declared.
+        final AgentDefinition noDefault = agent("""
+                provider:
+                  dialect: anthropic-messages
+                  endpoint: socket
+                  socket_env: EXAMPLE_SOCKET
+                """);
+
+        assertThat(SelectedProvider.consider(shipped(), noDefault, "nowhere").wanted())
+                .isEqualTo("nowhere");
+    }
+
+    @Test
+    void considerAndChooseNeverDisagree() {
+
+        // Two renderings of one decision. choose() throws where consider() refuses and returns
+        // where it does not - if they ever drift, a preflight would pass and the run would fail.
+        final AgentDefinition noDefault = agent("""
+                provider:
+                  dialect: anthropic-messages
+                  endpoint: socket
+                  socket_env: EXAMPLE_SOCKET
+                """);
+        for (final String requested : new String[] {null, "nowhere", "anthropic"}) {
+            final SelectedProvider.Choice choice =
+                    SelectedProvider.consider(shipped(), noDefault, requested);
+            if (choice.refusal() == null) {
+                assertThat(SelectedProvider.choose(shipped(), noDefault, requested))
+                        .as("requested %s", requested).isNotNull();
+            } else {
+                assertThatThrownBy(() -> SelectedProvider.choose(shipped(), noDefault, requested))
+                        .as("requested %s", requested)
+                        .isInstanceOf(org.fuin.sokar.agent.api.AgentException.class)
+                        .hasMessage(choice.detail());
+            }
+        }
+    }
 }

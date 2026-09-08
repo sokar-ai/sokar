@@ -934,6 +934,40 @@ class SokarDaemonTest {
     }
 
     @Test
+    void canStartAnswersRatherThanThrowingWhenNothingCanRun(@TempDir Path dir) throws Exception {
+
+        // The whole point of the method: a refusal is an ANSWER a client branches on, not an
+        // exception and not an exit code with prose after it. F08's sixth criterion is that a
+        // missing credential is reported before anything is built or started, and reporting it
+        // as a thrown error would put the client back to reading text.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply =
+                        client.call(SokarDaemon.INTERFACE + ".CanStart", Map.of());
+
+                assertThat(reply).containsEntry("ready", false)
+                        .containsEntry("outcome", "NO_AGENT")
+                        .containsEntry("agent", "").containsEntry("credential", "");
+                assertThat(String.valueOf(reply.get("detail"))).isNotBlank();
+            }
+        });
+    }
+
+    @Test
+    void canStartNamesTheProjectFileItCouldNotRead(@TempDir Path dir) throws Exception {
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".CanStart",
+                        Map.of("project", dir.resolve("nowhere.yml").toString()));
+
+                assertThat(reply).containsEntry("outcome", "NO_PROJECT_FILE");
+                assertThat(String.valueOf(reply.get("detail"))).contains("nowhere.yml");
+            }
+        });
+    }
+
+    @Test
     void aGateCallWithoutAProjectIsRefused(@TempDir Path dir) throws Exception {
 
         // A gate belongs to a project, and answering about the wrong one is worse than refusing.

@@ -857,6 +857,51 @@ else
     else
         pass "sokard is listening on its own socket"
 
+        # Can this start? Asked against a real agent, a real provider and a real vault - the
+        # outcomes that matter are exactly the ones a unit test cannot reach, because they need
+        # all four inputs to be real at once.
+        canstart() {
+            printf '{"method":"org.fuin.sokar.Tasks1.CanStart","parameters":{"project":"%s","agent":"%s"}}\0' \
+                "$WORK/project.yml" "$AGENT_NAME" \
+                | "$SOKAR" daemon connect 2>/dev/null | tr '\0' '\n' | grep -m1 outcome
+        }
+
+        READY_REPLY="$(canstart)"
+        if ! echo "$READY_REPLY" | grep -q '"outcome":"READY"'; then
+            fail "CanStart did not answer READY with a stored credential: $READY_REPLY"
+        # The name it looked for is asserted, not merely shown. It must be the PROVIDER's name -
+        # a credential belongs to whoever issued it - and reporting the agent's instead would name
+        # a key that is right only in a vault written before that change. The first version of
+        # this check printed the name as info and would have passed either way.
+        elif echo "$READY_REPLY" | grep -q "\"credential\":\"${PROVIDER:-anthropic}\""; then
+            pass "CanStart says work can start, and names the key it looked for"
+            info "$(echo "$READY_REPLY" | grep -oE '"credential":"[^"]*"')"
+        else
+            fail "CanStart answered READY but named the wrong key: $(echo "$READY_REPLY" \
+                | grep -oE '"credential":"[^"]*"')"
+        fi
+
+        # The distinction the interface asked never to be confused: a locked vault is not a
+        # missing credential, because unlocking is the action and storing one is not.
+        "$SOKAR" vault lock >/dev/null 2>&1 || true
+        LOCKED_REPLY="$(canstart)"
+        if echo "$LOCKED_REPLY" | grep -q '"outcome":"VAULT_LOCKED"'; then
+            pass "a locked vault answers VAULT_LOCKED, not CREDENTIAL_MISSING"
+        else
+            fail "a locked vault did not answer VAULT_LOCKED: $LOCKED_REPLY"
+        fi
+        "$SOKAR" vault unlock --passphrase-command "printf e2e-tier1" >/dev/null 2>&1 || true
+
+        # An agent nobody installed. The name somebody typed comes back, so they look at what they
+        # typed rather than at the machine.
+        UNKNOWN_REPLY="$(printf '{"method":"org.fuin.sokar.Tasks1.CanStart","parameters":{"agent":"not-installed"}}\0' \
+            | "$SOKAR" daemon connect 2>/dev/null | tr '\0' '\n' | grep -m1 outcome)"
+        if echo "$UNKNOWN_REPLY" | grep -q '"outcome":"UNKNOWN_AGENT"'; then
+            pass "an agent that is not installed is named rather than guessed at"
+        else
+            fail "an unknown agent did not answer UNKNOWN_AGENT: $UNKNOWN_REPLY"
+        fi
+
         # What the daemon says an agent is, against an agent that really declares both lists and
         # really fetches nothing. The stub writes its tool into the image, so "no artifacts" is
         # the true answer here rather than an empty field standing in for a missing one.

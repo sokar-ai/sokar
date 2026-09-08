@@ -547,18 +547,64 @@ public final class TaskLaunch {
      */
     @Nullable
     static InstalledAgent select(InstalledAgents agents, @Nullable String agentName) {
+        final Choice choice = considerAgent(agents, agentName);
+        if (choice.refusal() != null) {
+            throw new org.fuin.sokar.agent.api.AgentException(choice.detail());
+        }
+        return choice.agent();
+    }
+
+    /** Why no single agent could be picked. */
+    public enum AgentRefusal {
+
+        /** A name was given and nothing is installed under it. */
+        UNKNOWN_AGENT,
+
+        /** Several are installed and the run named none, so somebody has to choose. */
+        SEVERAL_AGENTS
+    }
+
+    /**
+     * Which agent a run would use, as a value rather than as an exception.
+     * <p>
+     * The same reason {@code SelectedProvider.consider} exists: anything answering "could this
+     * start" has to reach the verdict {@link #select} reaches, from the same code, and telling
+     * "no such agent" from "several installed" by reading an exception's message would be parsing
+     * prose for a decision.
+     *
+     * @param agent The agent, or {@code null} when none is installed or the choice was refused.
+     * @param refusal Why it was refused, or {@code null} when it was not.
+     * @param detail What to tell a person. Always set.
+     */
+    public record Choice(@Nullable InstalledAgent agent, @Nullable AgentRefusal refusal,
+            String detail) {
+    }
+
+    /**
+     * Picks the agent a command should work with, without throwing.
+     *
+     * @param agents What is installed.
+     * @param agentName Value of {@code --agent}, or {@code null}.
+     * @return The choice, refused or not.
+     */
+    public static Choice considerAgent(InstalledAgents agents, @Nullable String agentName) {
         if (agentName != null) {
-            return agents.require(agentName);
+            final InstalledAgent named = agents.find(agentName).orElse(null);
+            return named != null ? new Choice(named, null, agentName)
+                    : new Choice(null, AgentRefusal.UNKNOWN_AGENT,
+                            "No agent named '" + agentName + "' is installed. Found: "
+                                    + (agents.names().isEmpty() ? "none"
+                                            : String.join(", ", agents.names())));
         }
         if (agents.size() == 1) {
-            return agents.all().getFirst();
+            return new Choice(agents.all().getFirst(), null, agents.all().getFirst().name());
         }
         if (agents.size() == 0) {
             // A task with no agent is legitimate - the walking skeleton attaches a shell - so this
             // is not an error, only an image without an agent in it.
-            return null;
+            return new Choice(null, null, "no agent is installed");
         }
-        throw new org.fuin.sokar.agent.api.AgentException(
+        return new Choice(null, AgentRefusal.SEVERAL_AGENTS,
                 "Several agents are installed (" + String.join(", ", agents.names())
                         + "), so --agent is required");
     }

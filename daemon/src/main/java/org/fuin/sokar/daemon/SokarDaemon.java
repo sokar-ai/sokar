@@ -360,6 +360,18 @@ public final class SokarDaemon {
             }
         });
 
+        server.method("CanStart", (parameters, replies) -> {
+            // The rule lives in one place and this is not it: StartCheck delegates every decision
+            // to the same objects a launch uses, so this and an actual Start cannot come to
+            // different conclusions. That was the whole argument for a method over a reply field -
+            // the rule needs four inputs and a client has one of them.
+            final String project = text(parameters, "project");
+            replies.last(org.fuin.sokar.app.StartCheck.check(context,
+                    project.isEmpty() ? null : Path.of(project),
+                    empty(parameters, "agent"), empty(parameters, "provider"),
+                    empty(parameters, "credentialType")).asMap());
+        });
+
         server.method("Credentials", (parameters, replies) -> {
             // Names, types and lengths - never a value. The vault is read only if the passphrase
             // is already in the kernel keyring: a daemon has no terminal to ask at, and a call

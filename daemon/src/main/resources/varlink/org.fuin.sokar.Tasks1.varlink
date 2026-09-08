@@ -619,6 +619,81 @@ method Lock() -> (
   holding: int
 )
 
+# Why work could not start here, or that it could.
+#
+# New values may appear; render an unrecognised one rather than throwing, by the same rule as
+# every other enumeration here. The three that mean different ACTIONS are NO_PROVIDER_CHOSEN
+# (pick a provider), CREDENTIAL_MISSING (store a secret) and VAULT_LOCKED (unlock it) - showing
+# any of those as another is telling somebody to do the wrong thing.
+type StartOutcome (
+  # Nothing is in the way.
+  READY,
+  # The project file is not there, or cannot be read.
+  NO_PROJECT_FILE,
+  # Nothing is installed to run. A task with no agent can still be started as a plain shell, so
+  # this is not "the machine is broken".
+  NO_AGENT,
+  # A name was given and nothing is installed under it.
+  UNKNOWN_AGENT,
+  # Several are installed and none was named. Somebody chooses an agent.
+  SEVERAL_AGENTS,
+  # The agent names no default provider and none was chosen. Somebody chooses a PROVIDER - not a
+  # secret, which is why this is not folded into CREDENTIAL_MISSING.
+  NO_PROVIDER_CHOSEN,
+  # The provider asked for is not declared on this machine.
+  UNKNOWN_PROVIDER,
+  # The provider is declared but does not serve the dialect this agent speaks.
+  WRONG_DIALECT,
+  # The vault cannot be read, so this question cannot be answered yet. NOT a missing credential:
+  # the one thing that helps is unlocking, and telling somebody to store a secret they already
+  # have is the instruction that cannot help them.
+  VAULT_LOCKED,
+  # The vault is readable and holds nothing under the name this run would look for. 'credential'
+  # names it.
+  CREDENTIAL_MISSING,
+  # Something is stored and cannot be brokered - the wrong kind for this provider. 'detail' says
+  # what.
+  CREDENTIAL_UNUSABLE
+)
+
+# Whether work could start here, asked before anything is created.
+#
+# This exists because the only other way to find out was to start a task and read an exit code and
+# a stream of prose. It takes the same choices Start takes and answers from the same code, so a
+# check that says READY and a Start that refuses cannot disagree.
+#
+# What it CANNOT tell you: whether the credential is still valid at the provider. It answers that
+# something usable is stored under the name this run would look for, which is a different claim.
+method CanStart(
+  # Path to the project file, as Start takes it. Omitted, no project file is checked.
+  project: ?string,
+  # Agent to run. Omitted, the only one installed.
+  agent: ?string,
+  # Provider to route through. Omitted, the agent's own declared default.
+  provider: ?string,
+  # Overrides the stored credential kind for this question, as Start takes it.
+  credentialType: ?string
+) -> (
+  # Whether work could start. True exactly when outcome is READY, so branch on whichever suits -
+  # but never infer the ACTION from this alone: three different things somebody has to do all
+  # arrive as false.
+  ready: bool,
+  outcome: StartOutcome,
+  # The agent this was answered for. "" when none was settled.
+  agent: string,
+  # The provider serving it. "" when the agent is not brokered, or none was settled.
+  provider: string,
+  # The vault key this run would look for. "" when the question never got that far.
+  #
+  # The name ACTUALLY looked for, not the one that ought to apply: a vault written before
+  # credentials were keyed by provider still answers under the agent's own name, so this can be
+  # either. Render this, not a name of your own composing - otherwise the sentence on screen names
+  # a key that would be right in a vault the person does not have.
+  credential: string,
+  # Prose for a person, always set. Never parsed.
+  detail: string
+)
+
 # Reads one of a task's log files, and with "more" follows it as it is written.
 #
 # The log name is checked against the files that are there rather than resolved as a path.
