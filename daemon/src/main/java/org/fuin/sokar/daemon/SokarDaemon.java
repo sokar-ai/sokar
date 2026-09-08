@@ -322,6 +322,15 @@ public final class SokarDaemon {
                     .map(ProjectInventory.Summary::asMap).toList()));
         });
 
+        server.method("Node", (parameters, replies) -> {
+            // Minted on first ask and kept. A client cannot work this out: a hostname has many
+            // spellings and a forwarded socket looks nothing like your own tunnel to the same
+            // place, so the same node can sit twice in a list of machines and deliver every
+            // clearance question twice.
+            replies.last(Map.of("id",
+                    org.fuin.sokar.app.NodeIdentity.of(context.paths().nodeIdFile())));
+        });
+
         server.method("Logs", (parameters, replies) -> {
             // Listed, not guessed: which files a task has depends on what it started, and a client
             // that knew the names would open an empty viewer for one that never existed.

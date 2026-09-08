@@ -196,6 +196,19 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file holding this node's identity.
+     * <p>
+     * Under the data directory, so it is per OS user without anything having to say so: two
+     * accounts on one machine are two nodes, and this is what makes that answerable rather than
+     * merely true.
+     *
+     * @return The identity file, which may not exist yet.
+     */
+    public Path nodeIdFile() {
+        return xdg.data().resolve("node-id");
+    }
+
+    /**
      * Returns the directory recording each project's last measured distance from its upstream.
      * <p>
      * Beside the registry and shaped the same way, for the same reason: written from a timer while

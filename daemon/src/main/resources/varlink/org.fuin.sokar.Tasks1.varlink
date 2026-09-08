@@ -964,6 +964,24 @@ method DeleteProject(
 
 method Projects() -> (projects: []Project)
 
+# What this node calls itself.
+#
+# GetInfo answers a vendor and a version, which says what a daemon is and never which one. This
+# answers which one - so a client can tell that two entries in a list of machines are the same
+# node reached two ways, which it cannot work out for itself: a hostname has many spellings, and
+# a socket somebody else forwarded looks nothing like your own tunnel to the same place.
+#
+# The failure it prevents is not cosmetic. The same node listed twice delivers every clearance
+# question twice, and answering one leaves the other on screen until it expires.
+method Node() -> (
+  # Stable across restarts, and unique to this node. Random, and derived from nothing: it says
+  # only whether two connections lead to the same place.
+  #
+  # A node is an OS user with a daemon, not a machine, so two accounts on one host answer
+  # differently here - which is the case a hostname gets wrong.
+  id: string
+)
+
 # Which logs a task has.
 #
 # Ask rather than assume: what a task writes depends on what it started - a task with no gate
