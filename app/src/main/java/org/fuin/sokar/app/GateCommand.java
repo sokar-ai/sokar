@@ -11,7 +11,8 @@ import picocli.CommandLine.Command;
         subcommands = { GateServeCommand.class, GatePendingCommand.class,
                 GateReviewCommand.class, GateApproveCommand.class, GateRejectCommand.class,
                 GateBackupCommand.class, GateRestoreCommand.class,
-                GateCheckoutCommand.class })
+                GateCheckoutCommand.class, GateProtectCommand.class,
+                GateCheckCommand.class })
 public class GateCommand {
 
 }

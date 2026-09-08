@@ -1096,6 +1096,75 @@ else
     pass "the refusal created no container"
 fi
 
+# --------------------------------------------------------------------------------------------
+# The pre-push guard, against a real push
+#
+# Everything about this feature is git's behaviour rather than ours, and the two bugs found while
+# building it - a rev-list form that answered zero every time, and a worktree whose hooks live
+# somewhere else - both installed cleanly and fired for nobody. So the check that matters is a
+# real push being stopped.
+# --------------------------------------------------------------------------------------------
+echo
+echo "== the pre-push guard =="
+
+HOOK_DIR="$(mktemp -d)"
+# Taken from the machine rather than written down here: an address that matches nothing would let
+# the check below pass while proving nothing at all.
+AGENT_ADDR="$("$SOKAR" agents --verbose 2>/dev/null \
+    | sed -n 's/.*commits: .*<\(.*\)>.*/\1/p' | head -1)"
+git init --quiet --initial-branch=main "$HOOK_DIR/work"
+git init --quiet --bare --initial-branch=main "$HOOK_DIR/up.git"
+git -C "$HOOK_DIR/work" remote add origin "$HOOK_DIR/up.git"
+git -C "$HOOK_DIR/work" -c user.name=Me -c user.email=me@example.com \
+    commit --quiet --allow-empty -m "mine"
+
+if "$SOKAR" gate protect --repo "$HOOK_DIR/work" >/dev/null 2>&1 \
+        && [ -x "$HOOK_DIR/work/.git/hooks/pre-push" ]; then
+    pass "gate protect installs a hook git will run"
+else
+    fail "gate protect did not install a runnable hook"
+fi
+
+# A commit nobody but a person wrote must go through untouched. A guard that stops everything is
+# the same as no guard, because people turn it off.
+if git -C "$HOOK_DIR/work" push --quiet origin main >/dev/null 2>&1; then
+    pass "a push of a person's own work is not stopped"
+else
+    fail "the guard stopped a push that carried no agent work"
+fi
+
+# Now under whichever agent this machine actually has installed.
+if [ -z "$AGENT_ADDR" ]; then
+    info "no agent installed, so the guard has nothing to recognise - skipped"
+else
+    git -C "$HOOK_DIR/work" -c user.name=Agent -c user.email="$AGENT_ADDR" \
+        commit --quiet --allow-empty -m "agent work"
+    if git -C "$HOOK_DIR/work" push origin main >"$HOOK_DIR/push.log" 2>&1; then
+        fail "the guard let a push of unapproved agent work through"
+    else
+        pass "a push carrying unapproved agent work is stopped"
+        info "$(grep 'an agent wrote' "$HOOK_DIR/push.log" | head -1)"
+    fi
+
+    # The acceptance criterion is that a person who means it can still do it.
+    if git -C "$HOOK_DIR/work" push --no-verify --quiet origin main >/dev/null 2>&1; then
+        pass "--no-verify is the deliberate way past"
+    else
+        fail "--no-verify did not get past the guard"
+    fi
+fi
+
+# core.hooksPath is the setting that silently disables every hook in a repository. Installing
+# without saying so would leave somebody believing they were protected.
+git -C "$HOOK_DIR/work" config core.hooksPath "$HOOK_DIR/elsewhere"
+mkdir -p "$HOOK_DIR/elsewhere"
+if "$SOKAR" gate protect --repo "$HOOK_DIR/work" 2>&1 | grep -q "not protected"; then
+    pass "gate protect says so when core.hooksPath disables the hook"
+else
+    fail "gate protect reported success under a core.hooksPath that disables it"
+fi
+rm -rf "$HOOK_DIR"
+
 # Put the vault back the way this suite set it up, so anything added after this still has one.
 "$SOKAR" vault unlock --passphrase-command "printf e2e-tier1" >/dev/null 2>&1 || true
 

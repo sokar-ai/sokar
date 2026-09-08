@@ -211,14 +211,14 @@ would make the queue cost what a listing must not.
 
 ## To be checked
 
-- **Whether the guard is worth building, given the four ways round it.** Measured above. Still a
-  decision rather than a fact: a guard that catches the ordinary accident and is silently absent
-  under `core.hooksPath` may be worth having, or may be worse than nothing because people will
-  believe they are protected.
-- **What the guard tests.** Author identity is the cheap signal and it is spoofable and easy to
-  lose in a rebase. A trailer that the gate adds when it forwards - so that *approved* commits are
-  the marked ones and everything else is suspect - inverts it into the safer direction, at the cost
-  of rewriting commits at approval time.
+- ~~Whether the guard is worth building~~ **Built, and the answer to "worse than nothing" is that
+  it has to say so.** See below.
+- ~~What the guard tests~~ **Author identity, and the reason for the doubt was wrong.**
+  Measured: `git rebase` **preserves** the author and changes only the committer - through an
+  ordinary rebase, an interactive one and an `--amend`. So the cheap signal is also the durable
+  one, and the trailer that would have justified rewriting commits at approval time buys nothing.
+  It remains spoofable, which is the accepted trade: this catches an accident, not the owner of
+  the machine.
 - **Whether the mirror should be harder to fetch from.** Making it unreadable would break `gate
   review`, which is how anybody looks at the work at all. Probably nothing to do here, but it is
   the other end of the same path.
@@ -240,3 +240,36 @@ would make the queue cost what a listing must not.
   and it is currently blocked by the egress rules, and the workaround - declaring an editor
   vendor's hosts - widens the agent's reach for a person's benefit, which is backwards. `podman cp`
   places the server with no egress at all. This matters less if the checkout above exists.
+
+## Built, 2026-09-08: the guard, and the two ways it would have been silently absent
+
+`sokar gate check` reads a pre-push hook's input and names the commits an agent authored;
+`sokar gate protect` installs a two-line hook that calls it. Both were written to the measurements
+above - and building them turned up two more ways the guard installs cleanly and never fires,
+neither of which any assertion on arguments would have caught.
+
+- **`rev-list <local> --not --all` answers zero commits. Every time.** The intent was "everything
+  no other ref already has", but the ref being pushed is itself one of `--all`, so it subtracts
+  itself. The first push - the case that matters most - would have been waved through in silence.
+  What is new to the far side is what the **named** remote's tracking refs do not have, and git
+  hands a hook that name as an argument: `--not --remotes=<remote>`. With no tracking refs for it
+  that is the whole branch, which is conservative and also literally true. Proven with two remotes,
+  because with one the wrong form gives the same answer.
+- **A worktree keeps its hooks somewhere else.** `git rev-parse --git-dir` in a worktree points at
+  `.git/worktrees/<name>`, which has no `hooks/` at all; git runs `pre-push` out of
+  `--git-common-dir`. Writing to the obvious one creates a directory, reports success, and fires
+  for nobody.
+
+Both are in the tests as regressions, with the wrong form asserted beside the right one so the
+reason stays visible rather than becoming a line nobody dares change.
+
+**What `protect` refuses to do.** It checks `core.hooksPath` after writing and says, in as many
+words, that this repository is **not protected** while that setting stands - the failure the
+section above called the dangerous one. It leaves a `pre-push` it did not write alone rather than
+overwriting it, and `--remove` takes away only its own. Installing twice is not an error, so an
+upgrade is a re-run.
+
+**What it tells the person it stops.** The commits by name, then `gate pending`, `gate checkout`
+and `gate approve` - and `--no-verify` as the deliberate way past, named rather than hidden,
+because a person who means it may still do it.
+

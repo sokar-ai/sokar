@@ -90,6 +90,12 @@ public class AgentsCommand implements Callable<Integer> {
                             agent.definition().binary(), agent.definition().label(),
                             agent.executable());
                     if (verbose) {
+                        // The address the guard recognises. Somebody looking at a commit and
+                        // wondering whether a person or an agent wrote it has nowhere else to
+                        // find out, now that a pre-push hook decides on exactly this.
+                        out.println("             commits: "
+                                + agent.definition().gitIdentity().name() + " <"
+                                + agent.definition().gitIdentity().email() + ">");
                         out.println("             domains: "
                                 + String.join(", ", agent.definition().allowedDomains()));
                         if (agent.definition().provider() != null) {
