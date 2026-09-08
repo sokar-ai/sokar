@@ -128,13 +128,20 @@ before going further.
 > whole design exists to prevent. Authenticate on the node, once, and store the
 > result below.
 
-**First, get the credential — on the node.** Which one depends on how you pay:
+**Three ways in, and the first works on a machine where nothing is installed yet:**
 
-| You have | How to get it into the vault |
+| Your situation | How to get a credential into the vault |
 |---|---|
-| an API key | copy it from your provider's console and store it: `sokar vault put <provider> --type api-key` |
-| a subscription | **`sokar vault login`** — it runs the agent's own login for you |
-| an agent already logged in on this node | `sokar vault import <agent>` — nothing is retyped |
+| **anything** | **`sokar vault login <agent>`** — runs the agent's own login for you |
+| the agent is already signed in on this node | `sokar vault import <agent>` — **prefer this**: it copies what is already there and logs in nowhere |
+| you have an API key | `sokar vault put <provider> --type api-key` — asks for it without echoing it |
+
+**If the agent is already signed in here, import rather than log in again.** `vault login`
+starts a *second, independent* authorization: the container has its own home and never
+touches the one on this node, so nothing local is disturbed by Sokar — but whether a second
+authorization invalidates the first is the provider's business, not ours. Some issue many
+concurrent tokens; some revoke the previous one. `vault import` copies the credential that
+already exists and performs no login at all, so the question does not arise.
 
 **For a subscription there is no key to copy from a web page.** The value is produced by
 the agent's own login, and on a machine where you have never installed that agent by hand
@@ -160,8 +167,14 @@ exactly what a *task* is prevented from doing, so that an agent must go through 
 and never holds the real credential.
 
 **An agent has to say how it logs in**, in its own manifest, and one that does not is
-answered as unsupported rather than guessed at. Sokar does not know that Claude Code's verb
-is `setup-token`; hardcoding one agent's would be wrong for every other.
+answered as unsupported rather than guessed at — Sokar never guesses a verb, because
+hardcoding one agent's would be wrong for every other.
+
+For Claude Code the declared login is the binary on its own: running `claude` without
+credentials starts its own authentication and writes them where Sokar collects them. It is
+deliberately **not** `setup-token`, which prints a token to the terminal and writes no
+credentials file — that would leave you copying a value by hand, which is the thing this
+removes.
 
 **If the agent is already logged in here, import instead of typing.** An agent that
 keeps its own credentials on this node can hand them over:

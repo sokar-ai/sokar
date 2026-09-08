@@ -99,14 +99,14 @@ Everything needed to go from nothing to a running agent. Paste it into the proje
 an agent to work on.
 
 > [!NOTE]  
-> This is the quick path for the case where **Claude Code is already installed and signed
-> in on the node you run Sokar from** — `vault import` copies the credential it is holding,
-> whether that is an API key or a subscription token, so nothing is retyped.
+> **Nothing has to be installed on this machine first.** Sokar puts an agent's tooling into
+> the task image rather than onto the node, so `vault login` runs the agent's own login for
+> you in a throwaway container.
 >
-> **If it is not**, replace `sokar vault import claude` with **`sokar vault login claude`**,
-> which runs the agent's own login for you in a throwaway container and stores what it
-> produces. Sokar installs the agent's tooling into the task image rather than onto the
-> node, so there is otherwise nothing on a fresh machine to log in with.
+> **If Claude Code is already signed in here, use `vault import claude` instead.** It copies
+> what that install is holding and logs in nowhere. `vault login` would start a second,
+> independent authorization — the container has its own home and nothing local is touched by
+> Sokar, but whether a second one invalidates the first is the provider's business.
 
 **Debian and Ubuntu**
 
@@ -137,12 +137,18 @@ sokar setup
 # dnsmasq without nftset support opens nothing while resolving everything.
 sokar doctor
 
-# Your credential, copied from the Claude Code already installed on this host - so no key
-# goes through your shell or your history. The first unlock sets the vault passphrase.
-# It never enters the container: the agent gets a task-scoped token, and a proxy swaps in
-# the real key on the way out.
+# The vault, and a credential in it. The first unlock sets the passphrase.
+#
+# 'vault login' runs the agent's own login in a throwaway container and stores what it
+# produces - so nothing has to be installed here first, and no key goes through your shell
+# or your history. Already have Claude Code signed in on this machine? Then
+# 'sokar vault import claude' copies what it is holding and is quicker. Have an API key
+# instead? 'sokar vault put anthropic --type api-key' asks for it without echoing it.
+#
+# However it gets there, it never enters the container: the agent is given a task-scoped
+# token, and a proxy swaps in the real key on the way out.
 sokar vault unlock
-sokar vault import claude
+sokar vault login claude
 
 # Run one. With no project.yml here it offers to write one, taking the project
 # name from this directory - Enter accepts every default. What it writes includes an
@@ -182,12 +188,18 @@ sudo /usr/share/sokar/selinux/install-selinux-policy.sh
 # dnsmasq without nftset support opens nothing while resolving everything.
 sokar doctor
 
-# Your credential, copied from the Claude Code already installed on this host - so no key
-# goes through your shell or your history. The first unlock sets the vault passphrase.
-# It never enters the container: the agent gets a task-scoped token, and a proxy swaps in
-# the real key on the way out.
+# The vault, and a credential in it. The first unlock sets the passphrase.
+#
+# 'vault login' runs the agent's own login in a throwaway container and stores what it
+# produces - so nothing has to be installed here first, and no key goes through your shell
+# or your history. Already have Claude Code signed in on this machine? Then
+# 'sokar vault import claude' copies what it is holding and is quicker. Have an API key
+# instead? 'sokar vault put anthropic --type api-key' asks for it without echoing it.
+#
+# However it gets there, it never enters the container: the agent is given a task-scoped
+# token, and a proxy swaps in the real key on the way out.
 sokar vault unlock
-sokar vault import claude
+sokar vault login claude
 
 # Run one. With no project.yml here it offers to write one, taking the project
 # name from this directory - Enter accepts every default. What it writes includes an
