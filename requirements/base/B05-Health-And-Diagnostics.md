@@ -16,6 +16,7 @@ installed one. Each produces a symptom far from its cause.
   version number.
 - Shadowed binaries are named, with what is hiding what.
 - Each failure carries the single next action.
+- The same answer is available to something that is not a terminal.
 
 ## Built, 2026-09-07
 
@@ -68,3 +69,30 @@ Where a probe cannot answer, it must say so rather than assume the good case.
   able to refuse - a project or a machine saying "not without pasta" - and that is a policy
   decision rather than a probe. Nothing refuses today; the gate binds every interface, says so,
   and leaves the per-task token as what keeps it shut.
+
+## The half that is built and cannot be asked for
+
+**The diagnosis exists and only the CLI can see it.** `sokar doctor` probes nine dependencies with
+four states and one next action each - a failure that names no next action cannot even be
+constructed - and none of it is on the daemon's contract. So the question it answers, *can this
+machine do the thing I am about to ask of it*, cannot be asked from anywhere else.
+
+That matters because every one of these failures surfaces far from its cause. Without `nft` a
+container comes up with no ruleset; without `git` the gate has no mirror; without `nsenter` a
+clearance decision cannot reach a running task. **Today a person learns all of this by starting
+work and watching it behave strangely.**
+
+Nothing new has to be decided: the probes, the states and the next actions are written. What is
+missing is a read on the wire.
+
+### The other half is withdrawn, and it could not have worked anyway
+
+The interface also asked to *offer the fix and run it* - installing packages, writing under `/etc`.
+That is root on the node, and exactly the power this product is built around not having. The
+operator ruled it out.
+
+There is a second reason it was never reachable: **a machine that is not ready usually has no
+daemon to ask.** A readiness check delivered over the daemon's own socket can only answer for a
+machine whose daemon is already up, so the case most worth fixing is structurally out of reach of
+this transport. What is wanted is the diagnosis, and the diagnosis exists.
+

@@ -31,14 +31,42 @@ hand and is a correct terminal without anything being rebuilt. A session is a mu
 container, which Sokar installs in the layer it already writes - so leaving does not end it, and
 what re-entering may claim is a scrollback figure rather than an apology.
 
+B18 to B22 arrived together, from the interface, as one list of everything a person could see and
+not do. They are filed separately because the work is separate, but the distinction that decides
+their cost is shared: **B18 and B22 are verbs that already exist and are only invisible**, while
+B19, B20 and B21 exist nowhere. `doctor` was the third of the already-built ones and it is not
+here - it went into [B05](B05-Health-And-Diagnostics.md), which is the same work seen from the
+other side: B05 asks whether the machine reports what it can do, and the missing half is that
+nothing can ask it.
+
+**B18 states what must be true if a credential becomes storable from an interface; whether it does
+is not decided there.** That question is held together with the vault passphrase in
+[secrets from elsewhere](Secrets-From-Elsewhere_design.md), because the two were argued separately
+and reached opposite answers within a day, on reasoning that moved under both - two of the three
+original arguments did not survive examination. The design records four options and what each is
+worth without choosing between them. **Until it is decided, both are entered at the node over ssh**,
+and an interface asks for neither.
+
+Two of that list dissolved rather than becoming requirements, and both are recorded where somebody
+will look rather than dropped. Provisioning a machine is refused and could not have worked anyway -
+a machine that is not ready has no daemon to ask - and it is argued in B05. Routing credentials to
+projects describes a relation that does not exist, and it is argued in
+[B18](B18-Storing-A-Credential-From-Elsewhere.md); restated correctly it is the agent roster, which
+was already refused.
+
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | yes |
 | B12 | [Changing What Running Work May Reach](B12-Changing-What-Running-Work-May-Reach.md) | What a running task may reach can be widened or narrowed without restarting it, and a task says whether enforcement is on. | yes |
-| B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | yes |
+| B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | two, and the guard is built |
 | B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | yes, including whether to build it |
 | B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | yes, and it turns on B14 |
 | B16 | [Working Inside A Running Container](B16-Working-Inside-A-Running-Container.md) | A shell in a running task is reachable from the interface, leaving does not end it, coming back says what it can and cannot show, and being inside weakens nothing the container is held to. | none - built |
+| B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two |
+| B22 | [Backups That Can Be Told Apart](B22-Backups-That-Can-Be-Told-Apart.md) | Backups are listable, deletable and restorable by something other than a person at a terminal, and anything that would discard unreviewed work refuses by name first. | one |
+| B21 | [Instructions For An Agent](B21-Instructions-For-An-Agent.md) | Standing instructions are readable and writable at both levels, a project says which of the three positions it is in, and the resolved text a task receives is computed by the daemon. | two |
+| B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one |
+| B20 | [Creating A Project](B20-Creating-A-Project.md) | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | yes |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | yes |
