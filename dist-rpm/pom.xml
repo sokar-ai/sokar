@@ -68,7 +68,7 @@
                                     <name>sokar.package.version</name>
                                     <value>${project.version}</value>
                                     <regex>-SNAPSHOT$</regex>
-                                    <replacement>~SNAPSHOT</replacement>
+                                    <replacement>~snapshot.${sokar.snapshot.run}</replacement>
                                     <failIfNoMatch>false</failIfNoMatch>
                                 </configuration>
                             </execution>

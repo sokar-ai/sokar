@@ -179,8 +179,35 @@ fi
 # The whole point of the '~': a snapshot must sort BELOW the release it precedes, or apt
 # and dnf both refuse to upgrade from it.
 case "$DEB_VERSION" in
-    *~SNAPSHOT) pass "a snapshot version uses '~', so it sorts below the release" ;;
-    *-SNAPSHOT) fail "version is '$DEB_VERSION': '-SNAPSHOT' sorts ABOVE the release" ;;
+    *-SNAPSHOT)
+        fail "version is '$DEB_VERSION': '-SNAPSHOT' sorts ABOVE the release" ;;
+    *~SNAPSHOT)
+        # The shape this replaced. Flat, so every build of main carried the same version and
+        # 'apt upgrade' had nothing to do - a repository called 'snapshots' whose packages never
+        # updated.
+        fail "version is '$DEB_VERSION': a flat snapshot never supersedes the last one" ;;
+    *~snapshot.*)
+        pass "a snapshot version uses '~', so it sorts below the release"
+        # Asked of dpkg rather than assumed. What has to be true is that this package REPLACES
+        # the one before it and still loses to the eventual release - and that the comparison is
+        # numeric, so build 10 beats build 9 rather than sorting beside build 1.
+        RELEASE="${DEB_VERSION%%~*}"
+        RUN="${DEB_VERSION##*~snapshot.}"
+        if dpkg --compare-versions "$DEB_VERSION" lt "$RELEASE"; then
+            pass "it still sorts below the release $RELEASE"
+        else
+            fail "$DEB_VERSION does not sort below $RELEASE"
+        fi
+        if dpkg --compare-versions "${RELEASE}~snapshot.$((RUN + 1))" gt "$DEB_VERSION"; then
+            pass "the next build supersedes it, so 'apt upgrade' has something to do"
+        else
+            fail "${RELEASE}~snapshot.$((RUN + 1)) does not sort above $DEB_VERSION"
+        fi
+        if dpkg --compare-versions "${RELEASE}~snapshot.10" gt "${RELEASE}~snapshot.9"; then
+            pass "build numbers compare numerically, so 10 beats 9"
+        else
+            fail "build 10 does not sort above build 9 - the comparison is lexical"
+        fi ;;
     *) info "version $DEB_VERSION is not a snapshot" ;;
 esac
 

@@ -197,8 +197,12 @@ jobs:
           done < fetched.txt
 
       # Packaging only, on modules whose binary arrived. No 'clean', or the binaries go with it.
+      # The run number is what makes one snapshot package newer than the last. Without it every
+      # build of main produced the same version, so 'apt upgrade' had nothing to do and a
+      # repository called 'snapshots' never actually updated anybody.
       - name: Build the packages
         run: ./mvnw -B -Pdist verify -DskipTests -pl agents/stub,dist-deb,dist-rpm
+             -Dsokar.snapshot.run=${{ github.run_number }}
 
       # Checks the two packages against each other and installs both in a clean Debian and
       # a clean Fedora container. Before the upload, not after: a package that does not

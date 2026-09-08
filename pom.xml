@@ -70,6 +70,15 @@
              module that inherits it - and an agent module is on a different version.
              Kept equal to <version> above by maven-enforcer-plugin below. -->
         <sokar.version>0.1.0-SNAPSHOT</sokar.version>
+        <!-- What distinguishes one snapshot package from the next.
+             Without it every build of main produced 0.1.0~SNAPSHOT, which is the SAME version -
+             so 'apt upgrade' saw nothing to do and somebody who installed yesterday stayed on it
+             until they purged. A repository literally called 'snapshots' whose packages never
+             update. CI passes the run number; a local build is 0, which sorts below every CI
+             build and above the old flat ~SNAPSHOT, so an existing install upgrades cleanly.
+             Verified against dpkg and rpm themselves, including 9 < 10, which is a numeric
+             comparison in both and not a lexical one. -->
+        <sokar.snapshot.run>0</sokar.snapshot.run>
         <fuin-bom.version>1.0.2</fuin-bom.version>
         <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
         <native-maven-plugin.version>1.1.11</native-maven-plugin.version>

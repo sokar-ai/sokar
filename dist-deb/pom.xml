@@ -68,13 +68,16 @@
                                     <goal>regex-property</goal>
                                 </goals>
                                 <configuration>
-                                    <!-- Debian sorts '~' below everything, so 0.1.0~SNAPSHOT is
-                                         older than 0.1.0. Left as '-SNAPSHOT' it sorts ABOVE the
-                                         release and apt refuses the upgrade. -->
+                                    <!-- Debian sorts '~' below everything, so 0.1.0~snapshot.N
+                                         is older than 0.1.0. Left as '-SNAPSHOT' it sorts ABOVE
+                                         the release and apt refuses the upgrade.
+                                         The run number is what makes one snapshot newer than the
+                                         last: a flat ~SNAPSHOT is the same version every build,
+                                         so apt has nothing to upgrade to. -->
                                     <name>sokar.package.version</name>
                                     <value>${project.version}</value>
                                     <regex>-SNAPSHOT$</regex>
-                                    <replacement>~SNAPSHOT</replacement>
+                                    <replacement>~snapshot.${sokar.snapshot.run}</replacement>
                                     <failIfNoMatch>false</failIfNoMatch>
                                 </configuration>
                             </execution>
