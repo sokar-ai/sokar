@@ -175,6 +175,71 @@ class HookInstallerTest {
     }
 
     @Test
+    void reportsDescriptorsLeftBehindByAnUpgrade(@TempDir Path root) throws IOException {
+
+        // The case nobody was catching: a package replaces the binaries and never touches these
+        // files, and nothing runs 'sokar setup' for the operator. Every check asked only whether
+        // the files were THERE, so a descriptor from an older release reported ACTIVE while
+        // podman went on running what it said - and a container with no firewall looks entirely
+        // normal.
+        final HookInstaller installer = installer(root);
+        binaries(root);
+        installer.install();
+
+        final Path descriptor = root.resolve("containers/oci/hooks.d/sokar-hook-nft-poststop.json");
+        Files.writeString(descriptor, Files.readString(descriptor)
+                .replace("\"timeout\":30", "\"timeout\":10"));
+
+        assertThat(installer.registration()).isEqualTo(HookInstaller.Registration.STALE);
+        assertThat(installer.outdated()).containsExactly(descriptor);
+    }
+
+    @Test
+    void reportsADropInLeftBehindByAnUpgrade(@TempDir Path root) throws IOException {
+
+        // The drop-in is the file that tells podman to read the descriptors at all, and it lives
+        // somewhere else, so it is easy to check the wrong half.
+        final HookInstaller installer = installer(root);
+        binaries(root);
+        installer.install();
+        Files.writeString(installer.dropInFile(),
+                installer.podmanDropIn() + "# edited by somebody\n");
+
+        assertThat(installer.registration()).isEqualTo(HookInstaller.Registration.STALE);
+        assertThat(installer.outdated()).containsExactly(installer.dropInFile());
+    }
+
+    @Test
+    void namesEveryFileThatWouldBeRewritten(@TempDir Path root) throws IOException {
+
+        // 'run setup again' after an upgrade that changed nothing visible reads like
+        // superstition until the message can say which files differ.
+        final HookInstaller installer = installer(root);
+        binaries(root);
+        installer.install();
+        for (final String name : installer.descriptors().keySet()) {
+            Files.writeString(root.resolve("containers/oci/hooks.d").resolve(name), "{}");
+        }
+
+        assertThat(installer.outdated())
+                .hasSize(installer.descriptors().size())
+                .allSatisfy(file -> assertThat(file.getFileName().toString()).endsWith(".json"));
+    }
+
+    @Test
+    void saysNothingIsOutdatedWhenEverythingMatches(@TempDir Path root) throws IOException {
+
+        // The negative case. A check that answered "stale" for a correct installation would send
+        // every operator to run setup after every command.
+        final HookInstaller installer = installer(root);
+        binaries(root);
+        installer.install();
+
+        assertThat(installer.outdated()).isEmpty();
+        assertThat(installer.registration()).isEqualTo(HookInstaller.Registration.ACTIVE);
+    }
+
+    @Test
     void reportsDescriptorsNamingBinariesThatAreGone(@TempDir Path root) throws IOException {
 
         // What a package upgrade leaves behind, and it looks identical to a working install.

@@ -184,17 +184,54 @@ public class TaskWorkspace {
      * <p>
      * Run as a command rather than baked into the image: the gate's port changes per task, and an
      * image carrying a URL would be wrong the moment it was reused.
+     * <p>
+     * <strong>Fetching is not checking out.</strong> This used to stop after the fetch, which
+     * filled {@code .git} and left the working tree empty - so every task began in a directory
+     * holding nothing but {@code .git}, and an agent asked to change a project could not see one
+     * file of it. Reported from a machine where {@code ls -alF} in the workspace showed exactly
+     * that.
+     * <p>
+     * <strong>Only when there is no {@code HEAD} yet.</strong> The checkout is guarded on an
+     * unborn branch rather than on an empty directory, because the same command runs again when a
+     * task is resumed: a workspace with commits in it, or with work the agent has not committed,
+     * must not be reset to what the mirror holds. An empty mirror leaves {@code HEAD} unborn and
+     * the workspace empty, which is right - that is a project with no history yet.
      *
      * @return Command and arguments.
      */
     public java.util.List<String> cloneCommand() {
-        return java.util.List.of("sh", "-c",
-                "set -e; cd " + MOUNT + "; "
+        return java.util.List.of("sh", "-c", cloneScript());
+    }
+
+    /**
+     * Returns the script {@link #cloneCommand()} runs.
+     * <p>
+     * Separate and static so a test can run it against a mirror on this machine with real git,
+     * rather than asserting that a string contains the words it hopes for. What this script does
+     * to a workspace that already holds work is the part worth testing, and no assertion about
+     * its text could establish it.
+     *
+     * @return The shell script.
+     */
+    static String cloneScript() {
+        return "set -e; cd " + MOUNT + "; "
                         + "if [ ! -d .git ]; then git init -q -b main .; "
                         + "git remote add sokar \"$SOKAR_REMOTE_URL\"; fi; "
                         + "git fetch -q sokar 2>/dev/null || true; "
+                        + "if ! git rev-parse HEAD >/dev/null 2>&1; then "
+                        // Which branch the mirror calls its own, asked rather than assumed: a
+                        // repository seeded from a checkout on 'master' has no 'main' at all.
+                        + "  git remote set-head sokar -a >/dev/null 2>&1 || true; "
+                        + "  start=$(git symbolic-ref -q --short refs/remotes/sokar/HEAD"
+                        + " 2>/dev/null || true); "
+                        + "  if [ -z \"$start\" ]; then "
+                        + "    for candidate in sokar/main sokar/master; do "
+                        + "      if git rev-parse -q --verify \"$candidate\" >/dev/null; then "
+                        + "        start=$candidate; break; fi; done; fi; "
+                        + "  if [ -n \"$start\" ]; then "
+                        + "    git checkout -q -B \"${start#sokar/}\" \"$start\"; fi; fi; "
                         + "git config user.name \"${SOKAR_GIT_NAME:-agent}\"; "
-                        + "git config user.email \"${SOKAR_GIT_EMAIL:-agent@localhost}\"");
+                + "git config user.email \"${SOKAR_GIT_EMAIL:-agent@localhost}\"";
     }
 
     /**

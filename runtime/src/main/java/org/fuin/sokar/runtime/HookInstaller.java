@@ -141,7 +141,17 @@ public class HookInstaller {
         DANGLING,
 
         /** Installed, but another drop-in sorts later and points {@code hooks_dir} elsewhere. */
-        SHADOWED
+        SHADOWED,
+
+        /**
+         * Installed, but not what this version of Sokar writes.
+         * <p>
+         * What an upgrade leaves behind. The package replaces the binaries and never touches
+         * these files, and nothing runs {@code sokar setup} for the operator - so a release that
+         * changes what a descriptor says leaves the old one in place, and every check that asks
+         * only whether the files are <em>there</em> answers yes.
+         */
+        STALE
     }
 
     /**
@@ -166,7 +176,52 @@ public class HookInstaller {
         if (!effectiveHooksDirectories().contains(hooksDirectory.toString())) {
             return Registration.SHADOWED;
         }
-        return binariesPresent() ? Registration.ACTIVE : Registration.DANGLING;
+        if (!binariesPresent()) {
+            return Registration.DANGLING;
+        }
+        // Last, because it is the least definite: the three above are all "the hooks will not
+        // run", while this one is "they will run, and not necessarily as this version intends".
+        return outdated().isEmpty() ? Registration.ACTIVE : Registration.STALE;
+    }
+
+    /**
+     * Returns the installed files whose contents are not what this version writes.
+     * <p>
+     * <strong>Presence was never enough.</strong> A descriptor's contents carry the path of the
+     * hook binary, the arguments it is given and the annotation it fires on; a release can change
+     * any of those without changing a file name, and then the operator's podman goes on running
+     * the old one. The visible failure is a container that starts without its firewall, which
+     * looks exactly like a container that started correctly.
+     * <p>
+     * A file that was hand-edited counts as outdated too, and deliberately: this answers what
+     * podman will read against what this version means, and there is no third thing it could be.
+     *
+     * @return Paths that {@code sokar setup} would rewrite, empty when everything matches.
+     */
+    public List<Path> outdated() {
+        final List<Path> differing = new ArrayList<>();
+        for (final Map.Entry<String, String> entry : descriptors().entrySet()) {
+            final Path file = hooksDirectory.resolve(entry.getKey());
+            if (!contentIs(file, entry.getValue() + "\n")) {
+                differing.add(file);
+            }
+        }
+        if (!contentIs(dropInFile(), podmanDropIn())) {
+            differing.add(dropInFile());
+        }
+        differing.sort(Path::compareTo);
+        return List.copyOf(differing);
+    }
+
+    private static boolean contentIs(Path file, String expected) {
+        try {
+            return Files.exists(file) && Files.readString(file, StandardCharsets.UTF_8)
+                    .equals(expected);
+        } catch (IOException ex) {
+            // Unreadable is not "the same as what we would write". Treating it as a match would
+            // turn a broken installation into a silent one.
+            return false;
+        }
     }
 
     /**

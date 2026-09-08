@@ -194,7 +194,11 @@ class TaskLifecycleCommandsTest {
         assertThat(execute(context, "task", "resume", "sokar-uc-shell-1")).isZero();
         assertThat(out.toString())
                 .contains("started   sokar-uc-shell-1")
-                .contains("helpers   2 of 2 started");
+                .contains("helpers   2 of 2 started")
+                // Resume starts the task; it does not put anybody inside it. Somebody told to
+                // "go back in" who got their own prompt back read that as broken, so the next
+                // command is printed rather than assumed known.
+                .contains("attach    sokar task attach sokar-uc-shell-1");
         assertThat(runner.lines()).anyMatch(line -> line.contains("start sokar-uc-shell-1"));
     }
 

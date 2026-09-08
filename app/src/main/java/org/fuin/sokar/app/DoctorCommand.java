@@ -150,6 +150,12 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
                     "another containers.conf.d drop-in sorts after Sokar's and points hooks_dir at "
                             + context.hooks().effectiveHooksDirectories(),
                     "remove that drop-in or make it sort before Sokar's");
+            // What a package upgrade leaves behind: the binaries were replaced, these files were
+            // not, and nothing runs 'sokar setup' for the operator.
+            case STALE -> Probe.missing(name,
+                    "the installed hook files are from a different version of Sokar: "
+                            + context.hooks().outdated(),
+                    "run 'sokar setup' again");
         };
     }
 

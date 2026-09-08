@@ -235,6 +235,10 @@ public final class TaskLaunch {
                 case SHADOWED -> "sokar: another containers.conf.d drop-in points hooks_dir at "
                         + context.hooks().effectiveHooksDirectories()
                         + ", so Sokar's hooks would not run";
+                // Names the files, because "run setup again" after an upgrade that changed
+                // nothing visible reads like superstition until you can see what differs.
+                case STALE -> "sokar: the installed hook files are from a different version of"
+                        + " Sokar, run 'sokar setup' again - " + context.hooks().outdated();
                 case ACTIVE -> "";
             });
             err.flush();
@@ -828,8 +832,11 @@ public final class TaskLaunch {
             if (held.work() != null) {
                 out.println("          it holds " + held.work());
             }
-            out.println("          look with 'sokar task list', go back in with"
-                    + " 'sokar task resume " + container + "',");
+            // Two commands, because resume only starts it again: saying "go back in with
+            // resume" promised something resume does not do.
+            out.println("          look with 'sokar task list', start it again with"
+                    + " 'sokar task resume " + container + "'");
+            out.println("          and go back in with 'sokar task attach " + container + "',");
             out.println("          discard with 'sokar task stop " + container + " --purge'");
             out.flush();
         } else if (!request.keep()) {

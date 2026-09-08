@@ -204,15 +204,23 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // which kills the gate, the broker and the watcher and leaves the container running
             // without them. The status starts at "interrupted" so that a signal takes the
             // keep-and-stop branch - work that never reached the gate is still in there.
-            final java.util.concurrent.atomic.AtomicInteger status =
+            final java.util.concurrent.atomic.AtomicInteger outcome =
                     new java.util.concurrent.atomic.AtomicInteger(INTERRUPTED);
+            int left;
             try (Teardown teardown =
-                    Teardown.arm(() -> running.cleanUp().applyAsInt(status.get()))) {
-                status.set(context.exec().applyAsInt(
+                    Teardown.arm(() -> running.cleanUp().applyAsInt(outcome.get()))) {
+                left = context.exec().applyAsInt(
                         running.runner().attachCommand(running.container(), shell, startWith,
-                                running.project().name() + "/" + task)));
+                                running.project().name() + "/" + task));
+                // A shell exits with its last command's status, which is not a verdict on the
+                // task. Reported from a machine where a typo at the prompt - 'bash: /exit: No
+                // such file or directory' - made leaving the session print "it failed, so
+                // nothing was removed" and keep the container. Somebody who walks out of a
+                // shell has ended the task normally, whatever they last typed; only a signal
+                // means they did not get to finish, and that is what the starting value is for.
+                outcome.set(0);
             }
-            return status.get();
+            return left;
         });
     }
 

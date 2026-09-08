@@ -32,6 +32,12 @@ class TaskRunCommandTest {
               base_image: "ubuntu:24.04"
             """;
 
+    /** What the attached session exits with. A shell reports its last command's status. */
+    private int execExit;
+
+    /** Whether the attached session ends without returning, as it does when it is signalled. */
+    private boolean execDies;
+
     private final StringWriter out = new StringWriter();
 
     private final StringWriter err = new StringWriter();
@@ -69,7 +75,13 @@ class TaskRunCommandTest {
         }
         return new SokarContext(runner, paths, arguments -> {
             execCalls.add(arguments);
-            return 0;
+            if (execDies) {
+                // Stands in for the session dying under the command. A signal cannot be sent in
+                // a unit test, but it lands on the same branch: the line recording a clean exit
+                // is never reached, so the teardown runs with the value it was armed with.
+                throw new IllegalStateException("the session died");
+            }
+            return execExit;
         });
     }
 
@@ -322,6 +334,43 @@ class TaskRunCommandTest {
 
         assertThat(runner.invocations()).anySatisfy(command ->
                 assertThat(command.describe()).contains("rm"));
+    }
+
+    @Test
+    void removesTheContainerWhenTheShellsLastCommandFailed(@TempDir Path dir) throws IOException {
+
+        // A shell exits with its last command's status, which says nothing about the task.
+        // Reported from a machine where a typo at the prompt - 'bash: /exit: No such file or
+        // directory' - made leaving the session print "it failed, so nothing was removed" and
+        // keep the container, its firewall and its resolver running.
+        execExit = 127;
+        // Without this the container does not exist as far as the fake runtime is concerned, the
+        // keep branch is unreachable, and the test would pass however the verdict is computed.
+        runner.answering("container inspect", "c0ffee\n");
+
+        final int code = execute(context(dir, true), "task", "run", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(out.toString()).doesNotContain("it failed");
+        assertThat(runner.lines()).anyMatch(line -> line.contains("rm --force"));
+        // The code still reaches the caller, the way ssh reports a remote command's status.
+        assertThat(code).isEqualTo(127);
+    }
+
+    @Test
+    void keepsATaskWhoseSessionNeverFinished(@TempDir Path dir) throws IOException {
+
+        // The other half of the same decision. Somebody who walked out of a shell ended the task;
+        // somebody whose terminal died did not, and the workspace may hold commits that never
+        // reached the gate. So this one is stopped and held rather than removed.
+        execDies = true;
+        runner.answering("container inspect", "c0ffee\n");
+
+        execute(context(dir, true), "task", "run", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(runner.lines()).as("an interrupted run must not be swept up")
+                .noneMatch(line -> line.contains("rm --force"));
     }
 
     @Test

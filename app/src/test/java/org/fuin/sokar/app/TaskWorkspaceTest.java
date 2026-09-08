@@ -2,12 +2,152 @@ package org.fuin.sokar.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.fuin.sokar.core.process.Command;
+import org.fuin.sokar.core.process.ProcessCommandRunner;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests for {@link TaskWorkspace}.
  */
 class TaskWorkspaceTest {
+
+    private final ProcessCommandRunner runner = new ProcessCommandRunner();
+
+    private String git(Path directory, String... arguments) {
+        final List<String> all = new ArrayList<>(List.of("git", "-c", "user.name=T",
+                "-c", "user.email=t@example.com", "-c", "init.defaultBranch=main"));
+        all.addAll(List.of(arguments));
+        return runner.runOrFail(new Command(all, directory,
+                Map.of("GIT_TERMINAL_PROMPT", "0"), null)).standardOutput().strip();
+    }
+
+    /** A repository with one commit on the given branch, and a mirror of it. */
+    private Path seededMirror(Path root, String branch) throws IOException {
+        final Path source = Files.createDirectories(root.resolve("source"));
+        git(source, "init", "-q", "-b", branch, ".");
+        Files.writeString(source.resolve("README.md"), "the project\n");
+        Files.createDirectories(source.resolve("src"));
+        Files.writeString(source.resolve("src/Main.java"), "class Main {}\n");
+        git(source, "add", "-A");
+        git(source, "commit", "-q", "-m", "initial");
+        final Path mirror = root.resolve("mirror.git");
+        git(root, "clone", "-q", "--mirror", source.toString(), mirror.toString());
+        return mirror;
+    }
+
+    /** Runs the workspace script the way the container does, with the mirror as the remote. */
+    private void runCloneScript(Path workspace, Path mirror) {
+        // The only substitution is the mount point: the container has /workspace and this
+        // machine has a temporary directory. Everything else is the script that really runs.
+        final String script = TaskWorkspace.cloneScript()
+                .replace("cd " + TaskWorkspace.MOUNT + ";", "cd " + workspace + ";");
+        runner.runOrFail(new Command(List.of("sh", "-c", script), workspace,
+                Map.of("SOKAR_REMOTE_URL", mirror.toString(), "GIT_TERMINAL_PROMPT", "0"), null));
+    }
+
+    @Test
+    void checksOutWhatItFetched(@TempDir Path root) throws IOException {
+
+        // It used to fetch and stop, so every task began in a directory holding nothing but
+        // .git - an agent asked to change a project could not see one file of it. Reported from
+        // a machine where 'ls -alF' in the workspace showed exactly that.
+        final Path mirror = seededMirror(root, "main");
+        final Path workspace = Files.createDirectories(root.resolve("workspace"));
+
+        runCloneScript(workspace, mirror);
+
+        assertThat(workspace.resolve("README.md")).exists();
+        assertThat(workspace.resolve("src/Main.java")).exists();
+        assertThat(git(workspace, "rev-parse", "--abbrev-ref", "HEAD")).isEqualTo("main");
+    }
+
+    @Test
+    void takesTheBranchTheMirrorActuallyHas(@TempDir Path root) throws IOException {
+
+        // A repository seeded from a checkout on 'master' has no 'main' at all, and assuming one
+        // would leave the workspace empty for exactly the projects that are oldest.
+        final Path mirror = seededMirror(root, "master");
+        final Path workspace = Files.createDirectories(root.resolve("workspace"));
+
+        runCloneScript(workspace, mirror);
+
+        assertThat(workspace.resolve("README.md")).exists();
+        assertThat(git(workspace, "rev-parse", "--abbrev-ref", "HEAD")).isEqualTo("master");
+    }
+
+    @Test
+    void findsTheBranchWhenTheMirrorCannotSayWhichItsHeadIs(@TempDir Path root) throws IOException {
+
+        // A mirror made by 'git init --bare' has HEAD on refs/heads/main whatever is pushed into
+        // it, so a repository on 'master' leaves HEAD naming a branch that does not exist. Then
+        // 'git remote set-head -a' fails outright - "cannot determine remote HEAD" - and nothing
+        // resolves refs/remotes/sokar/HEAD. Measured; this is the case the candidate list is for,
+        // and it is how an empty gate mirror is created rather than a contrived one.
+        final Path source = Files.createDirectories(root.resolve("source"));
+        git(source, "init", "-q", "-b", "master", ".");
+        Files.writeString(source.resolve("README.md"), "the project\n");
+        git(source, "add", "-A");
+        git(source, "commit", "-q", "-m", "initial");
+
+        final Path mirror = root.resolve("mirror.git");
+        git(root, "init", "-q", "--bare", mirror.toString());
+        git(source, "push", "-q", mirror.toString(), "master");
+        assertThat(Files.readString(mirror.resolve("HEAD"))).contains("refs/heads/main");
+
+        final Path workspace = Files.createDirectories(root.resolve("workspace"));
+        runCloneScript(workspace, mirror);
+
+        assertThat(workspace.resolve("README.md")).exists();
+        assertThat(git(workspace, "rev-parse", "--abbrev-ref", "HEAD")).isEqualTo("master");
+    }
+
+    @Test
+    void leavesAnEmptyMirrorAsAnEmptyWorkspace(@TempDir Path root) throws IOException {
+
+        // A project with no history yet. It must succeed and check out nothing, rather than fail
+        // and take the task down with it.
+        final Path mirror = root.resolve("empty.git");
+        git(root, "init", "-q", "--bare", mirror.toString());
+        final Path workspace = Files.createDirectories(root.resolve("workspace"));
+
+        runCloneScript(workspace, mirror);
+
+        assertThat(workspace.resolve(".git")).isDirectory();
+        try (var entries = Files.list(workspace)) {
+            assertThat(entries.map(path -> path.getFileName().toString()))
+                    .containsExactly(".git");
+        }
+    }
+
+    @Test
+    void neverThrowsAwayWorkWhenTheTaskIsResumed(@TempDir Path root) throws IOException {
+
+        // The same script runs again on resume. A workspace holding commits the agent made, or
+        // edits it has not committed, must survive that - which is why the checkout is guarded on
+        // an unborn HEAD rather than on an empty directory.
+        final Path mirror = seededMirror(root, "main");
+        final Path workspace = Files.createDirectories(root.resolve("workspace"));
+        runCloneScript(workspace, mirror);
+
+        Files.writeString(workspace.resolve("NEW.md"), "the agent's own work\n");
+        git(workspace, "add", "-A");
+        git(workspace, "commit", "-q", "-m", "agent work");
+        Files.writeString(workspace.resolve("README.md"), "edited, not committed\n");
+
+        runCloneScript(workspace, mirror);
+
+        assertThat(workspace.resolve("NEW.md")).exists();
+        assertThat(Files.readString(workspace.resolve("README.md")))
+                .isEqualTo("edited, not committed\n");
+        assertThat(git(workspace, "log", "--oneline", "-1")).contains("agent work");
+    }
 
     @Test
     void theGateAddressIsAConstantNotALookup() {

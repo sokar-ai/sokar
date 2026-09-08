@@ -505,6 +505,35 @@ See [build.md](doc/build.md). Three things that will bite:
   unattended runs cannot drift — reported as an attached claude asking for approval, which
   unattended would have been a hang.
 
+- **Fetching is not checking out.** The workspace script filled `.git` and stopped, so every task
+  began in a directory holding nothing but `.git` and an agent asked to change a project could not
+  see one file of it. The checkout is guarded on an **unborn HEAD**, not on an empty directory:
+  the same script runs again on resume, and a workspace holding the agent's commits or its
+  uncommitted edits must survive that. Which branch is asked of the mirror rather than assumed —
+  and `git remote set-head -a` is not enough on its own: a mirror made by `git init --bare` has
+  HEAD on `refs/heads/main` whatever was pushed into it, so for a project on `master` it fails
+  outright and only the candidate list finds the branch. Measured; that is how an empty gate
+  mirror is created.
+
+- **A shell exits with its last command's status, which is not a verdict on the task.** A typo at
+  the prompt made leaving a session print "it failed, so nothing was removed" and keep the
+  container. The attached path now separates the two: the code still reaches the caller the way
+  ssh reports a remote command's status, while the cleanup is told the session ended normally.
+  Only a signal — which never reaches that line — counts as unfinished.
+
+- **`sokar setup` is not re-run by a package upgrade, and nothing noticed.** The descriptors and
+  the `containers.conf.d` drop-in are written once by `setup`; the package replaces only the
+  binaries. Every check asked whether the files were *there*, so a descriptor from an older
+  release reported `ACTIVE` while podman went on running what it said. `Registration.STALE`
+  compares contents, `outdated()` names the files, and `task run` refuses on it like any other
+  non-`ACTIVE` state — a container with no firewall looks entirely normal, so this must stop
+  rather than warn. Note the asymmetry it fixes: a hook that is *added* was always caught, because
+  the missing file has a new name; one whose contents changed was not.
+
+- **`task resume` does not attach.** It starts the container and its helpers and returns, so
+  "go back in with 'sokar task resume'" promised something it does not do. Both the resume output
+  and the kept-task message now name `task attach` as the separate step.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

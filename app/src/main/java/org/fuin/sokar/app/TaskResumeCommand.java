@@ -98,6 +98,10 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
         if (result.state() != null) {
             out.println("logs      " + result.state());
         }
+        // Resume brings the task back up; it does not put anybody inside it, and a person who
+        // was told to "go back in" and got their own prompt back reasonably reads that as
+        // broken. Saying the next command is cheaper than making this command block.
+        out.println("attach    sokar task attach " + container);
         for (final String problem : result.problems()) {
             err.println("sokar: " + problem);
         }

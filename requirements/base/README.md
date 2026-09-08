@@ -18,7 +18,13 @@ unfinished.
 Ordered by consequence, not by number; the number is only the file's identity. Anything already
 built is not here - it is in the second table below, or gone entirely.
 
-**B01 leads because it is the one that breaks work already running.** An agent that renews an
+**B24 leads because it stops a task before it starts.** An agent that no longer asks permission
+per command still opens with two consent dialogs, and unattended there is nobody to answer them -
+so a run begins and then waits at a menu. One of the two asks a person whether to trust the
+phantom token Sokar minted for that task, recommending they refuse it. It is above B01 because it
+is not a failure in the middle of long work, it is the first thing a new operator meets.
+
+**B01 is next because it is the one that breaks work already running.** An agent that renews an
 expiring credential and finds a task-scoped one instead fails in the middle of a long task, and
 Sokar's own expiry is only half of it: provider-side renewal is untouched, and answering it needs a
 credential kind that expires, which there is none to test with.
@@ -85,6 +91,7 @@ and saying so cost a paragraph and bought a screen that is not lying.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
+| B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three |
