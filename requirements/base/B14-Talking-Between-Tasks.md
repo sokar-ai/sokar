@@ -285,7 +285,7 @@ task, and that is a property to keep rather than a gap to fill.
 
 ## Notes
 
-**This is not asked for by the interface.** Unlike [B12](B12-Changing-What-Running-Work-May-Reach.md),
+**This is not asked for by the interface.** Unlike changing what running work may reach,
 which existed because F17 was short of a method, this comes from the operator's side and has no
 frontend requirement waiting on it. That is a reason to be slower about it, not faster: nothing
 breaks while it does not exist.

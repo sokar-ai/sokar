@@ -17,8 +17,9 @@ unfinished.
 
 Ordered by consequence, not by number; the number is only the file's identity. The first is live
 on somebody's machine today. The last is a second platform, which is a project rather than a
-feature. B11 and B12 came from the interface, which is short of fields rather than of methods:
-B11 is built, and B12 is what F17 is still waiting on.
+feature. B11 came from the interface, which was short of fields rather than of methods; it is
+built, and the three questions it still carries are about how well *waiting* can be detected rather
+than about whether a task says anything.
 
 B14 sits directly below B13 because the two are the same question from opposite sides - work
 leaving by a door that is not the gate - and B14's own first open question is whether it should
@@ -26,14 +27,7 @@ wait for B13. B15 follows B14 because it is the same shape again for bytes rathe
 reuses B14's policy and record wholesale: settling B14 settles most of it. Neither is waiting on an
 interface requirement, which both files argue is a reason to be slower about them rather than
 faster - and both begin by asking whether the gate already answers the need, which for source it
-does. B16 is the opposite case: it comes from the interface, F12 is not started because nothing
-behind it exists, and its first open question - whether varlink can carry a session at all - is
-already answered. It cannot: varlink is one call in and many replies out, with no way for a client
-to keep sending into an open call. So it is carried by ssh - a second channel with a pty, running
-Sokar's own `task attach` rather than the runtime's command, which is what a person already does by
-hand and is a correct terminal without anything being rebuilt. A session is a multiplexer inside the
-container, which Sokar installs in the layer it already writes - so leaving does not end it, and
-what re-entering may claim is a scrollback figure rather than an apology.
+does.
 
 B18 to B22 arrived together, from the interface, as one list of everything a person could see and
 not do. They are filed separately because the work is separate, but the distinction that decides
@@ -78,11 +72,9 @@ was already refused.
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | three, and it is built |
-| B12 | [Changing What Running Work May Reach](B12-Changing-What-Running-Work-May-Reach.md) | What a running task may reach can be widened or narrowed without restarting it, and a task says whether enforcement is on. | none - built |
 | B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | three, and the guard is built |
 | B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | eight, including whether to build it |
 | B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 |
-| B16 | [Working Inside A Running Container](B16-Working-Inside-A-Running-Container.md) | A shell in a running task is reachable from the interface, leaving does not end it, coming back says what it can and cannot show, and being inside weakens nothing the container is held to. | none - built |
 | B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have |
 | B22 | [Backups That Can Be Told Apart](B22-Backups-That-Can-Be-Told-Apart.md) | Backups are listable, deletable and restorable by something other than a person at a terminal, and anything that would discard unreviewed work refuses by name first. | two, and the listing is built |
 | B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one - which agent an image was built for |
@@ -96,7 +88,7 @@ was already refused.
 
 ## What was here and is finished
 
-Ten requirements have been met and retired. Their files are gone; what each measured is in
+Twelve requirements have been met and retired. Their files are gone; what each measured is in
 [AGENT.md](../../AGENT.md), where it will be read again:
 
 - **The local daemon API.** `sokard` serves the domain over an owner-only varlink socket, and the
@@ -135,6 +127,24 @@ Ten requirements have been met and retired. Their files are gone; what each meas
   reached the gate. The question it left, what the agent installed *inside* a container, is
   answered rather than moved: `podman diff` counts it, and a removal now says how much it
   destroyed.
+- **Changing what running work may reach.** Widening and narrowing both, taking effect without
+  restarting the task, with the scope - this run, or this run and the project - a required value
+  rather than a default. Turning enforcement off is its own state rather than the widest possible
+  ruleset, and what a change would open and close can be asked for before it is made, in hosts
+  rather than set names. What it measured is in [AGENT.md](../../AGENT.md): a set holds addresses
+  and not names, so a grant and a withdrawal are not mirror images; the resolver cannot be told
+  without being restarted; and nothing applied to a running task survives `Resume` unless it was
+  written down.
+
+- **Working inside a running container.** `sokar task attach` opens a session that outlives leaving
+  it, and says on returning exactly how much it can show rather than apologising for not knowing.
+  The question it opened and closed is worth keeping: varlink cannot carry a session at all - it is
+  one call in and many replies out, with no way for a client to keep sending into an open call - so
+  it is carried by ssh with a pty, running Sokar's own verb rather than the runtime's. That adds no
+  privilege: whoever can forward the daemon socket can already run commands there. Containment is
+  untouched, and the session is a terminal in the container rather than on the node, because
+  `sokar` is not installed in a task image.
+
 - **Clearance prompts.** A blocked destination is a question naming the project, the task and what
   was reached; the answer takes effect on the waiting connection, is never asked twice for a task -
   across a resume, which is where it used to leak - and is written to a record that outlives the
