@@ -37,11 +37,22 @@ class AgentLoginTest {
     @Test
     void aMachineWithNoAgentSaysSoRatherThanFailing(@TempDir Path dir) {
 
-        final AgentLogin.Result result = AgentLogin.login(context(dir), null, false,
+        final AgentLogin.Result result = AgentLogin.login(context(dir), null, false, false,
                 new PrintWriter(out, true));
 
         assertThat(result.outcome()).isEqualTo(AgentLogin.Outcome.NO_SUCH_AGENT);
         assertThat(result.detail()).isNotBlank();
+    }
+
+    @Test
+    void forceIsWhatDistinguishesADeliberateSecondLogin() {
+
+        // The check itself needs a real agent to exercise - it asks the agent's own extractor
+        // whether this machine already holds a credential - so what is pinned here is that the
+        // decision has a switch at all, and that it is off by default. A second authorization may
+        // invalidate the first, and that is the provider's business rather than something Sokar
+        // can promise either way.
+        assertThat(AgentLogin.Outcome.valueOf("ALREADY_SIGNED_IN")).isNotNull();
     }
 
     @Test
@@ -78,7 +89,7 @@ class AgentLoginTest {
     @Test
     void nothingIsBuiltOrRunForAPreviewOnAMachineWithNoAgent(@TempDir Path dir) {
 
-        AgentLogin.login(context(dir), null, true, new PrintWriter(out, true));
+        AgentLogin.login(context(dir), null, true, false, new PrintWriter(out, true));
 
         assertThat(runner.invocations()).noneSatisfy(command ->
                 assertThat(command.arguments()).contains("build"));

@@ -67,6 +67,12 @@ public final class AgentLogin {
         /** The agent does not say where it keeps its credentials, so nothing can be collected. */
         NO_CONFIG_DIRECTORY,
 
+        /**
+         * The agent is already signed in on this machine, so logging in again would be a second
+         * authorization rather than a first.
+         */
+        ALREADY_SIGNED_IN,
+
         /** The login ran and left no credential behind - cancelled, or it failed. */
         NOTHING_TO_COLLECT,
 
@@ -121,7 +127,7 @@ public final class AgentLogin {
      * @return What happened.
      */
     public static Result login(SokarContext context, @Nullable String agentName, boolean dryRun,
-            PrintWriter out) {
+            boolean force, PrintWriter out) {
 
         try (var agents = context.agents()) {
 
@@ -148,6 +154,23 @@ public final class AgentLogin {
                 return failed(Outcome.NO_CONFIG_DIRECTORY, "'" + agent.name() + "' does not say"
                         + " where it keeps its credentials, so nothing could be collected"
                         + " afterwards");
+            }
+
+            // Checked before anything is built: a second authorization is not free. Sokar does
+            // not touch this machine's copy - the container has its own home - but whether a
+            // second one invalidates the first is the provider's business, and somebody who
+            // already has a working credential here almost certainly wants to copy it rather
+            // than risk that. The same extractor 'vault import' uses answers the question.
+            if (!force) {
+                final Path onThisNode = VaultImportCommand.expand(configDirectory);
+                if (Files.isDirectory(onThisNode)
+                        && agent.extractCredential(onThisNode).isPresent()) {
+                    return failed(Outcome.ALREADY_SIGNED_IN, "'" + agent.name() + "' is already"
+                            + " signed in on this machine. Copy what it has with 'sokar vault"
+                            + " import " + agent.name() + "', which logs in nowhere - or pass"
+                            + " --force to authorize again, which may or may not invalidate the"
+                            + " credential already here");
+                }
             }
 
             final List<String> command = new ArrayList<>(List.of(agent.definition().binary()));

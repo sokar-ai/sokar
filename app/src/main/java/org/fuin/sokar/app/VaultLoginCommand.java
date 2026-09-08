@@ -27,6 +27,10 @@ public class VaultLoginCommand implements Callable<Integer>, SokarFactory.Contex
     @Option(names = "--dry-run", description = "Says what it would run and runs nothing.")
     private boolean dryRun;
 
+    @Option(names = "--force",
+            description = "Logs in again even though this machine already has a credential.")
+    private boolean force;
+
     @Spec
     private CommandSpec spec;
 
@@ -43,7 +47,7 @@ public class VaultLoginCommand implements Callable<Integer>, SokarFactory.Contex
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        final AgentLogin.Result result = AgentLogin.login(context, agentName, dryRun, out);
+        final AgentLogin.Result result = AgentLogin.login(context, agentName, dryRun, force, out);
         out.flush();
 
         if (result.outcome() == AgentLogin.Outcome.STORED) {

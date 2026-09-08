@@ -147,12 +147,15 @@ you, which is why it is worth reading before the first task rather than after.
 | the agent is already signed in on this node | `sokar vault import <agent>` — **prefer this**: it copies what is already there and logs in nowhere |
 | you have an API key | `sokar vault put <provider> --type api-key` — asks for it without echoing it |
 
-**If the agent is already signed in here, import rather than log in again.** `vault login`
-starts a *second, independent* authorization: the container has its own home and never
-touches the one on this node, so nothing local is disturbed by Sokar — but whether a second
-authorization invalidates the first is the provider's business, not ours. Some issue many
-concurrent tokens; some revoke the previous one. `vault import` copies the credential that
-already exists and performs no login at all, so the question does not arise.
+**If the agent is already signed in here, `vault login` refuses and says so.** It checks
+this machine for a credential first — with the same reader `vault import` uses — and points
+you at importing instead, because a second authorization is not free: the container has its
+own home and never touches the one on this node, so nothing local is disturbed by Sokar, but
+whether a second authorization invalidates the first is the provider's business, not ours.
+Some issue many concurrent tokens; some revoke the previous one.
+
+`vault import` copies the credential that already exists and performs no login at all, so
+the question does not arise. `--force` logs in anyway, for somebody who means it.
 
 **For a subscription there is no key to copy from a web page.** The value is produced by
 the agent's own login, and on a machine where you have never installed that agent by hand
