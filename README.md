@@ -126,6 +126,12 @@ sudo apt install -y sokar sokar-agent-claude
 # hook descriptors per user, so a system-wide install would fire them for every container.
 sokar setup
 
+# Whether this machine can actually do it, before anything is stored or started. Nine
+# checks, and each failure names the one thing to do about it. Every one of them fails far
+# from its cause otherwise: without nft a container comes up with no firewall, and a
+# dnsmasq without nftset support opens nothing while resolving everything.
+sokar doctor
+
 # Your credential, copied from the Claude Code already installed on this host - so no key
 # goes through your shell or your history. The first unlock sets the vault passphrase.
 # It never enters the container: the agent gets a task-scoped token, and a proxy swaps in
@@ -164,6 +170,12 @@ sokar setup
 # SELinux. Without this a task container is denied connectto on its own vault socket,
 # the denial is dontaudit'ed, and it looks like an agent that cannot authenticate.
 sudo /usr/share/sokar/selinux/install-selinux-policy.sh
+
+# Whether this machine can actually do it, before anything is stored or started. Nine
+# checks, and each failure names the one thing to do about it. Every one of them fails far
+# from its cause otherwise: without nft a container comes up with no firewall, and a
+# dnsmasq without nftset support opens nothing while resolving everything.
+sokar doctor
 
 # Your credential, copied from the Claude Code already installed on this host - so no key
 # goes through your shell or your history. The first unlock sets the vault passphrase.
