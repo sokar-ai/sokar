@@ -58,9 +58,27 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
 
     @Override
     public Integer call() {
+        return resume(context, container, spec.commandLine().getOut(),
+                spec.commandLine().getErr(), this);
+    }
 
-        final PrintWriter out = spec.commandLine().getOut();
-        final PrintWriter err = spec.commandLine().getErr();
+    /**
+     * Resumes a task and renders what happened.
+     * <p>
+     * Static, and taking what it needs, because {@code task attach} resumes a stopped task after
+     * asking - and a second rendering of the same outcome would eventually disagree with this
+     * one about what a resumed task did. The same reason `TaskControl` decides and this only
+     * renders: one behaviour, however many ways in.
+     *
+     * @param context What to run against.
+     * @param container Container name.
+     * @param out Where the outcome is written.
+     * @param err Where a refusal is written.
+     * @param suggests Command to offer names from when the name was wrong, or {@code null}.
+     * @return Exit code.
+     */
+    static int resume(SokarContext context, String container, PrintWriter out, PrintWriter err,
+            @org.jspecify.annotations.Nullable Suggests suggests) {
 
         // Decided by TaskControl, which the daemon calls too. This renders, and nothing else.
         final TaskControl.Resumed result = new TaskControl(context).resume(container);
@@ -68,13 +86,17 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
         switch (result.outcome()) {
             case NOT_A_TASK -> {
                 err.println("sokar: '" + container + "' is not a task Sokar created");
-                Suggests.offer(err, this);
+                if (suggests != null) {
+                    Suggests.offer(err, suggests);
+                }
                 err.flush();
                 return 64;
             }
             case NO_CONTAINER -> {
                 err.println("sokar: there is no container " + container + " to resume");
-                Suggests.offer(err, this);
+                if (suggests != null) {
+                    Suggests.offer(err, suggests);
+                }
                 err.flush();
                 return 69;
             }

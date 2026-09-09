@@ -2,7 +2,7 @@
 
 **Sandboxing AI agents in YOLO mode using Podman and native Java/GraalVM.**
 
-<img align="left" height="400" width="260" src="doc/sokar-400.png" alt="Sokar with AI agent in podman">
+<img align="left" height="400" width="260" src="doc/images/sokar-400.png" alt="Sokar with AI agent in podman">
 
 Normally, an AI agent will stop and ask you: "Can I edit this file?" or "Can I run this terminal command?". 
 In YOLO mode, it skips those questions and directly modifies code, deletes files, installs packages, 
@@ -217,6 +217,10 @@ own login. Both are in the step-by-step guides, which also cover what each line 
 what goes wrong when it is skipped:
 [Debian and Ubuntu](doc/getting-started-debian.md) · [Fedora and RHEL](doc/getting-started-fedora.md).
 
+## Every command, and what to type for a given job
+See [the cheat sheet](doc/cheat-sheet.md) — arranged by what you are doing, not by the command
+tree — and [commands](doc/commands.md) for the complete list with a line each.
+
 ## What each security class actually does
 See [the three security classes](doc/security-classes.md) — one picture each for `offline`,
 `guarded` and `online`: who is involved, how work gets in and out, and where somebody reads it.
@@ -254,6 +258,6 @@ GNU General Public License v3.0 or later — see [LICENSE](LICENSE).
 -----
 
 > [!NOTE]  
-> <img src="doc/ai-powered.svg" alt="A little robot peeking out of its sandbox" align="left" height="62">
+> <img src="doc/images/ai-powered.svg" alt="A little robot peeking out of its sandbox" align="left" height="62">
 > This project is fundamentally powered by AI.
 > <br clear="left"/>

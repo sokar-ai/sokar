@@ -82,9 +82,54 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
                 "new-session", "-A", "-s", SESSION);
     }
 
+    /**
+     * Asks whether to start a stopped task, when there is somebody there to ask.
+     * <p>
+     * <strong>The terminal check is not optional.</strong> This command is also how a script gets
+     * into a task, and a script that finds one stopped must fail rather than wait for an answer
+     * nobody will type. Without a terminal the old refusal stands, unchanged.
+     * <p>
+     * Yes is the default because the question only exists at all after somebody asked to attach:
+     * the answer is already implied, and the prompt is there to say what it will cost.
+     *
+     * @param out Where the question is asked.
+     * @param tty The console, or {@code null} when there is none.
+     * @return {@code true} if the task should be started.
+     */
+    boolean offerToStart(PrintWriter out, java.io.@org.jspecify.annotations.Nullable Console tty) {
+        // isTerminal() rather than a null check: since Java 22 a Console is handed out even when
+        // input is a pipe, and asking a pipe a question is how a script hangs.
+        if (tty == null || !tty.isTerminal()) {
+            return false;
+        }
+        out.print(container + " is not running. Start it and attach? [Y/n] ");
+        out.flush();
+        return consented(tty.readLine());
+    }
+
+    /**
+     * Reads the answer to the question above.
+     * <p>
+     * Separate from the console because {@link java.io.Console} is final and cannot be
+     * constructed, so this is the only part of the prompt a test can reach - and it is the part
+     * with a decision in it.
+     *
+     * @param answer What was typed, or {@code null} at end of input.
+     * @return {@code true} if the task should be started.
+     */
+    static boolean consented(@org.jspecify.annotations.Nullable String answer) {
+        // End of input is not consent. Ctrl-D answers nothing, and nothing is not yes.
+        if (answer == null) {
+            return false;
+        }
+        final String trimmed = answer.strip().toLowerCase(java.util.Locale.ROOT);
+        return trimmed.isEmpty() || trimmed.equals("y") || trimmed.equals("yes");
+    }
+
     @Override
     public Integer call() {
 
+        final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
         if (!ContainerName.isTask(container)) {
@@ -101,18 +146,31 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
             // 'task resume'; "no such task" sends them to 'task list'.
             final boolean known = context.podman().sokarTasks().stream()
                     .anyMatch(task -> task.name().equals(container));
-            err.println(known
-                    ? "sokar: " + container + " is not running - 'sokar task resume " + container
-                            + "' brings it back with the workspace it has"
-                    : "sokar: no task called " + container + " - 'sokar task list' shows what"
-                            + " is there");
             if (!known) {
-                // Only when the name is unknown. A task that exists and is stopped was just told
-                // exactly what to do about it, and a list of other names would bury that.
+                err.println("sokar: no task called " + container + " - 'sokar task list' shows"
+                        + " what is there");
+                // A name that is not there is exactly when the ones that are, are worth showing.
                 Suggests.offer(err, this);
+                err.flush();
+                return 69;
             }
-            err.flush();
-            return 69;
+            // Somebody who typed 'attach' has said what they want, and being told to run 'resume'
+            // and then 'attach' is being told to say it twice. The same argument the tmux command
+            // one level down already makes for itself: attach-or-create is one operation, so
+            // coming back is not a second code path exercised less often.
+            if (!offerToStart(out, System.console())) {
+                err.println("sokar: " + container + " is not running - 'sokar task resume "
+                        + container + "' brings it back with the workspace it has");
+                err.flush();
+                return 69;
+            }
+            // Not free, and not silent: this starts the gate, the credential broker and the
+            // clearance watcher, and re-applies the egress ruleset. The resume renders what it
+            // did, including whether the image has been rebuilt since.
+            final int resumed = TaskResumeCommand.resume(context, container, out, err, null);
+            if (resumed != 0) {
+                return resumed;
+            }
         }
 
         // Replaces this process with the session, which is why the arguments are returned rather

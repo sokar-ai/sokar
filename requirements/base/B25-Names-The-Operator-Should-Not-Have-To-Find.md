@@ -83,7 +83,12 @@ for somebody to want them.
 - **Whether the picker should exist at all.** Sokar is a CLI that a daemon also drives; making a
   command interactive when it has a terminal is a change in character, not a convenience, and it
   is the one of the three that could make a script hang.
-- **Whether `task attach` on a stopped task should offer to start it.** Asked on 2026-09-09:
+- ~~**Whether `task attach` on a stopped task should offer to start it.**~~ **Built 2026-09-09.**
+  It asks `[Y/n]` on a terminal and resumes through the same rendering `task resume` uses, so the
+  two cannot disagree about what a resumed task did. Without a terminal the old refusal stands
+  unchanged - `task attach` is also how a script gets in, and one that finds a task stopped must
+  fail rather than wait for an answer nobody will type. End of input is not consent. Originally
+  asked as:
   somebody who typed `attach` has said what they want, and being told to run `resume` and then
   `attach` is being told to say it twice. It is the same character question as the picker, with
   one extra edge - resuming is not free: it starts the gate, the credential broker and the

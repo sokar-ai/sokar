@@ -35,7 +35,7 @@ auth_prefix:
 
 ## At run time, the container never holds the real one
 
-![the container holds a phantom token and presents it to a proxy on a unix socket; the proxy reads the real credential from the vault, drops every credential header the agent sent, adds the real one and reissues the request over TLS; a dashed path shows a direct attempt denied by the ruleset](auth-broker.svg)
+![the container holds a phantom token and presents it to a proxy on a unix socket; the proxy reads the real credential from the vault, drops every credential header the agent sent, adds the real one and reissues the request over TLS; a dashed path shows a direct attempt denied by the ruleset](images/auth-broker.svg)
 
 The agent is given a **phantom token**: random, scoped to the one task, and accepted for a bounded
 time (`--token-hours`, eight by default). It presents that to a proxy over a unix socket the
@@ -57,7 +57,7 @@ Two details that are easy to get wrong and were both paid for once:
 
 ## Getting a credential in
 
-![three ways a credential reaches the vault: an operator types an API key on standard input, an agent logs itself in and vault import copies the token out of its own config file, and an operator stores an ssh key seed the same way](auth-entry.svg)
+![three ways a credential reaches the vault: an operator types an API key on standard input, an agent logs itself in and vault import copies the token out of its own config file, and an operator stores an ssh key seed the same way](images/auth-entry.svg)
 
 All three happen **on the node**. Two details of `vault put` that are the difference between a
 secret that is written down and one that is not:
@@ -119,7 +119,7 @@ already on the node. That is a dead end, not a hidden path, and an interface sho
 This is the case where the rule costs nothing, because OAuth was designed so the credential never
 passes through the client at all.
 
-![an OAuth login driven from a laptop: the browser opens the authorization URL, is redirected to localhost on a forwarded port, and the code reaches the node's listener through the ssh tunnel; the node exchanges it for a token the provider delivers only to the node](auth-remote-oauth.svg)
+![an OAuth login driven from a laptop: the browser opens the authorization URL, is redirected to localhost on a forwarded port, and the code reaches the node's listener through the ssh tunnel; the node exchanges it for a token the provider delivers only to the node](images/auth-remote-oauth.svg)
 
 | | |
 |---|---|

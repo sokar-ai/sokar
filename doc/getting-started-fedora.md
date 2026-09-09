@@ -1,5 +1,8 @@
 # Getting started on Fedora and RHEL
 
+In a hurry, or coming back to this? The [cheat sheet](cheat-sheet.md) is what to type for a
+given job, and [commands](commands.md) is every command with a line each.
+
 By the end of this you will have an agent working inside a hardened container, with your
 real credential still on the node, and its work waiting for you to review before it goes
 anywhere. For the whole thing as one block to paste, see

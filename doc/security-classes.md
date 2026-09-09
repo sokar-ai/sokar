@@ -9,7 +9,7 @@ pictures, in the same places — what changes is the path the work takes.
 Nothing resolves and nothing leaves. The agent works against a mirror on this machine, and there is
 no route to the upstream — not for the agent, and not for a person inside the container either.
 
-![offline: the agent clones from the local mirror and pushes back to it; the upstream is out of reach](security-classes-offline.svg)
+![offline: the agent clones from the local mirror and pushes back to it; the upstream is out of reach](images/security-classes-offline.svg)
 
 | | |
 |---|---|
@@ -24,7 +24,7 @@ The default, and the one the gate was built for. The agent pushes to a gate on t
 work waits under `refs/sokar/incoming/<task>` until somebody reads it and approves it, and the
 approve is what forwards it.
 
-![guarded: the agent pushes to the local gate, the operator reviews and approves, and only the approve reaches the upstream — while a dashed path shows work leaving past the approval](security-classes-guarded.svg)
+![guarded: the agent pushes to the local gate, the operator reviews and approves, and only the approve reaches the upstream — while a dashed path shows work leaving past the approval](images/security-classes-guarded.svg)
 
 | | |
 |---|---|
@@ -53,7 +53,7 @@ ssh-agent socket whose key never enters the container. Nothing is reviewed befor
 what the class is for and why a project has to choose it deliberately rather than a task asking for
 it.
 
-![online: the gate is not in the path, the agent clones from and pushes to the upstream itself, and any review happens afterwards on the forge](security-classes-online.svg)
+![online: the gate is not in the path, the agent clones from and pushes to the upstream itself, and any review happens afterwards on the forge](images/security-classes-online.svg)
 
 | | |
 |---|---|

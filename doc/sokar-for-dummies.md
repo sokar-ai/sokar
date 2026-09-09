@@ -1,6 +1,6 @@
 # Sokar for dummies
 
-<img align="left" width="360" src="dummy.svg" alt="A crash-test dummy hammering away at a laptop inside a sealed container, while outside the wall a padlock hangs shut and a sulking little cloud stands beside a signpost reading NXDOMAIN">
+<img align="left" width="360" src="images/dummy.svg" alt="A crash-test dummy hammering away at a laptop inside a sealed container, while outside the wall a padlock hangs shut and a sulking little cloud stands beside a signpost reading NXDOMAIN">
 
 A plain-language tour of what Sokar does and why. No prior knowledge of containers,
 firewalls or git is assumed. Every term is explained the first time it appears.

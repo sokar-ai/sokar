@@ -97,6 +97,31 @@ class TaskAttachCommandTest {
     }
 
     @Test
+    void doesNotAskAScriptWhetherToStartAStoppedTask() {
+
+        // The gate that matters. This command is also how a script gets into a task, and one
+        // that finds it stopped must fail rather than wait for an answer nobody will type.
+        assertThat(new TaskAttachCommand().offerToStart(new PrintWriter(new StringWriter()), null))
+                .isFalse();
+    }
+
+    @Test
+    void takesSilenceAsYesButEndOfInputAsNo() {
+
+        // Yes is the default because the question only exists after somebody asked to attach -
+        // the answer is implied and the prompt is there to say what it costs. Ctrl-D is not that:
+        // end of input answers nothing, and nothing is not consent.
+        assertThat(TaskAttachCommand.consented("")).isTrue();
+        assertThat(TaskAttachCommand.consented("y")).isTrue();
+        assertThat(TaskAttachCommand.consented("YES")).isTrue();
+        assertThat(TaskAttachCommand.consented(" y ")).isTrue();
+        assertThat(TaskAttachCommand.consented("n")).isFalse();
+        assertThat(TaskAttachCommand.consented("no")).isFalse();
+        assertThat(TaskAttachCommand.consented(null)).as("end of input is not consent").isFalse();
+        assertThat(TaskAttachCommand.consented("maybe")).as("only yes is yes").isFalse();
+    }
+
+    @Test
     void somethingThatIsNotATaskIsRefusedOnItsNameAlone(@TempDir Path dir) {
 
         // The refusal is decided by the name, before anything about the machine is consulted.
