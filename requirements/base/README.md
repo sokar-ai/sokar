@@ -15,6 +15,12 @@ unfinished.
 
 ## Work, in the order to do it
 
+**Three of these came from reading somebody else's commits.** B32, B33 and B34 were found on
+2026-09-09 by checking new work in [Terok](https://github.com/terok-ai/terok) - the reference
+implementation this project is inspired by - against this code. One was a defect here too and
+worse than theirs, one is an unreproduced report about images, and one is a design idea. That is a
+useful ratio and the reason to keep doing it.
+
 Ordered by consequence, not by number; the number is only the file's identity. Anything already
 built is not here - it is in the second table below, or gone entirely.
 
@@ -28,6 +34,17 @@ is not a failure in the middle of long work, it is the first thing a new operato
 suite - 1177 lines, on two rented machines per merge - and it cannot allocate a terminal, so every
 behaviour gated on `isTerminal()` has been checked by a person by hand. That is not a gap in
 coverage, it is a gap in what the suite can reach, and it will not close by adding cases to it.
+
+**B32 is second because it is a false statement, not a missing feature.** `vault lock` reports
+"nothing was cached" whenever the keyring search fails for any reason, including reasons that leave
+the passphrase exactly where it was. Everything else on this list is work that has not been done;
+this is the tool telling an operator something untrue about a secret. It is also small.
+
+**B29 is next, and above the foundation it is built on.** A task holds exactly one brokered
+credential - the agent's - and everything else the work authenticates to has nowhere to go. B28 is
+the foundation of that and the largest of the four; B29 is the smallest and the one that proves the
+plumbing. A set that begins with its own foundation tends to sit unstarted, and doing the small one
+first makes the foundation's first user exist while correcting its shape is still cheap.
 
 **B01 is next because it is the one that breaks work already running.** An agent that renews an
 expiring credential and finds a task-scoped one instead fails in the middle of a long task, and
@@ -110,8 +127,14 @@ and saying so cost a paragraph and bought a screen that is not lying.
 |---|---|---|---|
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved |
 | B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided |
+| B32 | [A Cached Passphrase That Says What It Is](B32-A-Cached-Passphrase-That-Says-What-It-Is.md) | Sokar never reports a cached passphrase gone unless it is gone. | three, and the fix is small |
+| B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file |
+| B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file |
+| B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file |
+| B31 | [An Authorization A Person Grants Once](B31-An-Authorization-A-Person-Grants-Once.md) | A person grants an authorization once, out of band, while the work waits. | see the file |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
 | B25 | [Names The Operator Should Not Have To Find](B25-Names-The-Operator-Should-Not-Have-To-Find.md) | A command that needs a name Sokar already knows never makes the operator go and find it. | three |
+| B33 | [A Task's Own Fetches](B33-A-Tasks-Own-Fetches.md) | A task can fetch from the forges its work depends on, and a failure to do so is never reported as a credential problem. | three, and the first is whether it reproduces |
 | B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | A machine can say what it has done, for longer than the tasks themselves existed. | two, and four are decided |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three |
@@ -119,6 +142,7 @@ and saying so cost a paragraph and bought a screen that is not lying.
 | B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | three, and one is a one-line fix |
 | B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | eight, including whether to build it |
 | B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 |
+| B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it |
 | B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | two |
 
 ## Built, and still carrying questions

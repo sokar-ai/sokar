@@ -1,9 +1,14 @@
 # B01 — Refreshable Task Tokens
 
-**Status:** partly built. The expiry that provably exists today - Sokar's own
-`--token-hours` - now names itself instead of reading as a wrong credential. Provider-side
-renewal is untouched and still a question, because answering it needs a credential kind
-that expires, and there is none to test with.
+**Status:** partly built, and **narrowed on 2026-09-09**. The expiry that provably exists today -
+Sokar's own `--token-hours` - now names itself instead of reading as a wrong credential.
+
+**This requirement is the agent-inside-the-box half.** What an agent does when it believes its
+credential is expiring, and what it is told, belongs here. The machinery it once parked - the
+vault holding a renewal ticket, the broker going to the provider for a new credential - is
+[B30](B30-Credentials-The-Broker-Has-To-Fetch.md), which is about a credential kind that expires
+by design and so has the thing this file could never test with. Keeping both here would make one
+file answer to two audiences: the agent that is failing, and the broker that would fetch.
 
 An agent given a credential it believes will expire tries to renew it. The token a
 task holds is minted for that task and is not renewable by anyone but the broker
