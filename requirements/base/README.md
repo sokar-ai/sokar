@@ -16,10 +16,9 @@ unfinished.
 ## Work, in the order to do it
 
 **Three of these came from reading somebody else's commits.** B32, B33 and B34 were found on
-2026-09-09 by checking new work in [Terok](https://github.com/terok-ai/terok) - the reference
-implementation this project is inspired by - against this code. One was a defect here too and
-worse than theirs, one is an unreproduced report about images, and one is a design idea. That is a
-useful ratio and the reason to keep doing it.
+2026-09-09 by checking new work in a comparable project against this code. One was a defect here
+too and worse than theirs, one is an unreproduced report about images, and one is a design idea.
+That is a useful ratio and the reason to keep doing it.
 
 Ordered by consequence, not by number; the number is only the file's identity. Anything already
 built is not here - it is in the second table below, or gone entirely.
