@@ -91,8 +91,7 @@ class TaskLifecycleCommandsTest {
         // survives - so after a reboot every task that outlived it listed "-" for both. No
         // stateOf() here on purpose: that is what a rebooted machine looks like.
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\t"
-                + "org.fuin.sokar.project=uc,org.fuin.sokar.class=guarded\n");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\tuc\tguarded\n");
 
         assertThat(execute(context, "task", "list")).isZero();
 
@@ -152,8 +151,7 @@ class TaskLifecycleCommandsTest {
         // running 'task stop --purge' and reading the refusal, which is a destructive command
         // used as a query.
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t"
-                + "org.fuin.sokar.project=uc,org.fuin.sokar.class=guarded\n");
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\tuc\tguarded\n");
         stateOf("sokar-uc-shell-1");
         workspaceReports(dir, "3 2");
 
@@ -195,8 +193,7 @@ class TaskLifecycleCommandsTest {
         // is not the same as holding nothing, and reporting "nothing" would read as nothing to
         // lose - about a task whose workspace may be full of work.
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\t"
-                + "org.fuin.sokar.project=uc,org.fuin.sokar.class=guarded\n");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\tuc\tguarded\n");
         stateOf("sokar-uc-shell-1");
 
         assertThat(execute(context, "task", "status", "sokar-uc-shell-1")).isZero();

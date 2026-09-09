@@ -289,8 +289,11 @@ class PodmanTest {
         // Both used to come only from a sidecar in $XDG_RUNTIME_DIR, which the system destroys
         // when the user's last session ends - so after a reboot every surviving task listed "-"
         // for both. A label lives and dies with the container, which is the right lifetime.
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t"
-                + "org.fuin.sokar.project=uc,org.fuin.sokar.class=guarded\n");
+        // The fields podman fills in for '{{index .Labels "..."}}', which is what the format
+        // asks for. An earlier version parsed '{{.Labels}}' as 'k=v,k=v' - a shape podman never
+        // emits; it renders Go's 'map[a:b c:d]'. The parser and this fixture agreed with each
+        // other and with nothing else, and every task listed no project on a real machine.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\tuc\tguarded\n");
 
         assertThat(podman.sokarTasks()).singleElement().satisfies(task -> {
             assertThat(task.project()).isEqualTo("uc");
@@ -303,7 +306,8 @@ class PodmanTest {
 
         // Created by a Sokar that did not write them. The sidecar is still the fallback, so this
         // must be absent rather than an empty string that would win over it.
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+        // podman leaves the field empty for a label the container does not carry.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\t\n");
 
         assertThat(podman.sokarTasks()).singleElement().satisfies(task -> {
             assertThat(task.project()).isNull();
@@ -312,18 +316,19 @@ class PodmanTest {
     }
 
     @Test
-    void isNotConfusedByAnotherLabelOnTheSameContainer() {
+    void asksPodmanForEachLabelRatherThanParsingItsMap() {
 
-        // podman renders them as one comma-separated field, and anything on the machine may add
-        // its own. Matching on a prefix, or taking the first pair, would read the wrong value.
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t"
-                + "com.example.project=theirs,org.fuin.sokar.project=uc,"
-                + "org.fuin.sokar.classifier=nonsense,org.fuin.sokar.class=offline\n");
+        // The fix for the above, and the thing worth pinning: other labels on the container -
+        // buildah's, the image's, anything the operator added - cannot affect the answer, because
+        // podman is asked for one value by name instead of handing over its whole map to parse.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\tuc\toffline\n");
+        podman.sokarTasks();
 
-        assertThat(podman.sokarTasks()).singleElement().satisfies(task -> {
-            assertThat(task.project()).isEqualTo("uc");
-            assertThat(task.securityClass()).isEqualTo("offline");
-        });
+        assertThat(runner.only("ps").describe())
+                .contains("{{index .Labels \"org.fuin.sokar.project\"}}")
+                .contains("{{index .Labels \"org.fuin.sokar.class\"}}")
+                .as("the whole map is never asked for, so its format cannot be got wrong")
+                .doesNotContain("{{.Labels}}");
     }
 
     @Test

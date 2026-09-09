@@ -654,6 +654,15 @@ See [build.md](doc/build.md). Three things that will bite:
   container somebody removed by hand leaves its state directory, and those logs are worth reading
   precisely then.
 
+- **`{{.Labels}}` is Go's map formatting, not `k=v,k=v`.** podman renders `map[a:b c:d]` - space
+  separated, colon separated. The first version of the label read invented the comma form, and the
+  test fixture invented it too, so **the parser and its test agreed with each other and with
+  nothing else**: every task on a real machine listed no project after a reboot, which is the exact
+  failure the labels were added to fix. The format now asks for one value at a time -
+  `{{index .Labels "org.fuin.sokar.project"}}` - which answers the value or empty, so there is no
+  shape to get wrong and no other label on the container can affect it. **A fixture written from
+  the same assumption as the code proves the assumption, not the behaviour.**
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in
