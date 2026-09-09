@@ -1342,6 +1342,34 @@ method Node() -> (
 # what removal does.
 method Logs(task: string) -> (logs: []Log)
 
+# What a task holds that never reached the gate.
+#
+# Asked for ONE task, never on a listing. Every other field about a task comes from one 'ps' and
+# the state directory; this one runs git inside the container, which on a list a client redraws
+# would be a call per row - the cost 'since' and 'behindMeasured' both exist to avoid.
+#
+# 'readable' is not "holds nothing". Holding nothing is readable with two zeros. Unreadable means
+# nobody could look: a task killed, or stopped by a Sokar that left no note. Absence rendering as
+# nothing-to-worry-about is the failure this separation exists to prevent - the same one that put
+# 'readable' on Credentials and Providers.
+#
+# 'asOf' is absent while the task runs, because the answer is current. For a stopped task it is
+# when the answer was true: the workspace lives inside the container, so once it stops the only
+# source is what the stop wrote down.
+method WorkHeld(
+  # Container name.
+  task: string
+) -> (
+  # Whether what it holds could be established at all.
+  readable: bool,
+  # Files changed and not committed.
+  changedFiles: int,
+  # Commits on no remote.
+  unpushedCommits: int,
+  # When this was true, ISO-8601. Absent while the task runs.
+  asOf: ?string
+)
+
 method Tail(
   # Container name.
   task: string,
@@ -1426,6 +1454,14 @@ method Decide(
 ) -> (ok: bool)
 
 # ---------------------------------------------------------------------------- errors
+
+# The name is not a task Sokar created.
+#
+# An error rather than an empty-looking answer, deliberately. WorkHeld answers "readable: false"
+# for a task nobody could look inside, and a name that was never a task is not that - conflating
+# them would let a client's wrong argument arrive as a legitimate answer, which is the failure
+# the Backups documentation gap produced.
+error NoSuchTask(task: string)
 
 # The named log is not a file in that task's state directory.
 error NoSuchLog(task: string, log: string)

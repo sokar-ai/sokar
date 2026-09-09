@@ -112,20 +112,23 @@ public class TaskStatusCommand implements Callable<Integer>, SokarFactory.Contex
      * @return One phrase.
      */
     private String workspace(TaskInventory.Task task) {
-        if (task.running()) {
-            final String held = new TaskControl(context).unhandedWork(container);
-            // Coloured because of what it means, not because it is interesting: this is work
-            // that exists nowhere else, and removing the task destroys it.
-            return held == null ? "everything is on the gate"
-                    : alarm(held + " in the container, never pushed to the gate");
+        final UnhandedWork.Held held = task.running()
+                ? new TaskControl(context).heldBy(container)
+                : UnhandedWork.read(context.paths().containerState(container));
+        if (!held.readable()) {
+            // Not "nothing": nothing would read as nothing to lose, and what is true is that
+            // nobody could look.
+            return warn("cannot be read - the task is stopped and left no record");
         }
-        return UnhandedWork.note(context.paths().containerState(container))
-                .filter(phrase -> !phrase.isEmpty())
-                .map(phrase -> alarm(phrase + " in the container, never pushed to the gate"
-                        + " - as recorded when it stopped"))
-                // Not "nothing": nothing would read as nothing to lose, and what is true is that
-                // the only thing that could answer is gone.
-                .orElse(warn("cannot be read while the task is stopped"));
+        final String phrase = held.phrase();
+        if (phrase == null) {
+            return "everything is on the gate"
+                    + (task.running() ? "" : ", as recorded when it stopped");
+        }
+        // Coloured because of what it means, not because it is interesting: this is work that
+        // exists nowhere else, and removing the task destroys it.
+        return alarm(phrase + " in the container, never pushed to the gate"
+                + (task.running() ? "" : " - as recorded when it stopped"));
     }
 
     /**

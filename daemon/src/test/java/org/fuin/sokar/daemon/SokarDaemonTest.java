@@ -418,6 +418,74 @@ class SokarDaemonTest {
     }
 
     @Test
+    void answersWhatAStoppedTaskHeldFromWhatItsStopWroteDown(@TempDir Path dir) throws Exception {
+
+        // The workspace lives inside the container, so once it stops the only source is the note.
+        // Counts rather than a sentence: a client can show one of the numbers on its own, or sort
+        // by it, and does not inherit English or a plural rule from here.
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+        org.fuin.sokar.app.UnhandedWork.note(state,
+                new org.fuin.sokar.app.UnhandedWork.Held(true, 3, 2, null));
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".WorkHeld",
+                        Map.of("task", "sokar-uc-shell-1"));
+
+                assertThat(reply.get("readable")).isEqualTo(Boolean.TRUE);
+                assertThat(((Number) reply.get("changedFiles")).intValue()).isEqualTo(3);
+                assertThat(((Number) reply.get("unpushedCommits")).intValue()).isEqualTo(2);
+                assertThat(reply.get("asOf"))
+                        .as("a recorded answer is historical and has to say when it was true")
+                        .isNotNull();
+            }
+        });
+    }
+
+    @Test
+    void tellsHoldingNothingApartFromNobodyHavingLooked(@TempDir Path dir) throws Exception {
+
+        // The whole reason readable exists. An empty answer that means "nothing to lose" and one
+        // that means "nobody could look" are the two sentences Credentials and Providers were
+        // both caught by, and this would have been the third.
+        final Path held = dir.resolve("run/sokar/sokar-uc-held-1");
+        Files.createDirectories(held);
+        org.fuin.sokar.app.UnhandedWork.note(held,
+                new org.fuin.sokar.app.UnhandedWork.Held(true, 0, 0, null));
+        Files.createDirectories(dir.resolve("run/sokar/sokar-uc-killed-1"));
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> nothing = client.call(
+                        SokarDaemon.INTERFACE + ".WorkHeld", Map.of("task", "sokar-uc-held-1"));
+                assertThat(nothing.get("readable")).as("it held nothing, and that is an answer")
+                        .isEqualTo(Boolean.TRUE);
+                assertThat(((Number) nothing.get("changedFiles")).intValue()).isZero();
+
+                final Map<String, Object> unknown = client.call(
+                        SokarDaemon.INTERFACE + ".WorkHeld", Map.of("task", "sokar-uc-killed-1"));
+                assertThat(unknown.get("readable")).as("nobody looked, which is not nothing")
+                        .isEqualTo(Boolean.FALSE);
+            }
+        });
+    }
+
+    @Test
+    void refusesANameThatIsNotATask(@TempDir Path dir) throws Exception {
+
+        // Not "readable: false": a name that was never a task is a client's wrong argument, and
+        // letting it arrive as a legitimate answer is the failure the Backups gap produced.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".WorkHeld",
+                        Map.of("task", "somebody-elses-database")))
+                        .hasMessageContaining("NoSuchTask");
+            }
+        });
+    }
+
+    @Test
     void listsTheLogsATaskActuallyHas(@TempDir Path dir) throws Exception {
 
         // Which files exist depends on what the task started, so a client that held a list of

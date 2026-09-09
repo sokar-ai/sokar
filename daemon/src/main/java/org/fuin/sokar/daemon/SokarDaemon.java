@@ -520,6 +520,28 @@ public final class SokarDaemon {
                     .stream().map(TaskInventory.Log::asMap).toList()));
         });
 
+        server.method("WorkHeld", (parameters, replies) -> {
+            final String task = text(parameters, "task");
+            if (!ContainerName.isTask(task)) {
+                // The same refusal as everywhere else that takes a container name: a name Sokar
+                // did not create belongs to somebody else, and this one runs git inside it.
+                throw new VarlinkException(INTERFACE + ".NoSuchTask", Map.of("task", task));
+            }
+            final boolean up = context.podman().sokarTasks().stream()
+                    .anyMatch(each -> each.name().equals(task) && each.running());
+            final org.fuin.sokar.app.UnhandedWork.Held held = up
+                    ? new org.fuin.sokar.app.TaskControl(context).heldBy(task)
+                    : org.fuin.sokar.app.UnhandedWork.read(context.paths().containerState(task));
+            final Map<String, Object> answer = new java.util.LinkedHashMap<>();
+            answer.put("readable", Boolean.valueOf(held.readable()));
+            answer.put("changedFiles", Integer.valueOf(held.changedFiles()));
+            answer.put("unpushedCommits", Integer.valueOf(held.unpushedCommits()));
+            if (held.asOf() != null) {
+                answer.put("asOf", held.asOf());
+            }
+            replies.last(answer);
+        });
+
         server.method("Tail", (parameters, replies) -> {
             final Path log = logOf(context, text(parameters, "task"), text(parameters, "log"));
             if (log == null) {

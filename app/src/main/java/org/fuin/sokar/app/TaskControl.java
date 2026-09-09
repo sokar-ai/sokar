@@ -139,12 +139,11 @@ public final class TaskControl {
         final boolean known = summary.isPresent() || Files.isDirectory(state);
         final boolean running = summary.map(ContainerSummary::running).orElse(false);
 
-        final java.util.Optional<String> noted =
-                running ? java.util.Optional.empty() : UnhandedWork.note(state);
-        final String work = running ? unhandedWork(container)
-                : noted.filter(phrase -> !phrase.isEmpty()).orElse(null);
+        final UnhandedWork.Held held = running ? heldBy(container) : UnhandedWork.read(state);
+        final String work = held.phrase();
 
-        if (purge && summary.isPresent() && !running && work == null && noted.isEmpty() && !force) {
+        // "nobody looked" rather than "held nothing": only the first is a reason to refuse.
+        if (purge && summary.isPresent() && !running && !held.readable() && !force) {
             return new Stopped(Outcome.NOTHING_KNOWS, null, null, false, 0, List.of(), state,
                     null, 0);
         }
@@ -180,7 +179,7 @@ public final class TaskControl {
             // Written on the way down, while the answer is still knowable. Whoever removes this
             // task later cannot ask the container itself.
             if (running) {
-                UnhandedWork.note(state, work);
+                UnhandedWork.note(state, held);
             }
         }
         TaskLifecycle.stopHelpers(state);
@@ -226,13 +225,14 @@ public final class TaskControl {
      * @param container Container name.
      * @return What is held, or {@code null}.
      */
-    public @Nullable String unhandedWork(String container) {
+    public UnhandedWork.Held heldBy(String container) {
         final CommandResult result = context.podman().ask(container, Map.of(),
                 List.of("sh", "-c", "cd " + TaskWorkspace.MOUNT + " 2>/dev/null || exit 0;"
                         + " printf '%s %s' \"$(git status --porcelain 2>/dev/null | wc -l)\""
                         + " \"$(git log --oneline --branches --not --remotes 2>/dev/null"
                         + " | wc -l)\""));
-        return result.successful() ? UnhandedWork.phrase(result.trimmedOutput()) : null;
+        return result.successful() ? UnhandedWork.census(result.trimmedOutput())
+                : UnhandedWork.Held.unknown();
     }
 
     /**

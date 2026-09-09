@@ -201,7 +201,7 @@ class TaskLifecycleCommandsTest {
 
         assertThat(execute(context, "task", "status", "sokar-uc-shell-1")).isZero();
 
-        assertThat(out.toString()).contains("cannot be read while the task is stopped");
+        assertThat(out.toString()).contains("cannot be read").contains("left no record");
     }
 
     @Test
@@ -495,8 +495,13 @@ class TaskLifecycleCommandsTest {
 
         assertThat(execute(context, "task", "stop", "sokar-uc-shell-1")).isZero();
 
-        assertThat(state.resolve(UnhandedWork.FILE)).content()
-                .isEqualTo("2 commits and 3 changed files");
+        // Through the reader rather than against the bytes: what matters is that a later
+        // removal gets the same two numbers back, not how they were spelled on disk.
+        final UnhandedWork.Held read = UnhandedWork.read(state);
+        assertThat(read.readable()).isTrue();
+        assertThat(read.changedFiles()).isEqualTo(3);
+        assertThat(read.unpushedCommits()).isEqualTo(2);
+        assertThat(read.asOf()).as("a recorded answer says when it was true").isNotNull();
     }
 
     @Test
@@ -505,7 +510,7 @@ class TaskLifecycleCommandsTest {
         final SokarContext context = context(dir);
         runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
         final Path state = stateOf("sokar-uc-shell-1");
-        UnhandedWork.note(state, "2 commits");
+        UnhandedWork.note(state, new UnhandedWork.Held(true, 0, 2, null));
 
         assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isEqualTo(65);
         assertThat(err.toString()).contains("it holds 2 commits");
@@ -519,7 +524,7 @@ class TaskLifecycleCommandsTest {
         // makes removal safe without asking.
         final SokarContext context = context(dir);
         runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
-        UnhandedWork.note(stateOf("sokar-uc-shell-1"), null);
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
 
         assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
         assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman rm"));
@@ -531,7 +536,7 @@ class TaskLifecycleCommandsTest {
         // Rescue pushes from inside the container to the gate, and neither is up.
         final SokarContext context = context(dir);
         runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
-        UnhandedWork.note(stateOf("sokar-uc-shell-1"), "2 commits");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 2, null));
 
         assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--rescue"))
                 .isEqualTo(70);

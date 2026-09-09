@@ -607,6 +607,20 @@ See [build.md](doc/build.md). Three things that will bite:
   when an agent adds a second remote, where without it a bare push fails with "no destination
   configured" and with it still reaches the gate.
 
+- **Counts cross the boundary; the sentence stays where it is read.** The note a stopping task
+  writes used to hold the rendered phrase - "2 commits and 3 changed files" - which meant putting
+  English, a fixed plural rule and an unsplittable string on the wire, and a client could neither
+  show one number nor sort by it. It is now versioned JSON with the two counts, and `Held.phrase()`
+  words them for a terminal. **A note an older Sokar wrote is parsed back rather than discarded:**
+  it is our own wording in one of three shapes, and answering "nobody looked" about a task that was
+  actually measured would destroy the work this exists to protect. An unknown *version*, though, is
+  refused - the same rule as the sidecar, because a misread answer here decides whether work is
+  destroyed.
+
+- **`readable: false` is not "holds nothing".** Holding nothing is readable with two zeros; not
+  readable means nobody could look. `WorkHeld` is asked per task and never on a listing, because it
+  runs git inside the container - a call per row of a list a client redraws.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

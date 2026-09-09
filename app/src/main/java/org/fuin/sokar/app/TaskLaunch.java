@@ -902,7 +902,7 @@ public final class TaskLaunch {
             // and discarding it because somebody typed 'exit'. Only answerable while the
             // container runs, which it still is: the shell was an exec beside 'sleep infinity'.
             final String held = exists && context.podman().pidOf(container).orElse(0L) > 0
-                    ? new TaskControl(context).unhandedWork(container) : null;
+                    ? new TaskControl(context).heldBy(container).phrase() : null;
             if (held == null) {
                 // The ordinary ending. The container may or may not exist: podman rm tolerates
                 // both, and leaving a created container behind is worse than an extra command.
