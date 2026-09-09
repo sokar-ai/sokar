@@ -18,9 +18,11 @@ If you find yourself wanting an exception, the answer is a new field in the agen
 definition YAML, not a branch in Sokar.
 
 The same rule in reverse: an agent module may depend on the published agent API -
-`sokar-agent-api`, and `sokar-wire` for `Json` - and on nothing else of Sokar's.
-Those two are the only artifacts Sokar puts on Maven Central, so the rule is also
-what an agent in its own repository is *able* to resolve.
+`sokar-agent-api`, and `sokar-wire` for `Json` - and on nothing else of Sokar's in compile
+scope. In test scope it may add `sokar-acceptance-kit`, to drive a machine from its own
+scenarios, and it imports `sokar-bom` so that it names no Sokar version and gets JUnit as one
+set. Those four are the only artifacts Sokar puts on Maven Central, so the rule is also what an
+agent in its own repository is *able* to resolve.
 
 **Every shipped agent is in its own repository** —
 [sokar-claude-code](https://github.com/fuinorg/sokar-claude-code),
@@ -747,8 +749,13 @@ provisioning rather than on the suite:
 
 ## Publishing
 
-**Two artifacts reach Maven Central: `sokar-agent-api` and `sokar-wire`.** Nothing else,
-because nothing else is a contract anyone outside resolves. The packages go to
+**Four artifacts reach Maven Central: `sokar-agent-api`, `sokar-wire`, `sokar-acceptance-kit`
+and `sokar-bom`.** Nothing else, because nothing else is a contract anyone outside resolves: the
+first two are what an agent compiles against, the kit is what its acceptance scenarios drive a
+machine with, and the BOM is the one place a repository building against Sokar reads a version
+from - decided 2026-09-09, when the kit was split out of the acceptance module and the three agent
+repositories were found importing a JUnit set that only coexisted by declaration order. The
+packages go to
 Artifactory, `sokar-dist-deb` and `sokar-dist-rpm`, together with the agents' — an agent
 package declares `Depends: sokar`, so split across repositories the dependency would not
 resolve from one configured source.
