@@ -13,29 +13,50 @@ import java.io.IOException;
  */
 public class TerminalSteps {
 
-    private Machine machine;
+    /**
+     * The connection, shared by every scenario in the run.
+     * <p>
+     * <strong>One connection, many channels.</strong> A Machine per scenario meant one TCP
+     * connection per scenario - around eighty of them in two minutes - and CI answered
+     * "Connection refused" to two of them 145 seconds in. Nothing was wrong with the machine or
+     * the product: a suite that opens and drops connections that fast looks like something worth
+     * refusing, and ssh daemons are entitled to think so.
+     * <p>
+     * A terminal stays per scenario. That is a channel on this connection, which is cheap, and a
+     * scenario that inherited another's shell would be reading somebody else's output.
+     */
+    private static Machine shared;
 
     private Terminal terminal;
 
     private Machine.Output output;
 
     @After
-    public void close() throws IOException {
+    public void closeTheTerminal() throws IOException {
         if (terminal != null) {
             terminal.close();
             terminal = null;
         }
-        if (machine != null) {
-            machine.close();
-            machine = null;
+    }
+
+    /**
+     * Closes the connection once every scenario has had it.
+     *
+     * @throws IOException If it cannot be closed.
+     */
+    @io.cucumber.java.AfterAll
+    public static void closeTheConnection() throws IOException {
+        if (shared != null) {
+            shared.close();
+            shared = null;
         }
     }
 
     private Machine machine() throws IOException {
-        if (machine == null) {
-            machine = new Machine();
+        if (shared == null) {
+            shared = new Machine();
         }
-        return machine;
+        return shared;
     }
 
     @When("I log off")
