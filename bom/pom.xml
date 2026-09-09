@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-bom</artifactId>
+    <packaging>pom</packaging>
+    <name>Sokar BOM</name>
+    <description>Sokar - The versions a repository that builds against Sokar needs, named once (BOM)</description>
+
+    <properties>
+        <!-- Deployed to Central beside the agent API: a repository that is not this one imports
+             it first and never names a Sokar version, or a JUnit one, again. -->
+        <maven.deploy.skip>false</maven.deploy.skip>
+        <skipPublishing>false</skipPublishing>
+    </properties>
+
+    <!-- Only what crosses the repository boundary. Anything an agent or a suite in another
+         repository has to agree with this one about is here; nothing this build uses only for
+         itself is. -->
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- JUnit as one set, before anything else a consumer imports, so that Jupiter, the
+                 platform and the suite engine agree with each other. An importer whose own BOM
+                 pins Jupiter beside a suite from a different platform - as org.fuin:bom does -
+                 gets a mixed set the moment the acceptance kit sits between them, and the suite
+                 engine dies on a missing method. The version is what Cucumber is built against. -->
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- The three artifacts Sokar publishes. -->
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-agent-api</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-wire</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-acceptance-kit</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <!-- What the acceptance kit is built with, so a consumer adding a step of its own
+                 compiles against the same Cucumber and reaches the same machine the same way. -->
+            <dependency>
+                <groupId>io.cucumber</groupId>
+                <artifactId>cucumber-java</artifactId>
+                <version>${cucumber.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.cucumber</groupId>
+                <artifactId>cucumber-picocontainer</artifactId>
+                <version>${cucumber.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.cucumber</groupId>
+                <artifactId>cucumber-junit-platform-engine</artifactId>
+                <version>${cucumber.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hierynomus</groupId>
+                <artifactId>sshj</artifactId>
+                <version>${sshj.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <!-- The root flattens in 'oss' mode, which drops dependencyManagement - and a BOM
+                 with no dependencyManagement is an empty promise. 'bom' mode keeps it, with the
+                 properties above resolved to numbers, which is what an importer should see. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <configuration>
+                    <flattenMode>bom</flattenMode>
+                    <pomElements>
+                        <!-- The root gives every module a dependency, and a BOM has none. The
+                             properties stay: flatten writes the versions as the variables they
+                             are written with, and an importer resolves them from this POM's own
+                             properties - 'interpolate' does not resolve them and 'remove' then
+                             leaves a variable nothing can answer, measured. -->
+                        <dependencies>remove</dependencies>
+                    </pomElements>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

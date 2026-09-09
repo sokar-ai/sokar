@@ -111,6 +111,7 @@
     </properties>
 
     <modules>
+        <module>bom</module>
         <module>wire</module>
         <module>core</module>
         <module>testing</module>
