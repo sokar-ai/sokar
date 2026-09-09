@@ -80,20 +80,26 @@ will read one and believe it covers the box.
 **The interface will want it, but the interface is not the reason.** An operator asking "what
 happened here last night" has nowhere to look today, and that is true with no interface at all.
 
+## Decided 2026-09-09
+
+- **Retention: both caps, whichever bites first.** A size cap alone lets one loud day push out a
+  month of history on a busy machine; an age cap alone bounds nothing on one. **The journal records
+  its own trimming**, because history that shortens silently is history nobody can trust — "there
+  is nothing from before the 3rd" and "nothing happened before the 3rd" must not look alike.
+- **Reading: a cursor, and following is optional on top.** `Events(since, limit)` answers a page
+  and the next cursor; asking for `more` also streams. Two clients never interfere, a reconnect
+  resumes exactly where it stopped, and a screen can page backwards — none of which a `Tail`-shaped
+  stream can do.
+- **An event names the task, never a log file.** The journal outlives the state directory, so a
+  stored path is a promise it cannot keep: after a reboot every one of them points at something
+  gone. A client wanting detail asks `Logs(task)`, which already answers what still exists.
+- **`sokar task logs` is built now, separately.** It needs nothing from this requirement.
+
 ## To be checked
 
 - **Concurrent appends.** The daemon, the CLI and several helpers run as the same user and would
   write to one file. On Linux an `O_APPEND` write below `PIPE_BUF` is atomic, which would make one
   line per event safe without a lock — **this must be measured, not assumed**, and the line length
   bounded on purpose if it is what the design rests on.
-- **What retention means when nobody administers the machine.** Size cap, age cap, or rotation;
-  and whether losing the oldest events silently is acceptable, given the whole point is history.
-- **Whether `Events` streams or is polled.** `Tail` already streams, so the shape exists — but a
-  journal that a client follows from a cursor is a different contract from one that tails a file,
-  and the difference shows up the first time two clients read it at once.
-- **Whether the per-task logs should be reachable from an event.** Naming the file an event came
-  from would let somebody go from the spine to the detail, and would also couple the journal to a
-  directory that no longer exists after a reboot.
-- **Whether `sokar logs <task>` should exist regardless.** It closes the CLI-versus-contract gap
-  with methods that already exist, is small, and is not this requirement — but it will be asked for
-  by the same person on the same day.
+- **What the two caps actually are.** Decided that there are two; the numbers are not chosen, and
+  they should come from what a busy machine really writes rather than from a round figure.

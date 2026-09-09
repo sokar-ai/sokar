@@ -238,6 +238,64 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void listsTheLogsATaskHasRatherThanTheOnesItMightHave(@TempDir Path dir) throws IOException {
+
+        // Which files exist depends on what the task started: no gate means no gate.log. Listing
+        // a fixed set would send somebody to open one that was never going to be there.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+        final Path state = stateOf("sokar-uc-shell-1");
+        Files.writeString(state.resolve("gate.log"), "the gate said something\n");
+        Files.writeString(state.resolve("vault.log"), "the broker said something\n");
+        Files.writeString(state.resolve("watcher.pid"), "4711");
+
+        assertThat(execute(context, "task", "logs", "sokar-uc-shell-1")).isZero();
+
+        assertThat(out.toString()).contains("gate.log").contains("vault.log")
+                .as("only logs").doesNotContain("watcher.pid");
+    }
+
+    @Test
+    void printsTheLogSomebodyAskedFor(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+        Files.writeString(stateOf("sokar-uc-shell-1").resolve("gate.log"), "a line\nanother\n");
+
+        assertThat(execute(context, "task", "logs", "sokar-uc-shell-1", "gate.log")).isZero();
+
+        assertThat(out.toString()).contains("a line").contains("another");
+    }
+
+    @Test
+    void refusesANameThatIsNotOneOfThatTasksLogs(@TempDir Path dir) throws IOException {
+
+        // Checked against the set this task actually has, so there is no traversal to reason
+        // about: anything outside a known answer is simply not one.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+        Files.writeString(stateOf("sokar-uc-shell-1").resolve("gate.log"), "a line\n");
+
+        assertThat(execute(context, "task", "logs", "sokar-uc-shell-1", "../../../etc/passwd"))
+                .isEqualTo(69);
+        assertThat(err.toString()).contains("has no log called").contains("gate.log");
+        assertThat(out.toString()).doesNotContain("root:");
+    }
+
+    @Test
+    void saysWhyThereAreNoLogsRatherThanPrintingNothing(@TempDir Path dir) {
+
+        // A task whose state directory went with a restart looks exactly like one that never
+        // wrote anything, and an empty answer would let somebody read it as "nothing happened".
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\t\n");
+
+        assertThat(execute(context, "task", "logs", "sokar-uc-shell-1")).isZero();
+
+        assertThat(out.toString()).contains("no logs").contains("machine has restarted");
+    }
+
+    @Test
     void aStoppedTaskStaysInsideItsColumn(@TempDir Path dir) throws IOException {
 
         // The runtime's longest phrase is twice the width of the column, and it ran into the

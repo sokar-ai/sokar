@@ -32,12 +32,19 @@ Everything that starts, joins, or ends a piece of agent work.
 | `sokar task run [TASK]` | Runs a task in a fresh container for the given project. |
 | `sokar task list` | Lists the tasks on this machine, with how long each has been in its state. |
 | `sokar task status TASK` | Says what a task is doing and what its workspace holds. |
+| `sokar task logs TASK [LOG]` | Shows what a task's helpers on this machine wrote. |
 | `sokar task attach TASK` | Opens a shell in a running task. Leaving it does not end it. |
 | `sokar task resume TASK` | Starts a stopped task again, keeping its workspace. |
 | `sokar task stop TASK` | Stops a task, its container and its helpers. |
 | `sokar task label TASK` | Gives a task a caption to read it by. Not a rename. |
 | `sokar task prepare` | Builds this project's task image without starting a task. |
 | `sokar task clearance TASK` | Changes what a running task does about a blocked connection. |
+
+**`logs` is the node's side, not the container's.** The gate, the broker, the relay, the resolver
+and the clearance watcher all run on this machine, and each writes its own file; what the agent
+printed went to whoever was attached. Which files exist depends on what the task started, so it
+lists rather than assumes. They live in the task's runtime directory and **do not survive a
+restart**.
 
 **`status` is the one to reach for when something looks wrong.** `list` is the five columns that
 fit a table; `status` is everything this machine knows about one task, including whether its
