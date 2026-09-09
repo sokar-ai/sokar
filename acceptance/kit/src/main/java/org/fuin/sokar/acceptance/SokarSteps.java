@@ -42,11 +42,30 @@ public class SokarSteps {
      */
     @Given("the vault is unlocked with the passphrase {string}")
     public void theVaultIsUnlocked(String passphrase) throws IOException {
-        // The command is split by Sokar, so a passphrase with a space would arrive as two words.
-        assertThat(passphrase).doesNotContainAnyWhitespaces();
-        final Machine.Output output = world.machine().run(
-                "sokar vault unlock --passphrase-command " + Shell.quote("printf " + passphrase));
-        assertThat(output.status()).as("vault unlock said:%n%s", output.all()).isZero();
+        // Through a file the passphrase is written into over standard input, never through an
+        // argument. '--passphrase-command "printf <value>"' - the obvious form - puts the
+        // passphrase in the argv of sokar AND of the command it spawns, and /proc/<pid>/cmdline
+        // is world-readable with /proc mounted without hidepid on both supported distributions.
+        // That is measured and it is the reason 'vault put' reads from standard input.
+        //
+        // A feature file's passphrase is public by construction, so nothing here is at risk. The
+        // reason to do it properly anyway is that this is a published kit: the obvious step is
+        // the one somebody reaches for with a real passphrase, and a step that cannot leak one is
+        // worth more than a comment asking them not to.
+        //
+        // Typing it at the prompt would be better still and does not work: the native image
+        // cannot switch terminal echo off, so every interactive passphrase throws. Recorded in
+        // B35 rather than worked around silently.
+        final Machine machine = world.machine();
+        final String file = ".sokar-acceptance-passphrase";
+        try {
+            machine.run("umask 077 && cat > " + file, passphrase);
+            final Machine.Output output = machine.run(
+                    "sokar vault unlock --passphrase-command " + Shell.quote("cat " + file));
+            assertThat(output.status()).as("vault unlock said:%n%s", output.all()).isZero();
+        } finally {
+            machine.run("rm -f " + file);
+        }
     }
 
     /**

@@ -34,7 +34,13 @@ suite - 1177 lines, on two rented machines per merge - and it cannot allocate a 
 behaviour gated on `isTerminal()` has been checked by a person by hand. That is not a gap in
 coverage, it is a gap in what the suite can reach, and it will not close by adding cases to it.
 
-**B32 is second because it is a false statement, not a missing feature.** `vault lock` reports
+**B35 is second because the binary cannot do the one thing the setup guide asks of a person.**
+`Console.readPassword()` throws in the native image, so every interactive passphrase - creating a
+store, unlocking one, changing one - ends in a stack trace. It has gone unnoticed because every
+route after the first unlock reads the cached passphrase, and because nothing tested a real
+terminal until B27's suite did.
+
+**B32 is third because it is a false statement, not a missing feature.** `vault lock` reports
 "nothing was cached" whenever the keyring search fails for any reason, including reasons that leave
 the passphrase exactly where it was. Everything else on this list is work that has not been done;
 this is the tool telling an operator something untrue about a secret. It is also small.
@@ -126,6 +132,7 @@ and saying so cost a paragraph and bought a screen that is not lying.
 |---|---|---|---|
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved |
 | B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided |
+| B35 | [A Passphrase Nobody Can Type](B35-A-Passphrase-Nobody-Can-Type.md) | An operator can type a passphrase at the terminal, and nothing about how Sokar is built prevents it. | three, and the first settles it |
 | B32 | [A Cached Passphrase That Says What It Is](B32-A-Cached-Passphrase-That-Says-What-It-Is.md) | Sokar never reports a cached passphrase gone unless it is gone. | three, and the fix is small |
 | B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file |
 | B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file |
