@@ -42,7 +42,8 @@ Everything that starts, joins, or ends a piece of agent work.
 
 **`logs` is the node's side, not the container's.** The gate, the broker, the relay, the resolver
 and the clearance watcher all run on this machine, and each writes its own file; what the agent
-printed went to whoever was attached. Which files exist depends on what the task started, so it
+printed went to whoever was attached. `events.jsonl` is what the firewall blocked, which is where
+to look when a task starts and then does nothing. Which files exist depends on what the task started, so it
 lists rather than assumes. They live in the task's runtime directory and **do not survive a
 restart**.
 

@@ -256,6 +256,45 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void countsTheTwoLogsThatDoNotSayLogInTheirName(@TempDir Path dir) throws IOException {
+
+        // Reported: the list was short. 'events.jsonl' is what the firewall blocked - exactly
+        // what somebody debugging a task that started and did nothing needs - and 'reader.err'
+        // is where the reader hook's own failures go. A suffix rule hid both.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+        final Path state = stateOf("sokar-uc-shell-1");
+        Files.writeString(state.resolve("events.jsonl"), "{\"host\":\"example.com\"}\n");
+        Files.writeString(state.resolve("reader.err"), "the reader complained\n");
+
+        assertThat(execute(context, "task", "logs", "sokar-uc-shell-1")).isZero();
+
+        assertThat(out.toString()).contains("events.jsonl").contains("reader.err");
+    }
+
+    @Test
+    void neverOffersOrReadsTheTasksOwnToken(@TempDir Path dir) throws IOException {
+
+        // The state directory holds the live phantom token beside the logs, with the sockets,
+        // the pid files and the ruleset. This is why the rule is an allow-list: "everything that
+        // is not a secret" has to be right forever, including about files a later release adds.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+        final Path state = stateOf("sokar-uc-shell-1");
+        Files.writeString(state.resolve("vault.token"), "sokar_pt_the_real_thing\n");
+        Files.writeString(state.resolve("sidecar.json"), "{}");
+        Files.writeString(state.resolve("gate.log"), "a line\n");
+
+        assertThat(execute(context, "task", "logs", "sokar-uc-shell-1")).isZero();
+        assertThat(out.toString()).contains("gate.log")
+                .doesNotContain("vault.token").doesNotContain("sidecar.json");
+
+        assertThat(execute(context, "task", "logs", "sokar-uc-shell-1", "vault.token"))
+                .isEqualTo(69);
+        assertThat(out.toString()).doesNotContain("sokar_pt_the_real_thing");
+    }
+
+    @Test
     void printsTheLogSomebodyAskedFor(@TempDir Path dir) throws IOException {
 
         final SokarContext context = context(dir);

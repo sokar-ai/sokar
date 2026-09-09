@@ -486,6 +486,37 @@ class SokarDaemonTest {
     }
 
     @Test
+    void neverServesTheTasksOwnTokenAsALog(@TempDir Path dir) throws Exception {
+
+        // Logs and Tail used to apply separate rules, so a listing could name a file the reader
+        // refused - or worse, drift the other way. The state directory holds the live phantom
+        // token beside the logs, which is why the shared rule is an allow-list.
+        final Path state = dir.resolve("run/sokar/sokar-uc-shell-1");
+        Files.createDirectories(state);
+        Files.writeString(state.resolve("vault.token"), "sokar_pt_the_real_thing\n");
+        Files.writeString(state.resolve("events.jsonl"), "{\"host\":\"example.com\"}\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> listed = client.call(SokarDaemon.INTERFACE + ".Logs",
+                        Map.of("task", "sokar-uc-shell-1"));
+                assertThat(String.valueOf(listed.get("logs")))
+                        .as("the firewall's own record is a log")
+                        .contains("events.jsonl")
+                        .doesNotContain("vault.token");
+
+                // And what the listing offers is what the reader accepts.
+                assertThat(String.valueOf(client.call(SokarDaemon.INTERFACE + ".Tail",
+                        Map.of("task", "sokar-uc-shell-1", "log", "events.jsonl"))))
+                        .contains("example.com");
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Tail",
+                        Map.of("task", "sokar-uc-shell-1", "log", "vault.token")))
+                        .hasMessageContaining("NoSuchLog");
+            }
+        });
+    }
+
+    @Test
     void listsTheLogsATaskActuallyHas(@TempDir Path dir) throws Exception {
 
         // Which files exist depends on what the task started, so a client that held a list of

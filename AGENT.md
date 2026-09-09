@@ -639,6 +639,14 @@ See [build.md](doc/build.md). Three things that will bite:
   because a message can quote anything. A test caught the first version logging the root command,
   so every failure was called "sokar" and named nothing.
 
+- **What a listing offers and what a reader accepts were two rules.** `Logs` filtered on `.log`
+  and `Tail` checked `.log` again, separately - so they could drift, and they were both wrong the
+  same way: `events.jsonl` (what the firewall blocked) and `reader.err` are logs whose names do not
+  say so, and both were hidden. One rule now, `TaskInventory.isLog`, used by the listing, the wire
+  and the CLI. **It stays an allow-list:** the same directory holds `vault.token`, the live phantom
+  token, beside the sockets and the ruleset - "everything that is not a secret" has to be right
+  forever, including about files a later release adds, while "these names" fails closed.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

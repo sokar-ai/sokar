@@ -1012,7 +1012,9 @@ public final class SokarDaemon {
      * @return The file, or {@code null}.
      */
     private static Path logOf(SokarContext context, String task, String log) {
-        if (!ContainerName.isTask(task) || log.isEmpty() || !log.endsWith(".log")
+        // The same rule the listing uses, so a client is never offered a file this refuses.
+        if (!ContainerName.isTask(task) || log.isEmpty()
+                || !org.fuin.sokar.app.TaskInventory.isLog(log)
                 || log.contains("/") || log.contains("..")) {
             return null;
         }

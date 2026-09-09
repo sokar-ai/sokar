@@ -299,6 +299,32 @@ public final class TaskInventory {
      * @param container Container name.
      * @return The logs, alphabetical, empty when the task has no state directory left.
      */
+    /**
+     * Tells whether a file in a task's state directory is one somebody may read.
+     * <p>
+     * <strong>An allow-list, and it stays one.</strong> That directory also holds
+     * {@code vault.token} - the live phantom token for the task - beside the sockets, the pid
+     * files, the ruleset and the sidecar. "Everything that is not a secret" is a rule that has to
+     * be right forever, including about files a later release adds; "these names" is a rule that
+     * fails closed when somebody adds one.
+     * <p>
+     * <strong>Two files are logs without saying so in their name.</strong> {@code events.jsonl} is
+     * what the firewall blocked, which is exactly what somebody debugging a task that started and
+     * did nothing needs, and {@code reader.err} is where the reader hook's own failures go. The
+     * suffix rule quietly hid both - reported by an operator who noticed the list was short.
+     * <p>
+     * Used by the daemon's {@code Tail} as well, so that what a listing offers is what a read
+     * accepts. They were separate rules, which is a listing that names a file the reader refuses.
+     *
+     * @param name File name, not a path.
+     * @return {@code true} if it may be listed and read.
+     */
+    public static boolean isLog(String name) {
+        return name.endsWith(".log")
+                || name.equals(org.fuin.sokar.wire.ReaderEvents.FILE)
+                || name.equals("reader.err");
+    }
+
     public List<Log> logs(String container) {
         final Path state = context.paths().containerState(container);
         if (!org.fuin.sokar.runtime.ContainerName.isTask(container)
@@ -306,7 +332,7 @@ public final class TaskInventory {
             return List.of();
         }
         try (Stream<Path> files = Files.list(state)) {
-            return files.filter(file -> file.getFileName().toString().endsWith(".log"))
+            return files.filter(file -> isLog(file.getFileName().toString()))
                     .filter(Files::isRegularFile)
                     .sorted()
                     .map(TaskInventory::describe)
