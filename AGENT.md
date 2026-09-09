@@ -663,6 +663,20 @@ See [build.md](doc/build.md). Three things that will bite:
   shape to get wrong and no other label on the container can affect it. **A fixture written from
   the same assumption as the code proves the assumption, not the behaviour.**
 
+- **JUnit's versions are one set or they are three guesses.** `junit-platform-suite` was picked by
+  asking Central what was newest, which put platform 1.14 beside the Jupiter 5.12 the fuin BOM
+  pins. It worked - by declaration order - and stopped working the moment somebody moved the
+  artifact one level deeper, with `NoClassDefFoundError` and failsafe's "versions of JUnit jars not
+  properly aligned". The build now imports `org.junit:junit-bom` **before** the fuin BOM, at the
+  version **Cucumber is built against**: aligning down to 5.12 is coherent and makes the acceptance
+  suite discover no tests at all.
+
+- **A suite that opens a connection per scenario is a suite that gets refused.** Around eighty
+  ssh connect/disconnect cycles in two minutes, and CI answered "Connection refused" to two of
+  them. One connection for the run, a channel per scenario: measured at 80 connections to 2, and
+  15.7s to 8.5s. It never showed locally, because a hop to a VM on the same host is fast and
+  forgiving in a way a rented server is not.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

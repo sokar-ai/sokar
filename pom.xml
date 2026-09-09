@@ -89,7 +89,18 @@
         <cucumber.version>7.34.8</cucumber.version>
         <sshj.version>0.40.0</sshj.version>
         <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
-        <junit-platform-suite.version>6.1.3</junit-platform-suite.version>
+        <!-- The JUnit BOM, imported below so that Jupiter, the platform and the suite engine are
+             one set rather than three guesses. Matches the Jupiter the fuin BOM pins: picking a
+             suite version by "what is newest on Central" put platform 1.14 beside Jupiter 5.12,
+             which worked only because declaration order happened to favour it - and stopped the
+             moment the artifact moved one level deeper.
+
+             5.14.2 rather than the 5.12.2 the fuin BOM pins, because that is the set Cucumber
+             7.34 is built against and the acceptance suite will not discover a test without it.
+             Raising the whole build rather than overriding one module: two coherent sets in one
+             reactor is still two, and the next person to move an artifact between modules meets
+             the same failure this comment is about. -->
+        <junit.version>5.14.2</junit.version>
         <!-- musl cross-toolchain used for the statically linked hook binaries.
              Install with ./buildtools/install-musl.sh, or override on the command line. -->
         <musl.home>${user.home}/.local/opt/x86_64-linux-musl-native</musl.home>
@@ -125,6 +136,16 @@
             <!-- Bill of Materials (aligned with Quarkus and Spring Boot BOMs).
                  Also pins Byte Buddy to 1.17.8, which is required on JDK 25:
                  earlier versions reject class-file major version 69. -->
+
+            <!-- Before the fuin BOM, so these versions are the ones that win: they have to
+                 agree with each other more than they have to agree with anything else. -->
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
 
             <dependency>
                 <groupId>org.fuin</groupId>
