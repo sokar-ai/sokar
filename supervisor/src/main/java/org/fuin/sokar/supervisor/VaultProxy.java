@@ -84,9 +84,25 @@ public class VaultProxy implements AutoCloseable, Runnable {
     /** How much of an answer is examined before any of it is passed on, in bytes. */
     private static final int PEEK = 8192;
 
-    /** Marks a request as asking the provider to renew a credential. */
-    private static final java.util.regex.Pattern REFRESH_GRANT =
-            java.util.regex.Pattern.compile("grant_type[\"'=:\\s]+refresh_token");
+    /**
+     * Marks a request as asking the provider to mint or renew a credential.
+     * <p>
+     * <strong>Two grant types, one hazard.</strong> This began as {@code refresh_token} alone,
+     * and the reason written beside the refusal - forwarding it attaches the real credential to a
+     * request whose answer is a new one - is exactly as true of {@code client_credentials}. A
+     * container asking for a token of its own is asking the one question the broker exists to
+     * make unnecessary, and it would be answered with Sokar's credential rather than the task's.
+     * <p>
+     * <strong>What this does not refuse:</strong> the broker fetching a credential for a task by
+     * client-credentials grant. That is the broker's own call to the authorization server, made
+     * on this side of the socket, and it never passes through here.
+     * <p>
+     * Latent when written: no supported provider mints this way, so nothing reaches it today. It
+     * was one pattern away from being reachable.
+     */
+    private static final java.util.regex.Pattern MINTING_GRANT =
+            java.util.regex.Pattern.compile(
+                    "grant_type[\"'=:\\s]+(refresh_token|client_credentials)");
 
     private final Path socket;
 
@@ -253,17 +269,17 @@ public class VaultProxy implements AutoCloseable, Runnable {
         }
         final String real = ((TokenExchange.Granted) result).credential();
 
-        if (body.length > 0 && REFRESH_GRANT.matcher(
+        if (body.length > 0 && MINTING_GRANT.matcher(
                 new String(body, StandardCharsets.UTF_8)).find()) {
             // Refused here rather than upstream: forwarding it would attach the real credential
             // to a request whose answer is a new one, and the provider may rotate what Sokar
             // holds as a side effect of a question nobody wanted asked.
-            log.accept(head.method() + " " + head.target() + " -> 403 renewal refused");
+            log.accept(head.method() + " " + head.target() + " -> 403 token grant refused");
             out.write(HttpHead.response(403, "Forbidden",
                     "{\"type\":\"error\",\"error\":{\"type\":\"permission_error\","
-                    + "\"message\":\"sokar: this task's credential cannot be renewed from"
-                    + " inside the container; the token it holds is minted per task and ends"
-                    + " with it\"}}"));
+                    + "\"message\":\"sokar: this task's credential cannot be renewed or"
+                    + " exchanged for another from inside the container; the token it holds is"
+                    + " minted per task and ends with it\"}}"));
             out.flush();
             return;
         }

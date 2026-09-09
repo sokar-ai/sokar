@@ -179,8 +179,28 @@ class VaultProxyTest {
                     + "content-length: 30\r\n\r\n{\"grant_type\":\"refresh_token\"}");
 
             assertThat(response).startsWith("HTTP/1.1 403");
-            assertThat(response).contains("cannot be renewed from inside the container");
+            assertThat(response).contains("cannot be renewed or exchanged");
             assertThat(received).isEmpty();
+        }
+    }
+
+    @Test
+    void refusesAClientCredentialsGrantForTheSameReason(@TempDir Path dir) throws IOException {
+
+        // The refusal began as refresh_token alone, and the reason written beside it - forwarding
+        // attaches the real credential to a request whose answer is a new one - is exactly as
+        // true of client_credentials. Reported as latent: no supported provider mints this way,
+        // so nothing reached it, and it was one pattern away from being reachable.
+        final Path socket = dir.resolve("vault.sock");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "POST /oauth2/token HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n"
+                    + "content-type: application/x-www-form-urlencoded\r\n"
+                    + "content-length: 29\r\n\r\ngrant_type=client_credentials");
+
+            assertThat(response).startsWith("HTTP/1.1 403");
+            assertThat(received).as("the real credential never left this machine").isEmpty();
         }
     }
 
