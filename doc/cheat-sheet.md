@@ -57,7 +57,7 @@ then it is kept and says so. Ctrl-C keeps it too: an interrupted run is not a fi
 ## Find and re-enter a task
 
 ```
-sokar task list                  # what exists, and whether it is up
+sokar task list                  # what exists, whether it is up, and for how long
 sokar task status TASK           # everything about one, including uncommitted work
 sokar task attach TASK           # go into a running one (offers to start a stopped one)
 sokar task resume TASK           # start a stopped one again, workspace intact

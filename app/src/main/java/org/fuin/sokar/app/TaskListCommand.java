@@ -44,14 +44,19 @@ public class TaskListCommand implements Callable<Integer>, SokarFactory.ContextA
             return 0;
         }
 
-        out.printf("%-38s %-14s %-9s %-18s %s%n",
-                "NAME", "PROJECT", "CLASS", "STATE", "HELPERS");
+        // The age the state column had to drop. It is kept as an instant precisely so it can be
+        // stated here rather than parsed back out of the runtime's own phrasing.
+        final java.time.Instant now = java.time.Instant.now();
+        out.printf("%-38s %-14s %-9s %-18s %-5s %s%n",
+                "NAME", "PROJECT", "CLASS", "STATE", "AGE", "HELPERS");
         for (final TaskInventory.Task task : tasks) {
-            out.printf("%-38s %-14s %-9s %-18s %s%n",
+            final String age = Age.compact(task.since(), now);
+            out.printf("%-38s %-14s %-9s %-18s %-5s %s%n",
                     task.name(),
                     task.project() == null ? "-" : task.project(),
                     task.securityClass() == null ? "-" : task.securityClass(),
                     state(task.state()),
+                    age.isEmpty() ? "-" : age,
                     task.helpers());
         }
         out.flush();

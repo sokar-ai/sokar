@@ -582,6 +582,22 @@ See [build.md](doc/build.md). Three things that will bite:
 - **`TaskInventory` computes sixteen fields and `task list` rendered five.** The daemon hands an
   interface all of them; the CLI showed a third of what the machine already knew.
 
+- **The age was computed, kept, and then thrown away by the renderer.** `ContainerSummary.since()`
+  is an instant precisely so "how long has it been like this" is answerable, and `task list`
+  dropped it because the runtime's phrase was twice its column's width. `Age.compact` renders the
+  instant instead - and refuses a future one, because a negative age in a column is a bug somebody
+  has to explain rather than information.
+
+- **A login container is never reused**, because its name carries the millisecond it was made. So
+  one still on the machine is litter, and `vault login` now sweeps them before it does anything
+  expensive - which covers what a teardown structurally cannot, a kill or a power cut. The login
+  *image* is the expensive part and is deliberately kept.
+
+- **Colour goes through picocli's `Ansi.AUTO`, never escapes written by hand.** It paints only on
+  a terminal and honours `NO_COLOR`, so a pipe, a log and a test fixture stay clean - and this
+  output is read by scripts as well as by people. Two things are painted: work that exists nowhere
+  else, and a clearance of `off`.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

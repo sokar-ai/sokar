@@ -30,7 +30,7 @@ Everything that starts, joins, or ends a piece of agent work.
 | Command | What it does |
 |---|---|
 | `sokar task run [TASK]` | Runs a task in a fresh container for the given project. |
-| `sokar task list` | Lists the tasks on this machine. |
+| `sokar task list` | Lists the tasks on this machine, with how long each has been in its state. |
 | `sokar task status TASK` | Says what a task is doing and what its workspace holds. |
 | `sokar task attach TASK` | Opens a shell in a running task. Leaving it does not end it. |
 | `sokar task resume TASK` | Starts a stopped task again, keeping its workspace. |

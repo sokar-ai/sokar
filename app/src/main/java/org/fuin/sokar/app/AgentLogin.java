@@ -129,6 +129,12 @@ public final class AgentLogin {
     public static Result login(SokarContext context, @Nullable String agentName, boolean dryRun,
             boolean force, PrintWriter out) {
 
+        // First, and before anything expensive. A login container is never reused - the name
+        // carries the millisecond it was made - so one still on the machine is litter, and the
+        // teardown at the end cannot have covered every way a login ends: a kill leaves nothing
+        // a chance to run. The login *image* is the expensive part and is deliberately kept.
+        sweepLeftoverLogins(context.podman(), out);
+
         try (var agents = context.agents()) {
 
             final java.util.Optional<InstalledAgent> found = agentName != null
@@ -302,6 +308,33 @@ public final class AgentLogin {
                 // The credential was in here. Removed whatever happened above.
                 deleteTree(collected);
             }
+        }
+    }
+
+    /**
+     * Removes login containers an earlier run left behind.
+     * <p>
+     * Reported from a machine carrying one thirteen hours old: it had outlived an interrupted
+     * login from before the teardown existed. Sweeping here rather than only tearing down at the
+     * end covers what a teardown structurally cannot - a {@code SIGKILL}, a power cut, or a
+     * version that had no teardown at all.
+     *
+     * @param podman The runtime.
+     * @param out Where a removal is reported.
+     */
+    private static void sweepLeftoverLogins(org.fuin.sokar.runtime.Podman podman, PrintWriter out) {
+        try {
+            final java.util.List<String> leftover = podman.sokarContainers().stream()
+                    .filter(org.fuin.sokar.runtime.ContainerName::isLogin).toList();
+            for (final String stale : leftover) {
+                podman.remove(stale);
+                out.println("removed   " + stale + ", left behind by an earlier login");
+            }
+        } catch (RuntimeException ex) {
+            // A sweep that cannot run is not a reason to refuse a login. The worst case is the
+            // container somebody already has staying where it is.
+            out.println("note      could not check for leftover login containers: "
+                    + ex.getMessage());
         }
     }
 

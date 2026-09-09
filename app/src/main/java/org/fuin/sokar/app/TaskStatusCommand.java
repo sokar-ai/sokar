@@ -86,11 +86,16 @@ public class TaskStatusCommand implements Callable<Integer>, SokarFactory.Contex
         line(out, "state", task.state());
         line(out, "activity", task.activity().name().toLowerCase(java.util.Locale.ROOT));
         line(out, "waiting", task.waitingFor());
-        line(out, "since", task.since());
+        // Both: the age is what somebody is asking, and the instant is what they would quote
+        // in a report or compare against something else.
+        final String age = Age.compact(task.since(), java.time.Instant.now());
+        line(out, "since", age.isEmpty() ? task.since()
+                : age + " ago" + (task.since().isBlank() ? "" : "  (" + task.since() + ")"));
         line(out, "helpers", String.valueOf(task.helpers()));
         // 'off' is the one clearance value that has to be visible wherever a task is: nothing
-        // asks and nothing is refused.
-        line(out, "clearance", task.clearance());
+        // asks and nothing is refused. It is the other thing on this page worth a colour.
+        line(out, "clearance", "off".equals(task.clearance())
+                ? warn("off - nothing asks and nothing is refused") : task.clearance());
         out.println();
         line(out, "branch", task.branch());
         line(out, "reviewing", task.waiting() > 0 ? task.waiting() + " waiting at the gate" : null);
@@ -109,14 +114,41 @@ public class TaskStatusCommand implements Callable<Integer>, SokarFactory.Contex
     private String workspace(TaskInventory.Task task) {
         if (task.running()) {
             final String held = new TaskControl(context).unhandedWork(container);
-            return held == null ? "everything is on the gate" : held + " not on the gate";
+            // Coloured because of what it means, not because it is interesting: this is work
+            // that exists nowhere else, and removing the task destroys it.
+            return held == null ? "everything is on the gate" : alarm(held + " not on the gate");
         }
         return UnhandedWork.note(context.paths().containerState(container))
                 .filter(phrase -> !phrase.isEmpty())
-                .map(phrase -> phrase + " not on the gate, as recorded when it stopped")
+                .map(phrase -> alarm(phrase + " not on the gate, as recorded when it stopped"))
                 // Not "nothing": nothing would read as nothing to lose, and what is true is that
                 // the only thing that could answer is gone.
-                .orElse("cannot be read while the task is stopped");
+                .orElse(warn("cannot be read while the task is stopped"));
+    }
+
+    /**
+     * Marks something that can be lost.
+     * <p>
+     * <strong>Through picocli's own {@code Ansi.AUTO}</strong>, which paints only when the output
+     * is a terminal and honours {@code NO_COLOR}. Writing the escapes directly would put them in
+     * a pipe, a log and a test fixture, where they are noise at best - and this output is read by
+     * scripts as well as by people.
+     *
+     * @param text What to mark.
+     * @return The text, painted or not.
+     */
+    private static String alarm(String text) {
+        return picocli.CommandLine.Help.Ansi.AUTO.string("@|bold,red " + text + "|@");
+    }
+
+    /**
+     * Marks something that is not wrong but must not be read as fine.
+     *
+     * @param text What to mark.
+     * @return The text, painted or not.
+     */
+    private static String warn(String text) {
+        return picocli.CommandLine.Help.Ansi.AUTO.string("@|yellow " + text + "|@");
     }
 
     private static void line(PrintWriter out,

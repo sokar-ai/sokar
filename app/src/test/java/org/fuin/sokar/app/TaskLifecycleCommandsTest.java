@@ -172,6 +172,23 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void paintsNothingWhenTheOutputIsNotATerminal(@TempDir Path dir) throws IOException {
+
+        // The colour marks work that exists nowhere else, and it must reach a person's terminal
+        // and nowhere else: escapes in a pipe, a log or a fixture are noise, and this output is
+        // read by scripts too. picocli's Ansi.AUTO decides, which is why it is used rather than
+        // escapes written by hand.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+        stateOf("sokar-uc-shell-1");
+        workspaceReports(dir, "3 2");
+
+        execute(context, "task", "status", "sokar-uc-shell-1");
+
+        assertThat(out.toString()).contains("not on the gate").doesNotContain("\u001b[");
+    }
+
+    @Test
     void doesNotCallAStoppedTasksWorkspaceEmpty(@TempDir Path dir) throws IOException {
 
         // The workspace is inside the container, so once it is stopped nothing can read it. That

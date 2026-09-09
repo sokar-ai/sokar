@@ -35,6 +35,23 @@ class AgentLoginTest {
     }
 
     @Test
+    void sweepsALoginContainerAnEarlierRunLeftBehind(@TempDir Path dir) {
+
+        // Reported from a machine carrying one thirteen hours old, outliving an interrupted
+        // login. A login container is never reused - the name carries the millisecond it was
+        // made - so one still there is litter, and a teardown cannot cover a kill.
+        runner.answering("ps", "sokar-login-1788886971400\nsokar-uc-shell-1\n");
+
+        AgentLogin.login(context(dir), null, false, false, new PrintWriter(out, true));
+
+        assertThat(runner.lines())
+                .anyMatch(line -> line.startsWith("podman rm")
+                        && line.contains("sokar-login-1788886971400"));
+        // And nothing else: a task is not litter, whatever state it is in.
+        assertThat(runner.lines()).noneMatch(line -> line.contains("sokar-uc-shell-1"));
+    }
+
+    @Test
     void aMachineWithNoAgentSaysSoRatherThanFailing(@TempDir Path dir) {
 
         final AgentLogin.Result result = AgentLogin.login(context(dir), null, false, false,
