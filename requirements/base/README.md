@@ -24,6 +24,11 @@ so a run begins and then waits at a menu. One of the two asks a person whether t
 phantom token Sokar minted for that task, recommending they refuse it. It is above B01 because it
 is not a failure in the middle of long work, it is the first thing a new operator meets.
 
+**B27 is second because it decides how everything below it gets verified.** There is an acceptance
+suite - 1177 lines, on two rented machines per merge - and it cannot allocate a terminal, so every
+behaviour gated on `isTerminal()` has been checked by a person by hand. That is not a gap in
+coverage, it is a gap in what the suite can reach, and it will not close by adding cases to it.
+
 **B01 is next because it is the one that breaks work already running.** An agent that renews an
 expiring credential and finds a task-scoped one instead fails in the middle of a long task, and
 Sokar's own expiry is only half of it: provider-side renewal is untouched, and answering it needs a
@@ -104,6 +109,7 @@ and saying so cost a paragraph and bought a screen that is not lying.
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved |
+| B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
 | B25 | [Names The Operator Should Not Have To Find](B25-Names-The-Operator-Should-Not-Have-To-Find.md) | A command that needs a name Sokar already knows never makes the operator go and find it. | three |
 | B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | A machine can say what it has done, for longer than the tasks themselves existed. | two, and four are decided |
