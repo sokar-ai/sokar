@@ -103,7 +103,7 @@
                         <sokar.acceptance.user>${sokar.acceptance.user}</sokar.acceptance.user>
                         <sokar.acceptance.as>${sokar.acceptance.as}</sokar.acceptance.as>
                         <sokar.acceptance.key>${sokar.acceptance.key}</sokar.acceptance.key>
-                        <cucumber.plugin>pretty, html:target/acceptance.html, json:target/acceptance.json</cucumber.plugin>
+                        <cucumber.plugin>pretty, html:target/acceptance.html, json:target/acceptance.json, org.fuin.sokar.acceptance.GitHubReport</cucumber.plugin>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

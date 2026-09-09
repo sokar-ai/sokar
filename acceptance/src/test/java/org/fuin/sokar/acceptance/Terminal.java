@@ -34,8 +34,17 @@ final class Terminal implements AutoCloseable {
     /** Rows every scenario gets. */
     private static final int ROWS = 40;
 
-    /** How long a wait may take before it is a failure rather than slowness. */
+    /** How long an ordinary wait may take before it is a failure rather than slowness. */
     private static final Duration PATIENCE = Duration.ofSeconds(30);
+
+    /**
+     * How long to wait for something that may have to build an image first.
+     * <p>
+     * Minutes, and only where a build can happen. Raising the ordinary patience to match would
+     * make every wrong expectation take five minutes to fail, which is how a suite becomes
+     * something people stop running.
+     */
+    static final Duration BUILD_PATIENCE = Duration.ofMinutes(8);
 
     private final Session session;
 
@@ -79,10 +88,22 @@ final class Terminal implements AutoCloseable {
      * @throws IOException If the terminal cannot be read.
      */
     String await(String text) throws IOException {
-        final Instant deadline = Instant.now().plus(PATIENCE);
+        return await(text, PATIENCE);
+    }
+
+    /**
+     * Waits until the terminal has shown the given text, for as long as given.
+     *
+     * @param text What to wait for.
+     * @param patience How long to allow.
+     * @return Everything seen so far.
+     * @throws IOException If the terminal cannot be read.
+     */
+    String await(String text, Duration patience) throws IOException {
+        final Instant deadline = Instant.now().plus(patience);
         while (!seen.toString().contains(text)) {
             if (Instant.now().isAfter(deadline)) {
-                throw new AssertionError("Waited " + PATIENCE.toSeconds() + "s for \"" + text
+                throw new AssertionError("Waited " + patience.toSeconds() + "s for \"" + text
                         + "\". What the terminal showed:\n" + seen);
             }
             final int available = from.available();

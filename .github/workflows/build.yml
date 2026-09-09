@@ -93,6 +93,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # For the acceptance suite, which runs from here rather than on the server. The enforcer
+      # rejects anything older, so without this the run fails on the JDK the runner happened to
+      # ship with rather than on anything about the product.
+      - name: Set up Java
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          cache: 'maven'
+
       - name: Install the Hetzner client
         run: pip install --quiet hcloud
 
@@ -102,6 +112,12 @@ jobs:
       # found by fingerprint - so nothing has to keep a key name in step with the secret.
       #
       # The server is destroyed by the script itself, in a finally.
+      #
+      # '--acceptance' adds the Cucumber suite against the same server, run from this runner
+      # because it drives a terminal over ssh - the thing being simulated is somebody sitting
+      # here. A second server would double what a merge costs to prove the same binary. Its
+      # failures arrive as inline annotations on the feature file, and the whole run as a job
+      # summary, so a red leg says which sentence was untrue without anybody opening this log.
       - name: Tier 1 on ${{ matrix.os }}
         env:
           REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
@@ -110,7 +126,7 @@ jobs:
           # unique - and the cleanup below deletes by that label.
           SOKAR_CI_LEG: ${{ matrix.os }}
         run: |
-          python3 buildtools/ci/remote-tier1.py --os ${{ matrix.os }} \
+          python3 buildtools/ci/remote-tier1.py --os ${{ matrix.os }} --acceptance \
               ${{ matrix.os == 'ubuntu' && '--fetch binaries' || '' }}
 
       # Only the ubuntu leg, and only because of glibc: a native image links it dynamically, so a

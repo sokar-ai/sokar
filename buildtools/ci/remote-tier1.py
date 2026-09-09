@@ -59,6 +59,8 @@ def main() -> int:
                         help="which snapshot to boot, by its os label (default: %(default)s)")
     parser.add_argument("--snapshot", type=int, default=None,
                         help="image id; default is the newest snapshot for --os")
+    parser.add_argument("--acceptance", action="store_true",
+                        help="Also run the Cucumber suite against the server, from here.")
     parser.add_argument("--fetch", default=None, metavar="DIR",
                         help="copy the native binaries back into DIR before the server is "
                              "destroyed, so what ships is what this suite just tested")
@@ -135,6 +137,16 @@ def main() -> int:
         remote(address, environment,
                f"cd {REPO} && PATH=$HOME/.local/bin:$PATH bash buildtools/e2e-tier1.sh")
 
+        # The Cucumber suite, against the same machine, before it is destroyed. It runs HERE
+        # rather than on the server: it drives a terminal over ssh, so the thing being simulated
+        # is somebody sitting where this runner is.
+        #
+        # A second server would double what a merge costs to prove the same binary, and this one
+        # is already installed and already warm.
+        if args.acceptance:
+            print("\n-- what a person does at a terminal --")
+            acceptance(address)
+
         # After the suite, never before: the point of fetching is that what ships is the binary
         # this run just exercised. Inside the context, because the server is destroyed on the
         # way out of it.
@@ -162,6 +174,30 @@ BINARIES = [
 # What the fetch wrote, so whoever consumes it does not restate the list above. They drifted
 # once already: an agent was removed here and the consumer kept expecting it.
 MANIFEST = "fetched.txt"
+
+
+def acceptance(address: str) -> None:
+    """
+    Runs the Cucumber suite from here against the server.
+
+    The key is handed over as material rather than as a path, for the reason ``hetzner.agent``
+    records: writing the secret to a temporary file made its exact bytes matter, and a stray
+    carriage return then failed as "error in libcrypto" with nothing naming the file or the
+    reason. ``SOKAR_ACCEPTANCE_KEY`` is read by the suite the same way ``SSH`` is read here.
+
+    :param address: The server.
+    """
+    environment = dict(os.environ)
+    environment["SOKAR_ACCEPTANCE_KEY"] = os.environ.get(hetzner.SSH_KEY_VARIABLE, "")
+    subprocess.run(
+        ["./mvnw", "-B", "-pl", "acceptance", "verify", "-s", "settings.xml",
+         f"-Dsokar.acceptance.host={address}",
+         f"-Dsokar.acceptance.user={BUILD_USER}",
+         # The suite would otherwise look for a key file that CI deliberately does not have.
+         "-Dsokar.acceptance.key=unused-the-material-is-in-the-environment",
+         # Nothing that needs a task image: those are minutes each and tier 1 already builds one.
+         "-Dcucumber.filter.tags=not @slow"],
+        check=True, env=environment)
 
 
 def fetch(address: str, environment: dict[str, str], into: str) -> None:

@@ -34,6 +34,33 @@ question when checking that a credential was not echoed.
 `Machine.run` is the other half, deliberately: **half of these behaviours are "does not ask when
 nobody is there"**, and a suite that always allocates a pty tests one side of every one of them.
 
+## On GitHub
+
+`GitHubReport` is registered as a Cucumber plugin and writes two things, both driven by variables
+GitHub sets — with neither present it writes nothing, so a local run is not full of workflow
+commands nobody can see.
+
+**Inline annotations.** A failing scenario emits
+
+```
+::error file=acceptance/src/test/resources/.../machine.feature,line=4,title=<scenario>::<message>
+```
+
+The path is repository-relative, so GitHub attaches the annotation to the line of the **scenario**
+— the sentence somebody wrote — rather than to a stack frame. Messages are capped at 900
+characters: a step asserting on a whole command's output puts that whole output in the message,
+measured at over a kilobyte for one `doctor` assertion, and an uncapped message arrives truncated
+somewhere nobody chose. The full text is in the run log and the HTML report.
+
+**A job summary.** One row per scenario, with `7/10` where an outline has examples — an outline of
+ten is one sentence somebody wrote, and ten identical rows is a summary nobody reads to the end.
+
+To see either locally:
+
+```
+GITHUB_ACTIONS=true GITHUB_STEP_SUMMARY=/tmp/summary.md ./mvnw -pl acceptance verify -D...
+```
+
 ## Writing a scenario
 
 Steps live in `TerminalSteps`. Two vocabularies, and the difference is the point:

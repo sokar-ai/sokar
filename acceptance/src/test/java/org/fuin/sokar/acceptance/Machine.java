@@ -18,16 +18,105 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
  */
 final class Machine implements AutoCloseable {
 
-    private final SSHClient client = new SSHClient();
+    /** How long a connection attempt may hang before the machine counts as unreachable. */
+    private static final int PROBE_TIMEOUT = 4000;
+
+    private SSHClient client;
+
+    private final String host;
 
     private final String user;
 
     Machine() throws IOException {
-        final String host = required("sokar.acceptance.host");
+        this.host = required("sokar.acceptance.host");
         this.user = required("sokar.acceptance.user");
-        client.addHostKeyVerifier(new PromiscuousVerifier());
-        client.connect(host);
+        this.client = connected();
+    }
+
+    private SSHClient connected() throws IOException {
+        final SSHClient fresh = new SSHClient();
+        fresh.addHostKeyVerifier(new PromiscuousVerifier());
+        fresh.connect(host);
+        authenticate(fresh);
+        return fresh;
+    }
+
+    /**
+     * Authenticates with the key, however it was given.
+     * <p>
+     * <strong>The material, not only a path.</strong> On a developer's machine the key is a file.
+     * In CI it is a secret that is deliberately never written to a filesystem - the reason is
+     * recorded in {@code hetzner.agent}: a stray carriage return in a temporary key file fails as
+     * "error in libcrypto", naming neither the file nor the reason. Taking the material directly
+     * keeps that property rather than making this the one place that breaks it.
+     *
+     * @param client The client to authenticate.
+     * @throws IOException If the key cannot be used.
+     */
+    private void authenticate(SSHClient client) throws IOException {
+        final String material = System.getenv("SOKAR_ACCEPTANCE_KEY");
+        if (material != null && !material.isBlank()) {
+            // Carriage returns make an otherwise valid key unreadable, and the error says so no
+            // more clearly here than it does to ssh.
+            final String cleaned = material.replace("\r\n", "\n").replace("\r", "\n").strip()
+                    + "\n";
+            client.authPublickey(user, client.loadKeys(cleaned, null, null));
+            return;
+        }
         client.authPublickey(user, required("sokar.acceptance.key"));
+    }
+
+    /**
+     * Tells whether the machine answers, without disturbing the session.
+     *
+     * @return {@code true} if something is listening and authenticating.
+     */
+    boolean reachable() {
+        final SSHClient probe = new SSHClient();
+        probe.addHostKeyVerifier(new PromiscuousVerifier());
+        probe.setConnectTimeout(PROBE_TIMEOUT);
+        probe.setTimeout(PROBE_TIMEOUT);
+        try {
+            probe.connect(host);
+            probe.authPublickey(user, required("sokar.acceptance.key"));
+            return true;
+        } catch (IOException | RuntimeException ex) {
+            // Down, or not up yet. Both are "no" here and the caller knows which it is waiting for.
+            return false;
+        } finally {
+            try {
+                probe.close();
+            } catch (IOException ex) {
+                // Nothing to do about a probe that will not close.
+            }
+        }
+    }
+
+    /** Drops the session, for a restart that is about to take it away anyway. */
+    void disconnect() {
+        try {
+            client.disconnect();
+        } catch (IOException ex) {
+            // Already gone, which is what was wanted.
+        }
+    }
+
+    /**
+     * Opens a new session after a restart.
+     *
+     * @throws IOException If the machine cannot be reached.
+     */
+    void reconnect() throws IOException {
+        client = connected();
+    }
+
+    /**
+     * Returns how this machine gets restarted.
+     *
+     * @return The restart.
+     */
+    Restart restart() {
+        return new SshRestart(this);
     }
 
     private static String required(String property) {
