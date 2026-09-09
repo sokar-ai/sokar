@@ -215,6 +215,29 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void saysATaskPredatesARestartRatherThanLettingPodmanExplain(@TempDir Path dir) {
+
+        // Reported: 'task resume' on a task from before a reboot answered sixteen frames of
+        // picocli wrapping crun's "cannot stat .../vault.sock". The state directory is under
+        // $XDG_RUNTIME_DIR, which the system clears on restart, and the container bind-mounts
+        // the broker socket out of it - so podman cannot start it and no helper can be started
+        // that would bring the socket back. No state directory is exactly that situation.
+        final SokarContext context = context(dir);
+        runner.answering("container inspect", "c0ffee\n");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\t\n");
+
+        assertThat(execute(context, "task", "resume", "sokar-uc-shell-1")).isEqualTo(69);
+
+        assertThat(err.toString())
+                .contains("before this machine restarted")
+                .contains("podman cp sokar-uc-shell-1:/workspace")
+                .as("the workspace survives even though the container cannot start")
+                .contains("--purge --force");
+        assertThat(runner.lines()).as("podman is not asked to do something that cannot work")
+                .noneMatch(line -> line.startsWith("podman start"));
+    }
+
+    @Test
     void aStoppedTaskStaysInsideItsColumn(@TempDir Path dir) throws IOException {
 
         // The runtime's longest phrase is twice the width of the column, and it ran into the

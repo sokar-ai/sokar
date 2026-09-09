@@ -63,7 +63,18 @@ public final class TaskControl {
         NO_HELPERS_RECORDED,
 
         /** The container came up but not every helper did. */
-        HELPERS_INCOMPLETE
+        HELPERS_INCOMPLETE,
+
+        /**
+         * The task was started before this machine restarted, so it cannot be started again.
+         * <p>
+         * Its state directory is under {@code $XDG_RUNTIME_DIR}, which the system clears when the
+         * user's last session ends - and the container bind-mounts the broker socket from inside
+         * it. podman refuses to start a container whose mount source is gone, with a message
+         * about {@code crun} and a path, which says nothing about what happened or what to do.
+         * The workspace is still in the container and can be copied out.
+         */
+        PREDATES_RESTART
     }
 
     /**
@@ -381,6 +392,14 @@ public final class TaskControl {
                 .anyMatch(task -> task.name().equals(container) && task.running())) {
             return new Resumed(Outcome.ALREADY_RUNNING, 0, recorded.helpers().size(), null, logs,
                     List.of());
+        }
+
+        if (!Files.isDirectory(state)) {
+            // Not "no helpers recorded": the whole directory is gone, which happens exactly once
+            // - when the machine restarts - and no amount of starting helpers brings back the
+            // socket the container is bound to. Answered before podman is asked, so the operator
+            // gets a sentence about what happened rather than crun's about a path.
+            return new Resumed(Outcome.PREDATES_RESTART, 0, 0, null, null, List.of());
         }
 
         if (recorded.helpers().isEmpty()) {

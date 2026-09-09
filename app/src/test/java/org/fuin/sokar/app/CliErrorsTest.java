@@ -109,4 +109,40 @@ class CliErrorsTest {
         // the parser rather than about what somebody typed.
         assertThat(run("unlock")).doesNotContain("Unmatched argument").doesNotContain("index 0");
     }
+
+    @Test
+    void turnsAnUnhandledFailureIntoOneLine() throws Exception {
+
+        // Reported: 'task resume' answered sixteen frames of picocli. The frames say where in
+        // this code it happened, which is of no use to the person being told, and they bury the
+        // one line that was.
+        final StringWriter err = new StringWriter();
+        final CommandLine command = new CommandLine(new SokarCli());
+        command.setErr(new PrintWriter(err));
+
+        final int code = CliErrors.failures().handleExecutionException(
+                new IllegalStateException("Something went wrong in there"), command, null);
+
+        assertThat(code).isEqualTo(70);
+        assertThat(err.toString())
+                .contains("sokar: something went wrong in there")
+                .as("the trace is reachable, not printed")
+                .contains("SOKAR_DEBUG=1")
+                .doesNotContain("at org.fuin");
+    }
+
+    @Test
+    void namesTheFailureWhenItCarriesNoMessage() throws Exception {
+
+        // Some exceptions carry only a type. Naming it beats an empty line that says something
+        // went wrong without saying anything.
+        final StringWriter err = new StringWriter();
+        final CommandLine command = new CommandLine(new SokarCli());
+        command.setErr(new PrintWriter(err));
+
+        CliErrors.failures().handleExecutionException(
+                new java.util.NoSuchElementException(), command, null);
+
+        assertThat(err.toString()).contains("sokar: NoSuchElementException");
+    }
 }

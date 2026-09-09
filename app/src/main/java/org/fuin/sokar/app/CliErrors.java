@@ -201,6 +201,39 @@ final class CliErrors {
     }
 
     /**
+     * Returns the handler for a command that threw.
+     * <p>
+     * <strong>A stack trace is not a message.</strong> Every refusal this product writes is one
+     * line beginning "sokar:", and then an unhandled exception put sixteen frames of picocli on
+     * somebody's terminal - reported when {@code task resume} met a container podman would not
+     * start. The frames say where in this code it happened, which is of no use to the person
+     * being told, and they bury the one line that was.
+     * <p>
+     * The trace is still reachable: {@code SOKAR_DEBUG} prints it. Losing it entirely would trade
+     * one bad outcome for another, because the message alone is sometimes not enough to fix a
+     * fault in this program.
+     *
+     * @return A handler that says what went wrong and nothing about how.
+     */
+    static picocli.CommandLine.IExecutionExceptionHandler failures() {
+        return (Exception ex, CommandLine command, picocli.CommandLine.ParseResult parsed) -> {
+            final PrintWriter err = command.getErr();
+            final String message = ex.getMessage();
+            err.println("sokar: " + (message == null || message.isBlank()
+                    // Some exceptions carry only a type. Naming it is better than an empty line
+                    // that says something went wrong without saying anything.
+                    ? ex.getClass().getSimpleName() : lower(message)));
+            if (System.getenv("SOKAR_DEBUG") != null) {
+                ex.printStackTrace(err);
+            } else {
+                err.println("       run again with SOKAR_DEBUG=1 to see where this came from");
+            }
+            err.flush();
+            return 70;
+        };
+    }
+
+    /**
      * Lowers a leading capital, so a message reads as part of the sentence it is prefixed onto.
      *
      * @param message Picocli's own wording.

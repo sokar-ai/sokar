@@ -108,6 +108,21 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
                 out.flush();
                 return 0;
             }
+            case PREDATES_RESTART -> {
+                err.println("sokar: " + container + " was started before this machine restarted,"
+                        + " so it cannot be started again.");
+                err.println("       Its sockets were under $XDG_RUNTIME_DIR, which the system"
+                        + " clears on restart, and the");
+                err.println("       container is bound to one of them. The workspace is still"
+                        + " inside it:");
+                err.println();
+                err.println("         podman cp " + container + ":/workspace ./recovered");
+                err.println();
+                err.println("       Then discard it with 'sokar task stop " + container
+                        + " --purge --force'.");
+                err.flush();
+                return 69;
+            }
             case NO_HELPERS_RECORDED -> {
                 out.println("helpers   none recorded, so none were started");
                 out.println();

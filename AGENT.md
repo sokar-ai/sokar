@@ -621,6 +621,19 @@ See [build.md](doc/build.md). Three things that will bite:
   readable means nobody could look. `WorkHeld` is asked per task and never on a listing, because it
   runs git inside the container - a call per row of a list a client redraws.
 
+- **A task cannot be resumed across a restart, and podman explained that badly.** The state
+  directory is under `$XDG_RUNTIME_DIR`, which the system clears when the user's last session ends
+  - and the container bind-mounts the broker socket out of it, so `podman start` fails with crun's
+  "cannot stat .../vault.sock". No helper can be started that brings the socket back, because the
+  directory recording which helpers there were went with it. `resume` now detects the missing
+  directory before asking podman, and says what happened plus how to get the workspace out:
+  **`podman cp <task>:/workspace` works on a container that cannot start**, measured.
+
+- **A stack trace is not a message.** Every refusal here is one line beginning "sokar:", and an
+  unhandled exception put sixteen frames of picocli on somebody's terminal. `CliErrors.failures()`
+  is the execution handler; the trace is behind `SOKAR_DEBUG` rather than gone, because the message
+  alone is sometimes not enough to fix a fault in this program.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

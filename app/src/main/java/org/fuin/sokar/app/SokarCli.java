@@ -50,7 +50,8 @@ public class SokarCli implements Callable<Integer> {
      */
     public static CommandLine commandLine(SokarContext context) {
         return new CommandLine(new SokarCli(), new SokarFactory(context))
-                .setParameterExceptionHandler(CliErrors.handler());
+                .setParameterExceptionHandler(CliErrors.handler())
+                .setExecutionExceptionHandler(CliErrors.failures());
     }
 
     public static void main(String[] args) {
