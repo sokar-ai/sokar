@@ -417,7 +417,17 @@ type Log (
   # How large it is now.
   bytes: int,
   # When it was last written, ISO-8601.
-  at: string
+  at: string,
+  # What this log holds, for a name that does not say - absent where it does.
+  #
+  # Two files need it and they are the two somebody looks for: 'events.jsonl' is what the firewall
+  # stopped, and 'reader.err' is the process that records those complaining. A table of names at
+  # the client end would drift the day a file is added - the list grows, the new one has no
+  # sentence, and it looks like the ordinary case. Only this side knows which files exist.
+  #
+  # Absent, empty and whitespace all mean the same thing: nothing to say. Sent absent rather than
+  # empty, because an empty line under a name reads as a description that failed.
+  what: ?string
 )
 
 # A connection a task tried to make and was stopped for.

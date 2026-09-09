@@ -114,6 +114,11 @@ public class TaskLogsCommand implements Callable<Integer>, SokarFactory.ContextA
             out.printf("%-18s %10s  %s%n", "LOG", "BYTES", "CHANGED");
             for (final TaskInventory.Log each : logs) {
                 out.printf("%-18s %10d  %s%n", each.name(), each.bytes(), each.at());
+                // Only the names that do not say what they hold. The same sentence the interface
+                // gets, from the same place - two sources for one line would disagree eventually.
+                if (each.what() != null) {
+                    out.printf("%-18s %s%n", "", each.what());
+                }
             }
             out.println();
             out.println("Read one with 'sokar task logs " + container + " <LOG>'.");

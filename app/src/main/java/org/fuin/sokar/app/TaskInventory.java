@@ -271,7 +271,7 @@ public final class TaskInventory {
      * @param bytes How large it is now.
      * @param at When it was last written, ISO-8601.
      */
-    public record Log(String name, long bytes, String at) {
+    public record Log(String name, long bytes, String at, @Nullable String what) {
 
         /**
          * Returns this log as plain values, for a caller that has to put it on a wire.
@@ -283,6 +283,11 @@ public final class TaskInventory {
             map.put("name", name);
             map.put("bytes", bytes);
             map.put("at", at);
+            // Left out rather than sent empty. A client draws absent as nothing; an empty string
+            // under a name reads as a description that failed instead of one nobody gave.
+            if (what != null && !what.isBlank()) {
+                map.put("what", what);
+            }
             return map;
         }
     }
@@ -345,11 +350,42 @@ public final class TaskInventory {
         }
     }
 
+    /**
+     * Returns what a log holds, for the ones whose name does not say.
+     * <p>
+     * <strong>Two files, and both of them are the ones somebody needs.</strong>
+     * {@code events.jsonl} is what the firewall stopped - the file to read when a task starts and
+     * then does nothing - and nothing in the name says so. {@code reader.err} is the process that
+     * writes it complaining, which is why its sentence carries the consequence rather than the
+     * description: empty is the normal case, so what matters is what a non-empty one means.
+     * <p>
+     * <strong>Here rather than in a client.</strong> A table at the other end would drift the day
+     * a file is added: the list grows, the new one has no sentence, and it looks like the ordinary
+     * case. Only this side knows which files exist and what wrote them.
+     * <p>
+     * <strong>Absent for everything else, deliberately.</strong> {@code gate.log} is the gate's
+     * log; a sentence saying so is noise, and noise beside two lines that matter is what stops
+     * them being read.
+     *
+     * @param name File name.
+     * @return One line, or {@code null} when the name speaks for itself.
+     */
+    private static @Nullable String what(String name) {
+        return switch (name) {
+            case "events.jsonl" -> "connections the firewall stopped - read this when a task"
+                    + " starts and then does nothing";
+            case "reader.err" -> "the process that records those connections, complaining."
+                    + " Anything in it means the record of blocks may be incomplete";
+            default -> null;
+        };
+    }
+
     @Nullable
     private static Log describe(Path file) {
         try {
-            return new Log(file.getFileName().toString(), Files.size(file),
-                    Files.getLastModifiedTime(file).toInstant().toString());
+            final String name = file.getFileName().toString();
+            return new Log(name, Files.size(file),
+                    Files.getLastModifiedTime(file).toInstant().toString(), what(name));
         } catch (java.io.IOException ex) {
             return null;
         }

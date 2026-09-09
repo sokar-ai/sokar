@@ -292,6 +292,49 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void saysWhatTheTwoLogsHoldWhoseNamesDoNotSay(@TempDir Path dir) throws IOException {
+
+        // 'events.jsonl' is the file to read when a task starts and then does nothing, and a
+        // person reading the list has no way to know that from the name. The sentence lives here
+        // rather than in a client: a table at the other end drifts the day a file is added.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\t\n");
+        final Path state = stateOf("sokar-uc-shell-1");
+        Files.writeString(state.resolve("events.jsonl"), "");
+        Files.writeString(state.resolve("reader.err"), "");
+        Files.writeString(state.resolve("gate.log"), "a line\n");
+
+        final java.util.List<TaskInventory.Log> logs =
+                new TaskInventory(context).logs("sokar-uc-shell-1");
+
+        assertThat(logs).filteredOn(log -> log.name().equals("events.jsonl"))
+                .singleElement().extracting(TaskInventory.Log::what).asString()
+                .contains("firewall stopped");
+        assertThat(logs).filteredOn(log -> log.name().equals("reader.err"))
+                .singleElement().extracting(TaskInventory.Log::what).asString()
+                .as("the consequence, not the description: empty is the normal case")
+                .contains("may be incomplete");
+        // And nothing for a name that speaks for itself. A sentence saying gate.log is the gate's
+        // log is noise, and noise beside the two that matter is what stops them being read.
+        assertThat(logs).filteredOn(log -> log.name().equals("gate.log"))
+                .singleElement().extracting(TaskInventory.Log::what).isNull();
+    }
+
+    @Test
+    void leavesAnAbsentDescriptionOutRatherThanSendingItEmpty(@TempDir Path dir)
+            throws IOException {
+
+        // A client draws absent as nothing; an empty string under a name reads as a description
+        // that failed instead of one nobody gave. The interface built its reader on that.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\t\n");
+        Files.writeString(stateOf("sokar-uc-shell-1").resolve("gate.log"), "a line\n");
+
+        assertThat(new TaskInventory(context).logs("sokar-uc-shell-1").getFirst().asMap())
+                .doesNotContainKey("what");
+    }
+
+    @Test
     void printsTheLogSomebodyAskedFor(@TempDir Path dir) throws IOException {
 
         final SokarContext context = context(dir);
