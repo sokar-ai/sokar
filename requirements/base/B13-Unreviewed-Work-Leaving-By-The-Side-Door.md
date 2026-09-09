@@ -47,11 +47,11 @@ it. Two lesser reasons point the same way: rootless podman writes those files as
 so the operator cannot even edit them without `podman unshare`, and relabelling somebody's real
 project directory for SELinux is not something a tool should do to them.
 
-**The reference implementation does the same and goes further.** Terok also clones into the
+**The reference implementation does the same and goes further.** It also clones into the
 container (`REPO_ROOT=/workspace/...`, seeded from `file:///git-gate/gate.git`) and then builds an
 explicit way in for a person: an sshd baked into the image, the host's public key bind-mounted to
-`/etc/ssh/authorized_keys.d/terok`, reached over podman's pasta, offered in its interface as
-`terok login <project> <task>`. It exists there partly for a reason Sokar does not have - under the
+a drop-in under `/etc/ssh/authorized_keys.d/`, reached over podman's pasta, offered in its
+interface as its own `login <project> <task>` verb. It exists there partly for a reason Sokar does not have - under the
 krun runtime `podman exec` cannot enter the guest at all - and it is a *shell*, not an editor.
 
 **But for reviewing, inside is the wrong place regardless.** The reviewer does not want the agent's

@@ -84,8 +84,8 @@ is awkward already: a URL endpoint has to be bound inside the task's own network
 relay, because a host-side listener is either unreachable from a rootless container or bound to
 every interface.
 
-**Terok does this**, and it is the closest thing to a specification available.
-`terok-sandbox/src/terok_sandbox/vault/daemon/token_broker.py` loads a route table of name to
+**The reference implementation does this**, and it is the closest thing to a specification
+available. Its sandbox's `vault/daemon/token_broker.py` loads a route table of name to
 upstream, auth header and prefix; each phantom token records which credential it belongs to, and the
 broker reads that, picks the route, loads the credential and injects it. Apache-2.0, and the debt is
 to the design rather than to the code — Sokar's broker is a rewrite.
@@ -164,8 +164,8 @@ one is usable only where it was meant to go.**
 
 ## To be checked
 
-- **Whether the route is picked by the token or by the path.** The token is what Terok does and asks
-  nothing of the consumer; a path prefix works whenever the consumer can be handed a base URL, which
+- **Whether the route is picked by the token or by the path.** The token is what the reference
+  implementation does and asks nothing of the consumer; a path prefix works whenever the consumer can be handed a base URL, which
   is the ordinary case in [B29](B29-Keys-Presented-As-They-Are-Stored.md), and it keeps one token per
   task rather than several.
 - **Whether a derived value is shared between tasks or minted per task.** Sharing is cheaper and

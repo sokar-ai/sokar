@@ -67,7 +67,8 @@ have made one file about two audiences. The backend agent makes that edit to B01
 ## Three things that only appear once the broker holds a clock
 
 **Single-flight.** Twenty requests arriving with no valid token must produce one exchange, not
-twenty. Terok locks per credential across supervisors — `acquire_refresh_lock`, a lock file named
+twenty. The reference implementation locks per credential across supervisors —
+`acquire_refresh_lock`, a lock file named
 `refresh-<credential_set>-<provider>.lock` — because several containers may share one credential.
 Whether Sokar shares a derived token between tasks at all is [B28](B28-More-Than-One-Credential-In-A-Task.md)'s
 question; the lock is needed either way, because a task is not one request.

@@ -246,7 +246,8 @@ several agents rather than agents reaching each other; and a sidecar tool mode t
 container against the same repository, which is cooperation through the *work product* rather than
 through a channel — the same argument as the gate, above.
 
-It also shows the thing not to do. Terok bind-mounts a set of shared configuration directories into
+It also shows the thing not to do. The reference implementation bind-mounts a set of shared
+configuration directories into
 **every** task container, writable, and its own documentation names the consequence: containers can
 poison them. A writable directory that two tasks share is a message channel nobody designed, with
 no record, no policy and no way to interrupt it. Sokar mounts only the vault and ssh sockets into a
