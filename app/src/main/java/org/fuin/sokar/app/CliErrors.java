@@ -1,6 +1,11 @@
 package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -215,7 +220,7 @@ final class CliErrors {
      *
      * @return A handler that says what went wrong and nothing about how.
      */
-    static picocli.CommandLine.IExecutionExceptionHandler failures() {
+    static picocli.CommandLine.IExecutionExceptionHandler failures(SokarPaths paths) {
         return (Exception ex, CommandLine command, picocli.CommandLine.ParseResult parsed) -> {
             final PrintWriter err = command.getErr();
             final String message = ex.getMessage();
@@ -223,14 +228,88 @@ final class CliErrors {
                     // Some exceptions carry only a type. Naming it is better than an empty line
                     // that says something went wrong without saying anything.
                     ? ex.getClass().getSimpleName() : lower(message)));
+            final Path written = record(paths, parsed, ex);
+            if (written != null) {
+                err.println("       written to " + written);
+            }
             if (System.getenv("SOKAR_DEBUG") != null) {
                 ex.printStackTrace(err);
-            } else {
-                err.println("       run again with SOKAR_DEBUG=1 to see where this came from");
             }
             err.flush();
             return 70;
         };
+    }
+
+    /**
+     * Appends a failure to the log, and returns where it went.
+     * <p>
+     * <strong>Kept rather than offered behind a flag.</strong> A trace that only appears when
+     * somebody re-runs with {@code SOKAR_DEBUG} is a trace nobody has for the failure that
+     * actually happened - the one they cannot reproduce is exactly the one worth having. This
+     * goes under {@code $XDG_STATE_HOME/sokar}, which is documented as where logs and audit
+     * trails live and which {@code sokar doctor} already prints.
+     * <p>
+     * <strong>The command's name, never its arguments.</strong> An argument can carry a
+     * credential - {@code --upstream https://user:token@host} is the obvious one - and a log is
+     * exactly where that must not end up. The name says which command failed, which is what a
+     * trace beside it needs. Owner-only, for the same reason a message can quote anything.
+     *
+     * @param paths Where this machine keeps things.
+     * @param parsed What was being run, or {@code null}.
+     * @param ex What went wrong.
+     * @return The file, or {@code null} when it could not be written.
+     */
+    private static @org.jspecify.annotations.Nullable Path record(SokarPaths paths,
+            picocli.CommandLine.@org.jspecify.annotations.Nullable ParseResult parsed,
+            Exception ex) {
+        try {
+            final Path file = paths.failureLog();
+            Files.createDirectories(file.getParent());
+            final StringWriter trace = new StringWriter();
+            ex.printStackTrace(new PrintWriter(trace));
+            final String entry = java.time.Instant.now() + "  " + nameOf(parsed)
+                    + System.lineSeparator() + trace + System.lineSeparator();
+            Files.writeString(file, entry, StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.APPEND);
+            ownerOnly(file);
+            return file;
+        } catch (IOException | RuntimeException problem) {
+            // Reporting the original failure matters more than recording it. A machine with no
+            // writable state directory still gets the one line that says what went wrong.
+            return null;
+        }
+    }
+
+    /**
+     * Returns which command was running, as somebody would have typed it.
+     * <p>
+     * The parse result is the root; the command that failed is at the end of the subcommand
+     * chain. Taking the root instead records "sokar" for every failure, which names nothing - a
+     * test caught exactly that.
+     *
+     * @param parsed What was being run, or {@code null}.
+     * @return The command name.
+     */
+    private static String nameOf(
+            picocli.CommandLine.@org.jspecify.annotations.Nullable ParseResult parsed) {
+        if (parsed == null) {
+            return "sokar";
+        }
+        picocli.CommandLine.ParseResult deepest = parsed;
+        while (deepest.hasSubcommand()) {
+            deepest = deepest.subcommand();
+        }
+        return deepest.commandSpec().qualifiedName(" ");
+    }
+
+    private static void ownerOnly(Path file) {
+        try {
+            Files.setPosixFilePermissions(file,
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        } catch (IOException | UnsupportedOperationException ex) {
+            // Not every filesystem has them. The file is under the user's own state directory.
+        }
     }
 
     /**

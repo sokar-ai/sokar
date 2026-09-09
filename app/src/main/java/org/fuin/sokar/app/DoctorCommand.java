@@ -305,6 +305,12 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         out.println("config   " + paths.config());
         out.println("data     " + paths.data());
         out.println("state    " + paths.state());
+        // Only when there is something in it. A line naming an empty log on every healthy machine
+        // teaches people to skip the line, and then it says nothing on the day it matters.
+        if (java.nio.file.Files.isRegularFile(context.paths().failureLog())) {
+            out.println("failures " + context.paths().failureLog()
+                    + " - a command failed unexpectedly");
+        }
         out.println("runtime  " + paths.runtime());
 
         out.println();

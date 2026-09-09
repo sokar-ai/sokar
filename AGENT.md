@@ -629,10 +629,15 @@ See [build.md](doc/build.md). Three things that will bite:
   directory before asking podman, and says what happened plus how to get the workspace out:
   **`podman cp <task>:/workspace` works on a container that cannot start**, measured.
 
-- **A stack trace is not a message.** Every refusal here is one line beginning "sokar:", and an
-  unhandled exception put sixteen frames of picocli on somebody's terminal. `CliErrors.failures()`
-  is the execution handler; the trace is behind `SOKAR_DEBUG` rather than gone, because the message
-  alone is sometimes not enough to fix a fault in this program.
+- **A stack trace is not a message, and it is not nothing either.** Every refusal here is one line
+  beginning "sokar:", and an unhandled exception put sixteen frames of picocli on somebody's
+  terminal. `CliErrors.failures(paths)` writes them to `$XDG_STATE_HOME/sokar/failures.log` -
+  **kept rather than offered behind a flag**, because the failure nobody can reproduce is exactly
+  the one worth having a trace for. The terminal gets the sentence and the path; `doctor` names the
+  file once it exists. **The command's name goes in it, never its arguments:** `--upstream
+  https://user:token@host` is a credential, and a log is where that must not end up. Owner-only,
+  because a message can quote anything. A test caught the first version logging the root command,
+  so every failure was called "sokar" and named nothing.
 
 ## The rented test machines
 

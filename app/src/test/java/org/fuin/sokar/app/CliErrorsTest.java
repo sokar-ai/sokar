@@ -110,8 +110,17 @@ class CliErrorsTest {
         assertThat(run("unlock")).doesNotContain("Unmatched argument").doesNotContain("index 0");
     }
 
+    /** Paths rooted in a temporary directory, so a test never writes into the real state. */
+    private SokarPaths pathsIn(java.nio.file.Path dir) {
+        return new SokarPaths(org.fuin.sokar.core.config.XdgPaths.of(name -> switch (name) {
+            case "XDG_STATE_HOME" -> dir.resolve("state").toString();
+            default -> null;
+        }, dir), dir.resolve("bin"));
+    }
+
     @Test
-    void turnsAnUnhandledFailureIntoOneLine() throws Exception {
+    void turnsAnUnhandledFailureIntoOneLine(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
 
         // Reported: 'task resume' answered sixteen frames of picocli. The frames say where in
         // this code it happened, which is of no use to the person being told, and they bury the
@@ -120,19 +129,28 @@ class CliErrorsTest {
         final CommandLine command = new CommandLine(new SokarCli());
         command.setErr(new PrintWriter(err));
 
-        final int code = CliErrors.failures().handleExecutionException(
+        final int code = CliErrors.failures(pathsIn(dir)).handleExecutionException(
                 new IllegalStateException("Something went wrong in there"), command, null);
 
         assertThat(code).isEqualTo(70);
         assertThat(err.toString())
                 .contains("sokar: something went wrong in there")
-                .as("the trace is reachable, not printed")
-                .contains("SOKAR_DEBUG=1")
+                .as("the terminal gets the sentence, not the frames")
                 .doesNotContain("at org.fuin");
+
+        // Kept rather than offered behind a flag: the failure nobody can reproduce is exactly
+        // the one worth having a trace for.
+        final java.nio.file.Path log = pathsIn(dir).failureLog();
+        assertThat(log).exists();
+        assertThat(java.nio.file.Files.readString(log))
+                .contains("IllegalStateException")
+                .contains("at org.fuin.sokar.app.CliErrorsTest");
+        assertThat(err.toString()).contains(log.toString());
     }
 
     @Test
-    void namesTheFailureWhenItCarriesNoMessage() throws Exception {
+    void namesTheFailureWhenItCarriesNoMessage(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
 
         // Some exceptions carry only a type. Naming it beats an empty line that says something
         // went wrong without saying anything.
@@ -140,9 +158,44 @@ class CliErrorsTest {
         final CommandLine command = new CommandLine(new SokarCli());
         command.setErr(new PrintWriter(err));
 
-        CliErrors.failures().handleExecutionException(
+        CliErrors.failures(pathsIn(dir)).handleExecutionException(
                 new java.util.NoSuchElementException(), command, null);
 
         assertThat(err.toString()).contains("sokar: NoSuchElementException");
+    }
+
+    @Test
+    void keepsArgumentsOutOfTheLog(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+
+        // An argument can carry a credential - '--upstream https://user:token@host' is the
+        // obvious one - and a log is exactly where that must not end up. The command's name says
+        // which command failed, which is what a trace beside it needs.
+        final CommandLine command = SokarCli.commandLine(SokarContext.real());
+        command.setErr(new PrintWriter(new StringWriter()));
+        final CommandLine.ParseResult parsed =
+                command.parseArgs("gate", "pending", "--upstream", "https://u:s3cret@example.com");
+
+        CliErrors.failures(pathsIn(dir)).handleExecutionException(
+                new IllegalStateException("it broke"), command, parsed);
+
+        final String written = java.nio.file.Files.readString(pathsIn(dir).failureLog());
+        assertThat(written).contains("gate pending").doesNotContain("s3cret");
+    }
+
+    @Test
+    void keepsTheLogToItsOwner(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+
+        // A message can quote anything the command was working with.
+        final CommandLine command = new CommandLine(new SokarCli());
+        command.setErr(new PrintWriter(new StringWriter()));
+        CliErrors.failures(pathsIn(dir)).handleExecutionException(
+                new IllegalStateException("it broke"), command, null);
+
+        assertThat(java.nio.file.Files.getPosixFilePermissions(pathsIn(dir).failureLog()))
+                .containsExactlyInAnyOrder(
+                        java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                        java.nio.file.attribute.PosixFilePermission.OWNER_WRITE);
     }
 }

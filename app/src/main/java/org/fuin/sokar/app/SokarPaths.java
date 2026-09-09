@@ -275,6 +275,19 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file unhandled failures are appended to.
+     * <p>
+     * Under the state directory, which is where logs and audit trails live and which
+     * {@code doctor} already prints - so somebody told a command failed has one place to look and
+     * was already shown it.
+     *
+     * @return The failure log.
+     */
+    public Path failureLog() {
+        return xdg.state().resolve("failures.log");
+    }
+
+    /**
      * Returns the file podman is pointed at when Sokar starts a container.
      * <p>
      * Under the runtime directory rather than beside podman's own configuration: it applies to
