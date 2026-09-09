@@ -32,6 +32,8 @@ public class ContainerSpec {
 
     private final Map<String, String> annotations = new LinkedHashMap<>();
 
+    private final Map<String, String> labels = new LinkedHashMap<>();
+
     private final Map<Path, String> volumes = new LinkedHashMap<>();
 
     private final List<String> resolvers = new ArrayList<>();
@@ -79,6 +81,23 @@ public class ContainerSpec {
      */
     public ContainerSpec annotation(String key, String value) {
         annotations.put(key, value);
+        return this;
+    }
+
+    /**
+     * Adds a label.
+     * <p>
+     * <strong>A label rather than an annotation, for anything a listing needs.</strong> Both
+     * outlive the session and both are the runtime's to keep, but only labels come back from
+     * {@code podman ps}: an annotation costs one {@code inspect} per row, which is a call per
+     * line of a list an interface redraws.
+     *
+     * @param key Label key.
+     * @param value Label value.
+     * @return This instance.
+     */
+    public ContainerSpec label(String key, String value) {
+        labels.put(key, value);
         return this;
     }
 
@@ -233,6 +252,11 @@ public class ContainerSpec {
 
         annotations.forEach((key, value) -> {
             arguments.add("--annotation");
+            arguments.add(key + "=" + value);
+        });
+
+        labels.forEach((key, value) -> {
+            arguments.add("--label");
             arguments.add(key + "=" + value);
         });
 

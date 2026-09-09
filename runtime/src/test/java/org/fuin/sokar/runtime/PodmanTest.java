@@ -284,6 +284,49 @@ class PodmanTest {
     }
 
     @Test
+    void readsTheProjectAndClassOffTheContainerItself() {
+
+        // Both used to come only from a sidecar in $XDG_RUNTIME_DIR, which the system destroys
+        // when the user's last session ends - so after a reboot every surviving task listed "-"
+        // for both. A label lives and dies with the container, which is the right lifetime.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t"
+                + "org.fuin.sokar.project=uc,org.fuin.sokar.class=guarded\n");
+
+        assertThat(podman.sokarTasks()).singleElement().satisfies(task -> {
+            assertThat(task.project()).isEqualTo("uc");
+            assertThat(task.securityClass()).isEqualTo("guarded");
+        });
+    }
+
+    @Test
+    void answersNothingForAContainerCarryingNoLabels() {
+
+        // Created by a Sokar that did not write them. The sidecar is still the fallback, so this
+        // must be absent rather than an empty string that would win over it.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+
+        assertThat(podman.sokarTasks()).singleElement().satisfies(task -> {
+            assertThat(task.project()).isNull();
+            assertThat(task.securityClass()).isNull();
+        });
+    }
+
+    @Test
+    void isNotConfusedByAnotherLabelOnTheSameContainer() {
+
+        // podman renders them as one comma-separated field, and anything on the machine may add
+        // its own. Matching on a prefix, or taking the first pair, would read the wrong value.
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t"
+                + "com.example.project=theirs,org.fuin.sokar.project=uc,"
+                + "org.fuin.sokar.classifier=nonsense,org.fuin.sokar.class=offline\n");
+
+        assertThat(podman.sokarTasks()).singleElement().satisfies(task -> {
+            assertThat(task.project()).isEqualTo("uc");
+            assertThat(task.securityClass()).isEqualTo("offline");
+        });
+    }
+
+    @Test
     void removalToleratesAContainerThatIsAlreadyGone() {
 
         runner.failing("stop", 125, "no such container");

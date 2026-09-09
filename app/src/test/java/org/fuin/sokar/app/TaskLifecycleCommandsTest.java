@@ -84,6 +84,24 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void stillNamesTheProjectAfterTheRuntimeDirectoryIsGone(@TempDir Path dir) {
+
+        // The reported case. The sidecar holding project and class lives in $XDG_RUNTIME_DIR,
+        // which the system destroys when the user's last session ends, while podman's own store
+        // survives - so after a reboot every task that outlived it listed "-" for both. No
+        // stateOf() here on purpose: that is what a rebooted machine looks like.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\t"
+                + "org.fuin.sokar.project=uc,org.fuin.sokar.class=guarded\n");
+
+        assertThat(execute(context, "task", "list")).isZero();
+
+        final String row = out.toString().lines().filter(line -> line.startsWith("sokar-uc"))
+                .findFirst().orElseThrow();
+        assertThat(row).contains("uc").contains("guarded").doesNotContain("-  ");
+    }
+
+    @Test
     void aStoppedTaskStaysInsideItsColumn(@TempDir Path dir) throws IOException {
 
         // The runtime's longest phrase is twice the width of the column, and it ran into the

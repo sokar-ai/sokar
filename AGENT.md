@@ -534,6 +534,23 @@ See [build.md](doc/build.md). Three things that will bite:
   "go back in with 'sokar task resume'" promised something it does not do. Both the resume output
   and the kept-task message now name `task attach` as the separate step.
 
+- **A fact about a container belongs on the container.** Project and security class were written
+  only into `sidecar.json` under `$XDG_RUNTIME_DIR`, which the system destroys when the user's last
+  session ends - so after a reboot every surviving task listed both as `-`, and `task resume`
+  failed obscurely because the fail-closed nft hook could no longer read the sidecar its
+  annotation still pointed at. They are now podman **labels** as well. Labels rather than
+  annotations because only labels come back from `podman ps`: an annotation would cost one
+  `inspect` per row of a list an interface redraws. Splitting `k=v,k=v` is safe for these two -
+  a project name is `[a-z0-9][a-z0-9-]*` and a class is an enum - in a way splitting the container
+  name on its hyphens is not, which is why the name is still never parsed.
+
+- **A dialog caused by a flag cannot be answered by that flag.** `--dangerously-skip-permissions`
+  makes the CLI open with a bypass-mode warning defaulting to "No, exit"; it is consent, not a
+  permission prompt. Answered by a settings file the agent declares, through the
+  `ContainerSetup` seam that already existed for exactly this. **The API-key dialog beside it is
+  refused rather than solved**: it fires on a collision between two payment models on one account,
+  and suppressing it would answer "bill it that way" for somebody.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

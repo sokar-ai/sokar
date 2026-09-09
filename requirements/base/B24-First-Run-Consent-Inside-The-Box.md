@@ -1,8 +1,11 @@
 # B24 — First-Run Consent Inside The Box
 
-**Status:** open, and at the top. Reported on 2026-09-08 by somebody following the getting-started
-guide on a clean machine, after the permission-prompt work had already landed: an agent that no
-longer asks permission per command still stops twice before it starts.
+**Status:** the second dialog is answered and built. The first is **refused as not solvable**, and
+that half is what this file is now for.
+
+Reported on 2026-09-08 by somebody following the getting-started guide on a clean machine, after
+the permission-prompt work had already landed: an agent that no longer asks permission per command
+still stopped twice before it started.
 
 ## What happens
 
@@ -34,7 +37,24 @@ Both are **first-run consent dialogs**, not permission prompts, which is why
 `--dangerously-skip-permissions` does not answer them - the second one exists *because* of that
 flag.
 
-## Why this is the same defect as the one just fixed, and worse
+## The first one will not be fixed, and here is why
+
+**Decided 2026-09-09.** The dialog fires because the account already has a live session on a
+different payment model, and the key in the environment belongs to the other one. That is a
+collision the vendor detects on purpose, between two ways of paying for the same account - not a
+first-run question Sokar can pre-answer, and not a state a container is in.
+
+There is a mechanism that would suppress it - the CLI records approved keys, and Sokar mints the
+token so it could write the approval per task - but suppressing this particular dialog would be
+answering "yes, bill it that way" on somebody's behalf. That is not the container's decision the
+way bypass mode is. **So: won't do**, and the interface should say what the dialog is rather than
+hide it.
+
+**What stays true regardless:** its recommended answer is *No*, and taking it refuses the only
+credential the task has. That is worth a line in the documentation so nobody follows the vendor's
+recommendation into a task that cannot work.
+
+## Why the second is the same defect as the one just fixed, and worse
 
 The flag work established the rule: **inside a task the answer is always yes, and Sokar decides
 that rather than asking.** These two dialogs are the same question wearing different clothes, and
@@ -50,6 +70,18 @@ they land in the same two places:
 The first dialog is worse than an annoyance. Its recommended answer is **No**, and the key it is
 asking about is the phantom token Sokar minted for this task. A person who takes the recommendation
 has refused the only credential the task has, in a dialog that describes it as suspicious.
+
+## What was built for the second
+
+Answered where B24 said it should be: the agent declares the file, Sokar writes the bytes.
+`ClaudeSettings` produces `/home/agent/.claude/settings.json`
+
+```json
+{"permissions":{"defaultMode":"bypassPermissions"},"skipDangerousModePermissionPrompt":true}
+```
+
+placed by `ClaudeContainerSetup` beside the two files it already wrote. No Sokar code knows what
+is in it, and an agent that declares nothing still gets nothing.
 
 ## Where this belongs
 
@@ -69,8 +101,10 @@ question that was answered by the decision to run in a box.**
 
 ## Acceptance
 
-- A first run of an agent in a fresh task image reaches work without any interactive prompt -
-  measured on a machine where that agent has never run, not on one carrying an answered dialog.
+- A first run of an agent in a fresh task image reaches work without any interactive prompt
+  **that a container can answer** - measured on a machine where that agent has never run, not on
+  one carrying an answered dialog. The API-key dialog above is excluded by decision, not by
+  oversight, and the documentation says so.
 - The same is true unattended: a headless run with no terminal completes rather than waiting.
 - **The phantom token is never presented to a person as a suspicious key**, and no path asks them
   to approve the credential Sokar issued for that task.
@@ -93,17 +127,15 @@ agent that does.
 
 ## To be checked
 
-- **What exactly has to be written, per dialog.** Claude Code appears to record these in
-  `~/.claude.json` and `~/.claude/settings.json` - candidates are a bypass-mode acceptance flag and
-  a list of approved custom API keys - but this was **not verified**: neither key was present in
-  the config of a machine that had never used bypass mode or a custom key. It must be read off a
-  real config that has answered both, not inferred from the names.
-- **Whether pre-answering is the right mechanism at all**, or whether the agent offers a
-  non-interactive mode that makes the question moot. Writing a consent flag on somebody's behalf is
-  a thing to do deliberately: it is defensible inside a container Sokar built for one task, and
-  would not be on a person's own machine.
-- **Whether the first dialog should instead be avoided.** It fires on the *presence* of
-  `ANTHROPIC_API_KEY`. A task pointed at the broker may not need that variable at all, in which
-  case the honest fix is not to set it rather than to approve it.
+- **Whether the settings file actually silences it**, measured in a container rather than reasoned
+  about. The keys came from the operator, not from a config that had answered the dialog, and this
+  requirement's own note about inferring key names from their names applies to them too.
+- **Whether the flag is now redundant.** With `defaultMode` set to `bypassPermissions` the CLI may
+  no longer need `--dangerously-skip-permissions`, and the flag is what raises the warning in the
+  first place. Both are set today, deliberately; if the settings alone suffice, dropping the flag
+  removes the dialog's cause rather than its symptom.
+- **A task with no credential still meets the dialog.** `placeAgentFiles` returns early when there
+  is no token, so nothing is written - including the files that have nothing to do with a
+  credential. It matters for somebody who starts a task and logs in inside it.
 - **What the other agents do.** Oh My Pi and Pi have not been checked for first-run dialogs, and
   Pi has not even declared its permission flag yet.

@@ -1,5 +1,7 @@
 package org.fuin.sokar.runtime;
 
+import org.fuin.sokar.wire.Sidecar;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -560,15 +562,42 @@ public class Podman {
         // A tab rather than a space: the state is a phrase ("Up 4 minutes"), so anything the
         // state itself can contain cannot be the separator.
         return runner.runOrFail(podman("ps", "--all", "--format",
-                        "{{.Names}}\t{{.Status}}\t{{.StartedAt}}\t{{.ExitedAt}}"))
+                        "{{.Names}}\t{{.Status}}\t{{.StartedAt}}\t{{.ExitedAt}}\t{{.Labels}}"))
                 .standardOutput().lines()
                 .map(String::strip)
                 .filter(line -> !line.isEmpty())
-                .map(line -> line.split("\t", 4))
+                .map(line -> line.split("\t", 5))
                 .filter(parts -> ContainerName.isTask(parts[0]))
                 .map(parts -> new ContainerSummary(parts[0], parts.length > 1 ? parts[1] : "",
-                        since(parts)))
+                        since(parts),
+                        label(parts, Sidecar.PROJECT_LABEL), label(parts, Sidecar.CLASS_LABEL)))
                 .toList();
+    }
+
+    /**
+     * Returns one label from a {@code ps} line, or {@code null}.
+     * <p>
+     * podman renders labels as {@code k=v,k=v}. Neither of the two Sokar sets can contain a comma
+     * or an equals sign - a project name is {@code [a-z0-9][a-z0-9-]*} and a security class is an
+     * enum - so splitting on them is safe here in a way that splitting the container name on its
+     * hyphens is not.
+     *
+     * @param parts The ps line, split.
+     * @param key Label to find.
+     * @return The value, or {@code null} when the container carries no such label.
+     */
+    @org.jspecify.annotations.Nullable
+    private static String label(String[] parts, String key) {
+        if (parts.length < 5) {
+            return null;
+        }
+        for (final String pair : parts[4].split(",")) {
+            final int equals = pair.indexOf('=');
+            if (equals > 0 && pair.substring(0, equals).strip().equals(key)) {
+                return pair.substring(equals + 1).strip();
+            }
+        }
+        return null;
     }
 
     /**

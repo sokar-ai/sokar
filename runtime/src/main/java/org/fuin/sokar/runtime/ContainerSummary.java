@@ -5,8 +5,13 @@ package org.fuin.sokar.runtime;
  *
  * @param name Container name.
  * @param state Runtime's own words for the state, such as {@code Up 4 minutes} or {@code Created}.
+ * @param since When the current state began, ISO-8601, or empty.
+ * @param project Project from the container's label, or {@code null} if it carries none.
+ * @param securityClass Security class from the container's label, or {@code null}.
  */
-public record ContainerSummary(String name, String state, String since) {
+public record ContainerSummary(String name, String state, String since,
+        @org.jspecify.annotations.Nullable String project,
+        @org.jspecify.annotations.Nullable String securityClass) {
 
     /**
      * Constructor for a summary whose timestamps the runtime did not give.
@@ -15,7 +20,18 @@ public record ContainerSummary(String name, String state, String since) {
      * @param state The runtime's own words.
      */
     public ContainerSummary(String name, String state) {
-        this(name, state, "");
+        this(name, state, "", null, null);
+    }
+
+    /**
+     * Constructor for a summary without labels, as a container created before they existed.
+     *
+     * @param name Container name.
+     * @param state The runtime's own words.
+     * @param since When the state began.
+     */
+    public ContainerSummary(String name, String state, String since) {
+        this(name, state, since, null, null);
     }
 
     /**

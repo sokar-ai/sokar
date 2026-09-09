@@ -44,6 +44,20 @@ public record Sidecar(int version, String project, String securityClass,
     public static final String ANNOTATION = "org.fuin.sokar.sidecar";
 
     /**
+     * Label carrying the project a task belongs to.
+     * <p>
+     * <strong>The same fact as in the sidecar, kept where it lives as long as the task does.</strong>
+     * The sidecar is in {@code $XDG_RUNTIME_DIR}, which the system destroys when the user's last
+     * session ends - so after a reboot every surviving container listed its project and class as
+     * "-". The container itself is what the listing is about, so this is where the two facts that
+     * identify it belong.
+     */
+    public static final String PROJECT_LABEL = "org.fuin.sokar.project";
+
+    /** Label carrying the project's security class. See {@link #PROJECT_LABEL}. */
+    public static final String CLASS_LABEL = "org.fuin.sokar.class";
+
+    /**
      * Constructor with all data.
      *
      * @param version Schema version.

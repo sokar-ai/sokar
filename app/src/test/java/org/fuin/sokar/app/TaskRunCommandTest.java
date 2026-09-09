@@ -374,6 +374,19 @@ class TaskRunCommandTest {
     }
 
     @Test
+    void labelsTheContainerWithItsProjectAndClass(@TempDir Path dir) throws IOException {
+
+        // So a listing can still say what a task belongs to after a reboot. The sidecar holding
+        // the same two facts is in $XDG_RUNTIME_DIR and does not survive one.
+        execute(context(dir, true), "task", "run", "--attach", "shell", "--no-attach",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(runner.lines()).anyMatch(line -> line.contains("create")
+                && line.contains("--label org.fuin.sokar.project=uc")
+                && line.contains("--label org.fuin.sokar.class=guarded"));
+    }
+
+    @Test
     void leavesTheContainerAloneWithKeep(@TempDir Path dir) throws IOException {
 
         // The negative case: --keep has to mean something, and today it did not.

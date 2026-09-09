@@ -183,8 +183,15 @@ public final class TaskInventory {
         final String waitingFor = summary.running()
                 ? org.fuin.sokar.wire.Waiting.about(state) : null;
         return new Task(summary.name(),
-                sidecar == null ? null : sidecar.project(),
-                sidecar == null ? null : sidecar.securityClass(),
+                // The container's own label first: it survives a reboot, and the sidecar does not
+                // - it lives in the runtime directory, which the system destroys when the user's
+                // last session ends. Reported as every surviving task listing "-" for both after
+                // the machine came back. The sidecar is the fallback, for containers a Sokar
+                // without the labels created.
+                summary.project() != null ? summary.project()
+                        : sidecar == null ? null : sidecar.project(),
+                summary.securityClass() != null ? summary.securityClass()
+                        : sidecar == null ? null : sidecar.securityClass(),
                 summary.state(), summary.running(), helpersOf(summary.name()),
                 profile == null ? null : profile.agent(),
                 // The enum's own name, like every other enum on the wire. The lower-case form

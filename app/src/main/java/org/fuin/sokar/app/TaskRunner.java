@@ -166,7 +166,12 @@ public class TaskRunner {
                 .command("sleep", "infinity")
                 .limits(project.limits())
                 .resolver(org.fuin.sokar.shield.DnsPolicy.LISTEN_ADDRESS)
-                .annotation(Sidecar.ANNOTATION, sidecarFile.toString());
+                .annotation(Sidecar.ANNOTATION, sidecarFile.toString())
+                // The same two facts as in the sidecar, on the container itself. The sidecar is
+                // in the runtime directory and goes when the session does; these outlive a
+                // reboot, which is exactly as long as the thing they describe.
+                .label(Sidecar.PROJECT_LABEL, project.name())
+                .label(Sidecar.CLASS_LABEL, project.securityClass().name().toLowerCase());
         out.println("limits    " + (project.limits().memory() == null ? "no memory cap"
                 : project.limits().memory() + " memory")
                 + (project.limits().cpus() == null ? "" : ", " + project.limits().cpus() + " cpus")

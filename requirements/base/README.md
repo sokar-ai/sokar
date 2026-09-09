@@ -91,7 +91,7 @@ and saying so cost a paragraph and bought a screen that is not lying.
 
 | # | Requirement | What must be true | Open question |
 |---|---|---|---|
-| B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four |
+| B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three |
