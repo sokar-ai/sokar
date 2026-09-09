@@ -46,6 +46,12 @@ command that takes a container, a project or an agent name currently makes someb
 up. The first of its three parts — saying which names would have been accepted when one is missing
 or wrong — needs no shell integration and no packaging at all.
 
+**B26 is fourth because nothing else answers the question it asks.** Every host-side log Sokar
+keeps belongs to one task, lives on tmpfs, and is deleted by a reboot — so "what has this machine
+been doing" has nowhere to look, with or without an interface. It sits below B25 because it is a
+new subsystem rather than a small change, and above the rest because the gap is total rather than
+partial.
+
 **B10 is decided and only unbuilt**, which makes it the cheapest thing on this list: the four
 questions it was written to ask were settled, and what remains is the work plus one smaller
 question that appeared once the others were answered. A destination that cannot be written as a
@@ -100,6 +106,7 @@ and saying so cost a paragraph and bought a screen that is not lying.
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
 | B25 | [Names The Operator Should Not Have To Find](B25-Names-The-Operator-Should-Not-Have-To-Find.md) | A command that needs a name Sokar already knows never makes the operator go and find it. | three |
+| B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | A machine can say what it has done, for longer than the tasks themselves existed. | five |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three |
 | B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have |
