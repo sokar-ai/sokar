@@ -647,6 +647,13 @@ See [build.md](doc/build.md). Three things that will bite:
   token, beside the sockets and the ruleset - "everything that is not a secret" has to be right
   forever, including about files a later release adds, while "these names" fails closed.
 
+- **The shape of a name is not evidence that it names something.** `task logs sokar-does-not`
+  passed the `isTask` check, found no state directory, and answered "either nothing wrote one, or
+  the machine has restarted since it ran" - a sentence about a task that exists, said about one
+  that never did. The rule is **exists as a container OR has logs**, not existence alone: a
+  container somebody removed by hand leaves its state directory, and those logs are worth reading
+  precisely then.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

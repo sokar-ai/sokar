@@ -86,6 +86,22 @@ public class TaskLogsCommand implements Callable<Integer>, SokarFactory.ContextA
         }
 
         final List<TaskInventory.Log> logs = new TaskInventory(context).logs(container);
+
+        // A name of the right shape that names nothing is not a task with no logs. Reported:
+        // 'task logs sokar-does-not' answered "either nothing wrote one, or the machine has
+        // restarted", which describes a task that exists - about one that never did.
+        //
+        // Existing OR having logs, not existing alone: a container somebody removed by hand can
+        // leave its state directory behind, and those logs are worth reading precisely then.
+        final boolean known = context.podman().sokarTasks().stream()
+                .anyMatch(task -> task.name().equals(container));
+        if (!known && logs.isEmpty()) {
+            err.println("sokar: there is no task called " + container);
+            Suggests.offer(err, this);
+            err.flush();
+            return 69;
+        }
+
         if (log == null) {
             if (logs.isEmpty()) {
                 // Two different reasons, and neither is an error: a task that started nothing

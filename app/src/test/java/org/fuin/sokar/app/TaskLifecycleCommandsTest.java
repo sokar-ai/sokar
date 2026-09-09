@@ -322,6 +322,36 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void tellsANameThatNamesNothingApartFromATaskWithNoLogs(@TempDir Path dir) {
+
+        // Reported: 'task logs sokar-does-not' answered "either nothing wrote one, or the machine
+        // has restarted since it ran" - which describes a task that exists, about one that never
+        // did. The shape of the name is not evidence that it is a task.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+
+        assertThat(execute(context, "task", "logs", "sokar-does-not")).isEqualTo(69);
+
+        assertThat(err.toString()).contains("there is no task called sokar-does-not")
+                .as("and the ones that do exist").contains("sokar-uc-shell-1");
+        assertThat(out.toString()).doesNotContain("machine has restarted");
+    }
+
+    @Test
+    void stillReadsTheLogsOfAContainerSomebodyRemovedByHand(@TempDir Path dir) throws IOException {
+
+        // Existing OR having logs, not existing alone: a removed container can leave its state
+        // directory behind, and those logs are worth reading precisely then.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "");
+        Files.writeString(stateOf("sokar-uc-shell-1").resolve("gate.log"), "what happened\n");
+
+        assertThat(execute(context, "task", "logs", "sokar-uc-shell-1", "gate.log")).isZero();
+
+        assertThat(out.toString()).contains("what happened");
+    }
+
+    @Test
     void saysWhyThereAreNoLogsRatherThanPrintingNothing(@TempDir Path dir) {
 
         // A task whose state directory went with a restart looks exactly like one that never
