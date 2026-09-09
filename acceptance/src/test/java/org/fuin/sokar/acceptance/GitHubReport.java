@@ -30,8 +30,15 @@ import java.util.Map;
  */
 public final class GitHubReport implements ConcurrentEventListener {
 
-    /** Where feature files live, so an annotation points at the file in the repository. */
-    private static final String FEATURES = "acceptance/src/test/resources/";
+    /**
+     * Where feature files live, so an annotation points at the file in the repository.
+     * <p>
+     * Configurable because this is about to be used from repositories whose layout is their own:
+     * an annotation carrying a path that does not exist there points at nothing, and GitHub shows
+     * it against no line rather than saying the path was wrong.
+     */
+    private static final String FEATURES =
+            System.getProperty("sokar.acceptance.features", "acceptance/src/test/resources/");
 
     private final Map<String, List<Case>> byFeature = new LinkedHashMap<>();
 

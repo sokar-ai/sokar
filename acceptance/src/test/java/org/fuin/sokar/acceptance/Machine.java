@@ -78,7 +78,13 @@ final class Machine implements AutoCloseable {
         probe.setTimeout(PROBE_TIMEOUT);
         try {
             probe.connect(host);
-            probe.authPublickey(user, required("sokar.acceptance.key"));
+            // Through authenticate(), not the key file: in CI the key is material in the
+            // environment and the file property does not exist. Asking for it here threw inside
+            // this try, was caught as "unreachable", and made every probe answer false forever -
+            // so a restart scenario failed with "the machine did not come back within 5
+            // minutes" about a machine that never went anywhere. A message accusing the
+            // infrastructure of a fault in this code is the worst shape a failure can take.
+            authenticate(probe);
             return true;
         } catch (IOException | RuntimeException ex) {
             // Down, or not up yet. Both are "no" here and the caller knows which it is waiting for.
