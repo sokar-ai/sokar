@@ -571,6 +571,17 @@ See [build.md](doc/build.md). Three things that will bite:
   is at that moment, because the shell was an `exec` beside `sleep infinity`. Keeping only when
   there is actually something held is what stops this refilling `task list` with dead containers.
 
+- **A destructive command used as a query is a missing query.** Whether a workspace held changes
+  nobody had pushed was answerable only by running `task stop --purge` and reading the refusal.
+  `task status` asks the same `unhandedWork` without touching anything. Note what it cannot do:
+  the workspace is inside the container, so once a task is stopped the only source is the note
+  `task stop` wrote on the way out - and a task stopped by a reboot or a kill has neither. It says
+  "cannot be read while the task is stopped" rather than "nothing", because nothing would read as
+  nothing to lose.
+
+- **`TaskInventory` computes sixteen fields and `task list` rendered five.** The daemon hands an
+  interface all of them; the CLI showed a third of what the machine already knew.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

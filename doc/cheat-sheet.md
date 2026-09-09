@@ -58,6 +58,7 @@ then it is kept and says so. Ctrl-C keeps it too: an interrupted run is not a fi
 
 ```
 sokar task list                  # what exists, and whether it is up
+sokar task status TASK           # everything about one, including uncommitted work
 sokar task attach TASK           # go into a running one (offers to start a stopped one)
 sokar task resume TASK           # start a stopped one again, workspace intact
 sokar task label TASK "..."      # a caption to tell several apart
@@ -109,6 +110,7 @@ sokar task clearance TASK allow              # or allow, deny, off
 |---|---|
 | a command refuses and names no task | `sokar task list` — or leave the name out and it lists them |
 | the agent cannot authenticate | `sokar vault list`, then `sokar doctor` |
+| is there work in there I would lose? | `sokar task status TASK` — while it is still running |
 | a container starts and does nothing | its egress log, under `$XDG_RUNTIME_DIR/sokar/TASK/` — something it needs is blocked |
 | a push never arrives | `sokar gate pending` — it is waiting for review |
 | "hooks are not registered" | `sokar setup`, though a task run does it for you |

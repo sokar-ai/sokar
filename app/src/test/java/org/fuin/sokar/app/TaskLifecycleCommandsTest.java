@@ -146,6 +146,58 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void saysWhatARunningTaskHoldsWithoutTryingToDestroyIt(@TempDir Path dir) throws IOException {
+
+        // The whole reason this command exists: uncommitted work used to be reachable only by
+        // running 'task stop --purge' and reading the refusal, which is a destructive command
+        // used as a query.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t"
+                + "org.fuin.sokar.project=uc,org.fuin.sokar.class=guarded\n");
+        stateOf("sokar-uc-shell-1");
+        workspaceReports(dir, "3 2");
+
+        assertThat(execute(context, "task", "status", "sokar-uc-shell-1")).isZero();
+
+        assertThat(out.toString())
+                .contains("sokar-uc-shell-1")
+                .contains("uc")
+                .contains("guarded")
+                .contains("not on the gate");
+        // The verbs, not substrings: "--format" contains "rm", which is the same trap already
+        // written down about matching "rm --force" by substring.
+        assertThat(runner.lines()).as("a query changes nothing")
+                .noneMatch(line -> line.startsWith("podman rm")
+                        || line.startsWith("podman stop") || line.startsWith("podman kill"));
+    }
+
+    @Test
+    void doesNotCallAStoppedTasksWorkspaceEmpty(@TempDir Path dir) throws IOException {
+
+        // The workspace is inside the container, so once it is stopped nothing can read it. That
+        // is not the same as holding nothing, and reporting "nothing" would read as nothing to
+        // lose - about a task whose workspace may be full of work.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\t"
+                + "org.fuin.sokar.project=uc,org.fuin.sokar.class=guarded\n");
+        stateOf("sokar-uc-shell-1");
+
+        assertThat(execute(context, "task", "status", "sokar-uc-shell-1")).isZero();
+
+        assertThat(out.toString()).contains("cannot be read while the task is stopped");
+    }
+
+    @Test
+    void namesTheTasksWhenStatusWasAskedAboutOneThatIsNotThere(@TempDir Path dir) {
+
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1700000000\t0\t\n");
+
+        assertThat(execute(context, "task", "status", "sokar-uc-shell-404")).isEqualTo(69);
+        assertThat(err.toString()).contains("sokar-uc-shell-1");
+    }
+
+    @Test
     void aStoppedTaskStaysInsideItsColumn(@TempDir Path dir) throws IOException {
 
         // The runtime's longest phrase is twice the width of the column, and it ran into the

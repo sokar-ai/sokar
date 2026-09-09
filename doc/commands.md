@@ -31,12 +31,19 @@ Everything that starts, joins, or ends a piece of agent work.
 |---|---|
 | `sokar task run [TASK]` | Runs a task in a fresh container for the given project. |
 | `sokar task list` | Lists the tasks on this machine. |
+| `sokar task status TASK` | Says what a task is doing and what its workspace holds. |
 | `sokar task attach TASK` | Opens a shell in a running task. Leaving it does not end it. |
 | `sokar task resume TASK` | Starts a stopped task again, keeping its workspace. |
 | `sokar task stop TASK` | Stops a task, its container and its helpers. |
 | `sokar task label TASK` | Gives a task a caption to read it by. Not a rename. |
 | `sokar task prepare` | Builds this project's task image without starting a task. |
 | `sokar task clearance TASK` | Changes what a running task does about a blocked connection. |
+
+**`status` is the one to reach for when something looks wrong.** `list` is the five columns that
+fit a table; `status` is everything this machine knows about one task, including whether its
+workspace holds changes nobody has pushed. That last answer is only available while the task runs:
+the workspace is inside the container, and once it is stopped the only source is the note
+`task stop` wrote on the way out.
 
 **Worth knowing about the ones that end a task.** `stop` keeps the container so the task can be
 resumed; `--purge` removes it, and refuses when the workspace holds commits that never reached the
