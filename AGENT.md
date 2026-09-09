@@ -551,6 +551,18 @@ See [build.md](doc/build.md). Three things that will bite:
   refused rather than solved**: it fires on a collision between two payment models on one account,
   and suppressing it would answer "bill it that way" for somebody.
 
+- **"Run this command first" is a defect when the command is always the same.** `sokar setup`
+  writes the hook descriptors and the podman drop-in, and being told to run it is a thing people
+  forget - which is how a machine ends up with an installation nobody completed. A task run now
+  repairs the two states that are only ever "write the files", `MISSING` and `STALE`, and says so.
+  It still cannot be the package's job: podman reads descriptors per user, so an install script
+  running as root does not know whose configuration to write, and a system-wide `hooks_dir` would
+  point every user's podman at Sokar - the same `SHADOWED` offence Sokar refuses to tolerate in
+  other people's drop-ins. **The repair is verified, not assumed:** what podman will do is asked
+  again afterwards, because writing descriptors cannot rule out missing binaries or a drop-in that
+  sorts later. Those two still refuse - one is a broken installation, the other is somebody else's
+  file.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

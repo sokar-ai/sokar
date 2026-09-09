@@ -84,7 +84,7 @@ N: Download is performed unsandboxed as root as file '/home/you/git/sokar/dist-d
 It is a notice, not an error — apt falls back to reading the file as root and the install
 goes through. But the sandbox it drops is worth keeping, and `/tmp` costs nothing.
 
-## 2. Register the hooks — once per user
+## 2. Register the hooks — once per user, and Sokar will do it for you
 
 ```
 sokar setup
@@ -99,10 +99,20 @@ installed /home/you/.config/containers/oci/hooks.d/sokar-hook-nft-poststop.json
 ...
 ```
 
-The package deliberately does not do this. Podman reads OCI hook descriptors per
-user, so a package installing them system-wide would fire them for every container
-you run, including ones that have nothing to do with Sokar. Re-running `sokar
-setup` is safe.
+**You can forget this.** A task run registers the hooks itself if they are missing,
+and brings them up to date if an upgrade left older ones behind — it says so when it
+does. Running it here just means the first task starts without a detour.
+
+The *package* deliberately does not do it. Podman reads OCI hook descriptors per
+user, so an install script running as root does not know whose configuration to
+write, and putting a `hooks_dir` in the system configuration would point every
+user's podman at Sokar. Doing it from a task run instead keeps it in your own
+configuration, because you asked for a task. Re-running `sokar setup` is safe.
+
+Two states are still refused rather than repaired, because neither is a missing
+step: hook binaries that are not installed at all, and another
+`containers.conf.d` drop-in of somebody else's that sorts after Sokar's and points
+`hooks_dir` elsewhere. Sokar does not delete or reorder another tool's file.
 
 `sokar doctor` confirms where everything lives, and answers one question worth
 asking before your first task:

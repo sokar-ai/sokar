@@ -85,6 +85,17 @@ class TaskRunCommandTest {
         });
     }
 
+    /** The hook binaries without the descriptors: what 'apt install' leaves behind. */
+    private void hookBinaries(Path dir) throws IOException {
+        Files.createDirectories(dir.resolve("bin"));
+        for (final String name : List.of("sokar-hook-nft", "sokar-hook-supervisor",
+                "sokar-hook-reader")) {
+            final Path binary = dir.resolve("bin").resolve(name);
+            Files.writeString(binary, "#!/bin/sh\n");
+            binary.toFile().setExecutable(true);
+        }
+    }
+
     private int execute(SokarContext context, String... args) {
         final CommandLine cmd = new CommandLine(new SokarCli(), new SokarFactory(context));
         cmd.setOut(new PrintWriter(out));
@@ -113,18 +124,56 @@ class TaskRunCommandTest {
     }
 
     @Test
-    void refusesToRunWithoutTheHooks(@TempDir Path dir) throws IOException {
+    void refusesToRunWhenTheHookBinariesAreNotInstalled(@TempDir Path dir) throws IOException {
 
         // A container started without its firewall looks completely normal, which is why this
-        // must stop rather than warn.
+        // must stop rather than warn. Writing descriptors would not help: they would name
+        // binaries that are not there, which is a broken installation rather than a missing step.
         final int code = execute(context(dir, false), "task", "run",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(69);
-        assertThat(err.toString()).contains("run 'sokar setup' first");
+        assertThat(err.toString()).contains("binaries that are not installed");
         // Asking podman its version comes first and reads nothing else; what must not happen is
         // a container existing without the hooks that give it a firewall.
         assertThat(runner.lines()).allMatch(line -> line.startsWith("podman version"));
+    }
+
+    @Test
+    void registersTheHooksItselfRatherThanAskingForACommand(@TempDir Path dir) throws IOException {
+
+        // Being told to run 'sokar setup' is a thing people forget, which is how a machine ends
+        // up with an installation nobody completed. The binaries are there and the descriptors
+        // are not, which is the state after 'apt install' - the package deliberately does not
+        // write them, because podman reads them per user and root does not know whose.
+        hookBinaries(dir);
+
+        final int code = execute(context(dir, false), "task", "run", "--attach", "shell",
+                "--no-attach", "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(code).isZero();
+        // Said out loud: this writes into the operator's own podman configuration.
+        assertThat(out.toString()).contains("hooks").contains("registered with podman");
+        assertThat(dir.resolve("config/containers/oci/hooks.d/sokar-hook-nft-createRuntime.json"))
+                .exists();
+    }
+
+    @Test
+    void bringsDescriptorsAnUpgradeLeftBehindUpToDate(@TempDir Path dir) throws IOException {
+
+        // The other repairable state. A package replaces the binaries and never touches these
+        // files, so a release that changes what a descriptor says leaves the old one in place.
+        final SokarContext context = context(dir, true);
+        final Path descriptor = dir.resolve(
+                "config/containers/oci/hooks.d/sokar-hook-nft-poststop.json");
+        Files.writeString(descriptor, "{\"version\":\"1.0.0\",\"hook\":{}}");
+
+        final int code = execute(context, "task", "run", "--attach", "shell", "--no-attach",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(code).isZero();
+        assertThat(out.toString()).contains("brought up to date");
+        assertThat(Files.readString(descriptor)).contains("sokar-hook-nft");
     }
 
     @Test

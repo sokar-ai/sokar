@@ -220,28 +220,7 @@ public final class TaskLaunch {
             return 69;
         }
 
-        final org.fuin.sokar.runtime.HookInstaller.Registration hooks =
-                context.hooks().registration();
-        if (hooks != org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE) {
-            // Without the hooks the container comes up with no firewall at all. Saying so is the
-            // only safe outcome: starting it anyway is the failure Sokar exists to prevent. The
-            // binaries being present is not enough - podman has to be told to run them, and a
-            // later drop-in can point it somewhere else.
-            err.println(switch (hooks) {
-                case MISSING -> "sokar: the hooks are not registered with podman,"
-                        + " run 'sokar setup' first";
-                case DANGLING -> "sokar: the hook descriptors name binaries that are not"
-                        + " installed, run 'sokar setup' again";
-                case SHADOWED -> "sokar: another containers.conf.d drop-in points hooks_dir at "
-                        + context.hooks().effectiveHooksDirectories()
-                        + ", so Sokar's hooks would not run";
-                // Names the files, because "run setup again" after an upgrade that changed
-                // nothing visible reads like superstition until you can see what differs.
-                case STALE -> "sokar: the installed hook files are from a different version of"
-                        + " Sokar, run 'sokar setup' again - " + context.hooks().outdated();
-                case ACTIVE -> "";
-            });
-            err.flush();
+        if (!hooksReady(out, err)) {
             return 69;
         }
 
@@ -722,6 +701,83 @@ public final class TaskLaunch {
             err.println("sokar: could not prepare the agent's files: " + ex.getMessage());
             err.flush();
         }
+    }
+
+    /**
+     * Makes sure podman will run Sokar's hooks, repairing what a command may repair.
+     * <p>
+     * <strong>Two of the four states are just "write the files".</strong> A user who has never run
+     * {@code sokar setup}, and one whose descriptors an upgrade left behind, were both told to go
+     * and run a command - and being told to run a command is a thing people forget, which is how a
+     * machine ends up with an installation nobody completed. Doing it here costs nothing and
+     * removes the remembering.
+     * <p>
+     * <strong>Why this is not the package's job.</strong> podman reads hook descriptors per user,
+     * so an install script running as root does not know whose configuration to write, and putting
+     * a {@code hooks_dir} in the system configuration would point every user's podman at Sokar -
+     * which is the {@code SHADOWED} offence Sokar refuses to tolerate in other people's drop-ins.
+     * Here it runs as the user, in their own configuration, because they asked for a task.
+     * <p>
+     * <strong>Why the other two still refuse.</strong> Missing binaries are a broken installation
+     * and writing descriptors would not fix them; a drop-in of somebody else's that sorts later is
+     * theirs, and Sokar does not get to delete or reorder it. And the repair is verified rather
+     * than assumed: what podman will do is asked again afterwards, because installing cannot rule
+     * either of those out.
+     *
+     * @param out Where a repair is reported.
+     * @param err Where a refusal is reported.
+     * @return {@code true} if a task may start.
+     */
+    private boolean hooksReady(PrintWriter out, PrintWriter err) {
+
+        final org.fuin.sokar.runtime.HookInstaller installer = context.hooks();
+        org.fuin.sokar.runtime.HookInstaller.Registration hooks = installer.registration();
+
+        if (hooks == org.fuin.sokar.runtime.HookInstaller.Registration.MISSING
+                || hooks == org.fuin.sokar.runtime.HookInstaller.Registration.STALE) {
+            final boolean first =
+                    hooks == org.fuin.sokar.runtime.HookInstaller.Registration.MISSING;
+            try {
+                // Said out loud rather than done quietly: this writes into the operator's own
+                // podman configuration, and somebody who removed the hooks on purpose should see
+                // them come back rather than discover it later.
+                final java.util.List<java.nio.file.Path> written = installer.install();
+                out.println("hooks     " + (first ? "registered with podman"
+                        : "brought up to date") + ", " + written.size() + " files");
+                out.flush();
+            } catch (java.io.IOException ex) {
+                err.println("sokar: the hooks could not be registered with podman: "
+                        + ex.getMessage() + " - try 'sokar setup'");
+                err.flush();
+                return false;
+            }
+            hooks = installer.registration();
+        }
+
+        if (hooks == org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE) {
+            return true;
+        }
+
+        // Without the hooks the container comes up with no firewall at all. Saying so is the
+        // only safe outcome: starting it anyway is the failure Sokar exists to prevent. The
+        // binaries being present is not enough - podman has to be told to run them, and a
+        // later drop-in can point it somewhere else.
+        err.println(switch (hooks) {
+            case MISSING -> "sokar: the hooks are not registered with podman,"
+                    + " run 'sokar setup' first";
+            case DANGLING -> "sokar: the hook descriptors name binaries that are not"
+                    + " installed, run 'sokar setup' again";
+            case SHADOWED -> "sokar: another containers.conf.d drop-in points hooks_dir at "
+                    + installer.effectiveHooksDirectories()
+                    + ", so Sokar's hooks would not run";
+            // Names the files, because "run setup again" after an upgrade that changed
+            // nothing visible reads like superstition until you can see what differs.
+            case STALE -> "sokar: the installed hook files are from a different version of"
+                    + " Sokar, run 'sokar setup' again - " + installer.outdated();
+            case ACTIVE -> "";
+        });
+        err.flush();
+        return false;
     }
 
     /**

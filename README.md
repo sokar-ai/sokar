@@ -130,8 +130,8 @@ echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/art
 sudo apt update
 sudo apt install -y sokar sokar-agent-claude
 
-# The OCI hooks, once per user. The package deliberately does not do this: podman reads
-# hook descriptors per user, so a system-wide install would fire them for every container.
+# The OCI hooks, once per user. A task run does this itself if you skip it - the package
+# cannot, because podman reads hook descriptors per user and root does not know whose.
 sokar setup
 
 # Whether this machine can actually do it, before anything is stored or started. Nine
@@ -177,8 +177,8 @@ EOF
 # no new release of Sokar - and podman, nftables and dnsmasq come along as dependencies.
 sudo dnf install -y sokar sokar-agent-claude
 
-# The OCI hooks, once per user. The package deliberately does not do this: podman reads
-# hook descriptors per user, so a system-wide install would fire them for every container.
+# The OCI hooks, once per user. A task run does this itself if you skip it - the package
+# cannot, because podman reads hook descriptors per user and root does not know whose.
 sokar setup
 
 # SELinux. Without this a task container is denied connectto on its own vault socket,
