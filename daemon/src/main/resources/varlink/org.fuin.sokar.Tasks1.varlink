@@ -1112,7 +1112,11 @@ method Prepare(
 # It goes through the same measurement the timer uses and writes the same record, so a triggered
 # fetch and a timed one cannot disagree about how far behind a project is, and Projects shows
 # whichever ran last without being told.
-method SyncUpstream(project: string) -> (
+method SyncUpstream(
+  # Project NAME, as Projects reports it - not the path Prepare takes. A path answers as though
+  # the project were unknown, which on the screens these feed is a legitimate-looking answer
+  # rather than an error.
+  project: string) -> (
   # MEASURED, NO_SUCH_PROJECT, NO_MIRROR, UNREADABLE or FAILED.
   #
   # NO_MIRROR is ordinary: a project that has never used the gate has nothing to measure against.
@@ -1135,7 +1139,12 @@ method SyncUpstream(project: string) -> (
 #
 # Newest first. Empty is an ordinary answer: a project nobody has backed up, or one backed up by a
 # Sokar older than the record.
-method Backups(project: string) -> (backups: []Backup)
+method Backups(
+  # Project NAME, as Projects reports it - not the path Prepare takes. A path answers an empty
+  # list, and this list's empty case means "nothing is recorded for this project", which is
+  # deliberately NOT the same sentence as "no bundle exists". So a wrong argument arrives as a
+  # legitimate answer and somebody concludes their backups were never taken.
+  project: string) -> (backups: []Backup)
 
 type Backup (
   # When it was written, ISO-8601.
@@ -1160,6 +1169,8 @@ type Backup (
 # overwriting one destroys the only copy. Same outcome name as DeleteProject and Stop, for the same
 # situation.
 method RestoreBackup(
+  # Project NAME, as Projects reports it - not the path Prepare takes. The bundle beside it is a
+  # path; the two arguments of this method are named the same way and are not the same kind.
   project: string,
   # Absolute path of the bundle, as Backups reports it.
   bundle: string,
@@ -1184,6 +1195,7 @@ method RestoreBackup(
 # path rather than an index - a list that shifted between reading it and acting on it would
 # otherwise delete a different backup than the one somebody chose.
 method DeleteBackup(
+  # Project NAME, as Projects reports it - not the path Prepare takes.
   project: string,
   # Absolute path, exactly as Backups reported it.
   bundle: string,
