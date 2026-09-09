@@ -407,6 +407,46 @@ class TaskRunCommandTest {
     }
 
     @Test
+    void doesNotDiscardWorkThatNeverReachedTheGate(@TempDir Path dir) throws IOException {
+
+        // A workspace is in the container's own writable layer, so removing the container
+        // destroys it. 'task stop --purge' refuses to do that and offers --rescue; walking out
+        // of a shell did it without asking, which is the same destruction by a different route.
+        // idOf and pidOf both run 'container inspect' and the fake takes the first match in
+        // insertion order, so the more specific key goes first - otherwise the pid query answers
+        // 'c0ffee', parses as no pid, and the work check never runs.
+        runner.answering("{{.State.Pid}}", "4711\n");
+        runner.answering("container inspect", "c0ffee\n");
+        // What the container answers when asked: one changed file, two commits nobody pushed.
+        runner.answering("exec", "1 2\n");
+
+        execute(context(dir, true), "task", "run", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(runner.lines()).as("work that exists nowhere else must not be removed")
+                .noneMatch(line -> line.contains("rm --force"));
+        assertThat(out.toString()).contains("kept").contains("never reached the gate")
+                .contains("--rescue");
+    }
+
+    @Test
+    void removesATaskThatHandedEverythingBack(@TempDir Path dir) throws IOException {
+
+        // The negative case, and the common one: nothing uncommitted and nothing unpushed, so
+        // there is nothing to protect and the container goes. Keeping it would bring back the
+        // pile of dead containers this is meant to avoid.
+        runner.answering("{{.State.Pid}}", "4711\n");
+        runner.answering("container inspect", "c0ffee\n");
+        runner.answering("exec", "0 0\n");
+
+        execute(context(dir, true), "task", "run", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(runner.lines()).anyMatch(line -> line.contains("rm --force"));
+        assertThat(out.toString()).doesNotContain("never reached the gate");
+    }
+
+    @Test
     void keepsATaskWhoseSessionNeverFinished(@TempDir Path dir) throws IOException {
 
         // The other half of the same decision. Somebody who walked out of a shell ended the task;

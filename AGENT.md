@@ -563,6 +563,14 @@ See [build.md](doc/build.md). Three things that will bite:
   sorts later. Those two still refuse - one is a broken installation, the other is somebody else's
   file.
 
+- **The same destruction, guarded on one path and not the other.** `/workspace` lives in the
+  container's own writable layer, so removing the container destroys it. `task stop --purge` asks
+  `unhandedWork` first and refuses with `HOLDS_WORK`, offering `--rescue`; the end of an attached
+  run removed without asking, so walking out of a shell discarded what `--purge` would have
+  refused to touch. Now both ask. It is only answerable while the container runs - which it still
+  is at that moment, because the shell was an `exec` beside `sleep infinity`. Keeping only when
+  there is actually something held is what stops this refilling `task list` with dead containers.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

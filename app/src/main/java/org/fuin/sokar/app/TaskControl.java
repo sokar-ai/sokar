@@ -217,8 +217,16 @@ public final class TaskControl {
      * <p>
      * Only answerable while the container runs, which is why it is asked before anything is
      * stopped.
+     * <p>
+     * Public because the end of an attached run asks it too, and for the same reason: a workspace
+     * lives in the container's own writable layer, so removing the container destroys it. Asking
+     * here and not there was the difference between {@code task stop --purge}, which refuses, and
+     * walking out of a shell, which did not.
+     *
+     * @param container Container name.
+     * @return What is held, or {@code null}.
      */
-    private @Nullable String unhandedWork(String container) {
+    public @Nullable String unhandedWork(String container) {
         final CommandResult result = context.podman().ask(container, Map.of(),
                 List.of("sh", "-c", "cd " + TaskWorkspace.MOUNT + " 2>/dev/null || exit 0;"
                         + " printf '%s %s' \"$(git status --porcelain 2>/dev/null | wc -l)\""

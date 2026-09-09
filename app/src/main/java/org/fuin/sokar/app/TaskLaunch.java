@@ -896,9 +896,32 @@ public final class TaskLaunch {
             out.println("          discard with 'sokar task stop " + container + " --purge'");
             out.flush();
         } else if (!request.keep()) {
-            // The container may or may not exist: podman rm tolerates both, and leaving a created
-            // container behind is worse than an extra command.
-            runner.remove(container);
+            // The same question 'task stop --purge' asks before it removes anything. A workspace
+            // is in the container's own writable layer, so this remove destroys it - and asking
+            // there but not here was the difference between refusing to discard unreviewed work
+            // and discarding it because somebody typed 'exit'. Only answerable while the
+            // container runs, which it still is: the shell was an exec beside 'sleep infinity'.
+            final String held = exists && context.podman().pidOf(container).orElse(0L) > 0
+                    ? new TaskControl(context).unhandedWork(container) : null;
+            if (held == null) {
+                // The ordinary ending. The container may or may not exist: podman rm tolerates
+                // both, and leaving a created container behind is worse than an extra command.
+                runner.remove(container);
+            } else {
+                // Stopped rather than left up, for the reason the failed branch is: a task
+                // nobody is watching that still holds a firewall, a gate and a credential proxy
+                // is not kept, it is abandoned.
+                new TaskControl(context).stop(container, false, false, false);
+                out.println("kept      " + container + " - it holds " + held
+                        + " that never reached the gate");
+                out.println("          look with 'sokar task attach " + container + "' after"
+                        + " 'sokar task resume " + container + "',");
+                out.println("          push it with 'sokar task stop " + container + " --rescue'"
+                        + " while it runs,");
+                out.println("          or discard it with 'sokar task stop " + container
+                        + " --purge --force'");
+                out.flush();
+            }
         }
         // Only reaps when no container is running: a start that failed fires no poststop hook.
         runner.reapOrphans(container);
