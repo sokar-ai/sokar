@@ -54,7 +54,10 @@ public class TerminalSteps {
         terminal = machine().terminal();
         // A prompt of our own, so that what a scenario waits for afterwards is its command's
         // output rather than whatever the login banner happened to say.
-        terminal.type("export PS1='ready$ '");
+        // Both stated rather than inherited: a shell opened over ssh may source no profile, so
+        // an unprivileged install in ~/.local/bin would not be found - which is how this suite
+        // answered 127 to every command on its first run against a rented machine.
+        terminal.type("export PATH=\"$HOME/.local/bin:$PATH\"; export PS1='ready$ '");
         terminal.await("ready$");
     }
 

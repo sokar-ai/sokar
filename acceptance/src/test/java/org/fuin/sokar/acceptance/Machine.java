@@ -141,7 +141,7 @@ final class Machine implements AutoCloseable {
      */
     Output run(String command) throws IOException {
         try (var session = client.startSession()) {
-            final var exec = session.exec(asUser(command));
+            final var exec = session.exec(asUser(onPath(command)));
             final String out = new String(exec.getInputStream().readAllBytes());
             final String err = new String(exec.getErrorStream().readAllBytes());
             exec.join();
@@ -158,6 +158,22 @@ final class Machine implements AutoCloseable {
      */
     Terminal terminal() throws IOException {
         return new Terminal(client);
+    }
+
+    /**
+     * Puts the command where an unprivileged install can be found.
+     * <p>
+     * <strong>Stated rather than inherited</strong>, the same rule the remote build already
+     * follows for {@code JAVA_HOME}: an ssh command is neither a login nor an interactive shell,
+     * so nothing sources the profile that would add {@code ~/.local/bin}. A packaged install is
+     * in {@code /usr/bin} and works either way; the unprivileged install the rented machines use
+     * is not, and the whole suite answered 127 on its first run in CI because of it.
+     *
+     * @param command The command.
+     * @return The command, with a path that finds sokar however it was installed.
+     */
+    private static String onPath(String command) {
+        return "bash -c " + Shell.quote("export PATH=\"$HOME/.local/bin:$PATH\"; " + command);
     }
 
     /**
