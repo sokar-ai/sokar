@@ -33,14 +33,20 @@ public final class GitHubReport implements ConcurrentEventListener {
     /**
      * Where feature files live, so an annotation points at the file in the repository.
      * <p>
-     * Configurable because this is about to be used from repositories whose layout is their own:
-     * an annotation carrying a path that does not exist there points at nothing, and GitHub shows
-     * it against no line rather than saying the path was wrong.
+     * A property because this runs from repositories whose layout is their own: an annotation
+     * carrying a path that does not exist there points at nothing, and GitHub shows it against
+     * no line rather than saying the path was wrong. The default is a single-module repository;
+     * this one's suite sets its own.
      */
     private static final String FEATURES =
-            System.getProperty("sokar.acceptance.features", "acceptance/src/test/resources/");
+            System.getProperty("sokar.acceptance.features", "src/test/resources/");
 
     private final Map<String, List<Case>> byFeature = new LinkedHashMap<>();
+
+    /** Constructor for Cucumber, which instantiates a plugin by its class name. */
+    public GitHubReport() {
+        super();
+    }
 
     @Override
     public void setEventPublisher(EventPublisher publisher) {
@@ -71,8 +77,21 @@ public final class GitHubReport implements ConcurrentEventListener {
         }
         // Workflow commands are one line each: a newline would end the command and print the rest
         // as ordinary output, which is how a multi-line failure turns into half an annotation.
-        System.out.println("::error file=" + property(feature) + ",line=" + line
-                + ",title=" + property(scenario) + "::" + message(message));
+        System.out.println(annotation(feature, line, scenario, message));
+    }
+
+    /**
+     * Builds the workflow command for one failed scenario.
+     *
+     * @param feature Repository-relative feature file.
+     * @param line Line of the scenario.
+     * @param scenario Its name.
+     * @param message Why it failed.
+     * @return One line GitHub attaches to that file and line.
+     */
+    static String annotation(String feature, int line, String scenario, String message) {
+        return "::error file=" + property(feature) + ",line=" + line
+                + ",title=" + property(scenario) + "::" + message(message);
     }
 
     /** Escapes a property of a workflow command. */
@@ -163,8 +182,13 @@ public final class GitHubReport implements ConcurrentEventListener {
         };
     }
 
-    /** Turns a classpath uri back into the file in the repository. */
-    private static String feature(String uri) {
+    /**
+     * Turns a classpath uri back into the file in the repository.
+     *
+     * @param uri What Cucumber reports.
+     * @return The path an annotation can name.
+     */
+    static String feature(String uri) {
         final int at = uri.indexOf("classpath:");
         return at < 0 ? uri : FEATURES + uri.substring(at + "classpath:".length());
     }

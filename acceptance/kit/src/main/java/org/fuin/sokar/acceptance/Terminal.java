@@ -25,17 +25,27 @@ import net.schmizz.sshj.connection.channel.direct.Session;
  * is not a result. {@code ECHO} is off because the far end echoes what it chooses to: with the
  * local echo on as well, an assertion cannot tell which of the two put the text there - which is
  * exactly the question when checking that a credential was not echoed.
+ * <p>
+ * <strong>What a scenario may rely on</strong>, and what will not change without a note in the
+ * kit's README: the terminal is {@value #COLUMNS} columns by {@value #ROWS} rows, reports itself
+ * as {@value #TERM}, has echo off, and an ordinary wait gives up after {@link #PATIENCE} while a
+ * wait that may build an image gives up after {@link #BUILD_PATIENCE}. A scenario that wraps a
+ * line at a different width, or expects its own typing back, is written against a different
+ * terminal than this one.
  */
-final class Terminal implements AutoCloseable {
+public final class Terminal implements AutoCloseable {
 
     /** Columns every scenario gets, so wrapping is the same everywhere. */
-    private static final int COLUMNS = 100;
+    public static final int COLUMNS = 100;
 
     /** Rows every scenario gets. */
-    private static final int ROWS = 40;
+    public static final int ROWS = 40;
+
+    /** What the far end is told it is talking to. */
+    public static final String TERM = "xterm-256color";
 
     /** How long an ordinary wait may take before it is a failure rather than slowness. */
-    private static final Duration PATIENCE = Duration.ofSeconds(30);
+    public static final Duration PATIENCE = Duration.ofSeconds(30);
 
     /**
      * How long to wait for something that may have to build an image first.
@@ -44,7 +54,7 @@ final class Terminal implements AutoCloseable {
      * make every wrong expectation take five minutes to fail, which is how a suite becomes
      * something people stop running.
      */
-    static final Duration BUILD_PATIENCE = Duration.ofMinutes(8);
+    public static final Duration BUILD_PATIENCE = Duration.ofMinutes(8);
 
     private final Session session;
 
@@ -58,7 +68,7 @@ final class Terminal implements AutoCloseable {
 
     Terminal(SSHClient client) throws IOException {
         session = client.startSession();
-        session.allocatePTY("xterm-256color", COLUMNS, ROWS, 0, 0,
+        session.allocatePTY(TERM, COLUMNS, ROWS, 0, 0,
                 Map.of(PTYMode.ECHO, 0, PTYMode.ECHOCTL, 0));
         shell = session.startShell();
         from = shell.getInputStream();
@@ -71,7 +81,7 @@ final class Terminal implements AutoCloseable {
      * @param line What to type, without its newline.
      * @throws IOException If it cannot be sent.
      */
-    void type(String line) throws IOException {
+    public void type(String line) throws IOException {
         to.write((line + "\n").getBytes(StandardCharsets.UTF_8));
         to.flush();
     }
@@ -87,7 +97,7 @@ final class Terminal implements AutoCloseable {
      * @return Everything seen so far.
      * @throws IOException If the terminal cannot be read.
      */
-    String await(String text) throws IOException {
+    public String await(String text) throws IOException {
         return await(text, PATIENCE);
     }
 
@@ -99,7 +109,7 @@ final class Terminal implements AutoCloseable {
      * @return Everything seen so far.
      * @throws IOException If the terminal cannot be read.
      */
-    String await(String text, Duration patience) throws IOException {
+    public String await(String text, Duration patience) throws IOException {
         final Instant deadline = Instant.now().plus(patience);
         while (!seen.toString().contains(text)) {
             if (Instant.now().isAfter(deadline)) {
@@ -120,8 +130,12 @@ final class Terminal implements AutoCloseable {
         return seen.toString();
     }
 
-    /** @return Everything the terminal has shown so far. */
-    String seen() {
+    /**
+     * Returns everything the terminal has shown so far.
+     *
+     * @return The output, with any escape sequences the far end sent.
+     */
+    public String seen() {
         return seen.toString();
     }
 
@@ -131,7 +145,7 @@ final class Terminal implements AutoCloseable {
      * @return Everything seen so far.
      * @throws IOException If the terminal cannot be read.
      */
-    String drain() throws IOException {
+    public String drain() throws IOException {
         sleep();
         final int available = from.available();
         if (available > 0) {

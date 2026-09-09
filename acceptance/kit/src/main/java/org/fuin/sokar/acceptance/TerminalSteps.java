@@ -1,0 +1,383 @@
+package org.fuin.sokar.acceptance;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.cucumber.java.After;
+import io.cucumber.java.AfterAll;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
+import java.io.IOException;
+import java.time.Duration;
+import org.opentest4j.TestAbortedException;
+
+/**
+ * What a scenario can do to a machine, and what it can then say about it.
+ * <p>
+ * Two vocabularies, and the difference is the point: <em>a terminal on the machine</em> and
+ * <em>I run</em> mean a person is watching; <em>a script runs</em> means nobody is. Half of what
+ * these scenarios exist for is "does not ask when nobody is there", and a suite that only ever
+ * allocates a pty tests one side of every one of them.
+ * <p>
+ * <strong>Complete on its own.</strong> A repository whose scenarios are made only of these steps
+ * needs no glue class of its own; one that adds steps takes the same {@link World} in its
+ * constructor and acts on the same terminal.
+ */
+public class TerminalSteps {
+
+    private final World world;
+
+    /**
+     * Constructor with the scenario's state.
+     *
+     * @param world What the scenario holds.
+     */
+    public TerminalSteps(World world) {
+        this.world = world;
+    }
+
+    /**
+     * Closes what the scenario opened: its terminal.
+     *
+     * @throws IOException If it cannot be closed.
+     */
+    @After
+    public void closeTheTerminal() throws IOException {
+        world.close();
+    }
+
+    /**
+     * Closes the run's connection once every scenario has had it.
+     *
+     * @throws IOException If it cannot be closed.
+     */
+    @AfterAll
+    public static void closeTheConnection() throws IOException {
+        Machine.closeShared();
+    }
+
+    /**
+     * Skips the scenario unless the runner's environment carries a value.
+     * <p>
+     * For the half of a suite that needs a real credential: a fork or a machine without the
+     * secret gets fewer scenarios rather than a red run that says nothing about the product.
+     * Skipped, not passed, so the summary shows what was not proved.
+     *
+     * @param variable The variable's name.
+     */
+    @Given("the environment variable {string} is set")
+    public void theEnvironmentVariableIsSet(String variable) {
+        if (!World.isSet(variable)) {
+            throw new TestAbortedException("Skipped: " + variable
+                    + " is not set where this suite runs");
+        }
+    }
+
+    /**
+     * Closes the terminal, as a person closing their laptop would.
+     *
+     * @throws IOException If it cannot be closed.
+     */
+    @When("I log off")
+    public void iLogOff() throws IOException {
+        // The channel, not the machine: what is being tested is that the far end does not care.
+        world.terminal(null);
+    }
+
+    /**
+     * Opens a terminal with a known prompt.
+     *
+     * @throws IOException If it cannot be opened.
+     */
+    @Given("a terminal on the machine")
+    public void aTerminal() throws IOException {
+        final Terminal terminal = world.machine().terminal();
+        world.terminal(terminal);
+        // A prompt of our own, so that what a scenario waits for afterwards is its command's
+        // output rather than whatever the login banner happened to say.
+        // Both stated rather than inherited: a shell opened over ssh may source no profile, so
+        // an unprivileged install in ~/.local/bin would not be found - which is how this suite
+        // answered 127 to every command on its first run against a rented machine.
+        terminal.type("export PATH=\"$HOME/.local/bin:$PATH\"; export PS1='ready$ '");
+        terminal.await("ready$");
+    }
+
+    /**
+     * Types a command and presses enter.
+     * <p>
+     * {@code ${NAME}} in the command is replaced from the runner's environment first, for a value
+     * CI chooses per run - a model, a version. Never for a credential: that goes through
+     * {@link #iTypeTheValueOf}.
+     *
+     * @param command What to run.
+     * @throws IOException If it cannot be sent.
+     */
+    @When("I run {string}")
+    public void iRun(String command) throws IOException {
+        world.terminal().type(World.expand(command));
+        // Not "wait for the prompt": a command that asks a question never reaches one, and
+        // waiting for it would hang on exactly the scenarios this module exists for.
+        world.terminal().drain();
+    }
+
+    /**
+     * Types a line, for answering whatever the last command asked.
+     *
+     * @param line What to type.
+     * @throws IOException If it cannot be sent.
+     */
+    @When("I type {string}")
+    public void iType(String line) throws IOException {
+        world.terminal().type(line);
+        world.terminal().drain();
+    }
+
+    /**
+     * Types the value of a variable in the runner's environment, as a person pasting a secret.
+     * <p>
+     * The terminal has echo off, so the value is not expected back - and
+     * {@link #theTerminalDoesNotShowTheValueOf} is how a scenario proves the far end did not echo
+     * it either. The value is remembered by the variable's name and never printed.
+     *
+     * @param variable The variable's name.
+     * @throws IOException If it cannot be sent.
+     */
+    @When("I type the value of {string}")
+    public void iTypeTheValueOf(String variable) throws IOException {
+        world.terminal().type(world.secret(variable));
+        world.terminal().drain();
+    }
+
+    /**
+     * Waits for the task's session prompt after attaching.
+     *
+     * @throws IOException If the terminal cannot be read.
+     */
+    @When("I wait for the session inside the container")
+    public void iWaitForTheSession() throws IOException {
+        // 'task attach' goes through tmux, which does NOT set Sokar's prompt - only the shell
+        // that 'task run --attach' opens does. Found by this suite, and it is a real
+        // inconsistency: the prompt naming the task is there when you start one and gone when
+        // you come back to it. Until that is decided this waits for what the container actually
+        // shows rather than for what it ought to.
+        world.terminal().await("agent@", Terminal.BUILD_PATIENCE);
+    }
+
+    /**
+     * Waits for the task's own prompt, which is how a scenario knows it is inside.
+     *
+     * @throws IOException If the terminal cannot be read.
+     */
+    @When("I wait for the shell inside the container")
+    public void iWaitForTheShellInside() throws IOException {
+        // The long patience is here and nowhere else: this is the step behind which an image
+        // gets built, and only the first one pays it.
+        world.terminal().await("sokar[", Terminal.BUILD_PATIENCE);
+    }
+
+    /**
+     * Waits for text, with the ordinary patience.
+     *
+     * @param text What must appear.
+     * @throws IOException If the terminal cannot be read.
+     */
+    @Then("the terminal shows {string}")
+    public void theTerminalShows(String text) throws IOException {
+        world.terminal().await(text);
+        assertThat(world.terminal().seen()).contains(text);
+    }
+
+    /**
+     * Waits for text, for as long as a scenario says.
+     * <p>
+     * For the one step behind which a model answers: longer than a prompt, shorter than a build,
+     * and stated in the scenario so that a slow expectation is a visible choice.
+     *
+     * @param seconds How long to allow.
+     * @param text What must appear.
+     * @throws IOException If the terminal cannot be read.
+     */
+    @Then("within {int} seconds the terminal shows {string}")
+    public void withinSecondsTheTerminalShows(int seconds, String text) throws IOException {
+        world.terminal().await(text, Duration.ofSeconds(seconds));
+        assertThat(world.terminal().seen()).contains(text);
+    }
+
+    /**
+     * Asserts text has not appeared.
+     *
+     * @param text What must be absent.
+     * @throws IOException If the terminal cannot be read.
+     */
+    @Then("the terminal does not show {string}")
+    public void theTerminalDoesNotShow(String text) throws IOException {
+        world.terminal().drain();
+        assertThat(world.terminal().seen()).doesNotContain(text);
+    }
+
+    /**
+     * Asserts a secret was not echoed, without saying what it is.
+     *
+     * @param variable The variable the secret came from.
+     * @throws IOException If the terminal cannot be read.
+     */
+    @Then("the terminal does not show the value of {string}")
+    public void theTerminalDoesNotShowTheValueOf(String variable) throws IOException {
+        world.terminal().drain();
+        // A boolean, on purpose: an assertion that fails by printing the expected text would put
+        // the credential into the run log and the annotation on the feature file.
+        assertThat(world.contains(variable, world.terminal().seen()))
+                .as("the terminal showed the value of %s", variable).isFalse();
+    }
+
+    /**
+     * Creates a small git project on the machine.
+     *
+     * @param name The project's name and directory.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @Given("a project called {string} with a file in it")
+    public void aProject(String name) throws IOException {
+        aProjectOfClass(name, "offline");
+    }
+
+    /**
+     * Creates a small git project on the machine, in a security class the scenario chooses.
+     *
+     * @param name The project's name and directory.
+     * @param securityClass Its class: {@code offline}, {@code guarded} or {@code online}.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @Given("a project called {string} of class {string} with a file in it")
+    public void aProjectOfClass(String name, String securityClass) throws IOException {
+        // Built by running the commands rather than by writing files from here: a fixture the
+        // suite creates is a fixture that can be right while the product is wrong.
+        final Machine machine = world.machine();
+        machine.run("rm -rf ~/" + name + " && mkdir -p ~/" + name);
+        machine.run("cd ~/" + name + " && git init -q -b main . "
+                + "&& git config user.email t@example.com && git config user.name T "
+                + "&& echo 'the project' > README.md && git add -A && git commit -q -m initial");
+        machine.run("cd ~/" + name + " && printf '%s\\n' "
+                + "'project:' '  name: \"" + name + "\"' '  security_class: \"" + securityClass
+                + "\"' "
+                + "'image:' '  base_image: \"ubuntu:24.04\"' > project.yml");
+    }
+
+    /**
+     * Reboots the machine and waits for it to answer again.
+     *
+     * @throws IOException If it never comes back.
+     */
+    @When("the machine restarts")
+    public void theMachineRestarts() throws IOException {
+        world.terminal(null);
+        world.machine().restart().restart();
+    }
+
+    /**
+     * Runs a command with no terminal.
+     *
+     * @param command What to run, with {@code ${NAME}} expanded from the runner's environment.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("a script runs {string}")
+    public void aScriptRuns(String command) throws IOException {
+        world.output(world.machine().run(World.expand(command)));
+    }
+
+    /**
+     * Runs a command with no terminal and a secret on its standard input.
+     * <p>
+     * How a credential reaches a vault from a script: never on the command line, which every
+     * process on the machine can read.
+     *
+     * @param command What to run.
+     * @param variable The variable whose value is fed to it.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("a script runs {string} with the value of {string} on standard input")
+    public void aScriptRunsWithStdin(String command, String variable) throws IOException {
+        world.output(world.machine().run(World.expand(command), world.secret(variable)));
+    }
+
+    /**
+     * Runs a command and asserts on what it wrote, in one step.
+     *
+     * @param command What to run.
+     * @param text What must be in its output.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @Then("a script running {string} mentions {string}")
+    public void aScriptRunningMentions(String command, String text) throws IOException {
+        final Machine.Output output = world.machine().run(World.expand(command));
+        world.output(output);
+        assertThat(output.all()).as("running: %s", command).contains(text);
+    }
+
+    /** Asserts the last script failed. */
+    @Then("it exits non-zero")
+    public void itExitsNonZero() {
+        assertThat(world.output().status()).isNotZero();
+    }
+
+    /** Asserts the last script succeeded. */
+    @Then("it exits zero")
+    public void itExitsZero() {
+        assertThat(world.output().status()).as("output was:%n%s", world.output().all()).isZero();
+    }
+
+    /**
+     * Asserts the last script wrote something.
+     *
+     * @param text What must be there.
+     */
+    @Then("its output contains {string}")
+    public void itsOutputContains(String text) {
+        assertThat(world.output().all()).contains(text);
+    }
+
+    /**
+     * Asserts the last script did not write something.
+     *
+     * @param text What must be absent.
+     */
+    @Then("its output does not contain {string}")
+    public void itsOutputDoesNotContain(String text) {
+        assertThat(world.output().all()).doesNotContain(text);
+    }
+
+    /**
+     * Asserts the last script did not write a secret, without saying what it is.
+     *
+     * @param variable The variable the secret came from.
+     */
+    @Then("its output does not contain the value of {string}")
+    public void itsOutputDoesNotContainTheValueOf(String variable) {
+        assertThat(world.contains(variable, world.output().all()))
+                .as("the output contained the value of %s", variable).isFalse();
+    }
+
+    /**
+     * Asserts the last script wrote one of several honest answers.
+     * <p>
+     * For a fact with several shapes. Asserting one of them would make the scenario depend on
+     * which machine it ran on, which is how a suite teaches people to re-run it.
+     *
+     * @param alternatives Comma-separated texts, any one of which satisfies the step.
+     */
+    @Then("its output mentions one of {string}")
+    public void itsOutputMentionsOneOf(String alternatives) {
+        final java.util.List<String> any = java.util.Arrays.stream(alternatives.split(","))
+                .map(String::strip).toList();
+        final String all = world.output().all();
+        assertThat(any).as("output was:%n%s", all).anyMatch(all::contains);
+    }
+
+    /** Asserts the last script painted nothing - the other half of every color scenario. */
+    @Then("its output contains no escape sequences")
+    public void itsOutputHasNoEscapes() {
+        // A suite that only ever allocates a pty proves that color appears and never that it
+        // stays out of a pipe, a log or a fixture.
+        assertThat(world.output().all()).doesNotContain("\033[");
+    }
+}

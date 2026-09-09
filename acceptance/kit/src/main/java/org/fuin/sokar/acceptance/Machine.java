@@ -16,10 +16,27 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
  * pinning one would mean the suite refusing to run on the machine it was given. What this suite
  * protects is not the channel; it is what Sokar does at the far end of it.
  */
-final class Machine implements AutoCloseable {
+public final class Machine implements AutoCloseable {
 
     /** How long a connection attempt may hang before the machine counts as unreachable. */
     private static final int PROBE_TIMEOUT = 4000;
+
+    /**
+     * The connection every scenario in the run shares.
+     * <p>
+     * <strong>One connection, many channels.</strong> A connection per scenario meant one TCP
+     * handshake and one key exchange per scenario - around eighty in two minutes - and CI's sshd
+     * answered "Connection refused" to two of them 145 seconds in, with nothing wrong on either
+     * side: a client that opens and drops connections that fast looks like something worth
+     * refusing. Measured by counting {@code Accepted publickey} in the machine's journal: about 80
+     * connections and 15.7s before, 2 and 8.5s after. A terminal stays per scenario; that is a
+     * channel on this connection, which is cheap.
+     * <p>
+     * Cucumber has a scenario scope and the JVM, nothing between, so the run's connection lives
+     * here as the JVM's scope, reached through {@link #shared()} and closed by an {@code AfterAll}.
+     * A {@link World} holds it as a member; nothing else touches the field.
+     */
+    private static @org.jspecify.annotations.Nullable Machine shared;
 
     private SSHClient client;
 
@@ -27,7 +44,40 @@ final class Machine implements AutoCloseable {
 
     private final String user;
 
-    Machine() throws IOException {
+    /**
+     * Returns the run's connection, opening it the first time it is asked for.
+     *
+     * @return The machine.
+     * @throws IOException If it cannot be reached or the key is refused.
+     */
+    public static synchronized Machine shared() throws IOException {
+        if (shared == null) {
+            shared = new Machine();
+        }
+        return shared;
+    }
+
+    /**
+     * Closes the run's connection, if one was opened.
+     *
+     * @throws IOException If it cannot be closed.
+     */
+    public static synchronized void closeShared() throws IOException {
+        if (shared != null) {
+            final Machine open = shared;
+            shared = null;
+            open.close();
+        }
+    }
+
+    /**
+     * Connects to the machine the properties name.
+     * <p>
+     * A connection of its own; a scenario wants {@link #shared()} and never this.
+     *
+     * @throws IOException If it cannot be reached or the key is refused.
+     */
+    public Machine() throws IOException {
         this.host = required("sokar.acceptance.host");
         this.user = required("sokar.acceptance.user");
         this.client = connected();
@@ -71,7 +121,7 @@ final class Machine implements AutoCloseable {
      *
      * @return {@code true} if something is listening and authenticating.
      */
-    boolean reachable() {
+    public boolean reachable() {
         final SSHClient probe = new SSHClient();
         probe.addHostKeyVerifier(new PromiscuousVerifier());
         probe.setConnectTimeout(PROBE_TIMEOUT);
@@ -121,7 +171,7 @@ final class Machine implements AutoCloseable {
      *
      * @return The restart.
      */
-    Restart restart() {
+    public Restart restart() {
         return new SshRestart(this);
     }
 
@@ -145,9 +195,30 @@ final class Machine implements AutoCloseable {
      * @return What it wrote and what it exited with.
      * @throws IOException If the command cannot be run.
      */
-    Output run(String command) throws IOException {
+    public Output run(String command) throws IOException {
+        return run(command, null);
+    }
+
+    /**
+     * Runs a command with no terminal and feeds it standard input, the way a script would.
+     * <p>
+     * <strong>This is how a secret reaches the machine.</strong> A command line is readable by
+     * every process there and lands in shell history; standard input is neither. It is the same
+     * rule {@code vault put} follows, applied to the suite that tests it.
+     *
+     * @param command What to run.
+     * @param stdin What to feed it, or {@code null} for nothing.
+     * @return What it wrote and what it exited with.
+     * @throws IOException If the command cannot be run.
+     */
+    public Output run(String command, String stdin) throws IOException {
         try (var session = client.startSession()) {
             final var exec = session.exec(asUser(onPath(command)));
+            if (stdin != null) {
+                try (var in = exec.getOutputStream()) {
+                    in.write(stdin.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+            }
             final String out = new String(exec.getInputStream().readAllBytes());
             final String err = new String(exec.getErrorStream().readAllBytes());
             exec.join();
@@ -162,7 +233,7 @@ final class Machine implements AutoCloseable {
      * @return The session.
      * @throws IOException If it cannot be opened.
      */
-    Terminal terminal() throws IOException {
+    public Terminal terminal() throws IOException {
         return new Terminal(client);
     }
 
@@ -204,11 +275,21 @@ final class Machine implements AutoCloseable {
         client.disconnect();
     }
 
-    /** What a command wrote and what it exited with. */
-    record Output(String out, String err, int status) {
+    /**
+     * What a command wrote and what it exited with.
+     *
+     * @param out Standard output.
+     * @param err Standard error.
+     * @param status Exit status, or {@code -1} when the far end reported none.
+     */
+    public record Output(String out, String err, int status) {
 
-        /** @return Everything it wrote, whichever stream it used. */
-        String all() {
+        /**
+         * Returns everything it wrote, whichever stream it used.
+         *
+         * @return Both streams, standard output first.
+         */
+        public String all() {
             return out + err;
         }
     }

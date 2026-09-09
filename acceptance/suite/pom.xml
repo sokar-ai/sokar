@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar-acceptance-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-acceptance</artifactId>
+    <name>Sokar Acceptance Suite</name>
+    <description>Sokar - This repository's own scenarios, run through the kit (TESTING)</description>
+
+    <properties>
+        <!-- Nothing here runs without a machine to run it against, so the suite is off unless a
+             host is given. Naming one is what turns it on: see the module's README. -->
+        <sokar.acceptance.host/>
+        <sokar.acceptance.user>claude</sokar.acceptance.user>
+        <sokar.acceptance.key>${user.home}/.claude/.ssh/claude_key</sokar.acceptance.key>
+        <!-- Whose Sokar to drive. Empty means the user this suite connects as. -->
+        <sokar.acceptance.as/>
+        <!-- Nothing to publish: this module is a test harness. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.install.skip>true</maven.install.skip>
+    </properties>
+
+    <dependencies>
+
+        <!-- test: the kit brings Cucumber, the ssh client and the assertions with it. -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-acceptance-kit</artifactId>
+            <version>${sokar.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Failsafe, not surefire: these need a machine, so they are integration tests and
+                 they run at 'verify'. A unit test that cannot run without a rented server would
+                 make 'mvn test' mean something different in this module than in every other. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${maven-failsafe-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- Skipped unless a host is named. A suite that fails because nobody gave it
+                         a machine is noise in every other build. -->
+                    <skipITs>${sokar.acceptance.skip}</skipITs>
+                    <systemPropertyVariables>
+                        <sokar.acceptance.host>${sokar.acceptance.host}</sokar.acceptance.host>
+                        <sokar.acceptance.user>${sokar.acceptance.user}</sokar.acceptance.user>
+                        <sokar.acceptance.as>${sokar.acceptance.as}</sokar.acceptance.as>
+                        <sokar.acceptance.key>${sokar.acceptance.key}</sokar.acceptance.key>
+                        <!-- Repository-relative, so an annotation lands on the feature file. -->
+                        <sokar.acceptance.features>acceptance/suite/src/test/resources/</sokar.acceptance.features>
+                        <cucumber.plugin>pretty, html:target/acceptance.html, json:target/acceptance.json, org.fuin.sokar.acceptance.GitHubReport</cucumber.plugin>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>acceptance-off</id>
+            <activation>
+                <property><name>!sokar.acceptance.host</name></property>
+            </activation>
+            <properties>
+                <sokar.acceptance.skip>true</sokar.acceptance.skip>
+            </properties>
+        </profile>
+        <profile>
+            <id>acceptance-on</id>
+            <activation>
+                <property><name>sokar.acceptance.host</name></property>
+            </activation>
+            <properties>
+                <sokar.acceptance.skip>false</sokar.acceptance.skip>
+            </properties>
+        </profile>
+    </profiles>
+
+</project>

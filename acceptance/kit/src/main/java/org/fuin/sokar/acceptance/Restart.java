@@ -16,7 +16,7 @@ import java.io.IOException;
  * do when one does not come back. That is the case a provider's API answers and ssh cannot, and it
  * is the reason this is an interface rather than one method.
  */
-interface Restart {
+public interface Restart {
 
     /**
      * Restarts the machine and returns once it answers again.
@@ -25,6 +25,10 @@ interface Restart {
      */
     void restart() throws IOException;
 
-    /** @return What this will do, for a scenario that reports what it did. */
+    /**
+     * Says what this will do, for a scenario that reports what it did.
+     *
+     * @return One sentence.
+     */
     String describe();
 }
