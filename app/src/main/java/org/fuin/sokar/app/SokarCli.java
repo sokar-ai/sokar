@@ -36,10 +36,26 @@ public class SokarCli implements Callable<Integer> {
      *
      * @param args Command line arguments.
      */
+    /**
+     * Returns the command line, wired the way the binary wires it.
+     * <p>
+     * <strong>One place, because a test that builds its own is testing something else.</strong>
+     * The parameter exception handler is most of what somebody sees when they get a command
+     * wrong, and it used to be installed only here in {@code main} - so every test that
+     * constructed a {@code CommandLine} of its own exercised picocli's default messages and
+     * nothing could tell that Sokar's own were missing.
+     *
+     * @param context What the commands run against.
+     * @return The command line.
+     */
+    public static CommandLine commandLine(SokarContext context) {
+        return new CommandLine(new SokarCli(), new SokarFactory(context))
+                .setParameterExceptionHandler(CliErrors.handler());
+    }
+
     public static void main(String[] args) {
         try {
-            System.exit(new CommandLine(new SokarCli(), new SokarFactory(SokarContext.real()))
-                    .setParameterExceptionHandler(CliErrors.handler())
+            System.exit(commandLine(SokarContext.real())
                     .execute(args));
         } catch (final Error ex) {
             // Anything else is rethrown untouched.

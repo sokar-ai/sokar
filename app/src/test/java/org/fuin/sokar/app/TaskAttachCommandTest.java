@@ -40,7 +40,7 @@ class TaskAttachCommandTest {
                     attached.addAll(command);
                     return 0;
                 });
-        final CommandLine cmd = new CommandLine(new SokarCli(), new SokarFactory(context));
+        final CommandLine cmd = SokarCli.commandLine(context);
         cmd.setOut(new PrintWriter(new StringWriter()));
         cmd.setErr(new PrintWriter(err));
         return cmd.execute(arguments);
@@ -97,11 +97,16 @@ class TaskAttachCommandTest {
     }
 
     @Test
-    void somethingThatIsNotATaskIsRefusedBeforeAnythingIsAsked(@TempDir Path dir) {
+    void somethingThatIsNotATaskIsRefusedOnItsNameAlone(@TempDir Path dir) {
 
+        // The refusal is decided by the name, before anything about the machine is consulted.
+        // What follows it is a listing, offered because somebody who typed a name that is not a
+        // task is exactly who needs to see the ones that are - and it is read-only. A podman
+        // that cannot answer costs nothing here: the offer swallows it and the refusal stands.
         assertThat(run(dir, "task", "attach", "some-other-container")).isEqualTo(69);
-        assertThat(attached).isEmpty();
-        assertThat(runner.lines()).as("podman was not even asked").isEmpty();
+        assertThat(attached).as("nothing is attached to a name that is not a task").isEmpty();
+        assertThat(runner.lines()).as("only ever asked to list, never to act")
+                .allMatch(line -> line.startsWith("podman ps"));
     }
 
     @Test

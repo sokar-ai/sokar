@@ -185,6 +185,11 @@ final class CliErrors {
                 // about the parser - a missing parameter, a value of the wrong kind - so it is
                 // passed through with the prefix the rest of this product uses.
                 err.println("sokar: " + lower(ex.getMessage()));
+                // And when the command knows what it would have taken, it says so here rather
+                // than sending somebody to another command to read a name back.
+                if (command.getCommand() instanceof Suggests suggests) {
+                    Suggests.offer(err, suggests);
+                }
             }
 
             err.println();

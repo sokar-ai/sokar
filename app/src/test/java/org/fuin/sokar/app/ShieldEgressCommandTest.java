@@ -34,7 +34,7 @@ class ShieldEgressCommandTest {
     }
 
     private int execute(SokarContext context, String... args) {
-        final CommandLine cmd = new CommandLine(new SokarCli(), new SokarFactory(context));
+        final CommandLine cmd = SokarCli.commandLine(context);
         cmd.setOut(new PrintWriter(out));
         cmd.setErr(new PrintWriter(err));
         return cmd.execute(args);

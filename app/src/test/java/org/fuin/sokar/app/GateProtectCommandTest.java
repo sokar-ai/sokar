@@ -48,7 +48,7 @@ class GateProtectCommandTest {
         }, dir);
         final SokarContext context = new SokarContext(runner,
                 new SokarPaths(xdg, dir.resolve("bin")), command -> 0);
-        final CommandLine cmd = new CommandLine(new SokarCli(), new SokarFactory(context));
+        final CommandLine cmd = SokarCli.commandLine(context);
         cmd.setOut(new PrintWriter(out));
         cmd.setErr(new PrintWriter(err));
         return cmd.execute(arguments);

@@ -28,7 +28,19 @@ import picocli.CommandLine.Spec;
 @Command(name = "resume",
         mixinStandardHelpOptions = true,
         description = "Starts a stopped task again, keeping its workspace.")
-public class TaskResumeCommand implements Callable<Integer>, SokarFactory.ContextAware {
+public class TaskResumeCommand implements Callable<Integer>, SokarFactory.ContextAware, Suggests {
+
+    @Override
+    public java.util.List<String> candidates() {
+        // Only the stopped ones: resuming a running task is answered "already up; nothing to
+        // resume", and offering it as a candidate would be offering a command that does nothing.
+        return TaskCandidates.stopped(context);
+    }
+
+    @Override
+    public String candidateLabel() {
+        return "stopped tasks";
+    }
 
     @Parameters(index = "0", paramLabel = "TASK",
             description = "Container name, as shown by 'sokar task list'.")
@@ -56,11 +68,13 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
         switch (result.outcome()) {
             case NOT_A_TASK -> {
                 err.println("sokar: '" + container + "' is not a task Sokar created");
+                Suggests.offer(err, this);
                 err.flush();
                 return 64;
             }
             case NO_CONTAINER -> {
                 err.println("sokar: there is no container " + container + " to resume");
+                Suggests.offer(err, this);
                 err.flush();
                 return 69;
             }

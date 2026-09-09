@@ -35,7 +35,7 @@ class DoctorCommandTest {
     }
 
     private String doctor(SokarContext context) {
-        final CommandLine cmd = new CommandLine(new SokarCli(), new SokarFactory(context));
+        final CommandLine cmd = SokarCli.commandLine(context);
         cmd.setOut(new PrintWriter(out));
         cmd.setErr(new PrintWriter(new StringWriter()));
         cmd.execute("doctor");

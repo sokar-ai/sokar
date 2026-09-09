@@ -33,7 +33,19 @@ import picocli.CommandLine.Spec;
 @Command(name = "attach",
         mixinStandardHelpOptions = true,
         description = "Opens a shell in a running task. Leaving it does not end it.")
-public class TaskAttachCommand implements Callable<Integer>, SokarFactory.ContextAware {
+public class TaskAttachCommand implements Callable<Integer>, SokarFactory.ContextAware, Suggests {
+
+    @Override
+    public java.util.List<String> candidates() {
+        // Only the running ones: attaching to a stopped task is refused with its own
+        // message pointing at resume, so offering it here would contradict that.
+        return TaskCandidates.running(context);
+    }
+
+    @Override
+    public String candidateLabel() {
+        return "running tasks";
+    }
 
     /** Name of the session inside the container. One per container, found again on return. */
     static final String SESSION = "sokar";
@@ -77,6 +89,7 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
 
         if (!ContainerName.isTask(container)) {
             err.println("sokar: '" + container + "' is not a task of this machine");
+            Suggests.offer(err, this);
             err.flush();
             return 69;
         }
@@ -93,6 +106,11 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
                             + "' brings it back with the workspace it has"
                     : "sokar: no task called " + container + " - 'sokar task list' shows what"
                             + " is there");
+            if (!known) {
+                // Only when the name is unknown. A task that exists and is stopped was just told
+                // exactly what to do about it, and a list of other names would bury that.
+                Suggests.offer(err, this);
+            }
             err.flush();
             return 69;
         }

@@ -40,6 +40,12 @@ nothing answers: enforcement can be chosen when a task starts and not changed af
 missing method and it is the last thing an interface requirement is waiting on, so it outranks the
 items below that unblock nothing.
 
+**B25 is third because it is met every time, not because it is severe.** Nothing in it goes
+silently wrong the way B10 does; it is above the rest because it is cheap and because every
+command that takes a container, a project or an agent name currently makes somebody go and look it
+up. The first of its three parts — saying which names would have been accepted when one is missing
+or wrong — needs no shell integration and no packaging at all.
+
 **B10 is decided and only unbuilt**, which makes it the cheapest thing on this list: the four
 questions it was written to ask were settled, and what remains is the work plus one smaller
 question that appeared once the others were answered. A destination that cannot be written as a
@@ -93,6 +99,7 @@ and saying so cost a paragraph and bought a screen that is not lying.
 |---|---|---|---|
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved |
 | B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
+| B25 | [Names The Operator Should Not Have To Find](B25-Names-The-Operator-Should-Not-Have-To-Find.md) | A command that needs a name Sokar already knows never makes the operator go and find it. | three |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three |
 | B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have |

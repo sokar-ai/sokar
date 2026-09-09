@@ -41,7 +41,7 @@ class TaskLifecycleCommandsTest {
     }
 
     private int execute(SokarContext context, String... args) {
-        final CommandLine cmd = new CommandLine(new SokarCli(), new SokarFactory(context));
+        final CommandLine cmd = SokarCli.commandLine(context);
         cmd.setOut(new PrintWriter(out));
         cmd.setErr(new PrintWriter(err));
         return cmd.execute(args);
@@ -99,6 +99,50 @@ class TaskLifecycleCommandsTest {
         final String row = out.toString().lines().filter(line -> line.startsWith("sokar-uc"))
                 .findFirst().orElseThrow();
         assertThat(row).contains("uc").contains("guarded").doesNotContain("-  ");
+    }
+
+    @Test
+    void namesTheResumableTasksWhenNoneWasGiven(@TempDir Path dir) {
+
+        // Asked for after 'sokar task resume' answered "Missing required parameter: TASK" on a
+        // machine where Sokar knew exactly which containers could have been resumed. The name is
+        // not the hard part of the job; finding it is.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\t\n"
+                + "sokar-uc-build-2\tUp 4 minutes\t1700000000\t0\t\n");
+
+        assertThat(execute(context, "task", "resume")).isNotZero();
+
+        // The stopped one only: resuming a running task does nothing, so offering it would be
+        // offering a command with no effect.
+        assertThat(err.toString()).contains("sokar-uc-shell-1").doesNotContain("sokar-uc-build-2");
+    }
+
+    @Test
+    void namesTheRunningTasksWhenAttachWasGivenNoName(@TempDir Path dir) {
+
+        // The other way round, and the reason one list for every command would be wrong twice.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\t\n"
+                + "sokar-uc-build-2\tUp 4 minutes\t1700000000\t0\t\n");
+
+        assertThat(execute(context, "task", "attach")).isNotZero();
+
+        assertThat(err.toString()).contains("sokar-uc-build-2").doesNotContain("sokar-uc-shell-1");
+    }
+
+    @Test
+    void doesNotOfferALoginContainerAsATask(@TempDir Path dir) {
+
+        // A completion built on the 'sokar-' prefix would put the throwaway containers 'vault
+        // login' creates back in front of somebody - the same defect that put them in task list.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-shell-1\tExited (143)\t1700000000\t1700000100\t\n"
+                + "sokar-login-1788886971400\tExited (0)\t1700000000\t1700000100\t\n");
+
+        assertThat(execute(context, "task", "resume")).isNotZero();
+
+        assertThat(err.toString()).contains("sokar-uc-shell-1").doesNotContain("sokar-login-");
     }
 
     @Test
@@ -191,7 +235,9 @@ class TaskLifecycleCommandsTest {
         // This command removes containers and kills processes; a foreign name is not guessed at.
         assertThat(execute(context(dir), "task", "stop", "somebody-elses-database")).isEqualTo(64);
         assertThat(err.toString()).contains("is not a task Sokar created");
-        assertThat(runner.invocations()).isEmpty();
+        // Listing Sokar's own tasks to offer them is reading, not touching. What must not happen
+        // is this command doing anything TO the machine on a name that is not Sokar's.
+        assertThat(runner.lines()).allMatch(line -> line.startsWith("podman ps"));
     }
 
     @Test

@@ -25,7 +25,19 @@ import picocli.CommandLine.Spec;
 @Command(name = "stop",
         mixinStandardHelpOptions = true,
         description = "Stops a task, its container and its helpers.")
-public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextAware {
+public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextAware, Suggests {
+
+    @Override
+    public java.util.List<String> candidates() {
+        // Both, unlike resume and attach: a running task is stopped and a stopped one is
+        // purged, so every task on the machine is something this command can be given.
+        return TaskCandidates.all(context);
+    }
+
+    @Override
+    public String candidateLabel() {
+        return "tasks";
+    }
 
     @Parameters(index = "0", paramLabel = "TASK",
             description = "Container name, as shown by 'sokar task list'.")
@@ -75,6 +87,7 @@ public class TaskStopCommand implements Callable<Integer>, SokarFactory.ContextA
                 // Refused rather than guessed at: this command stops processes and removes a
                 // container, and a name Sokar did not create belongs to somebody else.
                 err.println("sokar: '" + container + "' is not a task Sokar created");
+                Suggests.offer(err, this);
                 err.flush();
                 return 64;
             }

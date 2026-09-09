@@ -121,7 +121,7 @@ class DaemonConnectCommandTest {
                 "XDG_RUNTIME_DIR".equals(name) ? dir.resolve("run").toString() : null, dir);
         final SokarContext context = new SokarContext(new FakeCommandRunner(),
                 new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0);
-        final CommandLine cmd = new CommandLine(new SokarCli(), new SokarFactory(context));
+        final CommandLine cmd = SokarCli.commandLine(context);
         cmd.setOut(new PrintWriter(new StringWriter()));
         cmd.setErr(new PrintWriter(err));
 
