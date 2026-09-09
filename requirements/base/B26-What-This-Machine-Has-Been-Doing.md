@@ -74,8 +74,9 @@ place it happens, and each one is a decision about what is worth saying. That is
 is the reason to argue the event list before writing any of it.
 
 **A node is an OS user with a `sokard`,** so this is per user rather than per machine, and two
-users on one host have two journals. That is correct and should be said on screen, or somebody
-will read one and believe it covers the box.
+users on one host have two journals. Confirmed with the interface, whose machine list is keyed the
+same way, so the two map one to one. **If this ever becomes host-wide it must be said loudly** - it
+would be the single place where the two sides' meanings of "machine" diverge.
 
 **The interface will want it, but the interface is not the reason.** An operator asking "what
 happened here last night" has nowhere to look today, and that is true with no interface at all.
@@ -86,13 +87,19 @@ happened here last night" has nowhere to look today, and that is true with no in
   month of history on a busy machine; an age cap alone bounds nothing on one. **The journal records
   its own trimming**, because history that shortens silently is history nobody can trust — "there
   is nothing from before the 3rd" and "nothing happened before the 3rd" must not look alike.
-- **Reading: a cursor, and following is optional on top.** `Events(since, limit)` answers a page
-  and the next cursor; asking for `more` also streams. Two clients never interfere, a reconnect
-  resumes exactly where it stopped, and a screen can page backwards — none of which a `Tail`-shaped
-  stream can do.
+- **Reading: `Events(after: ?cursor)`, every event carrying its own cursor.** One method for
+  three jobs: no cursor is history, the last cursor is the resume, and `more` follows. The
+  interface argued it better than this file first did — **a machine reached over ssh is a forward
+  that drops**, and every drop is a hole in a pure stream that comes back looking calm. The
+  failure a journal must not have is the one where nothing happened for ten minutes and nothing
+  says whether that is true.
 - **An event names the task, never a log file.** The journal outlives the state directory, so a
-  stored path is a promise it cannot keep: after a reboot every one of them points at something
-  gone. A client wanting detail asks `Logs(task)`, which already answers what still exists.
+  stored path is a promise it cannot keep. A client wanting detail asks `Logs(task)`, which already
+  answers what still exists - so the journey from spine to detail arrives at "this task has no logs
+  any more" rather than at a dead path. Two conditions on that field, both from the interface's own
+  scars: **it is absent for an event that belongs to the machine rather than a task**, and absence
+  must not render as an unknown task; and where a kind is cheap - gate, broker, clearance - it is
+  carried beside the name, so the spine can say which log without naming a file.
 - **`sokar task logs` is built now, separately.** It needs nothing from this requirement.
 
 ## To be checked
