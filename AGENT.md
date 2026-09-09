@@ -598,6 +598,15 @@ See [build.md](doc/build.md). Three things that will bite:
   output is read by scripts as well as by people. Two things are painted: work that exists nowhere
   else, and a clearance of `off`.
 
+- **A bare `git push` in a task used to miss the gate and report success.** Checking the workspace
+  out from a remote-tracking branch makes it track `sokar/main`, so `git push` with no arguments
+  landed on `refs/heads/main` in the mirror: nothing appeared in `gate pending`, and the push said
+  it worked. The clone now sets `remote.sokar.push = HEAD:$SOKAR_TASK_REF`, so the obvious command
+  goes where the work is meant to go. **Both settings were measured, not assumed:** with one
+  remote git 2.53 falls back to it and `remote.pushDefault` is redundant - it earns its place only
+  when an agent adds a second remote, where without it a bare push fails with "no destination
+  configured" and with it still reaches the gate.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in

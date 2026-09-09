@@ -76,6 +76,15 @@ sokar panic                      # stop everything, remove nothing
 
 `--purge` destroys the workspace: it lives in the container, not on the host.
 
+## Push from inside a task
+
+```
+git push                         # goes to the gate; the workspace is configured for it
+```
+
+A bare push in a task workspace lands on the task's gate ref, not on a branch in the mirror. From
+outside, `sokar task stop TASK --rescue` does the same thing for you while it runs.
+
 ## Review what an agent pushed
 
 ```

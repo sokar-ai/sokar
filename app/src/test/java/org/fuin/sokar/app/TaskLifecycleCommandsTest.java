@@ -163,7 +163,7 @@ class TaskLifecycleCommandsTest {
                 .contains("sokar-uc-shell-1")
                 .contains("uc")
                 .contains("guarded")
-                .contains("not on the gate");
+                .contains("never pushed to the gate");
         // The verbs, not substrings: "--format" contains "rm", which is the same trap already
         // written down about matching "rm --force" by substring.
         assertThat(runner.lines()).as("a query changes nothing")
@@ -185,7 +185,7 @@ class TaskLifecycleCommandsTest {
 
         execute(context, "task", "status", "sokar-uc-shell-1");
 
-        assertThat(out.toString()).contains("not on the gate").doesNotContain("\u001b[");
+        assertThat(out.toString()).contains("never pushed to the gate").doesNotContain("\u001b[");
     }
 
     @Test

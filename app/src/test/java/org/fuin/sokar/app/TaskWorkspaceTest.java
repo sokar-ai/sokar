@@ -43,6 +43,83 @@ class TaskWorkspaceTest {
     }
 
     /** Runs the workspace script the way the container does, with the mirror as the remote. */
+    private void runCloneScript(Path workspace, Path mirror, String taskRef) {
+        final String script = TaskWorkspace.cloneScript()
+                .replace("cd " + TaskWorkspace.MOUNT + ";", "cd " + workspace + ";");
+        runner.runOrFail(new Command(List.of("sh", "-c", script), workspace,
+                Map.of("SOKAR_REMOTE_URL", mirror.toString(), "SOKAR_TASK_REF", taskRef,
+                        "GIT_TERMINAL_PROMPT", "0"), null));
+    }
+
+    @Test
+    void sendsABarePushToTheGateRatherThanIntoTheMirror(@TempDir Path root) throws IOException {
+
+        // Checking out from a remote-tracking branch makes the branch track sokar/main, so a
+        // bare 'git push' landed on refs/heads/main in the mirror - reporting success while
+        // nothing ever appeared for review. A push that silently misses the gate is the failure
+        // this product exists to prevent, and it was one obvious command away.
+        final Path mirror = seededMirror(root, "main");
+        final Path workspace = Files.createDirectories(root.resolve("workspace"));
+        runCloneScript(workspace, mirror, "refs/sokar/incoming/shell");
+
+        Files.writeString(workspace.resolve("NEW.md"), "the agent's work\n");
+        git(workspace, "add", "-A");
+        git(workspace, "commit", "-q", "-m", "agent work");
+        git(workspace, "push");
+
+        assertThat(git(mirror, "for-each-ref", "--format=%(refname)"))
+                .contains("refs/sokar/incoming/shell");
+        // And not onto the branch, which is where it used to go.
+        assertThat(git(mirror, "rev-parse", "refs/heads/main"))
+                .isNotEqualTo(git(workspace, "rev-parse", "HEAD"));
+    }
+
+    @Test
+    void sendsABarePushFromABranchTheAgentMadeItself(@TempDir Path root) throws IOException {
+
+        // An agent working on a branch of its own name, which is the ordinary case.
+        final Path mirror = seededMirror(root, "main");
+        final Path workspace = Files.createDirectories(root.resolve("workspace"));
+        runCloneScript(workspace, mirror, "refs/sokar/incoming/shell");
+
+        git(workspace, "checkout", "-q", "-b", "what-the-agent-called-it");
+        Files.writeString(workspace.resolve("NEW.md"), "the agent's work\n");
+        git(workspace, "add", "-A");
+        git(workspace, "commit", "-q", "-m", "agent work");
+        git(workspace, "push");
+
+        assertThat(git(mirror, "for-each-ref", "--format=%(refname)"))
+                .contains("refs/sokar/incoming/shell");
+    }
+
+    @Test
+    void keepsTheBarePushUnambiguousWhenTheAgentAddsARemote(@TempDir Path root) throws IOException {
+
+        // What pushDefault is actually for, measured rather than assumed: with one remote git
+        // falls back to it and the default is redundant, but an agent that adds the real
+        // upstream as a second remote makes a bare push ambiguous - git 2.53 answers with a bare
+        // "git push <Name>" usage line and sends nothing. The default keeps it going to the gate.
+        final Path mirror = seededMirror(root, "main");
+        final Path elsewhere = root.resolve("elsewhere.git");
+        git(root, "clone", "-q", "--mirror", root.resolve("source").toString(),
+                elsewhere.toString());
+        final Path workspace = Files.createDirectories(root.resolve("workspace"));
+        runCloneScript(workspace, mirror, "refs/sokar/incoming/shell");
+        git(workspace, "remote", "add", "upstream", elsewhere.toString());
+
+        git(workspace, "checkout", "-q", "-b", "what-the-agent-called-it");
+        Files.writeString(workspace.resolve("NEW.md"), "the agent's work\n");
+        git(workspace, "add", "-A");
+        git(workspace, "commit", "-q", "-m", "agent work");
+        git(workspace, "push");
+
+        assertThat(git(mirror, "for-each-ref", "--format=%(refname)"))
+                .contains("refs/sokar/incoming/shell");
+        assertThat(git(elsewhere, "for-each-ref", "--format=%(refname)"))
+                .as("and not to the upstream the agent added")
+                .doesNotContain("what-the-agent-called-it");
+    }
+
     private void runCloneScript(Path workspace, Path mirror) {
         // The only substitution is the mount point: the container has /workspace and this
         // machine has a temporary directory. Everything else is the script that really runs.

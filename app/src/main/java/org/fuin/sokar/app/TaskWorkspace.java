@@ -231,7 +231,16 @@ public class TaskWorkspace {
                         + "  if [ -n \"$start\" ]; then "
                         + "    git checkout -q -B \"${start#sokar/}\" \"$start\"; fi; fi; "
                         + "git config user.name \"${SOKAR_GIT_NAME:-agent}\"; "
-                + "git config user.email \"${SOKAR_GIT_EMAIL:-agent@localhost}\"";
+                + "git config user.email \"${SOKAR_GIT_EMAIL:-agent@localhost}\"; "
+                // So that a bare 'git push' goes where the work is meant to go. Without it the
+                // branch tracks sokar/main - checking out from a remote-tracking branch sets
+                // that up - and 'git push' lands in the mirror on refs/heads/main: it reports
+                // success, and nothing ever appears for review. A push that silently misses the
+                // gate is the failure this whole product exists to prevent, and it was one
+                // obvious command away.
+                + "if [ -n \"$SOKAR_TASK_REF\" ]; then "
+                + "  git config remote.sokar.push \"HEAD:$SOKAR_TASK_REF\"; "
+                + "  git config remote.pushDefault sokar; fi";
     }
 
     /**

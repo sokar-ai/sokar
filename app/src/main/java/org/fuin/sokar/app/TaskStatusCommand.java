@@ -116,11 +116,13 @@ public class TaskStatusCommand implements Callable<Integer>, SokarFactory.Contex
             final String held = new TaskControl(context).unhandedWork(container);
             // Coloured because of what it means, not because it is interesting: this is work
             // that exists nowhere else, and removing the task destroys it.
-            return held == null ? "everything is on the gate" : alarm(held + " not on the gate");
+            return held == null ? "everything is on the gate"
+                    : alarm(held + " in the container, never pushed to the gate");
         }
         return UnhandedWork.note(context.paths().containerState(container))
                 .filter(phrase -> !phrase.isEmpty())
-                .map(phrase -> alarm(phrase + " not on the gate, as recorded when it stopped"))
+                .map(phrase -> alarm(phrase + " in the container, never pushed to the gate"
+                        + " - as recorded when it stopped"))
                 // Not "nothing": nothing would read as nothing to lose, and what is true is that
                 // the only thing that could answer is gone.
                 .orElse(warn("cannot be read while the task is stopped"));
