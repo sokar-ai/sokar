@@ -67,6 +67,15 @@ class SnapshotsTest {
     }
 
     @Test
+    void willNotBuildAnImageOnAMachineTooSmallToBuildOn() {
+        // cpx12 has one core and 2 GB and is often the only small type on offer, so the
+        // availability fallback picked it - for a job that compiles six native images, one of
+        // which peaked at 2.32 GB resident.
+        assertThat(Snapshots.BUILD_TYPES).doesNotContain("cpx12");
+        assertThat(Snapshots.BUILD_TYPES).isNotEmpty();
+    }
+
+    @Test
     void leavesNoPlaceholderUnreplaced() {
         // A stray @NAME@ would reach the machine as a literal and fail somewhere unhelpful.
         assertThat(Snapshots.recipe("ubuntu")).doesNotContain("@");

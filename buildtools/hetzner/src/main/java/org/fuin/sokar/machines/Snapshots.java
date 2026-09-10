@@ -26,8 +26,25 @@ import java.util.Map;
  */
 public final class Snapshots {
 
-    /** Where a snapshot is built: small, because the disk it is taken on becomes its floor. */
-    public static final List<String> BUILD_TYPES = List.of("cx23", "cx33", "cpx12");
+    /**
+     * Where a snapshot is built, cheapest adequate first.
+     * <p>
+     * <strong>Small, because the disk it is taken on becomes the image's floor</strong> - a
+     * snapshot only restores onto a disk at least as big as the one it came from, and a 320 GB
+     * floor is what forced every leg onto the one server type big enough.
+     * <p>
+     * <strong>But big enough to build.</strong> This list was chosen when preparing an image
+     * meant installing packages; it now compiles six native images, and native-image peaked at
+     * 2.32 GB resident on a machine with room. {@code cpx12} has one core and 2 GB, is usually
+     * the only one of these on offer, and was picked by the availability fallback the first time
+     * the two facts met - which would have thrashed for an hour and then failed. It is not here.
+     * <p>
+     * The consequence of the order is worth knowing: the image's floor is whatever it happened to
+     * be built on. A 40 GB machine gives an image that boots anywhere; an 80 GB one gives an image
+     * that needs 80 GB. Both boot the type a leg rents, so this is a preference, not a
+     * requirement.
+     */
+    public static final List<String> BUILD_TYPES = List.of("cx23", "cpx22", "cx33");
 
     /** Which stock image each operating system starts from. */
     private static final Map<String, String> STOCK = Map.of(
