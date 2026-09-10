@@ -28,6 +28,7 @@ import argparse
 import os
 import subprocess
 import sys
+from xml.etree import ElementTree
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -189,8 +190,12 @@ def acceptance(address: str) -> None:
     """
     environment = dict(os.environ)
     environment["SOKAR_ACCEPTANCE_KEY"] = os.environ.get(hetzner.SSH_KEY_VARIABLE, "")
+    # Both modules by name. 'acceptance' alone is the aggregator, and naming an aggregator puts
+    # its pom in the reactor and neither of its modules - so the step ran, passed, and proved
+    # nothing. The kit is listed because the suite depends on it and nothing else builds it here;
+    # neither module depends on the rest of the reactor, so this stays cheap.
     subprocess.run(
-        ["./mvnw", "-B", "-pl", "acceptance", "verify", "-s", "settings.xml",
+        ["./mvnw", "-B", "-pl", "acceptance/kit,acceptance/suite", "verify", "-s", "settings.xml",
          f"-Dsokar.acceptance.host={address}",
          f"-Dsokar.acceptance.user={BUILD_USER}",
          # The suite would otherwise look for a key file that CI deliberately does not have.
@@ -198,6 +203,28 @@ def acceptance(address: str) -> None:
          # Nothing that needs a task image: those are minutes each and tier 1 already builds one.
          "-Dcucumber.filter.tags=not @slow"],
         check=True, env=environment)
+    proved(Path("acceptance/suite/target/failsafe-reports"))
+
+
+def proved(reports: Path) -> None:
+    """
+    Fails when the suite produced no results at all.
+
+    A suite that selects nothing passes, and a workflow page with no acceptance section looks
+    exactly like one where the step was never added. That is the state this repository was in
+    between the module split and this check: ``-pl acceptance`` named an aggregator whose two
+    modules were not in the reactor, so every merge proved nothing and said so nowhere. A tag
+    filter that excludes everything would look the same.
+
+    :param reports: Where failsafe writes its XML.
+    """
+    total = 0
+    for report in sorted(reports.glob("TEST-*.xml")):
+        total += int(ElementTree.parse(report).getroot().get("tests", "0"))
+    if total == 0:
+        sys.exit(f"::error::the acceptance suite ran no scenarios - nothing in {reports}. "
+                 "Check that the suite is in the reactor and that the tag filter selects "
+                 "something.")
 
 
 def fetch(address: str, environment: dict[str, str], into: str) -> None:

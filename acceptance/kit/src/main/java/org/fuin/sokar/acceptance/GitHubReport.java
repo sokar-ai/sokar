@@ -119,8 +119,38 @@ public final class GitHubReport implements ConcurrentEventListener {
 
     private synchronized void runFinished(TestRunFinished event) {
         final String file = System.getenv("GITHUB_STEP_SUMMARY");
-        if (file == null || byFeature.isEmpty()) {
+        if (file == null) {
             return;
+        }
+        try {
+            Files.writeString(Path.of(file), summary(byFeature), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException ex) {
+            // A summary that cannot be written is not a reason to fail a run that passed.
+            System.out.println("could not write the job summary: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Builds the whole run as it appears on the workflow page.
+     * <p>
+     * <strong>Written whether the run was green or red.</strong> Failures also arrive as
+     * annotations, so a red run says what broke either way; a green one has nothing but this,
+     * and without it the page cannot distinguish a suite that passed from a suite that never
+     * ran.
+     * <p>
+     * <strong>An empty run says so rather than writing nothing.</strong> Silence reads as "no
+     * acceptance step", which is indistinguishable from a step that ran and matched no
+     * scenarios - a tag expression that excludes everything, or a module missing from the
+     * reactor. Both have happened here.
+     *
+     * @param byFeature What ran, in the order it ran.
+     * @return Markdown for the job summary.
+     */
+    static String summary(Map<String, List<Case>> byFeature) {
+        if (byFeature.isEmpty()) {
+            return "## Acceptance\n\n**No scenarios ran.** Nothing was selected - check the "
+                    + "tag filter and that the suite is in the reactor.\n";
         }
         final StringBuilder summary = new StringBuilder("## Acceptance\n\n");
         summary.append("Run against a real machine, over a real terminal.\n\n");
@@ -152,13 +182,7 @@ public final class GitHubReport implements ConcurrentEventListener {
         }
         summary.append("\n**").append(total - failed).append(" of ").append(total)
                 .append(" passed.**\n");
-        try {
-            Files.writeString(Path.of(file), summary.toString(), StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        } catch (IOException ex) {
-            // A summary that cannot be written is not a reason to fail a run that passed.
-            System.out.println("could not write the job summary: " + ex.getMessage());
-        }
+        return summary.toString();
     }
 
     /**
@@ -194,6 +218,6 @@ public final class GitHubReport implements ConcurrentEventListener {
     }
 
     /** One scenario's outcome. */
-    private record Case(String name, Status status, long millis) {
+    record Case(String name, Status status, long millis) {
     }
 }
