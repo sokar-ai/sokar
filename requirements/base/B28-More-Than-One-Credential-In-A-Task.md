@@ -173,5 +173,11 @@ one is usable only where it was meant to go.**
   broken credential.
 - **What happens when the project and the run both name credentials**, and whether a run can withdraw
   one the project declared.
+- **Whether one token has to reach more than one variable.** `token_env` maps a credential type to
+  a single variable, so a definition can say `_default` and `oauth` and cannot say "and also here".
+  An agent that reads two - the reference implementation added aliases on 2026-09-10 for one that
+  wants a connectors token beside its own - cannot be described today. No agent here needs it yet,
+  which is why it is a question rather than a defect, and the fix would be in the reader rather
+  than in each definition.
 - **What unlocking costs when entries are records.** The whole decrypted vault already passes through
   one `String`; this makes each entry bigger, and B23 owns the consequence.

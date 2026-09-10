@@ -94,7 +94,7 @@ above.
 | B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | three, and the guard is built |
 | B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one - which agent an image was built for |
 | B20 | [Creating A Project](B20-Creating-A-Project.md) | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one - whether creating also prepares |
-| B32 | [A Cached Passphrase That Says What It Is](B32-A-Cached-Passphrase-That-Says-What-It-Is.md) | Sokar never reports a cached passphrase gone unless it is gone. | one - whether a chain of caches is worth the explaining |
+| B32 | [A Cached Passphrase That Says What It Is](B32-A-Cached-Passphrase-That-Says-What-It-Is.md) | Sokar never reports a cached passphrase gone unless it is gone. | two - a chain of caches, and a keyring that is not the operator's |
 
 ## What was here and is finished
 

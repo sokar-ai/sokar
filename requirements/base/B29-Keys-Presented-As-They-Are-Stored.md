@@ -87,6 +87,13 @@ compiled in is not, and there is no honest way to reach it short of intercepting
 mean a certificate authority in the image. **Supported when the consumer's endpoint can be
 configured** is a limit to state, not a gap to close later.
 
+**A header sourced from a credential's field is data elsewhere already.** The reference
+implementation added `oauth_credential_headers` on 2026-09-10: a route names which field of a
+credential goes into which upstream header, validated where the route is read. It is the shape this
+file argues for, built on the record-shaped credential
+[B28](B28-More-Than-One-Credential-In-A-Task.md) describes, and it is evidence that the header name
+need not be code.
+
 ## Decided 2026-09-09
 
 - **A service that is not a model provider is declared as a `destination`**, a second kind beside

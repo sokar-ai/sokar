@@ -124,3 +124,13 @@ command failing in a way that reads like a damaged vault.
 **Whether tiers are worth borrowing** - a chain of session keyring, user keyring, `systemd-creds`
 and a passphrase command - is untouched and remains the answer to "the cache must outlive a login",
 which is a real deployment with no answer today.
+
+**Whether a keyring that is not the operator's is a fourth outcome.** The kernel user keyring is
+per user namespace: a process in a different one finds an empty keyring rather than an error, so
+the search returns `ENOKEY` and `missing()` folds it into `NOTHING_CACHED` - the false statement
+this requirement exists to prevent, arriving by a route it does not name. Nothing here reads the
+keyring from another namespace today: every reader is the CLI or the daemon running as the
+operator, the hooks do not touch the vault, and no unit file is shipped. It becomes real the day
+one is, with `PrivateUsers=yes` or under a container runtime. The reference implementation moved
+its supervisor into the operator's namespace on 2026-09-10 for exactly this, and its note is that
+the keyring there is an empty stranger and only a path can carry the passphrase.
