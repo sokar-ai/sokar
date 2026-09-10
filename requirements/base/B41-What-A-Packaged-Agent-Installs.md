@@ -33,6 +33,20 @@ SHA-256 and `sokar:delivery=fetched-at-image-build`.
   than taking them on trust. Whether the CLI reads the bill locally or the daemon reports its
   contents is the same question that shaped `TaskInventory`, and it should be answered the same
   way rather than freshly.
+
+  **What that precedent says**, recorded here so it is not argued from scratch again:
+  `TaskInventory` exists because *"the CLI renders this and the daemon serializes it, so that
+  'what tasks are there' is answered in one place. Two implementations of the same question are
+  how a feature comes to exist in one and not the other, and how they come to disagree about
+  something an operator is reading to decide what to stop."* Every clause holds here with the noun
+  swapped, and it weighs more: a supply-chain answer exists to be trusted, so two implementations
+  disagreeing about what an agent ships is worse than two disagreeing about a task list. Following
+  it means the daemon reads the bill and returns components as data, the CLI renders them, and
+  `UNVERIFIED` with a reason stays the answer for a missing or unreadable file - which a remote
+  client has to be told rather than infer from an empty list. Written down as the precedent rather
+  than as the decision; taking it is still this requirement's to do.
 - Whether an operator wants the whole component list or only what a person would act on. A Node
   tree is 162 entries; `sokar agents --supply-chain` printing 162 lines per agent would be a
-  listing nobody reads.
+  listing nobody reads. **This one narrows once the first is settled:** if the daemon
+  returns components as data, how many to print is the renderer's decision and may differ between
+  the CLI and an interface without either being wrong.
