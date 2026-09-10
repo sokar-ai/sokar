@@ -56,12 +56,17 @@ public final class Main {
         if (args.length > 0 && "leg".equals(args[0])) {
             return leg(args, complain, open);
         }
+        if (args.length > 0 && "acceptance".equals(args[0])) {
+            return acceptance(args, complain, open);
+        }
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
                 Usage: sweep [--mine] [--now] [--older-than <minutes>]
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
                        leg      --os <ubuntu|fedora> --repo <dir> [--key <file>] [--keep]
                                 [--fetch <dir>] [--acceptance]
+                       acceptance --package <p> --script <f> [--os <o>] [--type <t>]
+                                [--candidate <dir>] [--cucumber <dir>] [--keep]
 
                   --mine                 delete what this run created, whatever its age. What a
                                          job uses to clean up after itself - deleting by age
@@ -166,6 +171,58 @@ public final class Main {
             // matters more than the floor, say so rather than waiting on two cores.
             Snapshots.build(hetzner, os, type == null ? Snapshots.BUILD_TYPES : List.of(type),
                     credential, archive, musl);
+        }
+        return 0;
+    }
+
+    /**
+     * Runs an agent's acceptance leg.
+     *
+     * @param args The command line.
+     * @param complain Where a refusal goes.
+     * @param open Where to rent the machine.
+     * @return An exit code.
+     * @throws IOException If the leg fails.
+     */
+    private static int acceptance(String[] args, Consumer<String> complain,
+            Supplier<Hetzner> open) throws IOException {
+        String os = "ubuntu";
+        String key = null;
+        String pkg = null;
+        String script = null;
+        String candidate = null;
+        String cucumber = null;
+        String type = "cpx12";
+        String artifactory = "https://fuinorg.jfrog.io/artifactory";
+        boolean keep = false;
+        for (int at = 1; at < args.length; at++) {
+            switch (args[at]) {
+                case "--os" -> os = at + 1 < args.length ? args[++at] : null;
+                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
+                case "--package" -> pkg = at + 1 < args.length ? args[++at] : null;
+                case "--script" -> script = at + 1 < args.length ? args[++at] : null;
+                case "--candidate" -> candidate = at + 1 < args.length ? args[++at] : null;
+                case "--cucumber" -> cucumber = at + 1 < args.length ? args[++at] : null;
+                case "--type" -> type = at + 1 < args.length ? args[++at] : null;
+                case "--artifactory" -> artifactory = at + 1 < args.length ? args[++at] : null;
+                case "--keep" -> keep = true;
+                default -> {
+                    complain.accept("unknown option: " + args[at]);
+                    return 2;
+                }
+            }
+        }
+        if (pkg == null || script == null) {
+            complain.accept("acceptance needs --package and --script");
+            return 2;
+        }
+        final AgentLeg.Options options = new AgentLeg.Options(os, List.of(type), artifactory, pkg,
+                java.nio.file.Files.readString(java.nio.file.Path.of(script)),
+                candidate == null ? null : java.nio.file.Path.of(candidate), keep,
+                cucumber == null ? null : java.nio.file.Path.of(cucumber));
+        try (Hetzner hetzner = open.get()) {
+            AgentLeg.run(hetzner, options, Credential.of(System.getenv("SSH"),
+                    key == null ? null : java.nio.file.Path.of(key)));
         }
         return 0;
     }
