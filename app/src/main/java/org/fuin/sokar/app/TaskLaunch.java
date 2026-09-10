@@ -675,12 +675,13 @@ public final class TaskLaunch {
             return;
         }
         final String variable = credentials().tokenVariable(agent);
-        final String token = variable == null ? null : environment.get(variable);
-        if (token == null) {
-            // Nothing to stand in for, so nothing to place: the agent will ask for a login, which
-            // is the honest outcome when no credential was brokered.
-            return;
-        }
+        final String named = variable == null ? null : environment.get(variable);
+        // An empty token rather than an early return. Two of the three files Claude Code declares
+        // - onboarding done, this folder is trusted - have nothing to do with a credential, and
+        // returning here withheld those too: somebody who starts a task without one and logs in
+        // inside it met every dialog this requirement exists to remove. What to write without a
+        // token is the agent's own decision, made against a blank one, not Sokar's to infer.
+        final String token = named == null ? "" : named;
         try {
             final SelectedProvider selection = credentials().provider(agent);
             final var files = agent.containerSetup(

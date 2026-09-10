@@ -125,17 +125,59 @@ should be general enough that the fourth costs a manifest entry and no code.
 by a green suite. A test that only ever runs an agent that cannot ask questions cannot notice an
 agent that does.
 
+## Measured 2026-09-10, on a local VM
+
+Claude Code 2.1.267, in a task container, driven at a real pty. Three earlier attempts answered
+nothing and are worth recording so nobody repeats them: `--version` never reaches the first-run
+flow at all; starting in `/home/agent` rather than `/workspace` raises the *trust* dialog instead
+of the one being looked for; and neither `python3` nor `node` exists in the image, so a probe that
+edits the agent's own JSON has to write the file rather than patch it.
+
+**The settings file works.** With `settings.json` in place the bypass-mode dialog does not appear -
+not with `--dangerously-skip-permissions` and not without it. All three declared files are placed,
+and the launch says `prepared 3 file(s)`.
+
+**The flag is redundant, and that answers the second question.** With the token approved, the CLI
+reaches its prompt either way and the footer reads `⏵⏵ bypass permissions on` in both runs.
+`defaultMode: bypassPermissions` alone puts the session in bypass mode. Since the flag is what
+raises the warning, dropping it removes the dialog's cause rather than its symptom.
+
+**What this did not separate:** `settings.json` sets `defaultMode` *and*
+`skipDangerousModePermissionPrompt`, and the runs above cannot say which one silences the dialog.
+A third run with only `defaultMode` would settle it, and is worth having before the flag is
+dropped rather than after.
+
+**The API-key dialog is suppressible after all, and the reason it was refused may not hold.** It
+disappears completely when the last 20 characters of the token are listed under
+`customApiKeyResponses.approved` in `.claude.json` - measured, not inferred. The refusal above
+rests on this being a billing decision taken on somebody's behalf. The key in question is the
+**phantom token Sokar minted for that task**, not a payment credential: the billing decision was
+made when the operator put the real credential in the vault and chose a provider. Whether that
+distinction reopens the question is for whoever revisits this file; what is certain is that the
+third acceptance criterion is **not met today** - the dialog shows the phantom token and
+recommends refusing it.
+
+## Fixed 2026-09-10: a task with no credential got no files at all
+
+`TaskLaunch.placeAgentFiles` returned as soon as there was no token, before writing anything. Two
+of Claude Code's three files - onboarding complete, this folder is trusted - have nothing to do
+with a credential, so somebody who started a task without one and logged in inside it met every
+dialog this requirement exists to remove, by a route nobody had looked at.
+
+It now passes an **empty token** instead of returning, and what to write without one is the
+agent's own decision. That keeps the split this file argues for: Sokar writes bytes, the agent
+knows which. Each agent has to answer it for itself - the file that carries a token is useless
+without one, while a file recording that onboarding is done is not.
+
 ## To be checked
 
-- **Whether the settings file actually silences it**, measured in a container rather than reasoned
-  about. The keys came from the operator, not from a config that had answered the dialog, and this
-  requirement's own note about inferring key names from their names applies to them too.
-- **Whether the flag is now redundant.** With `defaultMode` set to `bypassPermissions` the CLI may
-  no longer need `--dangerously-skip-permissions`, and the flag is what raises the warning in the
-  first place. Both are set today, deliberately; if the settings alone suffice, dropping the flag
-  removes the dialog's cause rather than its symptom.
-- **A task with no credential still meets the dialog.** `placeAgentFiles` returns early when there
-  is no token, so nothing is written - including the files that have nothing to do with a
-  credential. It matters for somebody who starts a task and logs in inside it.
+- ~~**Whether the settings file actually silences it**~~ - measured above on 2026-09-10: it does.
+  What is left is which of its two keys does the silencing.
+- ~~**Whether the flag is now redundant.**~~ - measured above on 2026-09-10: it is. Dropping it
+  waits only on separating the two settings keys, so the removal is made on a measurement rather
+  than on a guess.
+- ~~**A task with no credential still meets the dialog.**~~ - fixed above on 2026-09-10 in
+  `TaskLaunch`. Each agent still has to say what it writes without a token; until every agent
+  does, this is only half closed.
 - **What the other agents do.** Oh My Pi and Pi have not been checked for first-run dialogs, and
   Pi has not even declared its permission flag yet.
