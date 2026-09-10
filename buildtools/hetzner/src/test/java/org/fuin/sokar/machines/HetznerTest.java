@@ -176,6 +176,30 @@ class HetznerTest {
     }
 
     @Test
+    void namesWhatItKeptSoZeroDeletionsIsNotTwoDifferentThings() throws IOException {
+        // "0 to delete" covers a project holding three machines all in use and a project holding
+        // none. The script this is being checked against says which, and so must this, or the
+        // two cannot be compared on a real project at all.
+        final java.io.ByteArrayOutputStream said = new java.io.ByteArrayOutputStream();
+        final java.io.PrintStream was = System.out;
+        try (StubApi stub = new StubApi()
+                .answering("/servers?label_selector=sokar=ci&page=1&per_page=50", """
+                    {"servers":[{"id":2,"name":"in use","labels":{},"created":"%s"}],
+                     "meta":{"pagination":{"next_page":null}}}""".formatted(NOW))) {
+            System.setOut(new java.io.PrintStream(said, true,
+                    java.nio.charset.StandardCharsets.UTF_8));
+            try {
+                assertThat(Hetzner.against(stub.base(), "run-1")
+                        .sweep(Duration.ofHours(2), true)).isZero();
+            } finally {
+                System.setOut(was);
+            }
+        }
+        assertThat(said.toString(java.nio.charset.StandardCharsets.UTF_8))
+                .contains("keeping in use").contains("nothing to sweep");
+    }
+
+    @Test
     void matchesTheProjectsKeyByFingerprintRatherThanByName() throws IOException {
         final Credential credential = Keys.generated();
         final String fingerprint = Fingerprint.md5(credential);

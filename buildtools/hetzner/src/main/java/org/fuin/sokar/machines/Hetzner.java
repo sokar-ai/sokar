@@ -455,14 +455,21 @@ public final class Hetzner implements Machines {
         int swept = 0;
         for (final Server server : servers()) {
             if (server.created().isAfter(cutoff)) {
+                // Said out loud, because "0 to delete" otherwise covers two different worlds: a
+                // project holding three machines that are all in use, and a project holding
+                // none. Only one of those means the sweep is looking at what it thinks it is.
+                System.out.println("keeping " + server.name() + ", created " + server.created());
                 continue;
             }
-            System.out.println((dryRun ? "would delete " : "deleting ") + server.name()
-                    + " (run " + server.run() + ", created " + server.created() + ")");
+            System.out.println((dryRun ? "WOULD DELETE " : "deleting ") + server.name()
+                    + ", created " + server.created() + " (run " + server.run() + ")");
             if (!dryRun) {
                 delete(server.id());
             }
             swept++;
+        }
+        if (swept == 0) {
+            System.out.println("nothing to sweep");
         }
         return swept;
     }

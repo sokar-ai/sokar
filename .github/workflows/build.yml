@@ -143,6 +143,36 @@ jobs:
       # Only what this run made. Deleting by age would catch another run's server whenever that
       # run is slower than the window, and the symptom - ssh dying part way through a build - is
       # close to undebuggable.
+      # A comparison with something in it, while the Java sweep is being proved against the one
+      # that works. The sweep's own workflow runs when there is usually nothing to find, and two
+      # tools agreeing on an empty project only shows that both can authenticate. Here this leg's
+      # server exists, and '--older-than 0' makes both list every machine the label knows about.
+      #
+      # Both are dry: nothing is deleted here, and the step below still does the cleanup.
+      # The classes are already built by the acceptance step, so this is one Maven call and one
+      # API call. It comes out when the two have agreed for a while.
+      - name: Compare the two sweeps on real servers
+        if: always()
+        continue-on-error: true
+        env:
+          REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
+          SOKAR_CI_LEG: ${{ matrix.os }}
+        run: |
+          python3 buildtools/ci/sweep.py --older-than 0 > python.txt 2>&1 || true
+          ./mvnw -B -q -pl buildtools/hetzner dependency:build-classpath \
+              -Dmdep.outputFile=target/cp.txt
+          java -cp "buildtools/hetzner/target/classes:$(cat buildtools/hetzner/target/cp.txt)" \
+              org.fuin.sokar.machines.Main sweep --older-than 0 > java.txt 2>&1 || true
+          echo "--- the script said"; cat python.txt
+          echo "--- Java said";       cat java.txt
+          grep -ohE "(WOULD DELETE|keeping) [^,]+" python.txt | sort > from-python.txt || true
+          grep -ohE "(WOULD DELETE|keeping) [^,]+" java.txt   | sort > from-java.txt   || true
+          if diff -u from-python.txt from-java.txt; then
+            echo "::notice::the two sweeps named the same servers"
+          else
+            echo "::warning::the two sweeps disagree - the diff above is the finding"
+          fi
+
       - name: Delete what this run created
         if: always()
         env:
