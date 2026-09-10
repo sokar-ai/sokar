@@ -9,101 +9,52 @@ section - something whose answer could change what the requirement says, or whet
 all. Answered ones are struck through in place rather than deleted, so a question that turned out
 to have an answer stays readable beside it.
 
-The count is what is left, not what was ever asked. Nine of these are built or partly built and
-still carry questions; that is the ordinary state of a requirement here rather than a sign it is
-unfinished.
+The count is what is left, not what was ever asked. Several built requirements still carry
+questions; that is the ordinary state of a requirement here rather than a sign it is unfinished.
 
-## Work, in the order to do it
+## Work, grouped by when
 
-**Three of these came from reading somebody else's commits.** B32, B33 and B34 were found on
-2026-09-09 by checking new work in a comparable project against this code. One was a defect here
-too and worse than theirs, one is an unreproduced report about images, and one is a design idea.
-That is a useful ratio and the reason to keep doing it.
+Grouped by when, ordered within each group; the number is only the file's identity. Why a
+requirement exists is in its own file - this table says only what it is and when it is due.
+Where the position is not obvious, the last section says why.
 
-Ordered by consequence, not by number; the number is only the file's identity. Anything already
-built is not here - it is in the second table below, or gone entirely.
+### Now
 
-**B24 leads because it stops a task before it starts.** An agent that no longer asks permission
-per command still opens with two consent dialogs, and unattended there is nobody to answer them -
-so a run begins and then waits at a menu. One of the two asks a person whether to trust the
-phantom token Sokar minted for that task, recommending they refuse it. It is above B01 because it
-is not a failure in the middle of long work, it is the first thing a new operator meets.
+| # | Requirement | What must be true | Open question | Why here |
+|---|---|---|---|---|
+| B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved | [note](#b24) |
+| B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided | |
+| B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file | [note](#b29) |
+| B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one | |
 
-**B27 is second because it decides how everything below it gets verified.** There is an acceptance
-suite - 1177 lines, on two rented machines per merge - and it cannot allocate a terminal, so every
-behaviour gated on `isTerminal()` has been checked by a person by hand. That is not a gap in
-coverage, it is a gap in what the suite can reach, and it will not close by adding cases to it.
+### Soon
 
-**B35 is second because the binary cannot do the one thing the setup guide asks of a person.**
-`Console.readPassword()` throws in the native image, so every interactive passphrase - creating a
-store, unlocking one, changing one - ends in a stack trace. It has gone unnoticed because every
-route after the first unlock reads the cached passphrase, and because nothing tested a real
-terminal until B27's suite did.
+| # | Requirement | What must be true | Open question | Why here |
+|---|---|---|---|---|
+| B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file | |
+| B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file | |
+| B31 | [An Authorization A Person Grants Once](B31-An-Authorization-A-Person-Grants-Once.md) | A person grants an authorization once, out of band, while the work waits. | see the file | |
+| B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one | |
+| B25 | [Names The Operator Should Not Have To Find](B25-Names-The-Operator-Should-Not-Have-To-Find.md) | A command that needs a name Sokar already knows never makes the operator go and find it. | three | |
+| B33 | [A Task's Own Fetches](B33-A-Tasks-Own-Fetches.md) | A task can fetch from the forges its work depends on, and a failure to do so is never reported as a credential problem. | three, and the first is whether it reproduces | |
+| B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | A machine can say what it has done, for longer than the tasks themselves existed. | two, and four are decided | [note](#b26) |
+| B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | six, and four are decided | [note](#b39) |
+| B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it | |
+| B36 | [A Snapshot Small Enough To Have A Choice](B36-A-Snapshot-Small-Enough-To-Have-A-Choice.md) | The images a leg boots fit on a cheap machine, so a sold-out server type costs a fallback rather than the run. | two, and the first is whether 40 GB is enough | |
+| B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three | |
 
-**B32 is third because it is a false statement, not a missing feature.** `vault lock` reports
-"nothing was cached" whenever the keyring search fails for any reason, including reasons that leave
-the passphrase exactly where it was. Everything else on this list is work that has not been done;
-this is the tool telling an operator something untrue about a secret. It is also small.
+### Later
 
-**B29 is next, and above the foundation it is built on.** A task holds exactly one brokered
-credential - the agent's - and everything else the work authenticates to has nowhere to go. B28 is
-the foundation of that and the largest of the four; B29 is the smallest and the one that proves the
-plumbing. A set that begins with its own foundation tends to sit unstarted, and doing the small one
-first makes the foundation's first user exist while correcting its shape is still cheap.
+| # | Requirement | What must be true | Open question | Why here |
+|---|---|---|---|---|
+| B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have | |
+| B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | three, and one is a one-line fix | |
+| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | eight, including whether to build it | [note](#b14) |
+| B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 | |
+| B37 | [The Build That Runs Somewhere Else](B37-The-Build-That-Runs-Somewhere-Else.md) | A task learns the verdict and the reason for the build its own work triggered, without reaching the forge and without holding a forge credential. | seven, and the first may end it | [note](#b37) |
+| B38 | [How Far Something That Got Through Can Get](B38-How-Far-Something-That-Got-Through-Can-Get.md) | How far a convinced agent can get is bounded where it can be, named where it cannot, and the reviewer sees what matters before what is merely large. | six, and one may have no answer | [note](#b38) |
+| B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | two | [note](#b08) |
 
-**B01 is next because it is the one that breaks work already running.** An agent that renews an
-expiring credential and finds a task-scoped one instead fails in the middle of a long task, and
-Sokar's own expiry is only half of it: provider-side renewal is untouched, and answering it needs a
-credential kind that expires, which there is none to test with.
-
-**B22 is next because what is left of it has teeth.** Listing and deleting are done; a restore that
-would discard unreviewed work is not, and unreviewed pushes exist only in the mirror. The refusal
-shape exists twice already - `DeleteProject` and `Stop` both answer `HOLDS_WORK` - so this is a
-third use of it rather than a fourth invention.
-
-**B12 was retired on 2026-09-08 and restored the same day**, which is why it sits here rather
-than in the built table. Every criterion was checked except the fourth, and the fourth is the one
-nothing answers: enforcement can be chosen when a task starts and not changed afterwards. It is one
-missing method and it is the last thing an interface requirement is waiting on, so it outranks the
-items below that unblock nothing.
-
-**B25 is third because it is met every time, not because it is severe.** Nothing in it goes
-silently wrong the way B10 does; it is above the rest because it is cheap and because every
-command that takes a container, a project or an agent name currently makes somebody go and look it
-up. The first of its three parts — saying which names would have been accepted when one is missing
-or wrong — needs no shell integration and no packaging at all.
-
-**B26 is fourth because nothing else answers the question it asks.** Every host-side log Sokar
-keeps belongs to one task, lives on tmpfs, and is deleted by a reboot — so "what has this machine
-been doing" has nowhere to look, with or without an interface. It sits below B25 because it is a
-new subsystem rather than a small change, and above the rest because the gap is total rather than
-partial.
-
-**B10 is decided and only unbuilt**, which makes it the cheapest thing on this list: the four
-questions it was written to ask were settled, and what remains is the work plus one smaller
-question that appeared once the others were answered. A destination that cannot be written as a
-host name is silently unreachable today.
-
-**B06 decides how much of the remote story is real**, so it is above the things that would be built
-on top of it. The transport itself is settled - the socket survives an ssh forward, measured - and
-what is left is how long a clearance prompt should wait for somebody who is not there.
-
-**B18 and B23 are waiting on decisions rather than on effort.** B18 states what must be true *if* a
-credential becomes storable from an interface; whether it does is held together with the vault
-passphrase in [secrets from elsewhere](Secrets-From-Elsewhere_design.md), because the two were
-argued separately and reached opposite answers within a day on reasoning that moved under both -
-two of the three original arguments did not survive examination. **Until it is decided, both are
-entered at the node over ssh**, and an interface asks for neither. B23 is deliberately later, and
-honest that erasure is not achievable in a managed runtime at all.
-
-**B14 and B15 are last before the second platform because the first question in B14 is whether to
-build it.** They are the same question twice - a conversation, then the same shape again for bytes
-rather than text - and B15 reuses B14's policy and record wholesale, so settling B14 settles most
-of it. Neither is waiting on an interface requirement, which both files argue is a reason to be
-slower rather than faster, and both begin by asking whether the gate already answers the need,
-which for source it does.
-
-**B08 is a second platform, which is a project rather than a feature.**
 
 ### Two things that dissolved rather than becoming requirements
 
@@ -128,27 +79,6 @@ project keeps writing down. That is the fourth of the same shape, after the agen
 access and key routing - each time the honest answer was *"that is not a thing this system has"*,
 and saying so cost a paragraph and bought a screen that is not lying.
 
-| # | Requirement | What must be true | Open question |
-|---|---|---|---|
-| B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved |
-| B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided |
-| B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file |
-| B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file |
-| B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file |
-| B31 | [An Authorization A Person Grants Once](B31-An-Authorization-A-Person-Grants-Once.md) | A person grants an authorization once, out of band, while the work waits. | see the file |
-| B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one |
-| B25 | [Names The Operator Should Not Have To Find](B25-Names-The-Operator-Should-Not-Have-To-Find.md) | A command that needs a name Sokar already knows never makes the operator go and find it. | three |
-| B33 | [A Task's Own Fetches](B33-A-Tasks-Own-Fetches.md) | A task can fetch from the forges its work depends on, and a failure to do so is never reported as a credential problem. | three, and the first is whether it reproduces |
-| B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | A machine can say what it has done, for longer than the tasks themselves existed. | two, and four are decided |
-| B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one |
-| B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three |
-| B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have |
-| B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | three, and one is a one-line fix |
-| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | eight, including whether to build it |
-| B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 |
-| B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it |
-| B36 | [A Snapshot Small Enough To Have A Choice](B36-A-Snapshot-Small-Enough-To-Have-A-Choice.md) | The images a leg boots fit on a cheap machine, so a sold-out server type costs a fallback rather than the run. | two, and the first is whether 40 GB is enough |
-| B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | two |
 
 ## Built, and still carrying questions
 
@@ -261,3 +191,37 @@ changes what gets built rather than only how:
   ([B08](B08-McSokar-Apple-Containers.md)). It decides whether that project offers the same
   product or a weaker one wearing the same name, and it constrains what may be added to the
   daemon's contract.
+
+## Why here
+
+Only the placements that are not obvious from the files themselves. Ranking is a property of the
+set, so it lives here and nowhere else.
+
+<a id="b24"></a>**B24 leads** because it is not a failure in the middle of long work; it is the
+first thing a new operator meets, and it stops a task before it starts.
+
+<a id="b29"></a>**B29 sits above B28, the foundation it depends on.** A set that begins with its
+own foundation tends to sit unstarted. Building the smallest kind first makes the foundation's
+first user exist while correcting its shape is still cheap.
+
+<a id="b26"></a>**B26 is below B25** because it is a new subsystem rather than a small change, and
+above the rest of Soon because the gap is total rather than partial.
+
+<a id="b39"></a>**B39 is in Soon although nothing waits on it.** It is unblocked, it is the
+cheapest of the three new ones, and the gap is total - there is no way to hand a file to a running
+task today except pasting into a terminal. B37 is its first consumer rather than its reason.
+
+<a id="b14"></a>**B14 carries B15 with it.** They are the same question twice, and B15 reuses
+B14's policy and record wholesale, so settling B14 settles most of both. B14's first open question
+is whether to build it at all.
+
+<a id="b37"></a>**B37 is in Later because its first question may end it.** In `guarded` the forge
+does not build a task's push until a person approves it, so what looks like watching a build may
+be waiting on a human - which is a different requirement.
+
+<a id="b38"></a>**B38 is deliberately behind the practical work.** It is a frame rather than a
+feature: most of it is bounding what already exists, its one buildable half is the review, and its
+largest item may have no answer. It is kept because B37, B14 and B15 would otherwise each re-argue
+it from scratch.
+
+<a id="b08"></a>**B08 is last** because it is a project rather than a feature.

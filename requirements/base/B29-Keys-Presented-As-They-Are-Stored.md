@@ -2,9 +2,7 @@
 
 **Status:** open, and the smallest of the three kinds. Built already for exactly one credential;
 what is missing is more than one, the second place a key can go, and a header name nobody declared.
-Depends on [B28](B28-More-Than-One-Credential-In-A-Task.md) — and is nevertheless **the first of the
-four to build**, placed above B28 so that the foundation's first user exists before the foundation is
-finished. Compared with the other kinds in [Credential Types Compared](Credential-Types-Compared.md).
+Depends on [B28](B28-More-Than-One-Credential-In-A-Task.md). Compared with the other kinds in [Credential Types Compared](Credential-Types-Compared.md).
 
 ## The kind
 

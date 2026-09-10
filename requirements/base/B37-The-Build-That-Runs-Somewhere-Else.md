@@ -6,7 +6,9 @@ than one credential, the obvious second one is a forge token, and the obvious us
 is asking what the build did. That obvious use is the one this file argues against granting
 directly. Related to [B29](B29-Keys-Presented-As-They-Are-Stored.md), which is how a forge token
 would be presented, [B31](B31-An-Authorization-A-Person-Grants-Once.md), which is the other way to
-obtain one, and [B26](B26-What-This-Machine-Has-Been-Doing.md), which owns the record.
+obtain one, and [B26](B26-What-This-Machine-Has-Been-Doing.md), which owns the record. **How the
+result reaches the task is [B39](B39-Handing-A-File-To-A-Running-Task.md)**, which was split out of
+this file and can be built without it.
 
 ## What is being asked for
 
@@ -107,22 +109,70 @@ GitLab with a per-job trace - and that residue is the honest price of this optio
 ## What comes back is not trusted input
 
 A build log is output from a machine that ran arbitrary steps, and it is being delivered to an
-agent that will read it and act on it. Two things follow, and neither is a detail:
+agent that will read it and act on it. Two things follow, and neither is a detail.
 
-- **A log carries secrets that were never meant to come back.** Forges mask their own registered
-  secrets and mask nothing else: an `env` dump in a failing step, a signed artifact URL, a registry
-  credential in a curl trace. Sokar's entire subject is that a stored value never enters a
-  container. Piping a build log in unread would be a route around that guarantee that nobody
-  chose - and it would arrive through the helper built to make the container safer.
-- **A log is text an outsider can influence, and the agent obeys text.** Anyone who can open a pull
-  request can put a sentence in a build log. Handing that to an agent as a work item is the
-  injection surface this feature creates, and it exists in the route model too - it is not an
-  argument between the two options, it is a property of the payload.
+**A log may carry a secret, and that is the build server's job rather than this one's.** Masking
+is where the secret is known: GitHub scrubs its registered secrets from Actions logs, Jenkins does
+the same for its credentials binding, and neither is complete - an `env` dump in a failing step, a
+signed artifact URL, a registry credential in a curl trace all get past a scrubber that only knows
+the values it was given. **But Sokar knows none of those values at all.** A CI secret lives in the
+forge, was never in the vault, and Sokar's guarantee - *a stored value never enters a container* -
+is a statement about credentials this machine holds. It does not extend to one the build server
+leaked into its own output, and stretching it to cover that would mean inventing a heuristic
+masker, which is the incomplete rule presented as a promise that this project refuses everywhere
+else.
 
-Neither has a clean answer. What must not happen is that they go unwritten and are discovered by
-somebody reading a log.
+So the responsibility is named rather than assumed, and what is left is only what Sokar could make
+*worse*: a delivered log must not land in `/workspace`, where it becomes part of the work and
+leaves through the gate as though somebody had written it, and it must not be copied into a record
+that outlives the task without that being a decision somebody made
+([B26](B26-What-This-Machine-Has-Been-Doing.md) owns the second). Those two are this file's; the
+scrubbing is not.
+
+**A log is text an outsider can influence, and the agent obeys text.** Anyone who can open a pull
+request can put a sentence in a build log.
+
+**But this feature does not create that surface, and it must not be written as though it did.** A
+task already reads text nobody here wrote, every time: the repository it was pointed at, a diff it
+was asked to review, an issue quoted into its prompt, a dependency's release notes. Refusing to
+deliver a log on injection grounds would refuse one drop of an ocean the task is already swimming
+in, and would buy nothing. **So the requirement is the reverse: whatever generally lowers what an
+injection is worth has to exist anyway, and this is one more consumer of it rather than the reason
+to build it.**
+
+What that general answer is, is largely built here already, and is nowhere written down as a
+property with named limits. It does not prevent the agent from being convinced - nothing can - it
+makes being convinced not worth much: an undeclared name does not resolve and a declared one opens
+only 80 and 443; the real credential is in the vault and the container holds a phantom token that
+dies with the task; work does not leave without a person at the gate; and a reach for something
+undeclared raises a clearance prompt, **which is the closest thing on this machine to a hijack
+alarm** - an agent asking for a host nobody declared is the observable shape of an agent following
+somebody else's instructions. `doc/sokar-for-dummies.md` already argues the credential half of this
+in exactly those terms.
+
+Its limits have to be named beside it, or it becomes the reassuring sentence that stops people
+looking: containment bounds where a convinced agent can *go*, not what it can *do inside the work it
+was given*. A hijacked agent can still write a plausible change into the branch it is allowed to
+write, and the person at the gate is reading a diff that is large and boring. That is the residue,
+and the gate is the only thing standing on it.
+
+**Where this feature can pay in, rather than only cost:** content Sokar delivers is content Sokar
+can mark. A repository arrives by git clone and Sokar never sees a byte of it, so its provenance is
+unmarkable - but a build log arrives *through a helper of ours*, and so do a message from another
+task ([B14](B14-Talking-Between-Tasks.md)) and an artifact ([B15](B15-Handing-Artifacts-Between-Tasks.md)).
+Everything on that list can be handed over labeled as data of known origin rather than as
+instructions. How it is labeled is not Sokar's to decide: fencing conventions differ per agent, and
+**an agent's own facts belong in its definition YAML, not in a branch here** - the same rule that
+keeps every other agent-specific fact out of this code. Whether that is worth building is the
+general question, not this file's.
 
 ## Getting it into the container
+
+**This is no longer this file's question.** Handing a file to a running task is a need of its own -
+a specification, a data extract, a crash dump, the answer to something the agent asked - and it is
+[B39](B39-Handing-A-File-To-A-Running-Task.md), which is smaller than this one and blocked by
+nothing. A build log is its first consumer rather than its reason. What remains below is what B39
+inherits, kept here because it was measured while arguing this feature.
 
 Three candidates, and the measured facts already rule on most of it:
 
@@ -206,9 +256,16 @@ the process.**
 - **Route or reduced surface**, argued above. The tie-break is likely whether any forge's status and
   log can be expressed as data with no per-forge code, on two forges rather than one - if the second
   one needs code, so will the fifth.
-- **What is done about secrets in a delivered log.** Refusing to deliver logs at all, delivering
-  them and saying plainly that the guarantee stops here, or filtering - which is a masking rule
-  nobody can make complete.
+- **Whether a leaked secret in a log ends up in Sokar's own record.** The scrubbing belongs to
+  the build server, which is where the values are known; what is this file's is that a log passing
+  through a helper of ours must not be written somewhere more durable than the task that asked for
+  it, and must not be delivered where the gate would carry it out again.
+- **Whether lowering what an injection is worth is a requirement of its own.** It is not this
+  file's - a task reads text nobody here wrote whatever this feature does - and the answer that
+  exists is spread across the firewall, the phantom token, the gate and the clearance prompt
+  without ever being stated as one property with named limits. If it becomes one, this file
+  delivers its log through it rather than arguing about it, and an agent's fencing convention
+  belongs in that agent's definition.
 - **Whether an agent asked to watch a build should block or return.** Blocking is simpler for the
   agent and holds a turn open for as long as a build takes; returning makes the agent poll, which is
   the cost this file just argued against.

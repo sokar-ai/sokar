@@ -1,6 +1,6 @@
 # B23 — Secrets In This Process's Memory
 
-**Status:** open, and deliberately *later*. Nothing here blocks anything; it is written down so the
+**Status:** open. Nothing here blocks anything; it is written down so the
 ceiling is known rather than rediscovered, and so the partial fix already made is not mistaken for
 the whole thing.
 
