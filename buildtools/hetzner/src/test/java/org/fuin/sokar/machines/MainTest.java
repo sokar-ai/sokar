@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
@@ -39,11 +41,62 @@ class MainTest {
     @Test
     void refusesAnAgeWithNoNumberAfterIt() throws IOException {
         assertThat(Main.run(new String[] {"sweep", "--older-than"}, NEVER)).isEqualTo(2);
+        assertThat(Main.run(new String[] {"sweep", "--older-than", "soon"}, NEVER)).isEqualTo(2);
     }
 
     @Test
-    void refusesACommandThatIsNotTheSweep() throws IOException {
-        assertThat(Main.run(new String[] {"rent"}, NEVER)).isEqualTo(2);
+    void readsAnAgeInTheSameUnitTheScriptItReplacesUsed() throws IOException {
+        // 'sweep.py --older-than 60' means an hour and the workflow line says exactly that. Read
+        // as hours it would mean sixty, and a forgotten server would bill for two and a half days
+        // before anything swept it.
+        try (StubApi stub = twoServers()) {
+            assertThat(Main.run(new String[] {"sweep", "--older-than", "60", "--now"},
+                    () -> Hetzner.against(stub.base(), "run-1"))).isZero();
+            assertThat(stub.asked()).contains("DELETE /v1/servers/1");
+            assertThat(stub.asked()).doesNotContain("DELETE /v1/servers/2");
+        }
+    }
+
+    @Test
+    void keepsTheAgeWhenAskedToActuallyDelete() throws IOException {
+        // '--now' means "delete rather than say", not "delete everything whatever its age".
+        // Ignoring the age here would take out the servers of every run in flight.
+        try (StubApi stub = twoServers()) {
+            Main.run(new String[] {"sweep", "--now"}, () -> Hetzner.against(stub.base(), "run-1"));
+            assertThat(stub.asked()).doesNotContain("DELETE /v1/servers/2");
+        }
+    }
+
+    @Test
+    void deletesNothingUnlessToldTo() throws IOException {
+        // Dry by default, and a non-zero exit so a scheduled run that found something it was not
+        // allowed to remove is visible rather than quietly green.
+        try (StubApi stub = twoServers()) {
+            assertThat(Main.run(new String[] {"sweep"},
+                    () -> Hetzner.against(stub.base(), "run-1"))).isEqualTo(1);
+            assertThat(stub.asked()).doesNotContain("DELETE /v1/servers/1", "DELETE /v1/servers/2");
+        }
+    }
+
+    /**
+     * One server old enough to sweep and one too young, an hour apart either side.
+     *
+     * @return The stub.
+     * @throws IOException If it cannot be started.
+     */
+    private static StubApi twoServers() throws IOException {
+        final String old = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(90).toString();
+        final String fresh = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(10).toString();
+        return new StubApi()
+                .answering("/servers?label_selector=sokar=ci&page=1&per_page=50", """
+                    {"servers":[
+                      {"id":1,"name":"forgotten","labels":{},"created":"%s"},
+                      {"id":2,"name":"in use","labels":{},"created":"%s"}],
+                     "meta":{"pagination":{"next_page":null}}}""".formatted(old, fresh))
+                .answering("/servers/1", exchange ->
+                        new StubApi.Answer(200, "{\"action\":{\"id\":5,\"status\":\"success\"}}"))
+                .answering("/servers/2", exchange ->
+                        new StubApi.Answer(200, "{\"action\":{\"id\":6,\"status\":\"success\"}}"));
     }
 
     @Test

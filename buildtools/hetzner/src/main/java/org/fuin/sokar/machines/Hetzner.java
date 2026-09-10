@@ -15,7 +15,7 @@ import java.util.TreeSet;
  * <p>
  * <strong>The one thing worth reading first: a server that is not destroyed costs 81 EUR a
  * month</strong>, against 3 cents for the fifteen minutes it is meant to live. So destruction is
- * structural rather than a step at the end - {@link #rent} hands back an {@link AutoCloseable}
+ * structural rather than a step at the end - {@link #acquire} hands back a {@link Lease}
  * that deletes, and {@link #sweep} exists because a process killed between two statements cannot
  * clean up after itself.
  * <p>
@@ -116,12 +116,12 @@ public final class Hetzner implements Machines {
     @Override
     public Lease acquire(Spec spec) throws IOException {
         final Map<String, Object> snapshot = newestSnapshot(spec.os());
-        final String location = locationFor(spec.serverType());
+        final Placement placement = placement(spec.serverTypes());
         final long key = keyMatching(spec.credential());
 
-        System.out.println("creating " + spec.name() + ": " + spec.serverType() + ", "
-                + Values.text(snapshot, "description") + ", " + location);
-        final Map<String, Object> created = createWhenThereIsRoom(spec, snapshot, location, key);
+        System.out.println("creating " + spec.name() + ": " + placement.type() + ", "
+                + Values.text(snapshot, "description") + ", " + placement.location());
+        final Map<String, Object> created = createWhenThereIsRoom(spec, snapshot, placement, key);
         final Map<String, Object> server = Values.object(created, "server");
         final long id = Values.id(server.get("id"));
         await(Values.object(created, "action"));
@@ -158,15 +158,15 @@ public final class Hetzner implements Machines {
     }
 
     private Map<String, Object> createWhenThereIsRoom(Spec spec, Map<String, Object> snapshot,
-            String location, long key) throws IOException {
+            Placement placement, long key) throws IOException {
         final Map<String, Object> labels = new LinkedHashMap<>();
         labels.put("sokar", "ci");
         labels.put(RUN_LABEL, runId);
         final Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", spec.name());
-        body.put("server_type", spec.serverType());
+        body.put("server_type", placement.type());
         body.put("image", Values.id(snapshot.get("id")));
-        body.put("location", location);
+        body.put("location", placement.location());
         body.put("ssh_keys", List.of(key));
         body.put("labels", labels);
         body.put("start_after_create", Boolean.TRUE);
@@ -253,43 +253,113 @@ public final class Hetzner implements Machines {
     }
 
     /**
-     * Picks a location in the zone that can actually create this server type right now.
+     * Picks the first wanted type that a location in the zone can actually serve right now.
      * <p>
-     * Asked rather than assumed: availability is per datacentre and changes, and Hetzner reports a
+     * <strong>Ordered, so cheaper can be preferred without risking a run.</strong> A workflow
+     * names the types it wants in the order it wants them and gets the first that is available;
+     * naming one type instead means a run dies when that type is sold out.
+     * <p>
+     * <strong>Availability, not adequacy.</strong> This moves on when a type is not
+     * <em>offered</em>, never when it turns out too small for the work - a two-core machine that
+     * exists will be used and the build will fail on it. The order is a price preference among
+     * machines that can be created, and the smallest entry has to be one the job can actually run
+     * on.
+     * <p>
+     * Asked rather than assumed: availability is per datacentre and changes - fsn1 offered zero
+     * server types on 2026-09-06 while nbg1 and hel1 offered eighteen - and Hetzner reports a
      * location that cannot serve a type the same way it reports a nonsense one.
      *
-     * @param serverType Type the server will be created with.
-     * @return Location name.
-     * @throws IOException If nothing in the zone has it, listing what was asked.
+     * @param types Types to try, in order.
+     * @return The type to create and where.
+     * @throws IOException If nothing in the zone offers any of them, saying what was asked.
      */
-    String locationFor(String serverType) throws IOException {
-        final List<Map<String, Object>> types = api.all("/server_types?name=" + serverType,
-                "server_types");
-        if (types.isEmpty()) {
-            throw new IOException("no such server type: " + serverType);
-        }
-        final long wanted = Values.id(types.getFirst().get("id"));
-
+    Placement placement(List<String> types) throws IOException {
+        final List<Map<String, Object>> datacenters = api.all("/datacenters", "datacenters");
         final List<String> tried = new ArrayList<>();
-        for (final Map<String, Object> datacenter : api.all("/datacenters", "datacenters")) {
-            final Map<String, Object> location = Values.object(datacenter, "location");
-            if (!NETWORK_ZONE.equals(Values.text(location, "network_zone"))) {
+        for (final String type : types) {
+            final List<Map<String, Object>> known = api.all("/server_types?name=" + type,
+                    "server_types");
+            if (known.isEmpty()) {
+                tried.add(type + "=no such type");
                 continue;
             }
-            boolean has = false;
-            for (final Object each : (List<?>) Values.object(datacenter, "server_types")
-                    .getOrDefault("available", List.of())) {
-                has = has || Values.id(each) == wanted;
+            final long wanted = Values.id(known.getFirst().get("id"));
+            final List<String> where = new ArrayList<>();
+            for (final Map<String, Object> datacenter : datacenters) {
+                final Map<String, Object> location = Values.object(datacenter, "location");
+                if (!NETWORK_ZONE.equals(Values.text(location, "network_zone"))) {
+                    continue;
+                }
+                if (offers(datacenter, wanted)) {
+                    final String here = Values.text(location, "name");
+                    // The rate, because the reason for an ordered list is money and a run that
+                    // does not say what it chose to spend cannot be checked against the bill.
+                    System.out.println("location " + here + " has " + type
+                            + hourly(known.getFirst(), here)
+                            + (types.indexOf(type) == 0 ? ""
+                                    : " (nothing offered " + String.join(", ", tried) + ")"));
+                    return new Placement(type, here);
+                }
+                where.add(Values.text(datacenter, "name"));
             }
-            tried.add(Values.text(datacenter, "name") + "=" + (has ? "yes" : "no"));
-            if (has) {
-                System.out.println("location " + Values.text(location, "name") + " has "
-                        + serverType + " (" + String.join(", ", tried) + ")");
-                return Values.text(location, "name");
+            tried.add(type + "=not offered in " + String.join("/", where));
+        }
+        throw new IOException("no location in " + NETWORK_ZONE + " currently offers any of "
+                + types + ": " + String.join("; ", tried));
+    }
+
+    /**
+     * Returns what a type costs per hour where it will be created.
+     *
+     * @param type The server type as the API describes it.
+     * @param location Where it will be created.
+     * @return Something to append to a line, or an empty string when the API gave no price.
+     */
+    private static String hourly(Map<String, Object> type, String location) {
+        for (final Map<String, Object> price : Values.objects(type, "prices")) {
+            if (location.equals(Values.text(price, "location"))) {
+                final String gross = Values.text(Values.object(price, "price_hourly"), "gross");
+                if (!gross.isBlank()) {
+                    // Trimmed: the API answers with eight decimal places, which is noise in a log.
+                    return " at " + trimmed(gross) + " EUR/h";
+                }
             }
         }
-        throw new IOException("no location in " + NETWORK_ZONE + " currently offers " + serverType
-                + ": " + String.join(", ", tried));
+        return "";
+    }
+
+    /**
+     * Returns a price with as many decimals as anybody reads.
+     *
+     * @param price What the API said.
+     * @return The same number, to four decimals.
+     */
+    static String trimmed(String price) {
+        try {
+            return new java.math.BigDecimal(price)
+                    .setScale(4, java.math.RoundingMode.HALF_UP).toPlainString();
+        } catch (NumberFormatException ex) {
+            return price;
+        }
+    }
+
+    private static boolean offers(Map<String, Object> datacenter, long type) {
+        for (final Object each : (List<?>) Values.object(datacenter, "server_types")
+                .getOrDefault("available", List.of())) {
+            if (Values.id(each) == type) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * What will be created and where.
+     *
+     * @param type The Hetzner server type.
+     * @param location Where it can be created.
+     */
+    record Placement(String type, String location) {
     }
 
     /**

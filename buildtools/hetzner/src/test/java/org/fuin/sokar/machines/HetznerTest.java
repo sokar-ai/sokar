@@ -67,9 +67,39 @@ class HetznerTest {
             // fsn1 offered zero server types on 2026-09-06 while nbg1 offered eighteen, and a
             // hard-coded location fails as "unsupported location for server type" - which reads
             // like a wrong type rather than a full datacentre. us-east has it and is not ours.
-            assertThat(Hetzner.against(stub.base(), "run-1").locationFor("cpx41"))
-                    .isEqualTo("nbg1");
+            assertThat(Hetzner.against(stub.base(), "run-1").placement(List.of("cpx41")))
+                    .isEqualTo(new Hetzner.Placement("cpx41", "nbg1"));
         }
+    }
+
+    @Test
+    void triesTheTypesInTheOrderGivenAndTakesTheFirstOneOffered() throws IOException {
+        try (StubApi stub = new StubApi()
+                .answering("/datacenters?page=1&per_page=50", """
+                    {"datacenters":[{"name":"nbg1-dc3",
+                      "location":{"name":"nbg1","network_zone":"eu-central"},
+                      "server_types":{"available":[33]}}],
+                     "meta":{"pagination":{"next_page":null}}}""")
+                .answering("/server_types?name=cx23&page=1&per_page=50",
+                        "{\"server_types\":[{\"id\":23}],\"meta\":{\"pagination\":{\"next_page\":null}}}")
+                .answering("/server_types?name=cx33&page=1&per_page=50", """
+                    {"server_types":[{"id":33,"prices":[
+                       {"location":"nbg1","price_hourly":{"gross":"0.01899000"}}]}],
+                     "meta":{"pagination":{"next_page":null}}}""")) {
+            // cx23 is wanted first and is not offered here, so the next in the order wins rather
+            // than the run dying on a type that happens to be sold out.
+            assertThat(Hetzner.against(stub.base(), "run-1")
+                    .placement(List.of("cx23", "cx33", "cpx12")))
+                    .isEqualTo(new Hetzner.Placement("cx33", "nbg1"));
+        }
+    }
+
+    @Test
+    void saysWhatAnHourCostsToFourDecimals() {
+        // The API answers with eight, which is noise; the reason for an ordered list is money, so
+        // the number has to be readable in a log and checkable against a bill.
+        assertThat(Hetzner.trimmed("0.01899000")).isEqualTo("0.0190");
+        assertThat(Hetzner.trimmed("not a number")).isEqualTo("not a number");
     }
 
     @Test
@@ -82,19 +112,24 @@ class HetznerTest {
                       "location":{"name":"fsn1","network_zone":"eu-central"},
                       "server_types":{"available":[1]}}],
                      "meta":{"pagination":{"next_page":null}}}""")) {
-            assertThatThrownBy(() -> Hetzner.against(stub.base(), "run-1").locationFor("cpx41"))
+            assertThatThrownBy(() -> Hetzner.against(stub.base(), "run-1")
+                    .placement(List.of("cpx41")))
                     .isInstanceOf(IOException.class)
-                    .hasMessageContaining("fsn1-dc14=no");
+                    .hasMessageContaining("cpx41=not offered in fsn1-dc14");
         }
     }
 
     @Test
     void refusesAServerTypeThatDoesNotExist() throws IOException {
-        try (StubApi stub = new StubApi().answering("/server_types?name=nonsense&page=1&per_page=50",
-                "{\"server_types\":[],\"meta\":{\"pagination\":{\"next_page\":null}}}")) {
-            assertThatThrownBy(() -> Hetzner.against(stub.base(), "run-1").locationFor("nonsense"))
+        try (StubApi stub = new StubApi()
+                .answering("/datacenters?page=1&per_page=50",
+                        "{\"datacenters\":[],\"meta\":{\"pagination\":{\"next_page\":null}}}")
+                .answering("/server_types?name=nonsense&page=1&per_page=50",
+                        "{\"server_types\":[],\"meta\":{\"pagination\":{\"next_page\":null}}}")) {
+            assertThatThrownBy(() -> Hetzner.against(stub.base(), "run-1")
+                    .placement(List.of("nonsense")))
                     .isInstanceOf(IOException.class)
-                    .hasMessageContaining("no such server type");
+                    .hasMessageContaining("no such type");
         }
     }
 

@@ -9,13 +9,19 @@ import java.util.function.Supplier;
  * <p>
  * Only the sweep is here. Renting a machine is not a command, because a command that creates a
  * server and returns leaves the deleting to whoever remembers - which is the failure this whole
- * module exists to make structural. Callers that need a machine hold a {@link Rental} for as long
+ * module exists to make structural. Callers that need a machine hold a {@link Lease} for as long
  * as they need it.
  */
 public final class Main {
 
-    /** How old a server must be before an unattended sweep counts it as left behind. */
-    private static final Duration DEFAULT_AGE = Duration.ofHours(2);
+    /**
+     * How old a server must be before a sweep counts it as forgotten.
+     * <p>
+     * Minutes, and the same default as the script this replaces. A unit that differs between the
+     * two would have been read straight off a workflow line - {@code --older-than 60} means an
+     * hour there and would have meant sixty hours here.
+     */
+    private static final Duration DEFAULT_AGE = Duration.ofMinutes(60);
 
     private Main() {
         throw new UnsupportedOperationException("Utility class");
@@ -44,12 +50,14 @@ public final class Main {
     static int run(String[] args, Supplier<Hetzner> open) throws IOException {
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
-                Usage: sweep [--mine | --now | --older-than <hours>]
+                Usage: sweep [--mine] [--now] [--older-than <minutes>]
 
-                  --mine               delete what this run created, and nothing else
-                  --now                delete everything labelled sokar=ci, whatever its age
-                  --older-than <hours> delete what is older than this (default 2)
-                  (none)               list what would go, delete nothing
+                  --mine                 delete what this run created, whatever its age. What a
+                                         job uses to clean up after itself - deleting by age
+                                         catches another run's server when that run is slow
+                  --now                  delete, rather than saying what would be deleted
+                  --older-than <minutes> age at which a server counts as forgotten (default 60)
+                  (none)                 say what would be deleted, and delete nothing
 
                 The API token is read from the environment, never from an argument: everything on
                 a command line is readable by every process on the machine.""");
@@ -57,26 +65,24 @@ public final class Main {
         }
 
         boolean mine = false;
-        boolean now = false;
-        boolean dryRun = true;
+        boolean delete = false;
         Duration olderThan = DEFAULT_AGE;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
-                case "--mine" -> {
-                    mine = true;
-                    dryRun = false;
-                }
-                case "--now" -> {
-                    now = true;
-                    dryRun = false;
-                }
+                case "--mine" -> mine = true;
+                case "--now" -> delete = true;
                 case "--older-than" -> {
                     if (at + 1 >= args.length) {
-                        System.err.println("::error::--older-than needs a number of hours");
+                        System.err.println("::error::--older-than needs a number of minutes");
                         return 2;
                     }
-                    olderThan = Duration.ofHours(Long.parseLong(args[++at]));
-                    dryRun = false;
+                    try {
+                        olderThan = Duration.ofMinutes(Long.parseLong(args[++at]));
+                    } catch (NumberFormatException ex) {
+                        System.err.println("::error::--older-than needs a number of minutes, not '"
+                                + args[at] + "'");
+                        return 2;
+                    }
                 }
                 default -> {
                     System.err.println("::error::unknown option: " + args[at]);
@@ -87,11 +93,19 @@ public final class Main {
 
         try (Hetzner hetzner = open.get()) {
             if (mine) {
+                // Always deletes, whatever else was passed: a job cleaning up after itself is
+                // not a question, and age does not come into it.
                 System.out.println("deleted " + hetzner.deleteMine() + " of this run's servers");
                 return 0;
             }
-            final int swept = hetzner.sweep(now ? Duration.ZERO : olderThan, dryRun);
-            System.out.println((dryRun ? "would delete " : "deleted ") + swept + " server(s)");
+            final int swept = hetzner.sweep(olderThan, !delete);
+            System.out.println((delete ? "deleted " : "would delete ") + swept + " server(s)");
+            if (swept > 0 && !delete) {
+                // The same exit the script uses, so a scheduled run that finds something without
+                // being allowed to remove it is visible rather than quietly green.
+                System.out.println("\nnothing was deleted - pass --now");
+                return 1;
+            }
             return 0;
         }
     }

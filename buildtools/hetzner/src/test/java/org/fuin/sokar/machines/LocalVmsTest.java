@@ -89,7 +89,7 @@ class LocalVmsTest {
         final LocalVms vms = new LocalVms(Map.of("ubuntu", "ubuntu26.04", "fedora", "fedora"),
                 arguments -> "");
         assertThatThrownBy(() -> vms.acquire(
-                new Spec("x", "debian", Spec.DEFAULT_TYPE, "claude", Keys.generated(), false)))
+                new Spec("x", "debian", Spec.DEFAULT_TYPES, "claude", Keys.generated(), false)))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("No local machine for 'debian'")
                 .hasMessageContaining("ubuntu");
