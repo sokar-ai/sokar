@@ -121,6 +121,20 @@ public final class Hetzner implements Machines {
     }
 
     /**
+     * Returns what identifies this run.
+     * <p>
+     * Used in a server's name as well as its labels: a name built from a timestamp collides when
+     * two runs start in the same second, which is exactly what two pushes landing together
+     * produce - and the API refuses the second with "server name is already used", failing a leg
+     * for a reason that has nothing to do with the change under test.
+     *
+     * @return The run id.
+     */
+    public String runId() {
+        return runId;
+    }
+
+    /**
      * Creates a machine from a stock image rather than from one of ours.
      * <p>
      * What the snapshot provisioner starts from: there is no snapshot yet when one is being made.

@@ -69,18 +69,28 @@ public final class Leg {
      */
     public static void run(Hetzner hetzner, String os, List<String> types, Credential credential,
             Path archive, boolean keep, Path into, Path suite) throws IOException {
-        final Spec spec = new Spec("sokar-leg-" + os + "-" + System.currentTimeMillis() / 1000,
-                os, types, USER, credential, keep);
+        // root, so this run's key can be given to the build user. The image carries whatever key
+        // built it, which is not the key a workflow holds - and a leg that assumed otherwise
+        // waited five minutes for an ssh that was never going to be accepted. It passed locally
+        // for the worst reason: the same key had built the image.
+        final Spec spec = new Spec("sokar-leg-" + os + "-" + hetzner.runId(),
+                os, types, "root", credential, keep);
         try (Lease lease = hetzner.acquire(spec)) {
             lease.awaitSsh();
 
+            step("giving this run's key access to the build user");
+            run(lease.ssh(), "install -d -m 0700 -o " + USER + " -g " + USER
+                    + " /home/" + USER + "/.ssh && install -m 0600 -o " + USER + " -g " + USER
+                    + " /root/.ssh/authorized_keys /home/" + USER + "/.ssh/authorized_keys");
+
+            try (Ssh build = Ssh.to(lease.address(), USER, credential)) {
             step("sending the working tree");
-            lease.ssh().upload(archive, "/tmp/tree.tar");
-            run(lease, "rm -rf " + REPO + " && mkdir -p " + REPO
+            build.upload(archive, "/tmp/tree.tar");
+            run(build, "rm -rf " + REPO + " && mkdir -p " + REPO
                     + " && tar -x -C " + REPO + " -f /tmp/tree.tar && rm -f /tmp/tree.tar");
 
             step("building");
-            run(lease, BUILD);
+            run(build, BUILD);
 
             // Entirely in the user's own directories, with no sudo. Sokar scans
             // ~/.local/share/sokar/providers before /usr/share and resolves hooks from
@@ -91,7 +101,7 @@ public final class Leg {
             // and the binary, and the leg failed with "No provider 'anthropic' is declared" -
             // which reads like a broken machine and was a broken transcription.
             step("installing as a package would");
-            run(lease, "mkdir -p ~/.local/bin ~/.local/share/sokar/agents "
+            run(build, "mkdir -p ~/.local/bin ~/.local/share/sokar/agents "
                     + "~/.local/share/sokar/providers"
                     + " && cp " + REPO + "/hooks/target/sokar-hook-* ~/.local/bin/"
                     + " && cp " + REPO + "/app/target/sokar ~/.local/bin/"
@@ -102,16 +112,16 @@ public final class Leg {
             // The podman version too: it decides whether this leg is really covering podman 4 or
             // has quietly become a second Fedora. Not fatal - doctor reports, and stopping here
             // would hide the run below.
-            System.out.println(lease.ssh().run("podman --version; cd " + REPO
+            System.out.println(build.run("podman --version; cd " + REPO
                     + " && PATH=$HOME/.local/bin:$PATH sokar doctor 2>&1 "
                     + "|| echo '(sokar doctor failed)'").all().strip());
 
             step("tier 1, on " + os);
-            run(lease, "cd " + REPO + " && PATH=$HOME/.local/bin:$PATH bash buildtools/e2e-tier1.sh");
+            run(build, "cd " + REPO + " && PATH=$HOME/.local/bin:$PATH bash buildtools/e2e-tier1.sh");
 
             if (into != null) {
                 step("fetching the binaries");
-                fetch(lease, into);
+                fetch(build, into);
             }
 
             if (suite != null) {
@@ -119,6 +129,7 @@ public final class Leg {
                 acceptance(suite, lease.address(), credential);
             }
 
+            }
             System.out.println("\n-- the leg passed on " + os + " at " + lease.address());
             if (keep) {
                 System.out.println("-- kept, so it can be looked at; it is billing until swept");
@@ -175,19 +186,19 @@ public final class Leg {
      * way of presenting the key. Every name is checked on arrival: a publish job that installed
      * five of six binaries and said nothing would be worse than one that failed.
      *
-     * @param lease The machine.
+     * @param ssh The connection to the machine.
      * @param into Local directory to extract under.
      * @throws IOException If anything did not come back.
      */
-    private static void fetch(Lease lease, Path into) throws IOException {
+    private static void fetch(Ssh ssh, Path into) throws IOException {
         Files.createDirectories(into);
-        final Ssh.Output made = lease.ssh().run("cd " + REPO + " && tar -czf /tmp/binaries.tar.gz "
+        final Ssh.Output made = ssh.run("cd " + REPO + " && tar -czf /tmp/binaries.tar.gz "
                 + String.join(" ", BINARIES));
         if (made.status() != 0) {
             throw new IOException("could not pack the binaries: " + made.all());
         }
         final Path archive = into.resolve("binaries.tar.gz");
-        lease.ssh().download("/tmp/binaries.tar.gz", archive);
+        ssh.download("/tmp/binaries.tar.gz", archive);
         final Process tar = new ProcessBuilder("tar", "-xzf", archive.toString(),
                 "-C", into.toString()).inheritIO().start();
         try {
@@ -258,12 +269,12 @@ public final class Leg {
     /**
      * Runs one step, and stops the leg where it failed rather than carrying on.
      *
-     * @param lease The machine.
+     * @param ssh The connection to run it on.
      * @param command What to run.
      * @throws IOException If it failed.
      */
-    private static void run(Lease lease, String command) throws IOException {
-        final Ssh.Output out = lease.ssh().run(command);
+    private static void run(Ssh ssh, String command) throws IOException {
+        final Ssh.Output out = ssh.run(command);
         System.out.print(out.all());
         if (out.status() != 0) {
             throw new IOException("the leg failed at: " + command);

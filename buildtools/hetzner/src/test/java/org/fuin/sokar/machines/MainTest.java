@@ -128,6 +128,15 @@ class MainTest {
     }
 
     @Test
+    void identifiesARunWellEnoughToNameAServerBy() {
+        // A name built from a timestamp collides when two runs start in the same second, which
+        // is what two pushes landing together produce - and the API refuses the second with
+        // "server name is already used", failing a leg for a reason unrelated to the change.
+        assertThat(Main.runId("12345", "ubuntu")).isNotEqualTo(Main.runId("12346", "ubuntu"));
+        assertThat(Main.runId("12345", "ubuntu")).isNotEqualTo(Main.runId("12345", "fedora"));
+    }
+
+    @Test
     void namesTheLegSoTwoMatrixLegsAreNotOneRun() {
         // Both legs share GITHUB_RUN_ID, so the leg is what makes a server's label unique - and
         // a sweep deletes by that label. Without it each leg would delete the other's machine.

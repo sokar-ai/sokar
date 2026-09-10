@@ -80,9 +80,8 @@ public final class AgentLeg {
         if (image == null) {
             throw new IOException("No image for '" + options.os() + "'. Known: " + IMAGES.keySet());
         }
-        final Spec spec = new Spec("sokar-acc-" + options.os() + "-"
-                + System.currentTimeMillis() / 1000, options.os(), options.types(), "root",
-                credential, options.keep());
+        final Spec spec = new Spec("sokar-acc-" + options.os() + "-" + hetzner.runId(),
+                options.os(), options.types(), "root", credential, options.keep());
         try (Lease lease = hetzner.acquireFromStock(spec, image)) {
             lease.awaitSsh();
 
