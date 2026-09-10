@@ -190,12 +190,13 @@ def acceptance(address: str) -> None:
     """
     environment = dict(os.environ)
     environment["SOKAR_ACCEPTANCE_KEY"] = os.environ.get(hetzner.SSH_KEY_VARIABLE, "")
-    # Both modules by name. 'acceptance' alone is the aggregator, and naming an aggregator puts
-    # its pom in the reactor and neither of its modules - so the step ran, passed, and proved
-    # nothing. The kit is listed because the suite depends on it and nothing else builds it here;
-    # neither module depends on the rest of the reactor, so this stays cheap.
+    # The suite and everything it needs, worked out by Maven rather than listed here. Naming the
+    # modules by hand has now failed twice: 'acceptance' alone is an aggregator, which put its pom
+    # in the reactor and neither of its modules, and the list that replaced it went stale the day
+    # the kit gained a dependency - both times the fix was a list nobody thought to update. '-am'
+    # costs about five seconds against naming three modules, measured, and cannot drift.
     subprocess.run(
-        ["./mvnw", "-B", "-pl", "acceptance/kit,acceptance/suite", "verify", "-s", "settings.xml",
+        ["./mvnw", "-B", "-pl", "acceptance/suite", "-am", "verify", "-s", "settings.xml",
          f"-Dsokar.acceptance.host={address}",
          f"-Dsokar.acceptance.user={BUILD_USER}",
          # The suite would otherwise look for a key file that CI deliberately does not have.
