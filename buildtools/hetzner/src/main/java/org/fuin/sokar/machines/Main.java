@@ -51,10 +51,14 @@ public final class Main {
         if (args.length > 0 && "snapshot".equals(args[0])) {
             return snapshot(args, open);
         }
+        if (args.length > 0 && "leg".equals(args[0])) {
+            return leg(args, open);
+        }
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
                 Usage: sweep [--mine] [--now] [--older-than <minutes>]
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>]
+                       leg      --os <ubuntu|fedora> --repo <dir> [--key <file>] [--keep]
 
                   --mine                 delete what this run created, whatever its age. What a
                                          job uses to clean up after itself - deleting by age
@@ -147,25 +151,76 @@ public final class Main {
         String musl = null;
         if (repo != null) {
             final java.nio.file.Path root = java.nio.file.Path.of(repo);
-            archive = java.nio.file.Files.createTempFile("sokar-tree", ".tar");
-            // What is checked out, not what is committed: a snapshot built from a working tree
-            // has to be built from that tree.
-            final Process tar = new ProcessBuilder("git", "archive", "--format=tar", "HEAD")
-                    .directory(root.toFile())
-                    .redirectOutput(archive.toFile())
-                    .redirectError(ProcessBuilder.Redirect.INHERIT).start();
-            try {
-                if (tar.waitFor() != 0) {
-                    throw new IOException("could not archive the working tree at " + root);
-                }
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-                throw new IOException("interrupted archiving the working tree", ex);
-            }
+            archive = archiveOf(root);
             musl = java.nio.file.Files.readString(root.resolve("buildtools/install-musl.sh"));
         }
         try (Hetzner hetzner = open.get()) {
             Snapshots.build(hetzner, os, Snapshots.BUILD_TYPES, credential, archive, musl);
+        }
+        return 0;
+    }
+
+    /**
+     * Returns a tar of what is checked out.
+     * <p>
+     * {@code git archive} of the working tree rather than a clone: it sends exactly what is here,
+     * which is what somebody testing a change needs.
+     *
+     * @param root The repository.
+     * @return A temporary tar, which the caller may leave for the system to clean up.
+     * @throws IOException If it cannot be made.
+     */
+    private static java.nio.file.Path archiveOf(java.nio.file.Path root) throws IOException {
+        final java.nio.file.Path archive =
+                java.nio.file.Files.createTempFile("sokar-tree", ".tar");
+        final Process tar = new ProcessBuilder("git", "archive", "--format=tar", "HEAD")
+                .directory(root.toFile())
+                .redirectOutput(archive.toFile())
+                .redirectError(ProcessBuilder.Redirect.INHERIT).start();
+        try {
+            if (tar.waitFor() != 0) {
+                throw new IOException("could not archive the working tree at " + root);
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted archiving the working tree", ex);
+        }
+        return archive;
+    }
+
+    /**
+     * Runs one test leg against a rented machine.
+     *
+     * @param args The command line.
+     * @param open Where to rent it.
+     * @return An exit code.
+     * @throws IOException If the leg fails.
+     */
+    private static int leg(String[] args, Supplier<Hetzner> open) throws IOException {
+        String os = null;
+        String key = null;
+        String repo = null;
+        boolean keep = false;
+        for (int at = 1; at < args.length; at++) {
+            switch (args[at]) {
+                case "--os" -> os = at + 1 < args.length ? args[++at] : null;
+                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
+                case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
+                case "--keep" -> keep = true;
+                default -> {
+                    System.err.println("::error::unknown option: " + args[at]);
+                    return 2;
+                }
+            }
+        }
+        if (os == null || repo == null) {
+            System.err.println("::error::leg needs --os and --repo");
+            return 2;
+        }
+        try (Hetzner hetzner = open.get()) {
+            Leg.run(hetzner, os, Spec.DEFAULT_TYPES, Credential.of(System.getenv("SSH"),
+                    key == null ? null : java.nio.file.Path.of(key)),
+                    archiveOf(java.nio.file.Path.of(repo)), keep);
         }
         return 0;
     }
