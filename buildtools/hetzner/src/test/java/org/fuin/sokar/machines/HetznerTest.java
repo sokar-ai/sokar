@@ -67,13 +67,13 @@ class HetznerTest {
             // fsn1 offered zero server types on 2026-09-06 while nbg1 offered eighteen, and a
             // hard-coded location fails as "unsupported location for server type" - which reads
             // like a wrong type rather than a full datacentre. us-east has it and is not ours.
-            assertThat(Hetzner.against(stub.base(), "run-1").placement(List.of("cpx41")))
-                    .isEqualTo(new Hetzner.Placement("cpx41", "nbg1"));
+            assertThat(Hetzner.against(stub.base(), "run-1").placements(List.of("cpx41")))
+                    .containsExactly(new Hetzner.Placement("cpx41", "nbg1"));
         }
     }
 
     @Test
-    void triesTheTypesInTheOrderGivenAndTakesTheFirstOneOffered() throws IOException {
+    void keepsTheTypesThatAreOfferedInTheOrderTheyWereAskedFor() throws IOException {
         try (StubApi stub = new StubApi()
                 .answering("/datacenters?page=1&per_page=50", """
                     {"datacenters":[{"name":"nbg1-dc3",
@@ -82,15 +82,17 @@ class HetznerTest {
                      "meta":{"pagination":{"next_page":null}}}""")
                 .answering("/server_types?name=cx23&page=1&per_page=50",
                         "{\"server_types\":[{\"id\":23}],\"meta\":{\"pagination\":{\"next_page\":null}}}")
+                .answering("/server_types?name=cpx12&page=1&per_page=50",
+                        "{\"server_types\":[{\"id\":12}],\"meta\":{\"pagination\":{\"next_page\":null}}}")
                 .answering("/server_types?name=cx33&page=1&per_page=50", """
                     {"server_types":[{"id":33,"prices":[
                        {"location":"nbg1","price_hourly":{"gross":"0.01899000"}}]}],
                      "meta":{"pagination":{"next_page":null}}}""")) {
-            // cx23 is wanted first and is not offered here, so the next in the order wins rather
-            // than the run dying on a type that happens to be sold out.
+            // Only cx33 is offered here, so it is the only candidate - and a type nobody has is
+            // dropped rather than ending the run.
             assertThat(Hetzner.against(stub.base(), "run-1")
-                    .placement(List.of("cx23", "cx33", "cpx12")))
-                    .isEqualTo(new Hetzner.Placement("cx33", "nbg1"));
+                    .placements(List.of("cx23", "cx33", "cpx12")))
+                    .containsExactly(new Hetzner.Placement("cx33", "nbg1"));
         }
     }
 
@@ -113,7 +115,7 @@ class HetznerTest {
                       "server_types":{"available":[1]}}],
                      "meta":{"pagination":{"next_page":null}}}""")) {
             assertThatThrownBy(() -> Hetzner.against(stub.base(), "run-1")
-                    .placement(List.of("cpx41")))
+                    .placements(List.of("cpx41")))
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("cpx41=not offered in fsn1-dc14");
         }
@@ -127,7 +129,7 @@ class HetznerTest {
                 .answering("/server_types?name=nonsense&page=1&per_page=50",
                         "{\"server_types\":[],\"meta\":{\"pagination\":{\"next_page\":null}}}")) {
             assertThatThrownBy(() -> Hetzner.against(stub.base(), "run-1")
-                    .placement(List.of("nonsense")))
+                    .placements(List.of("nonsense")))
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("no such type");
         }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -59,6 +60,85 @@ class LeaseTest {
                 assertThat(rental.address()).isEqualTo("1.2.3.4");
             }
             assertThat(attempts.get()).isEqualTo(3);
+        }
+    }
+
+    @Test
+    void movesToTheNextTypeWhenOneWillNotTakeTheImage() throws IOException {
+        final Credential credential = Keys.generated();
+        final AtomicInteger creates = new AtomicInteger();
+        try (StubApi stub = new StubApi()
+                .answering("/images?type=snapshot&label_selector=sokar=ci,os=ubuntu&page=1&per_page=50",
+                        """
+                        {"images":[{"id":11,"description":"ubuntu","status":"available",
+                          "created":"2026-09-01T00:00:00+00:00"}],
+                         "meta":{"pagination":{"next_page":null}}}""")
+                .answering("/server_types?name=cx23&page=1&per_page=50",
+                        "{\"server_types\":[{\"id\":23}],\"meta\":{\"pagination\":{\"next_page\":null}}}")
+                .answering("/server_types?name=cpx42&page=1&per_page=50",
+                        "{\"server_types\":[{\"id\":42}],\"meta\":{\"pagination\":{\"next_page\":null}}}")
+                .answering("/datacenters?page=1&per_page=50", """
+                        {"datacenters":[{"name":"nbg1-dc3",
+                          "location":{"name":"nbg1","network_zone":"eu-central"},
+                          "server_types":{"available":[23,42]}}],
+                         "meta":{"pagination":{"next_page":null}}}""")
+                .answering("/ssh_keys?page=1&per_page=50", """
+                        {"ssh_keys":[{"id":2,"name":"ours","fingerprint":"%s"}],
+                         "meta":{"pagination":{"next_page":null}}}"""
+                        .formatted(Fingerprint.md5(credential)))
+                .answering("/servers", exchange -> {
+                    if (creates.incrementAndGet() == 1) {
+                        // A snapshot can only be restored onto a disk at least as big as the one
+                        // it was taken from. Measured against the real API, which answers 422.
+                        return new StubApi.Answer(422, "{\"error\":{\"code\":\"invalid_input\","
+                                + "\"message\":\"image disk is bigger than server type disk\"}}");
+                    }
+                    return new StubApi.Answer(201, """
+                            {"server":{"id":77,"name":"p",
+                               "public_net":{"ipv4":{"ip":"1.2.3.4"}}},
+                             "action":{"id":5,"status":"success"}}""");
+                })
+                .answering("/servers/77", exchange -> new StubApi.Answer(200,
+                        "{\"action\":{\"id\":6,\"status\":\"success\"}}"))) {
+            final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", NO_WAIT);
+            try (Lease lease = hetzner.acquire(
+                    Spec.of("p", "ubuntu", "build", credential)
+                            .tryingInOrder(List.of("cx23", "cpx42")))) {
+                assertThat(lease.address()).isEqualTo("1.2.3.4");
+            }
+            assertThat(creates.get()).as("did not try the second type").isEqualTo(2);
+        }
+    }
+
+    @Test
+    void saysWhyNoTypeCouldHostTheImage() throws IOException {
+        final Credential credential = Keys.generated();
+        try (StubApi stub = new StubApi()
+                .answering("/images?type=snapshot&label_selector=sokar=ci,os=ubuntu&page=1&per_page=50",
+                        """
+                        {"images":[{"id":11,"description":"ubuntu","status":"available",
+                          "created":"2026-09-01T00:00:00+00:00"}],
+                         "meta":{"pagination":{"next_page":null}}}""")
+                .answering("/server_types?name=cx23&page=1&per_page=50",
+                        "{\"server_types\":[{\"id\":23}],\"meta\":{\"pagination\":{\"next_page\":null}}}")
+                .answering("/datacenters?page=1&per_page=50", """
+                        {"datacenters":[{"name":"nbg1-dc3",
+                          "location":{"name":"nbg1","network_zone":"eu-central"},
+                          "server_types":{"available":[23]}}],
+                         "meta":{"pagination":{"next_page":null}}}""")
+                .answering("/ssh_keys?page=1&per_page=50", """
+                        {"ssh_keys":[{"id":2,"name":"ours","fingerprint":"%s"}],
+                         "meta":{"pagination":{"next_page":null}}}"""
+                        .formatted(Fingerprint.md5(credential)))
+                .answering("/servers", exchange -> new StubApi.Answer(422,
+                        "{\"error\":{\"code\":\"invalid_input\",\"message\":"
+                        + "\"image disk is bigger than server type disk\"}}"))) {
+            assertThatThrownBy(() -> Hetzner.against(stub.base(), "run-1", NO_WAIT)
+                    .acquire(Spec.of("p", "ubuntu", "build", credential)
+                            .tryingInOrder(List.of("cx23"))))
+                    .isInstanceOf(IOException.class)
+                    .hasMessageContaining("could host")
+                    .hasMessageContaining("smaller disk");
         }
     }
 

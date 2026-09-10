@@ -116,12 +116,40 @@ public final class Hetzner implements Machines {
     @Override
     public Lease acquire(Spec spec) throws IOException {
         final Map<String, Object> snapshot = newestSnapshot(spec.os());
-        final Placement placement = placement(spec.serverTypes());
+        final List<Placement> candidates = placements(spec.serverTypes());
         final long key = keyMatching(spec.credential());
 
-        System.out.println("creating " + spec.name() + ": " + placement.type() + ", "
-                + Values.text(snapshot, "description") + ", " + placement.location());
-        final Map<String, Object> created = createWhenThereIsRoom(spec, snapshot, placement, key);
+        Map<String, Object> created = null;
+        Placement placement = null;
+        final List<String> refused = new ArrayList<>();
+        for (final Placement candidate : candidates) {
+            System.out.println("creating " + spec.name() + ": " + candidate.type() + ", "
+                    + Values.text(snapshot, "description") + ", " + candidate.location());
+            try {
+                created = createWhenThereIsRoom(spec, snapshot, candidate, key);
+                placement = candidate;
+                break;
+            } catch (Api.ApiException ex) {
+                // A type this image cannot go on is the same answer as a type nobody has: move
+                // to the next one named rather than ending the run. Measured against a snapshot
+                // taken from a 160 GB machine - every cheaper type answered "image disk is
+                // bigger than server type disk", which is a property of the pair and not of the
+                // project's stock.
+                if (!refusesTheType(ex)) {
+                    throw ex;
+                }
+                System.out.println("  " + candidate.type() + " will not take this image: "
+                        + ex.getMessage());
+                refused.add(candidate.type());
+            }
+        }
+        if (created == null) {
+            throw new IOException("none of " + spec.serverTypes() + " could host the '"
+                    + spec.os() + "' snapshot" + (refused.isEmpty() ? ""
+                            : "; refused by " + refused)
+                    + ". A snapshot can only be restored onto a disk at least as big as the one it"
+                    + " was taken from, so cheaper types need a snapshot built on a smaller disk.");
+        }
         final Map<String, Object> server = Values.object(created, "server");
         final long id = Values.id(server.get("id"));
         await(Values.object(created, "action"));
@@ -130,6 +158,20 @@ public final class Hetzner implements Machines {
                 Values.object(Values.object(server, "public_net"), "ipv4"), "ip");
         System.out.println("created  " + spec.name() + " at " + address);
         return new Lease(spec.name(), address, spec, () -> destroy(spec, id, address));
+    }
+
+    /**
+     * Tells whether the API refused the type rather than the request.
+     * <p>
+     * Narrow on purpose: everything else - a bad token, a full project, an image that does not
+     * exist - is a mistake that trying a different machine cannot fix, and quietly working
+     * through a list of types would turn one clear error into several confusing ones.
+     *
+     * @param refusal What the API said.
+     * @return Whether another type is worth trying.
+     */
+    private static boolean refusesTheType(Api.ApiException refusal) {
+        return String.valueOf(refusal.getMessage()).contains("image disk is bigger than server");
     }
 
     /**
@@ -273,8 +315,9 @@ public final class Hetzner implements Machines {
      * @return The type to create and where.
      * @throws IOException If nothing in the zone offers any of them, saying what was asked.
      */
-    Placement placement(List<String> types) throws IOException {
+    List<Placement> placements(List<String> types) throws IOException {
         final List<Map<String, Object>> datacenters = api.all("/datacenters", "datacenters");
+        final List<Placement> found = new ArrayList<>();
         final List<String> tried = new ArrayList<>();
         for (final String type : types) {
             final List<Map<String, Object>> known = api.all("/server_types?name=" + type,
@@ -295,17 +338,21 @@ public final class Hetzner implements Machines {
                     // The rate, because the reason for an ordered list is money and a run that
                     // does not say what it chose to spend cannot be checked against the bill.
                     System.out.println("location " + here + " has " + type
-                            + hourly(known.getFirst(), here)
-                            + (types.indexOf(type) == 0 ? ""
-                                    : " (nothing offered " + String.join(", ", tried) + ")"));
-                    return new Placement(type, here);
+                            + hourly(known.getFirst(), here));
+                    found.add(new Placement(type, here));
+                    break;
                 }
                 where.add(Values.text(datacenter, "name"));
             }
-            tried.add(type + "=not offered in " + String.join("/", where));
+            if (where.size() > 0 && found.stream().noneMatch(each -> each.type().equals(type))) {
+                tried.add(type + "=not offered in " + String.join("/", where));
+            }
         }
-        throw new IOException("no location in " + NETWORK_ZONE + " currently offers any of "
-                + types + ": " + String.join("; ", tried));
+        if (found.isEmpty()) {
+            throw new IOException("no location in " + NETWORK_ZONE + " currently offers any of "
+                    + types + ": " + String.join("; ", tried));
+        }
+        return found;
     }
 
     /**
