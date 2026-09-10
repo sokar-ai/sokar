@@ -158,8 +158,11 @@ public final class GitHubReport implements ConcurrentEventListener {
         int failed = 0;
         int total = 0;
         for (final Map.Entry<String, List<Case>> entry : byFeature.entrySet()) {
-            // One row per scenario, not per example. An outline of ten examples is one sentence
-            // somebody wrote, and ten identical rows is a summary nobody reads to the end.
+            // Grouped by the name Cucumber reports, which folds an outline's examples into one
+            // row - ten identical rows is a summary nobody reads to the end. It folds only while
+            // the outline's *name* carries no <placeholders>: with them every example gets a
+            // distinct name and lands on its own row. Every outline in this repository is
+            // placeholder-free, so they fold here; a repository using the kit may see otherwise.
             final Map<String, List<Case>> grouped = new LinkedHashMap<>();
             for (final Case each : entry.getValue()) {
                 grouped.computeIfAbsent(each.name(), key -> new ArrayList<>()).add(each);

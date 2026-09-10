@@ -83,7 +83,9 @@ class GitHubReportTest {
     @Test
     void collapsesAnOutlineIntoOneRowThatSaysHowManyPassed() {
         // Ten examples are one sentence somebody wrote. Ten identical rows is a summary nobody
-        // reads to the end, so the row carries the ratio instead.
+        // reads to the end, so the row carries the ratio instead. This is the case where the
+        // outline's name has no <placeholders> and Cucumber reports one name for every example;
+        // the test below is what happens when it does not.
         final String summary = GitHubReport.summary(oneFeature(
                 new GitHubReport.Case("an outline", Status.PASSED, 1),
                 new GitHubReport.Case("an outline", Status.FAILED, 2),
@@ -91,6 +93,20 @@ class GitHubReportTest {
         assertThat(summary).containsOnlyOnce("an outline");
         assertThat(summary).contains("| 2/3 | 6ms |");
         assertThat(summary).contains("**2 of 3 passed.**");
+    }
+
+    @Test
+    void leavesExamplesApartWhenCucumberNamedThemApart() {
+        // Measured, not assumed: an outline titled 'adding <a> and <b>' reports three distinct
+        // names, so nothing folds and each example is its own row. Documented as unconditional
+        // folding until a probe run showed otherwise.
+        final String summary = GitHubReport.summary(oneFeature(
+                new GitHubReport.Case("adding 1 and 1", Status.PASSED, 1),
+                new GitHubReport.Case("adding 9 and 9", Status.FAILED, 2)));
+        assertThat(summary).contains("| adding 1 and 1 |");
+        assertThat(summary).contains("| adding 9 and 9 |");
+        assertThat(summary).doesNotContain("/2 |");
+        assertThat(summary).contains("**1 of 2 passed.**");
     }
 
     private static Map<String, List<GitHubReport.Case>> oneFeature(
