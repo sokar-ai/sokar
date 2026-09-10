@@ -15,14 +15,14 @@ import java.util.Map;
  * provisioner" and no such thing was in the repository. An image nobody can rebuild is one nobody
  * can change, and it quietly decides things: the first pair were taken on a 320 GB machine to hold
  * 1.6 GB of content, and a snapshot only restores onto a disk at least as big as the one it came
- * from, so every leg had to rent the one server type big enough - at 0.1114 EUR/h against 0.0088
- * for the cheapest that could otherwise have done the work.
+ * from, so every leg had to rent the one server type big enough - at 0.1114 EUR/h against 0.0136
+ * for one that does the work in about the same money.
  * <p>
  * <strong>What is in one, and why.</strong> Only what a leg cannot install for itself in less time
- * than booting costs: the container runtime and the pieces rootless podman needs, git and the
- * tools to fetch things, an unprivileged {@code build} user that lingers so a user systemd session
- * survives, and the two base images every task starts from. Sokar itself is deliberately absent -
- * building it is what a leg is for.
+ * than booting costs: the JDK it builds with, the C toolchain that JDK links against, the
+ * container runtime and the pieces rootless podman needs, an unprivileged {@code build} user that
+ * lingers so a user systemd session survives, and the two base images every task starts from.
+ * Sokar itself is deliberately absent - building it is what a leg is for.
  */
 public final class Snapshots {
 
@@ -36,6 +36,22 @@ public final class Snapshots {
 
     /** The unprivileged user a leg connects as. */
     private static final String USER = "build";
+
+    /**
+     * The JDK a leg builds with.
+     * <p>
+     * <strong>Not on the PATH, deliberately.</strong> The remote build names it -
+     * {@code JAVA_HOME=/opt/graalvm} - so a machine where somebody installed a different java does
+     * not quietly build with that one instead.
+     * <p>
+     * Left out of the first rebuild of these snapshots and found the hard way: the build died on
+     * "The JAVA_HOME environment variable is not defined correctly", because an inventory that
+     * asked dpkg what was installed never thought to look in {@code /opt}.
+     */
+    private static final String GRAALVM_VERSION = "25.0.2";
+
+    /** Where the JDK goes, because that is where the remote build looks for it. */
+    private static final String GRAALVM_HOME = "/opt/graalvm";
 
     /** Base images every task starts from, pulled once here rather than per run. */
     private static final List<String> IMAGES =
@@ -92,27 +108,44 @@ public final class Snapshots {
      * @return A script.
      */
     static String recipe(String os) {
-        final String packages = "fedora".equals(os)
-                ? "dnf install -y -q podman nftables git curl gnupg2 ca-certificates "
-                        + "shadow-utils slirp4netns passt fuse-overlayfs crun && dnf clean all"
-                : "export DEBIAN_FRONTEND=noninteractive && apt-get update -qq && "
-                        + "apt-get install -y -qq podman nftables git curl gnupg ca-certificates "
-                        + "uidmap slirp4netns passt fuse-overlayfs crun && apt-get clean && "
-                        + "rm -rf /var/lib/apt/lists/*";
-        return """
-            set -eu
-            %s
-            id -u %s >/dev/null 2>&1 || useradd -m -s /bin/bash %s
-            loginctl enable-linger %s
-            install -d -m 0700 -o %s -g %s /home/%s/.ssh
-            install -m 0600 -o %s -g %s /root/.ssh/authorized_keys /home/%s/.ssh/authorized_keys
-            # Pulled as the user that will run them: rootless podman keeps its own store.
-            %s
-            echo "### prepared"
-            df -h / | tail -1
-            su - %s -c 'podman images'
-            """.formatted(packages, USER, USER, USER, USER, USER, USER, USER, USER, USER,
-                    pulls(), USER);
+        return TEMPLATE
+                .replace("@PACKAGES@", packages(os))
+                .replace("@DOWNLOAD@", download())
+                .replace("@GRAALVM@", GRAALVM_HOME)
+                .replace("@PULLS@", pulls())
+                .replace("@USER@", USER);
+    }
+
+    /**
+     * Returns what to install from the distribution's own packages.
+     * <p>
+     * The C toolchain is native-image's rather than podman's: it links what it generates, and
+     * GraalVM's prerequisites on Linux are a compiler, the glibc headers and zlib.
+     *
+     * @param os Which operating system.
+     * @return A command.
+     */
+    private static String packages(String os) {
+        if ("fedora".equals(os)) {
+            return "dnf install -y -q podman nftables git curl gnupg2 ca-certificates "
+                    + "shadow-utils slirp4netns passt fuse-overlayfs crun "
+                    + "gcc glibc-devel zlib-devel libstdc++-static && dnf clean all";
+        }
+        return "export DEBIAN_FRONTEND=noninteractive && apt-get update -qq && "
+                + "apt-get install -y -qq podman nftables git curl gnupg ca-certificates "
+                + "uidmap slirp4netns passt fuse-overlayfs crun build-essential zlib1g-dev "
+                + "&& apt-get clean && rm -rf /var/lib/apt/lists/*";
+    }
+
+    /**
+     * Returns where the JDK comes from.
+     *
+     * @return A download URL.
+     */
+    private static String download() {
+        return "https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-"
+                + GRAALVM_VERSION + "/graalvm-community-jdk-" + GRAALVM_VERSION
+                + "_linux-x64_bin.tar.gz";
     }
 
     private static String pulls() {
@@ -121,6 +154,33 @@ public final class Snapshots {
             out.append("su - ").append(USER).append(" -c 'podman pull -q ").append(image)
                     .append("'\n");
         }
-        return out.toString();
+        return out.toString().strip();
     }
+
+    /** What a fresh machine is turned into. Placeholders rather than positional arguments. */
+    private static final String TEMPLATE = """
+            set -eu
+            @PACKAGES@
+            curl -fsSL @DOWNLOAD@ -o /tmp/graalvm.tar.gz
+            mkdir -p @GRAALVM@
+            tar -xzf /tmp/graalvm.tar.gz -C @GRAALVM@ --strip-components=1
+            rm -f /tmp/graalvm.tar.gz
+            # Nothing that updates packages in the background. A build is timed, and a machine
+            # that decides to fetch security updates five minutes after boot spends a leg's CPU
+            # on something nobody asked for. Measured: the same hello-world native image took
+            # 7m38s on one boot and 1m08s on the next, same snapshot and same server type.
+            systemctl disable --now unattended-upgrades apt-daily.timer apt-daily-upgrade.timer \
+                dnf-makecache.timer dnf5-makecache.timer >/dev/null 2>&1 || true
+            id -u @USER@ >/dev/null 2>&1 || useradd -m -s /bin/bash @USER@
+            loginctl enable-linger @USER@
+            install -d -m 0700 -o @USER@ -g @USER@ /home/@USER@/.ssh
+            install -m 0600 -o @USER@ -g @USER@ /root/.ssh/authorized_keys \\
+                /home/@USER@/.ssh/authorized_keys
+            # Pulled as the user that will run them: rootless podman keeps its own store.
+            @PULLS@
+            echo '### prepared'
+            df -h / | tail -1
+            @GRAALVM@/bin/java --version | head -1
+            su - @USER@ -c 'podman images'
+            """;
 }

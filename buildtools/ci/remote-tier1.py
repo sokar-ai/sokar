@@ -46,16 +46,20 @@ REPO = "/home/build/sokar"
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    # cx33: 4 cores, 8 GB, 80 GB disk, 0.0136 EUR/h. It was cpx42 at 0.1114 while the CI
-    # snapshots demanded a 320 GB disk to hold 1.6 GB of content - no cheaper type could boot
-    # them at all. The snapshots are rebuilt at 40 GB now, so this is a choice again.
+    # cpx42, and the reason is GitHub's minutes rather than Hetzner's bill.
     #
-    # Measured on cpx42: peak RSS 2.32 GB of the 13.4 GB offered, and a CPU load of 6.2 of 8. So
-    # memory was never the constraint and cores are what a build spends. Four of them puts the leg
-    # at an estimated 11.6 minutes against 8.5, which is about six times cheaper per run. cx23 is
-    # cheaper per hour and works out the same per run because it takes twice as long, with half
-    # the disk - so cx33 is the same money for twice the machine.
-    parser.add_argument("--type", default="cx33", dest="server_type")
+    # The snapshots used to demand a 320 GB disk to hold 1.6 GB of content, so cpx42 was the only
+    # type that could boot one. They are rebuilt at 40 GB now, which made this a choice - and
+    # measured, the cheaper choice is the wrong one. This script runs on the GitHub runner and
+    # blocks on ssh while the remote build works, so runner wall-clock is the leg's wall-clock: a
+    # slower machine spends more of the resource that is actually scarce.
+    #
+    # Measured on the same snapshot, a hello-world native image: 23.4s on cpx42, 1m08s on cx33 -
+    # 2.9x, not the 2x halving the cores suggests. Against 188s of native images per leg that puts
+    # a leg near 14.5 minutes instead of 8.5, so about 29 GitHub minutes a build instead of 17,
+    # to save 1.2 cents of Hetzner. The ordered list below is still worth having: it is what keeps
+    # a run alive when a type is sold out.
+    parser.add_argument("--type", default="cpx42", dest="server_type")
     parser.add_argument("--location", default=None,
                         help="a specific location; by default one is chosen from the "
                              "eu-central zone that currently has the server type")
