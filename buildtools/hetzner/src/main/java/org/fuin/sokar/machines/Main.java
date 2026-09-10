@@ -3,6 +3,7 @@ package org.fuin.sokar.machines;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -36,24 +37,24 @@ public final class Main {
      */
     public static void main(String[] args) {
         try {
-            System.exit(run(args, () -> Hetzner.with(
+            System.exit(run(args, COMPLAIN, () -> Hetzner.with(
                     token(System.getenv("REMOTE_BUILD")), runId(System.getenv("GITHUB_RUN_ID"),
                             System.getenv("SOKAR_CI_LEG")))));
         } catch (IOException | IllegalStateException | IllegalArgumentException ex) {
             // The refusals this code makes on purpose - a missing token, an API that said no.
             // Anything else is a fault here and keeps its stack trace, because a one-line
             // message for a NullPointerException hides the only useful thing about it.
-            System.err.println(problem(ex.getMessage()));
+            COMPLAIN.accept(ex.getMessage());
             System.exit(1);
         }
     }
 
-    static int run(String[] args, Supplier<Hetzner> open) throws IOException {
+    static int run(String[] args, Consumer<String> complain, Supplier<Hetzner> open) throws IOException {
         if (args.length > 0 && "snapshot".equals(args[0])) {
-            return snapshot(args, open);
+            return snapshot(args, complain, open);
         }
         if (args.length > 0 && "leg".equals(args[0])) {
-            return leg(args, open);
+            return leg(args, complain, open);
         }
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
@@ -82,19 +83,19 @@ public final class Main {
                 case "--now" -> delete = true;
                 case "--older-than" -> {
                     if (at + 1 >= args.length) {
-                        System.err.println(problem("--older-than needs a number of minutes"));
+                        complain.accept("--older-than needs a number of minutes");
                         return 2;
                     }
                     try {
                         olderThan = Duration.ofMinutes(Long.parseLong(args[++at]));
                     } catch (NumberFormatException ex) {
-                        System.err.println(problem("--older-than needs a number of minutes, not '"
-                                + args[at] + "'"));
+                        complain.accept("--older-than needs a number of minutes, not '"
+                                + args[at] + "'");
                         return 2;
                     }
                 }
                 default -> {
-                    System.err.println(problem("unknown option: " + args[at]));
+                    complain.accept("unknown option: " + args[at]);
                     return 2;
                 }
             }
@@ -127,7 +128,8 @@ public final class Main {
      * @return An exit code.
      * @throws IOException If it cannot be built.
      */
-    private static int snapshot(String[] args, Supplier<Hetzner> open) throws IOException {
+    private static int snapshot(String[] args, Consumer<String> complain,
+            Supplier<Hetzner> open) throws IOException {
         String os = null;
         String key = null;
         String repo = null;
@@ -139,13 +141,13 @@ public final class Main {
                 case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
                 case "--type" -> type = at + 1 < args.length ? args[++at] : null;
                 default -> {
-                    System.err.println(problem("unknown option: " + args[at]));
+                    complain.accept("unknown option: " + args[at]);
                     return 2;
                 }
             }
         }
         if (os == null) {
-            System.err.println(problem("snapshot needs --os"));
+            complain.accept("snapshot needs --os");
             return 2;
         }
         final Credential credential = Credential.of(System.getenv("SSH"),
@@ -203,7 +205,8 @@ public final class Main {
      * @return An exit code.
      * @throws IOException If the leg fails.
      */
-    private static int leg(String[] args, Supplier<Hetzner> open) throws IOException {
+    private static int leg(String[] args, Consumer<String> complain,
+            Supplier<Hetzner> open) throws IOException {
         String os = null;
         String key = null;
         String repo = null;
@@ -215,13 +218,13 @@ public final class Main {
                 case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
                 case "--keep" -> keep = true;
                 default -> {
-                    System.err.println(problem("unknown option: " + args[at]));
+                    complain.accept("unknown option: " + args[at]);
                     return 2;
                 }
             }
         }
         if (os == null || repo == null) {
-            System.err.println(problem("leg needs --os and --repo"));
+            complain.accept("leg needs --os and --repo");
             return 2;
         }
         try (Hetzner hetzner = open.get()) {
@@ -233,21 +236,18 @@ public final class Main {
     }
 
     /**
-     * Marks a message as a problem, in the form whoever is reading understands.
+     * Where a complaint goes when this is run as a command.
      * <p>
-     * The {@code ::error::} prefix is a workflow command, and GitHub turns any line carrying one
-     * into an annotation on the job - including a line a unit test caused while checking that a
-     * bad option is refused. Three green jobs carried red annotations that way. So the prefix is
-     * added where a workflow is reading and nowhere else, the same rule the acceptance report
-     * follows.
-     *
-     * @param message What went wrong.
-     * @return The message, prefixed when CI is reading.
+     * <strong>Supplied by the caller, not chosen here.</strong> The {@code ::error::} prefix is a
+     * workflow command and GitHub turns any line carrying one into an annotation - including a
+     * line a unit test caused while checking that a bad option is refused. Gating on
+     * {@code GITHUB_ACTIONS} does not help, because the tests run inside CI too, where the
+     * variable is set: it made the annotations survive and a test assert on ambient state.
+     * A test passes its own sink and prints nothing.
      */
-    static String problem(String message) {
-        return System.getenv("GITHUB_ACTIONS") == null ? "sokar: " + message
-                : "::error::" + message;
-    }
+    private static final Consumer<String> COMPLAIN = message -> System.err.println(
+            System.getenv("GITHUB_ACTIONS") == null ? "sokar: " + message
+                    : "::error::" + message);
 
     /**
      * Returns the API token, or refuses when there is none.

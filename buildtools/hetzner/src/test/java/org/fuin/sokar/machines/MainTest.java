@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
@@ -22,34 +25,39 @@ import org.junit.jupiter.api.Test;
 class MainTest {
 
     /** Fails the test rather than opening anything, so a parsing test cannot become a sweep. */
+    /** A sink a test can read, so nothing reaches a job's annotations. */
+    private static final Consumer<String> QUIET = message -> { };
+
     private static final Supplier<Hetzner> NEVER = () -> {
         throw new AssertionError("the arguments were accepted and something tried to connect");
     };
 
     @Test
-    void doesNotAnnotateAJobWhileATestIsCheckingARefusal() {
-        // Every '::error::' line GitHub sees becomes an annotation on the job, including one a
-        // unit test caused on purpose. Three green jobs carried red annotations that way.
-        assertThat(Main.problem("unknown option: --nonsense")).startsWith("sokar: ");
-        assertThat(Main.problem("unknown option: --nonsense")).doesNotContain("::error::");
+    void saysWhatIsWrongWithoutAnnotatingAnybodysJob() throws IOException {
+        // Every '::error::' line GitHub sees becomes an annotation, including one a unit test
+        // caused on purpose - and gating on GITHUB_ACTIONS could not help, because the tests run
+        // inside CI where it is set. So a test hands over its own sink and nothing is printed.
+        final List<String> said = new ArrayList<>();
+        assertThat(Main.run(new String[] {"sweep", "--nonsense"}, said::add, NEVER)).isEqualTo(2);
+        assertThat(said).containsExactly("unknown option: --nonsense");
     }
 
     @Test
     void saysHowToUseItWhenAskedForNothing() throws IOException {
-        assertThat(Main.run(new String[0], NEVER)).isEqualTo(2);
+        assertThat(Main.run(new String[0], QUIET, NEVER)).isEqualTo(2);
     }
 
     @Test
     void refusesAnOptionItDoesNotKnowRatherThanIgnoringIt() throws IOException {
         // An ignored option in a sweep means deleting on a rule nobody asked for, or not
         // deleting on one they did.
-        assertThat(Main.run(new String[] {"sweep", "--nonsense"}, NEVER)).isEqualTo(2);
+        assertThat(Main.run(new String[] {"sweep", "--nonsense"}, QUIET, NEVER)).isEqualTo(2);
     }
 
     @Test
     void refusesAnAgeWithNoNumberAfterIt() throws IOException {
-        assertThat(Main.run(new String[] {"sweep", "--older-than"}, NEVER)).isEqualTo(2);
-        assertThat(Main.run(new String[] {"sweep", "--older-than", "soon"}, NEVER)).isEqualTo(2);
+        assertThat(Main.run(new String[] {"sweep", "--older-than"}, QUIET, NEVER)).isEqualTo(2);
+        assertThat(Main.run(new String[] {"sweep", "--older-than", "soon"}, QUIET, NEVER)).isEqualTo(2);
     }
 
     @Test
@@ -59,7 +67,7 @@ class MainTest {
         // before anything swept it.
         try (StubApi stub = twoServers()) {
             assertThat(Main.run(new String[] {"sweep", "--older-than", "60", "--now"},
-                    () -> Hetzner.against(stub.base(), "run-1"))).isZero();
+                    QUIET, () -> Hetzner.against(stub.base(), "run-1"))).isZero();
             assertThat(stub.asked()).contains("DELETE /v1/servers/1");
             assertThat(stub.asked()).doesNotContain("DELETE /v1/servers/2");
         }
@@ -70,7 +78,7 @@ class MainTest {
         // '--now' means "delete rather than say", not "delete everything whatever its age".
         // Ignoring the age here would take out the servers of every run in flight.
         try (StubApi stub = twoServers()) {
-            Main.run(new String[] {"sweep", "--now"}, () -> Hetzner.against(stub.base(), "run-1"));
+            Main.run(new String[] {"sweep", "--now"}, QUIET, () -> Hetzner.against(stub.base(), "run-1"));
             assertThat(stub.asked()).doesNotContain("DELETE /v1/servers/2");
         }
     }
@@ -81,7 +89,7 @@ class MainTest {
         // allowed to remove is visible rather than quietly green.
         try (StubApi stub = twoServers()) {
             assertThat(Main.run(new String[] {"sweep"},
-                    () -> Hetzner.against(stub.base(), "run-1"))).isEqualTo(1);
+                    QUIET, () -> Hetzner.against(stub.base(), "run-1"))).isEqualTo(1);
             assertThat(stub.asked()).doesNotContain("DELETE /v1/servers/1", "DELETE /v1/servers/2");
         }
     }
