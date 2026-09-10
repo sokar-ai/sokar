@@ -2,6 +2,7 @@ package org.fuin.sokar.machines;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.function.Supplier;
 
 /**
  * The command line, for the parts of this a workflow calls directly.
@@ -28,7 +29,9 @@ public final class Main {
      */
     public static void main(String[] args) {
         try {
-            System.exit(run(args));
+            System.exit(run(args, () -> Hetzner.with(
+                    token(System.getenv("REMOTE_BUILD")), runId(System.getenv("GITHUB_RUN_ID"),
+                            System.getenv("SOKAR_CI_LEG")))));
         } catch (IOException | IllegalStateException | IllegalArgumentException ex) {
             // The refusals this code makes on purpose - a missing token, an API that said no.
             // Anything else is a fault here and keeps its stack trace, because a one-line
@@ -38,7 +41,7 @@ public final class Main {
         }
     }
 
-    static int run(String[] args) throws IOException {
+    static int run(String[] args, Supplier<Hetzner> open) throws IOException {
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
                 Usage: sweep [--mine | --now | --older-than <hours>]
@@ -82,7 +85,7 @@ public final class Main {
             }
         }
 
-        try (Hetzner hetzner = Hetzner.with(token(), runId())) {
+        try (Hetzner hetzner = open.get()) {
             if (mine) {
                 System.out.println("deleted " + hetzner.deleteMine() + " of this run's servers");
                 return 0;
@@ -94,32 +97,39 @@ public final class Main {
     }
 
     /**
-     * Returns the API token.
+     * Returns the API token, or refuses when there is none.
      * <p>
      * From the environment and never an argument: {@code /proc/<pid>/cmdline} is world readable,
      * and neither supported distribution mounts {@code /proc} with {@code hidepid}.
+     * <p>
+     * <strong>Taken as a parameter rather than read here.</strong> A test that called the version
+     * which read the environment itself passed on a developer's machine, where nothing sets the
+     * token, and on CI - where the workflow does set it - authenticated against the real project
+     * and swept the server the build was running on. A function that reads ambient state cannot be
+     * tested for what it does when that state is absent.
      *
+     * @param fromEnvironment What the environment holds, or {@code null}.
      * @return The token.
      */
-    private static String token() {
-        final String token = System.getenv("REMOTE_BUILD");
-        if (token == null || token.isBlank()) {
+    static String token(String fromEnvironment) {
+        if (fromEnvironment == null || fromEnvironment.isBlank()) {
             throw new IllegalStateException("No API token: set REMOTE_BUILD in the environment.");
         }
-        return token;
+        return fromEnvironment;
     }
 
     /**
      * Returns what identifies this run.
      * <p>
      * The workflow run in CI; a timestamp locally, which is enough to tell two developers apart
-     * and does not pretend to be more.
+     * and does not pretend to be more. Both legs of a matrix share the run, so the leg is what
+     * makes a server's label unique - and a sweep deletes by that label.
      *
+     * @param run The workflow run, or {@code null} outside CI.
+     * @param leg Which leg of the matrix, or {@code null}.
      * @return The run id.
      */
-    static String runId() {
-        final String run = System.getenv("GITHUB_RUN_ID");
-        final String leg = System.getenv("SOKAR_CI_LEG");
+    static String runId(String run, String leg) {
         if (run != null && !run.isBlank()) {
             return leg == null || leg.isBlank() ? run : run + "-" + leg;
         }
