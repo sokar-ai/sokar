@@ -48,9 +48,13 @@ public final class Main {
     }
 
     static int run(String[] args, Supplier<Hetzner> open) throws IOException {
+        if (args.length > 0 && "snapshot".equals(args[0])) {
+            return snapshot(args, open);
+        }
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
                 Usage: sweep [--mine] [--now] [--older-than <minutes>]
+                       snapshot --os <ubuntu|fedora> [--key <file>]
 
                   --mine                 delete what this run created, whatever its age. What a
                                          job uses to clean up after itself - deleting by age
@@ -108,6 +112,39 @@ public final class Main {
             }
             return 0;
         }
+    }
+
+    /**
+     * Builds a snapshot for one operating system.
+     *
+     * @param args The command line.
+     * @param open Where to build it.
+     * @return An exit code.
+     * @throws IOException If it cannot be built.
+     */
+    private static int snapshot(String[] args, Supplier<Hetzner> open) throws IOException {
+        String os = null;
+        String key = null;
+        for (int at = 1; at < args.length; at++) {
+            switch (args[at]) {
+                case "--os" -> os = at + 1 < args.length ? args[++at] : null;
+                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
+                default -> {
+                    System.err.println("::error::unknown option: " + args[at]);
+                    return 2;
+                }
+            }
+        }
+        if (os == null) {
+            System.err.println("::error::snapshot needs --os");
+            return 2;
+        }
+        try (Hetzner hetzner = open.get()) {
+            Snapshots.build(hetzner, os, Snapshots.BUILD_TYPES,
+                    Credential.of(System.getenv("SSH"), key == null ? null
+                            : java.nio.file.Path.of(key)));
+        }
+        return 0;
     }
 
     /**

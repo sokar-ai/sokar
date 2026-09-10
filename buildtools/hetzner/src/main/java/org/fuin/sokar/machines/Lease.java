@@ -33,6 +33,8 @@ public final class Lease implements AutoCloseable {
         void release() throws IOException;
     }
 
+    private final long id;
+
     private final String name;
 
     private final String address;
@@ -46,12 +48,15 @@ public final class Lease implements AutoCloseable {
     /**
      * Constructor with everything a holder needs.
      *
+     * @param id The provider's id for it, or {@code 0} where the provider has none - a machine
+     *     already on this host is named, not numbered.
      * @param name What the machine is called, for messages.
      * @param address Where it is.
      * @param spec What was asked for.
      * @param release What giving it back means.
      */
-    public Lease(String name, String address, Spec spec, Release release) {
+    public Lease(long id, String name, String address, Spec spec, Release release) {
+        this.id = id;
         this.name = name;
         this.address = address;
         this.spec = spec;
@@ -65,6 +70,15 @@ public final class Lease implements AutoCloseable {
      */
     public String address() {
         return address;
+    }
+
+    /**
+     * Returns the provider's id for this machine.
+     *
+     * @return The id, or {@code 0} where the provider numbers nothing.
+     */
+    public long id() {
+        return id;
     }
 
     /**

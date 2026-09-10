@@ -79,7 +79,7 @@ public final class LocalVms implements Machines {
         }
         final String address = addressOf(domain);
         System.out.println("using    " + domain + " at " + address);
-        return new Lease(domain, address, spec,
+        return new Lease(0, domain, address, spec,
                 () -> System.out.println("leaving  " + domain + " running; 'virsh shutdown "
                         + domain + "' when the host needs the memory"));
     }

@@ -116,6 +116,25 @@ public final class Hetzner implements Machines {
     @Override
     public Lease acquire(Spec spec) throws IOException {
         final Map<String, Object> snapshot = newestSnapshot(spec.os());
+        return acquire(spec, Values.id(snapshot.get("id")),
+                Values.text(snapshot, "description"));
+    }
+
+    /**
+     * Creates a machine from a stock image rather than from one of ours.
+     * <p>
+     * What the snapshot provisioner starts from: there is no snapshot yet when one is being made.
+     *
+     * @param spec What to create.
+     * @param image A stock image name, such as {@code ubuntu-26.04}.
+     * @return The machine, which must be closed.
+     * @throws IOException If it cannot be created.
+     */
+    public Lease acquireFromStock(Spec spec, String image) throws IOException {
+        return acquire(spec, image, image);
+    }
+
+    private Lease acquire(Spec spec, Object image, String describedAs) throws IOException {
         final List<Placement> candidates = placements(spec.serverTypes());
         final long key = keyMatching(spec.credential());
 
@@ -124,9 +143,9 @@ public final class Hetzner implements Machines {
         final List<String> refused = new ArrayList<>();
         for (final Placement candidate : candidates) {
             System.out.println("creating " + spec.name() + ": " + candidate.type() + ", "
-                    + Values.text(snapshot, "description") + ", " + candidate.location());
+                    + describedAs + ", " + candidate.location());
             try {
-                created = createWhenThereIsRoom(spec, snapshot, candidate, key);
+                created = createWhenThereIsRoom(spec, image, candidate, key);
                 placement = candidate;
                 break;
             } catch (Api.ApiException ex) {
@@ -157,7 +176,7 @@ public final class Hetzner implements Machines {
         final String address = Values.text(
                 Values.object(Values.object(server, "public_net"), "ipv4"), "ip");
         System.out.println("created  " + spec.name() + " at " + address);
-        return new Lease(spec.name(), address, spec, () -> destroy(spec, id, address));
+        return new Lease(id, spec.name(), address, spec, () -> destroy(spec, id, address));
     }
 
     /**
@@ -199,7 +218,7 @@ public final class Hetzner implements Machines {
         }
     }
 
-    private Map<String, Object> createWhenThereIsRoom(Spec spec, Map<String, Object> snapshot,
+    private Map<String, Object> createWhenThereIsRoom(Spec spec, Object image,
             Placement placement, long key) throws IOException {
         final Map<String, Object> labels = new LinkedHashMap<>();
         labels.put("sokar", "ci");
@@ -207,7 +226,7 @@ public final class Hetzner implements Machines {
         final Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", spec.name());
         body.put("server_type", placement.type());
-        body.put("image", Values.id(snapshot.get("id")));
+        body.put("image", image);
         body.put("location", placement.location());
         body.put("ssh_keys", List.of(key));
         body.put("labels", labels);
@@ -436,6 +455,33 @@ public final class Hetzner implements Machines {
         throw new IOException("No key in the project matches the private key (" + wanted + ")."
                 + " In the project: " + (held.isEmpty() ? "none" : held)
                 + ". Add its public half to the project.");
+    }
+
+    /**
+     * Stops a server, so an image of it is not a picture of a half-written disk.
+     *
+     * @param id The server.
+     * @throws IOException If the API refuses.
+     */
+    public void shutdown(long id) throws IOException {
+        await(Values.object(api.post("/servers/" + id + "/actions/shutdown", Map.of()), "action"));
+    }
+
+    /**
+     * Takes a snapshot of a stopped server.
+     *
+     * @param id The server.
+     * @param description What to call it.
+     * @param os The {@code os} label, which is how a leg finds it again.
+     * @return The new image's id.
+     * @throws IOException If the API refuses.
+     */
+    public long snapshot(long id, String description, String os) throws IOException {
+        final Map<String, Object> answer = api.post("/servers/" + id + "/actions/create_image",
+                Map.of("description", description, "type", "snapshot",
+                        "labels", Map.of("sokar", "ci", "os", os)));
+        await(Values.object(answer, "action"));
+        return Values.id(Values.object(answer, "image").get("id"));
     }
 
     /**

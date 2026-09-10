@@ -20,10 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install the Hetzner client
-        run: pip install --quiet hcloud
-
-      # For the Java sweep below, while it is being proved against the one that works.
       - name: Set up Java
         uses: graalvm/setup-graalvm@v1
         with:
@@ -31,19 +27,7 @@ jobs:
           distribution: 'graalvm-community'
           cache: 'maven'
 
-      # Side by side, on purpose and temporarily. The Java sweep says what it would delete and
-      # deletes nothing; the script below still does the work. Hourly, against the real project,
-      # so the two can be compared on the same servers rather than on a guess - and a difference
-      # shows up here rather than the first time something is deleted that should not have been.
-      #
-      # 'continue-on-error' because a dry sweep that found something exits non-zero by design,
-      # which is the script's own contract and not a reason to fail this job.
-      #
-      # This comes out, and the step below becomes the Java one, once the two have agreed. Two
-      # sources for one fact is a trap; so is deleting the one that works before the other has
-      # ever run.
-      - name: What the Java sweep would delete
-        continue-on-error: true
+      - name: Delete anything older than an hour
         env:
           REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
         run: |
@@ -51,9 +35,4 @@ jobs:
           ./mvnw -B -q -pl buildtools/hetzner dependency:build-classpath \
               -Dmdep.outputFile=target/cp.txt
           java -cp "buildtools/hetzner/target/classes:$(cat buildtools/hetzner/target/cp.txt)" \
-              org.fuin.sokar.machines.Main sweep --older-than 60
-
-      - name: Delete anything older than an hour
-        env:
-          REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
-        run: python3 buildtools/ci/sweep.py --older-than 60 --now
+              org.fuin.sokar.machines.Main sweep --older-than 60 --now
