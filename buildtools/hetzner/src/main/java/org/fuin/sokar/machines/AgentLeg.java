@@ -101,13 +101,18 @@ public final class AgentLeg {
                     + " && install -m 0600 -o " + USER + " -g " + USER
                     + " /root/.ssh/authorized_keys /home/" + USER + "/.ssh/authorized_keys");
 
-            System.out.println("\n-- sending the suite --");
-            run(lease, "cat > /home/" + USER + "/acceptance.sh && chmod +x /home/" + USER
-                    + "/acceptance.sh", options.script());
+            // As USER, not as the root connection above. The suite has to run in the shape a
+            // task runs in - rootless podman, one operator's own directories - and root has
+            // neither: podman is rootful there and /run/user/0 does not exist.
+            try (Ssh user = Ssh.to(lease.address(), USER, credential)) {
+                System.out.println("\n-- sending the suite --");
+                run(user, "cat > /home/" + USER + "/acceptance.sh && chmod +x /home/" + USER
+                        + "/acceptance.sh", options.script());
 
-            System.out.println("\n-- acceptance --");
-            run(lease, "cd /home/" + USER + " && XDG_RUNTIME_DIR=/run/user/$(id -u) "
-                    + exported() + "./acceptance.sh");
+                System.out.println("\n-- acceptance --");
+                run(user, "cd /home/" + USER + " && XDG_RUNTIME_DIR=/run/user/$(id -u) "
+                        + exported() + "./acceptance.sh", null);
+            }
 
             if (options.cucumber() != null) {
                 // From this end rather than on the server: it drives a terminal over ssh, so what
@@ -246,11 +251,15 @@ public final class AgentLeg {
     }
 
     private static void run(Lease lease, String command) throws IOException {
-        run(lease, command, null);
+        run(lease.ssh(), command, null);
     }
 
     private static void run(Lease lease, String command, String stdin) throws IOException {
-        final Ssh.Output out = lease.ssh().run(command, stdin);
+        run(lease.ssh(), command, stdin);
+    }
+
+    private static void run(Ssh ssh, String command, String stdin) throws IOException {
+        final Ssh.Output out = ssh.run(command, stdin);
         System.out.print(out.all());
         if (out.status() != 0) {
             throw new IOException("the leg failed at: " + command);
