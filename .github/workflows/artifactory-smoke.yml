@@ -1,13 +1,4 @@
-# Does Artifactory answer, and can this token actually do what the publish step needs?
-#
-# Manual only, and it builds nothing. The publish step is at the end of a native build, so
-# discovering there that a token lacks a permission costs a quarter of an hour per attempt.
-# This costs about twenty seconds.
-#
-# Worth keeping rather than deleting: it is also what to run after rotating the token.
-#
-# It prints no more than it must. Artifactory's own error messages name the service account,
-# which is why this repository should stay private until those logs are pruned.
+# Does Artifactory answer, and can this token actually do what the publish step needs? Manual.
 name: Artifactory smoke test
 
 on:
@@ -49,8 +40,7 @@ jobs:
       - name: Both repositories exist and are the right type
         run: |
           set -eu
-          # 'rpm' is what the API reports; older Artifactory said 'yum' and parts of JFrog's
-          # own documentation still do. Accept either rather than pin to one spelling.
+          # 'rpm' is what the API reports;
           check_type() {
               repo="$1"; shift
               got="$(jf rt curl -s -XGET "/api/repositories/$repo" \
@@ -67,12 +57,7 @@ jobs:
           check_type "$DEB_REPO" debian
           check_type "$RPM_REPO" rpm yum
 
-      # No signing key means no InRelease, and apt refuses the repository - with an error
-      # that reads as a network problem.
-      # Informational, never fatal. GET /api/repositories/<key> returns a fuller
-      # configuration to an admin than to a repository-scoped token, and jq cannot tell an
-      # absent field from a null one - so an empty answer here means "not visible", not
-      # "not configured". The UI is what settles it.
+      # No signing key means no InRelease, and apt refuses the repository - with an error that reads as.
       - name: What the API says about signing
         run: |
           set -eu
@@ -90,16 +75,6 @@ jobs:
           done
 
       # Deploy, Annotate and Delete are three separate permissions and all three are needed.
-      #
-      # Without Annotate an upload SUCCEEDS and the properties are dropped - and for a .deb the
-      # properties are what get it indexed, so the package lands and apt never sees it.
-      #
-      # Delete is needed because the snapshot packages have stable file names, so every push to
-      # main re-uploads the same path. Artifactory gates overwrite on the delete permission:
-      # without it the first publish works and every one after it returns 403.
-      #
-      # The probe is a .txt under a dot-directory: it carries no deb.* properties and is not a
-      # package, so no indexer looks at it.
       - name: The token can write, annotate and delete
         run: |
           set -eu

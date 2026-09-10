@@ -1,12 +1,4 @@
 # Deletes test servers that a run could not clean up after itself.
-#
-# The one case a leg cannot cover: a job canceled between two statements
-# never reaches its finally. That has happened - two pushes in quick succession, the first run
-# canceled by cancel-in-progress, and its server left billing at 0.111 EUR/hour, which is
-# 81 EUR a month if nobody notices.
-#
-# Hourly, and by age: anything older than an hour is either forgotten or a run so slow it wants
-# looking at. A run cleaning up after itself uses --mine instead, which cannot race this.
 name: Sweep abandoned test servers
 
 on:
