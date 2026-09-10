@@ -442,7 +442,7 @@ See [build.md](doc/build.md). Three things that will bite:
   taken seriously here. Note where they have *not* solved something either; a gap in
   somebody else's implementation is as informative as a solution, and cheaper to find
   than to rediscover. Which projects, where their checkouts are, and what each has
-  already answered is a working note rather than product documentation: `.AGENT.md`
+  already answered is a working note rather than product documentation: `.AGENTS.md`
   in the repository root, gitignored like every dotfile here.
 
 - **A provider is data; an agent is code.** An agent needs a binary because it has behavior
