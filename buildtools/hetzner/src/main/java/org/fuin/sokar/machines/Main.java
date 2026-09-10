@@ -2,6 +2,7 @@ package org.fuin.sokar.machines;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -57,7 +58,7 @@ public final class Main {
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
                 Usage: sweep [--mine] [--now] [--older-than <minutes>]
-                       snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>]
+                       snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
                        leg      --os <ubuntu|fedora> --repo <dir> [--key <file>] [--keep]
 
                   --mine                 delete what this run created, whatever its age. What a
@@ -130,11 +131,13 @@ public final class Main {
         String os = null;
         String key = null;
         String repo = null;
+        String type = null;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = at + 1 < args.length ? args[++at] : null;
                 case "--key" -> key = at + 1 < args.length ? args[++at] : null;
                 case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
+                case "--type" -> type = at + 1 < args.length ? args[++at] : null;
                 default -> {
                     System.err.println(problem("unknown option: " + args[at]));
                     return 2;
@@ -155,7 +158,11 @@ public final class Main {
             musl = java.nio.file.Files.readString(root.resolve("buildtools/install-musl.sh"));
         }
         try (Hetzner hetzner = open.get()) {
-            Snapshots.build(hetzner, os, Snapshots.BUILD_TYPES, credential, archive, musl);
+            // A named type wins over the small-disk preference. The floor an image gets is the
+            // disk it was built on, and a leg rents a 320 GB machine anyway - so when the wait
+            // matters more than the floor, say so rather than waiting on two cores.
+            Snapshots.build(hetzner, os, type == null ? Snapshots.BUILD_TYPES : List.of(type),
+                    credential, archive, musl);
         }
         return 0;
     }

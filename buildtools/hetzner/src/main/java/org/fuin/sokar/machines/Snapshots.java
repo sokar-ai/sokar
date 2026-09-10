@@ -156,10 +156,7 @@ public final class Snapshots {
                 System.out.println("turning SELinux on, and relabelling");
                 run(lease, "sed -i 's/^SELINUX=.*/SELINUX=enforcing/' /etc/selinux/config "
                         + "&& touch /.autorelabel", null);
-                lease.ssh().run("systemctl reboot");
-                lease.ssh().disconnect();
-                lease.awaitSsh();
-                lease.ssh().reconnect();
+                lease.restart();
                 run(lease, "getenforce | grep -qx Enforcing", null);
             }
             if (archive != null) {

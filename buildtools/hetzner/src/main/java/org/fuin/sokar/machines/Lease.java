@@ -107,6 +107,49 @@ public final class Lease implements AutoCloseable {
     }
 
     /**
+     * Restarts the machine and waits until it is a different boot.
+     * <p>
+     * <strong>By identity, not by timing.</strong> Waiting for ssh to answer does not work: for a
+     * second or two after {@code reboot} is issued the machine is still up and sshd still
+     * authenticates, so a reachability check passes, the caller reconnects to a machine that is
+     * about to go down, and the next command fails with "connection refused". That is a race, and
+     * it hid on a slow machine and appeared on a fast one.
+     * <p>
+     * The kernel's boot id changes across a restart and nothing else changes it, so this waits
+     * for a connection that reports a different one.
+     *
+     * @throws IOException If it never comes back as a new boot.
+     */
+    public void restart() throws IOException {
+        final String before = ssh().run("cat /proc/sys/kernel/random/boot_id").out().strip();
+        // The command cannot answer - the connection dies with the machine - so its failure is
+        // expected and says nothing.
+        try {
+            ssh().run("systemctl reboot");
+        } catch (IOException ex) {
+            // Going down is what was asked for.
+        }
+        ssh.disconnect();
+        final Instant deadline = Instant.now().plus(SSH_PATIENCE);
+        while (true) {
+            if (Instant.now().isAfter(deadline)) {
+                throw new IOException(name + " did not come back from a restart within "
+                        + SSH_PATIENCE.toMinutes() + " minutes");
+            }
+            sleep(SSH_INTERVAL);
+            try {
+                ssh.reconnect();
+                if (!before.equals(ssh().run("cat /proc/sys/kernel/random/boot_id")
+                        .out().strip())) {
+                    return;
+                }
+            } catch (IOException ex) {
+                // Still down, or not up yet.
+            }
+        }
+    }
+
+    /**
      * Returns the connection to the machine, opening it the first time it is asked for.
      *
      * @return The connection.
