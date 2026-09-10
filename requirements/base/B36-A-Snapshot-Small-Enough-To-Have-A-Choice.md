@@ -88,6 +88,14 @@ two cores stretched the leg to about 25 minutes, which in CI the runner pays for
   `--type cpx42` chosen for speed - exactly what produced the 320 GB floor - would empty
   `DEFAULT_TYPES` back to one entry without anything failing.
 
+  **Where it could enter is now known rather than guessed.** Six call sites rent a machine:
+  `build.yml` and `update.yml` in each of the three agent repositories. On 2026-09-10 not one of
+  them passes `--type`, so they all take `DEFAULT_TYPES` and this file's ordering decides what
+  they get. That is a property of today, not a guarantee - the first `--type` written into one of
+  those six for speed is where the floor returns, and it would read in review as a performance fix
+  rather than as a change of what can boot the image. A guard, if one is ever built, has those six
+  lines to look at.
+
 ## What was to be checked, and is now answered
 
 - **Is 40 GB actually enough for a leg?** The image rests at 2.7 GB and the build adds a Maven
