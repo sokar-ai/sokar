@@ -40,7 +40,6 @@ Where the position is not obvious, the last section says why.
 | B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | A machine can say what it has done, for longer than the tasks themselves existed. | three, and four are decided | [note](#b26) |
 | B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | six, and four are decided | [note](#b39) |
 | B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it | |
-| B36 | [A Snapshot Small Enough To Have A Choice](B36-A-Snapshot-Small-Enough-To-Have-A-Choice.md) | The images a leg boots fit on a cheap machine, so a sold-out server type costs a fallback rather than the run. | two, and the first is whether 40 GB is enough | |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | four | |
 | B40 | [The Domain That May Bind The Socket](B40-The-Domain-That-May-Bind-The-Socket.md) | Only Sokar may bind a socket carrying Sokar's label, so a task that connects to one reaches Sokar. | four, and the first decides the shape | [note](#b40) |
 
@@ -95,6 +94,7 @@ above.
 | B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | three, and the guard is built |
 | B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one - which agent an image was built for |
 | B20 | [Creating A Project](B20-Creating-A-Project.md) | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one - whether creating also prepares |
+| B36 | [A Snapshot Small Enough To Have A Choice](B36-A-Snapshot-Small-Enough-To-Have-A-Choice.md) | The images a leg boots fit on a cheap machine, so a sold-out server type costs a fallback rather than the run. | two - how fast cx43 builds, and what stops a later rebuild raising the floor again |
 | B32 | [A Cached Passphrase That Says What It Is](B32-A-Cached-Passphrase-That-Says-What-It-Is.md) | Sokar never reports a cached passphrase gone unless it is gone. | two - a chain of caches, and a keyring that is not the operator's |
 
 ## What was here and is finished

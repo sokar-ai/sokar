@@ -1,7 +1,8 @@
 # B36 — A Snapshot Small Enough To Have A Choice
 
-**Status:** open, and it is a trade made deliberately rather than a defect. Made on 2026-09-10, when the
-images were rebuilt on a fast machine because somebody was waiting.
+**Status:** met on 2026-09-10, the evening of the day the trade was made. Both images were rebuilt
+small, both legs passed on a cheap machine, and the fallback list is back. What it measured is
+below; the file stays until the built table is where it belongs.
 
 ## What happens
 
@@ -46,7 +47,48 @@ done while somebody is waiting on a green build — which is exactly the pressur
 - The floor is recorded where it is decided, so the next person choosing `--type` for speed knows
   what they are spending.
 
-## To be checked
+## Done 2026-09-10
+
+**Both images report a 40 GB floor.** `430390116` (ubuntu-26.04, 1.6 GB) and `430390168`
+(fedora-44, 1.3 GB), built with no `--type` so `BUILD_TYPES` took the smallest on offer - `cx23`
+at 0.0088 EUR/h in `nbg1`. Same contents as the 320 GB pair they replace, which is what says the
+old floor was waste rather than need.
+
+**A leg booted one on a type other than `cpx42`, and passed.** Both did: `cx23`, `all checks
+passed` on ubuntu and on fedora, down to the gate hook, the vault refusals and the daemon socket.
+That is the fallback proving it can fire rather than being argued to.
+
+**40 GB is not close.** Sampled every 30 seconds across a whole ubuntu leg - working tree, build,
+six native images, install, doctor, tier 1 with its container work - the peak was **3,631 MB of
+38 GB usable, 10%**, and it stopped growing two minutes before the end. Fedora finished at 3.2 GB,
+9%. The open question below asked whether the disk survives a full build; it survives it four
+times over.
+
+**What the images actually contain, checked against the list in `AGENT.md` rather than by eye:**
+GraalVM 25.0.2, the musl toolchain and a musl-built `libz.a` under the build user's
+`~/.local/opt`, gcc 15.2.0, `zlib.h`, `dnsmasq` with `nftset`, `ubuntu:24.04` and `alpine:3.20`
+pre-pulled, a 95 MB `~/.m2`, and on fedora SELinux `Enforcing` with `sokar_socket` loaded.
+
+**One trap worth writing down.** `podman images` as `root` shows nothing: rootless podman keeps a
+store per user and the images belong to `build`. Asked as root it looks exactly like an image that
+was never pulled - which is the shape of the three rebuilds that shipped incomplete.
+
+**`Spec.DEFAULT_TYPES` names four types again**, `cpx42` first because the runner blocks while the
+rented machine builds, then `cx43`, `cpx32`, `cx33`. `cx23` is left out on purpose: it works, and
+two cores stretched the leg to about 25 minutes, which in CI the runner pays for.
+
+## Still open
+
+- **How fast `cx43` actually builds.** It carries the same 8 cores and 16 GB as `cpx42` at about a
+  quarter of the price, and that is the whole reason it sits second - but it is unmeasured. The
+  only comparison that exists is `cpx42` against `cx33`, which changes the core count at the same
+  time. This does not block the fallback, because a fallback has to work rather than be quick; it
+  matters only if `cx43` is ever proposed as the default, which would be a change about money.
+- **Whether a later rebuild quietly raises the floor again.** Nothing enforces the small build. A
+  `--type cpx42` chosen for speed - exactly what produced the 320 GB floor - would empty
+  `DEFAULT_TYPES` back to one entry without anything failing.
+
+## What was to be checked, and is now answered
 
 - **Is 40 GB actually enough for a leg?** The image rests at 2.7 GB and the build adds a Maven
   repository, six native images and container layers. It has never been measured on a 40 GB disk
