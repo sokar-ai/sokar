@@ -42,6 +42,15 @@ class SnapshotsTest {
     }
 
     @Test
+    void checksTheJdkAgainstItsPublishedDigest() {
+        // Everything else installed here is verified - the agent CLI by SHA-256, musl by digest.
+        // A JDK trusted because the host answered was the one exception nobody decided to make.
+        assertThat(Snapshots.recipe("ubuntu"))
+                .contains("e0be791c8fda4d03b6b0a0cb824fef3149736170057b3a515252b44419606af0")
+                .contains("sha256sum -c -");
+    }
+
+    @Test
     void leavesNoPlaceholderUnreplaced() {
         // A stray @NAME@ would reach the machine as a literal and fail somewhere unhelpful.
         assertThat(Snapshots.recipe("ubuntu")).doesNotContain("@");

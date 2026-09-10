@@ -682,10 +682,18 @@ See [build.md](doc/build.md). Three things that will bite:
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in
-a `finally`. `buildtools/ci/` holds the driver (`remote-tier1.py`), the API helpers
-(`hetzner.py`) and the leak sweeper (`sweep.py`). **The snapshot *builder* is not in the
-repository** - it lives beside it, so the image cannot currently be rebuilt by anyone else. That
-is a gap, not a decision.
+a `finally`. `buildtools/ci/` holds the driver (`remote-tier1.py`) and the API
+helpers (`hetzner.py`); the leak sweeper and the snapshot builder are Java, in
+`buildtools/hetzner` - `org.fuin.sokar.machines.Main sweep` and `... snapshot --os <os> --repo .`.
+
+**The builder used to live outside the repository, and the cost of that showed.** Nobody could
+rebuild an image, so nobody did, and the pair in use had been taken on a 320 GB machine to hold
+1.6 GB of content - a snapshot only restores onto a disk at least as big as the one it came from,
+so every leg rented the one type big enough, at 0.1114 EUR/h. Rebuilt at 40 GB the choice came
+back. **The builder compiles Sokar on the machine before taking the image**, which is what makes
+the list below true rather than aspirational: the first two rebuilds were checked by booting them
+and running a hello-world native image, and shipped without a JDK and then without musl, because
+hello-world links nothing statically and needs no JDK on the machine at all.
 
 The Ubuntu leg runs **26.04**, not 24.04. 24.04 ships podman 4.9.3 and always will - podman is
 in `universe` and a stable release does not change major versions - and Sokar now refuses podman

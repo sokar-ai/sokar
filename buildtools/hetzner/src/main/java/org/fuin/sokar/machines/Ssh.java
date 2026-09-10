@@ -140,6 +140,31 @@ public final class Ssh implements AutoCloseable {
     }
 
     /**
+     * Copies a local file to the machine.
+     * <p>
+     * Over the connection that is already open, rather than a second way in: one authentication,
+     * one host to be reachable, and nothing that needs {@code scp} to exist on either side.
+     *
+     * @param local What to send.
+     * @param remote Where to put it, an absolute path.
+     * @throws IOException If it cannot be sent.
+     */
+    public void upload(java.nio.file.Path local, String remote) throws IOException {
+        client.newSCPFileTransfer().upload(local.toString(), remote);
+    }
+
+    /**
+     * Copies a file from the machine.
+     *
+     * @param remote What to fetch, an absolute path.
+     * @param local Where to put it.
+     * @throws IOException If it cannot be fetched.
+     */
+    public void download(String remote, java.nio.file.Path local) throws IOException {
+        client.newSCPFileTransfer().download(remote, local.toString());
+    }
+
+    /**
      * Returns the underlying client, for a caller that needs a channel of its own.
      *
      * @return The client.

@@ -54,7 +54,7 @@ public final class Main {
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
                 Usage: sweep [--mine] [--now] [--older-than <minutes>]
-                       snapshot --os <ubuntu|fedora> [--key <file>]
+                       snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>]
 
                   --mine                 delete what this run created, whatever its age. What a
                                          job uses to clean up after itself - deleting by age
@@ -125,10 +125,12 @@ public final class Main {
     private static int snapshot(String[] args, Supplier<Hetzner> open) throws IOException {
         String os = null;
         String key = null;
+        String repo = null;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = at + 1 < args.length ? args[++at] : null;
                 case "--key" -> key = at + 1 < args.length ? args[++at] : null;
+                case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
                 default -> {
                     System.err.println("::error::unknown option: " + args[at]);
                     return 2;
@@ -139,10 +141,31 @@ public final class Main {
             System.err.println("::error::snapshot needs --os");
             return 2;
         }
+        final Credential credential = Credential.of(System.getenv("SSH"),
+                key == null ? null : java.nio.file.Path.of(key));
+        java.nio.file.Path archive = null;
+        String musl = null;
+        if (repo != null) {
+            final java.nio.file.Path root = java.nio.file.Path.of(repo);
+            archive = java.nio.file.Files.createTempFile("sokar-tree", ".tar");
+            // What is checked out, not what is committed: a snapshot built from a working tree
+            // has to be built from that tree.
+            final Process tar = new ProcessBuilder("git", "archive", "--format=tar", "HEAD")
+                    .directory(root.toFile())
+                    .redirectOutput(archive.toFile())
+                    .redirectError(ProcessBuilder.Redirect.INHERIT).start();
+            try {
+                if (tar.waitFor() != 0) {
+                    throw new IOException("could not archive the working tree at " + root);
+                }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted archiving the working tree", ex);
+            }
+            musl = java.nio.file.Files.readString(root.resolve("buildtools/install-musl.sh"));
+        }
         try (Hetzner hetzner = open.get()) {
-            Snapshots.build(hetzner, os, Snapshots.BUILD_TYPES,
-                    Credential.of(System.getenv("SSH"), key == null ? null
-                            : java.nio.file.Path.of(key)));
+            Snapshots.build(hetzner, os, Snapshots.BUILD_TYPES, credential, archive, musl);
         }
         return 0;
     }
