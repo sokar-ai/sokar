@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests for creating and destroying a machine - the path where a mistake bills 81 EUR a month.
  */
-class RentTest {
+class LeaseTest {
 
     private static final Duration NO_WAIT = Duration.ofMillis(1);
 
@@ -55,7 +55,7 @@ class RentTest {
                 .answering("/servers/77", exchange ->
                         new StubApi.Answer(200, "{\"action\":{\"id\":5,\"status\":\"success\"}}"))) {
             final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", NO_WAIT);
-            try (Rental rental = hetzner.rent(spec(credential))) {
+            try (Lease rental = hetzner.acquire(spec(credential))) {
                 assertThat(rental.address()).isEqualTo("1.2.3.4");
             }
             assertThat(attempts.get()).isEqualTo(3);
@@ -75,7 +75,7 @@ class RentTest {
                 })) {
             // Burning ten minutes before reporting a bad image would be worse than failing now.
             assertThatThrownBy(() -> Hetzner.against(stub.base(), "run-1", NO_WAIT)
-                    .rent(spec(credential)))
+                    .acquire(spec(credential)))
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("image is not available");
             assertThat(attempts.get()).as("retried something that waiting cannot fix").isEqualTo(1);
@@ -95,7 +95,7 @@ class RentTest {
                 })) {
             final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", NO_WAIT);
             assertThatThrownBy(() -> {
-                try (Rental rental = hetzner.rent(spec(credential))) {
+                try (Lease rental = hetzner.acquire(spec(credential))) {
                     throw new IllegalStateException("the work failed on line three");
                 }
             }).isInstanceOf(IllegalStateException.class);
@@ -116,7 +116,7 @@ class RentTest {
                     return new StubApi.Answer(200, "{\"action\":{\"id\":5,\"status\":\"success\"}}");
                 })) {
             final Hetzner hetzner = Hetzner.against(stub.base(), "run-1", NO_WAIT);
-            try (Rental rental = hetzner.rent(spec(credential).kept())) {
+            try (Lease rental = hetzner.acquire(spec(credential).kept())) {
                 assertThat(rental.address()).isEqualTo("1.2.3.4");
             }
             assertThat(deleted.get()).isZero();
@@ -136,8 +136,8 @@ class RentTest {
                                 + (polls.incrementAndGet() < 2 ? "running" : "success") + "\"}}"))
                 .answering("/servers/77", exchange -> new StubApi.Answer(200,
                         "{\"action\":{\"id\":6,\"status\":\"success\"}}"))) {
-            try (Rental rental = Hetzner.against(stub.base(), "run-1", NO_WAIT)
-                    .rent(spec(credential))) {
+            try (Lease rental = Hetzner.against(stub.base(), "run-1", NO_WAIT)
+                    .acquire(spec(credential))) {
                 assertThat(rental.address()).isEqualTo("1.2.3.4");
             }
             assertThat(polls.get()).isGreaterThanOrEqualTo(2);
@@ -153,7 +153,7 @@ class RentTest {
                 .answering("/servers/77", exchange -> new StubApi.Answer(200,
                         "{\"action\":{\"id\":6,\"status\":\"success\"}}"))) {
             assertThatThrownBy(() -> Hetzner.against(stub.base(), "run-1", NO_WAIT)
-                    .rent(spec(credential)))
+                    .acquire(spec(credential)))
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("ended as 'error'");
         }

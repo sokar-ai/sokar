@@ -22,7 +22,7 @@ import java.util.TreeSet;
  * Everything created here is labelled {@code sokar=ci} so the sweep can find it without a list of
  * names to keep in step with reality.
  */
-public final class Hetzner implements AutoCloseable {
+public final class Hetzner implements Machines {
 
     /** Applied to everything created here, and how the sweep finds it again. */
     static final String LABEL_SELECTOR = "sokar=ci";
@@ -113,7 +113,8 @@ public final class Hetzner implements AutoCloseable {
      * @return The rented machine, which must be closed.
      * @throws IOException If it cannot be created.
      */
-    public Rental rent(Spec spec) throws IOException {
+    @Override
+    public Lease acquire(Spec spec) throws IOException {
         final Map<String, Object> snapshot = newestSnapshot(spec.os());
         final String location = locationFor(spec.serverType());
         final long key = keyMatching(spec.credential());
@@ -128,7 +129,32 @@ public final class Hetzner implements AutoCloseable {
         final String address = Values.text(
                 Values.object(Values.object(server, "public_net"), "ipv4"), "ip");
         System.out.println("created  " + spec.name() + " at " + address);
-        return new Rental(this, id, spec, address);
+        return new Lease(spec.name(), address, spec, () -> destroy(spec, id, address));
+    }
+
+    /**
+     * Destroys a rented server, or says loudly that it could not.
+     *
+     * @param spec What was asked for, which says whether to keep it.
+     * @param id The server.
+     * @param address Where it is, for a message somebody has to act on.
+     * @throws IOException If it could not be deleted.
+     */
+    private void destroy(Spec spec, long id, String address) throws IOException {
+        if (spec.keep()) {
+            System.out.println("KEEPING " + spec.name() + " at " + address
+                    + " - it is costing money until it is swept or deleted by hand.");
+            return;
+        }
+        System.out.println("deleting " + spec.name());
+        try {
+            delete(id);
+            System.out.println("deleted  " + spec.name());
+        } catch (IOException ex) {
+            System.err.println("COULD NOT DELETE " + spec.name() + ": " + ex.getMessage());
+            System.err.println("  delete it by hand, it is billing: " + address);
+            throw ex;
+        }
     }
 
     private Map<String, Object> createWhenThereIsRoom(Spec spec, Map<String, Object> snapshot,

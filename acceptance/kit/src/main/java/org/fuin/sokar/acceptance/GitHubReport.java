@@ -156,6 +156,7 @@ public final class GitHubReport implements ConcurrentEventListener {
         summary.append("Run against a real machine, over a real terminal.\n\n");
         summary.append("| | Feature | Scenario | | Time |\n|---|---|---|---|---:|\n");
         int failed = 0;
+        int skipped = 0;
         int total = 0;
         for (final Map.Entry<String, List<Case>> entry : byFeature.entrySet()) {
             // Grouped by the name Cucumber reports, which folds an outline's examples into one
@@ -171,9 +172,12 @@ public final class GitHubReport implements ConcurrentEventListener {
                 final List<Case> runs = row.getValue();
                 final long bad = runs.stream().filter(each -> each.status() == Status.FAILED)
                         .count();
+                final long past = runs.stream().filter(each -> each.status() == Status.SKIPPED)
+                        .count();
                 final long time = runs.stream().mapToLong(Case::millis).sum();
                 total += runs.size();
                 failed += bad;
+                skipped += past;
                 summary.append("| ").append(bad > 0 ? mark(Status.FAILED)
                                 : mark(runs.getFirst().status()))
                         .append(" | `").append(shortName(entry.getKey()))
@@ -183,8 +187,21 @@ public final class GitHubReport implements ConcurrentEventListener {
                         .append(" | ").append(time).append("ms |\n");
             }
         }
-        summary.append("\n**").append(total - failed).append(" of ").append(total)
-                .append(" passed.**\n");
+        // Skipped is neither passed nor failed, and counting it as passed is the summary saying
+        // something untrue: a suite whose credential half never ran because a secret was absent
+        // reported every scenario green. That absence is a supported state - a fork has no secret
+        // and the run is meant to degrade rather than go red - so it is the state most likely to
+        // be read, and it has to say what it proved and not more.
+        summary.append("\n**").append(total - failed - skipped).append(" of ").append(total)
+                .append(" passed.**");
+        if (skipped > 0) {
+            summary.append(" ").append(skipped).append(" skipped, so this run proved less than a"
+                    + " full one.");
+        }
+        if (failed > 0) {
+            summary.append(" ").append(failed).append(" failed.");
+        }
+        summary.append("\n");
         return summary.toString();
     }
 

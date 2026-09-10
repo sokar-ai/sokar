@@ -109,6 +109,40 @@ class GitHubReportTest {
         assertThat(summary).contains("**1 of 2 passed.**");
     }
 
+    @Test
+    void doesNotCountASkippedScenarioAsAPassedOne() {
+        // It said "5 of 5 passed" for a run where four never ran. The absence that causes this -
+        // no credential secret, so the credential half skips - is a supported state that a fork
+        // hits every time, which makes it the version of the summary most likely to be read.
+        final String summary = GitHubReport.summary(oneFeature(
+                new GitHubReport.Case("ran", Status.PASSED, 1),
+                new GitHubReport.Case("did not run", Status.SKIPPED, 1),
+                new GitHubReport.Case("did not run either", Status.SKIPPED, 1)));
+        assertThat(summary).contains("**1 of 3 passed.**");
+        assertThat(summary).contains("2 skipped");
+        assertThat(summary).contains(":fast_forward:");
+    }
+
+    @Test
+    void saysNothingAboutSkippingWhenNothingWasSkipped() {
+        // The common case stays one sentence; a caveat that is always there is not read.
+        final String summary = GitHubReport.summary(oneFeature(
+                new GitHubReport.Case("ran", Status.PASSED, 1)));
+        assertThat(summary).contains("**1 of 1 passed.**");
+        assertThat(summary).doesNotContain("skipped");
+    }
+
+    @Test
+    void countsFailedAndSkippedApartFromEachOther() {
+        final String summary = GitHubReport.summary(oneFeature(
+                new GitHubReport.Case("ran", Status.PASSED, 1),
+                new GitHubReport.Case("broke", Status.FAILED, 1),
+                new GitHubReport.Case("did not run", Status.SKIPPED, 1)));
+        assertThat(summary).contains("**1 of 3 passed.**");
+        assertThat(summary).contains("1 skipped");
+        assertThat(summary).contains("1 failed.");
+    }
+
     private static Map<String, List<GitHubReport.Case>> oneFeature(
             final GitHubReport.Case... cases) {
         final Map<String, List<GitHubReport.Case>> byFeature = new LinkedHashMap<>();
