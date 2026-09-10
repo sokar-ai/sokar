@@ -69,12 +69,12 @@ public final class AgentLeg {
     /**
      * Runs one acceptance leg.
      *
-     * @param hetzner Where to rent the machine.
+     * @param hetzner Where the machine comes from - rented, or already here.
      * @param options What to do.
      * @param credential The key to connect with.
      * @throws IOException If any step fails, saying which.
      */
-    public static void run(Hetzner hetzner, Options options, Credential credential)
+    public static void run(Machines hetzner, Options options, Credential credential)
             throws IOException {
         final String image = IMAGES.get(options.os());
         if (image == null) {

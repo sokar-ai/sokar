@@ -34,7 +34,14 @@ public final class LocalVms implements Machines {
     private static final Pattern IPV4 = Pattern.compile(
             "\\bipv4\\s+((?:\\d{1,3}\\.){3}\\d{1,3})(?:/\\d+)?");
 
-    /** What {@code virsh domstate} says about a machine that is up. */
+    /**
+     * What {@code virsh domstate} says about a machine that is up.
+     * <p>
+     * <strong>In the C locale, which is why one is forced.</strong> virsh translates its output:
+     * on a German host {@code domstate} answers {@code laufend}, the check for "running" never
+     * matches, and the next thing this does is start a machine that is already started - which
+     * fails with {@code Domain ist bereits aktiv} and reads like a broken hypervisor.
+     */
     private static final String RUNNING = "running";
 
     /** Runs {@code virsh}, so a test can answer without a hypervisor. */
@@ -129,6 +136,20 @@ public final class LocalVms implements Machines {
     }
 
     @Override
+    public Lease acquireFromStock(Spec spec, String image) throws IOException {
+        // The name is ignored on purpose: a machine that is already here was installed once and
+        // is whatever it is. A leg that needs a particular starting point has to rent one.
+        System.out.println("(ignoring the stock image '" + image
+                + "': this machine is already installed)");
+        return acquire(spec);
+    }
+
+    @Override
+    public String runId() {
+        return "local";
+    }
+
+    @Override
     public void close() {
         // Nothing is held: the machines were here before and are here after.
     }
@@ -149,7 +170,11 @@ public final class LocalVms implements Machines {
         command.addAll(List.of(arguments));
         final Process process;
         try {
-            process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            final ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+            // Never parse a translated word: virsh speaks the host's language otherwise.
+            builder.environment().put("LC_ALL", "C");
+            builder.environment().put("LANG", "C");
+            process = builder.start();
         } catch (IOException ex) {
             throw new IOException("could not run virsh. Is libvirt installed, and is this user in"
                     + " the libvirt group?", ex);

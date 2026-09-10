@@ -73,6 +73,10 @@ class LocalVmsTest {
 
     @Test
     void doesNotStartAMachineThatIsAlreadyUp() throws IOException {
+        // The stub answers in English and so this passed while the real thing failed: virsh
+        // translates, and on a German host 'domstate' says 'laufend'. The check never matched,
+        // a running machine was started again, and it read like a broken hypervisor. The fix is
+        // in LocalVms - a forced C locale - and it is not something this test can see.
         final List<String> asked = new ArrayList<>();
         final LocalVms vms = new LocalVms(Map.of("ubuntu", "ubuntu26.04"), arguments -> {
             asked.add(arguments[0]);

@@ -57,7 +57,7 @@ public final class Leg {
     /**
      * Runs a leg.
      *
-     * @param hetzner Where to rent the machine.
+     * @param hetzner Where the machine comes from - rented, or already here.
      * @param os Which operating system's snapshot to boot.
      * @param types Server types to try, in order.
      * @param credential The key to connect with.
@@ -67,7 +67,7 @@ public final class Leg {
      * @param suite The repository to run the acceptance suite from, or {@code null} not to.
      * @throws IOException If any step fails, saying which.
      */
-    public static void run(Hetzner hetzner, String os, List<String> types, Credential credential,
+    public static void run(Machines hetzner, String os, List<String> types, Credential credential,
             Path archive, boolean keep, Path into, Path suite) throws IOException {
         // root, so this run's key can be given to the build user. The image carries whatever key
         // built it, which is not the key a workflow holds - and a leg that assumed otherwise

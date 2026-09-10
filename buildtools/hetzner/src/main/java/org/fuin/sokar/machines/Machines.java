@@ -25,6 +25,26 @@ public interface Machines extends AutoCloseable {
      */
     Lease acquire(Spec spec) throws IOException;
 
+    /**
+     * Gets a machine built from a named stock image rather than from one of ours.
+     * <p>
+     * A cloud concept: somewhere that creates machines can be told what to create them from.
+     * Somewhere that already has them cannot, and says so by ignoring the name.
+     *
+     * @param spec What is wanted.
+     * @param image A stock image name, such as {@code ubuntu-26.04}.
+     * @return The machine, which must be closed.
+     * @throws IOException If there is none to be had.
+     */
+    Lease acquireFromStock(Spec spec, String image) throws IOException;
+
+    /**
+     * Returns what identifies this run, for naming and labelling what it creates.
+     *
+     * @return The run id.
+     */
+    String runId();
+
     @Override
     void close();
 }
