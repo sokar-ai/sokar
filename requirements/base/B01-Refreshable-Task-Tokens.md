@@ -137,6 +137,12 @@ make a task depend on the vendor's own tool being logged in.
 - **Which credential kinds actually expire in practice**, and over what period. A
   task usually outlives nothing; if every kind in use lasts longer than any task,
   this requirement is smaller than it looks and can wait.
+- **Whether a stored credential that expires should say so before a task needs it.** This
+  requirement is about a credential expiring under running work; the same fact is worth having
+  beforehand, and a vault entry made of fields
+  ([B28](B28-More-Than-One-Credential-In-A-Task.md)) has somewhere to put an expiry. Raised by a
+  security review on 2026-09-10 as a `vault check` that names what is close to its end. It is only
+  worth building for kinds that carry the date, which is the first question above.
 - Whether a renewal exchange goes to the same endpoint as ordinary use. If it goes
   somewhere else, redirecting the agent does not put the broker in that path, and
   the answer has to come from somewhere else entirely. The agent already supported

@@ -114,6 +114,13 @@ the purchase is ever inside the container.**
 - **Whether the authorization server's own answer needs the same withholding treatment as a
   provider's.** It carries a real token by definition, and the difference is that here it is
   answering the broker rather than the container.
+- **Whether replacing the stored secret belongs here.** A security review on 2026-09-10 asked for
+  a `vault rotate` that mints a new credential and revokes the old one. Half of it is this kind
+  already - a stored secret that buys a credential is what this file describes, and rotating the
+  bought one is what the exchange does every time. The other half, calling each provider's own API
+  to issue and revoke a key, is per-provider code in Sokar: the cost the agent and provider split
+  exists to avoid paying twice, and it should be refused here in the same words rather than left to
+  look like an omission.
 - **Whether `private_key_jwt` and mTLS are one mechanism or two.** Both mean the secret is a key and
   the broker performs an operation with it; they differ in where in the connection it happens, and
   the second may not be expressible through a proxy that terminates TLS itself.

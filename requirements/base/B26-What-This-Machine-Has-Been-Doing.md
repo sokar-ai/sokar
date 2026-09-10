@@ -108,5 +108,11 @@ happened here last night" has nowhere to look today, and that is true with no in
   write to one file. On Linux an `O_APPEND` write below `PIPE_BUF` is atomic, which would make one
   line per event safe without a lock — **this must be measured, not assumed**, and the line length
   bounded on purpose if it is what the design rests on.
+- **Whether an event can be tied to its task without widening what an event holds.** A security
+  review on 2026-09-10 asked for correlation and proposed carrying destination address, port and
+  process to get it. The first half is this requirement's gap; the second is refused here - the
+  journal carries names and outcomes, and an address in a durable record is the thing a task's own
+  logs are on tmpfs to avoid. What is open is whether a task id alone is enough to answer *what has
+  this machine been doing* without the rest coming with it.
 - **What the two caps actually are.** Decided that there are two; the numbers are not chosen, and
   they should come from what a busy machine really writes rather than from a round figure.

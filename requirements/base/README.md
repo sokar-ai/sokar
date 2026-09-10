@@ -34,14 +34,15 @@ Where the position is not obvious, the last section says why.
 | B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file | |
 | B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file | |
 | B31 | [An Authorization A Person Grants Once](B31-An-Authorization-A-Person-Grants-Once.md) | A person grants an authorization once, out of band, while the work waits. | see the file | |
-| B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | one | |
+| B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | two | |
 | B25 | [Names The Operator Should Not Have To Find](B25-Names-The-Operator-Should-Not-Have-To-Find.md) | A command that needs a name Sokar already knows never makes the operator go and find it. | three | |
 | B33 | [A Task's Own Fetches](B33-A-Tasks-Own-Fetches.md) | A task can fetch from the forges its work depends on, and a failure to do so is never reported as a credential problem. | three, and the first is whether it reproduces | |
-| B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | A machine can say what it has done, for longer than the tasks themselves existed. | two, and four are decided | [note](#b26) |
+| B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | A machine can say what it has done, for longer than the tasks themselves existed. | three, and four are decided | [note](#b26) |
 | B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | six, and four are decided | [note](#b39) |
 | B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it | |
 | B36 | [A Snapshot Small Enough To Have A Choice](B36-A-Snapshot-Small-Enough-To-Have-A-Choice.md) | The images a leg boots fit on a cheap machine, so a sold-out server type costs a fallback rather than the run. | two, and the first is whether 40 GB is enough | |
-| B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | three | |
+| B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | four | |
+| B40 | [The Domain That May Bind The Socket](B40-The-Domain-That-May-Bind-The-Socket.md) | Only Sokar may bind a socket carrying Sokar's label, so a task that connects to one reaches Sokar. | four, and the first decides the shape | [note](#b40) |
 
 ### Later
 
@@ -225,3 +226,8 @@ largest item may have no answer. It is kept because B37, B14 and B15 would other
 it from scratch.
 
 <a id="b08"></a>**B08 is last** because it is a project rather than a feature.
+
+<a id="b40"></a>**B40 is in Soon rather than Now** although it is small and needs nobody's
+decision. What it closes is a second lock on a door whose first lock is the uid: the process it
+guards against is already running as the operator and can already read the vault file. It is worth
+doing and it is not urgent.

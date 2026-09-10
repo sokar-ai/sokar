@@ -85,6 +85,11 @@ reaching a person whose client is closed.
   lifetime is friendlier and puts key handling and process supervision inside the client;
   requiring a tunnel that is already up keeps it out of the credential business. Not this
   requirement's to decide alone, but it constrains what "reconnection recovers" above can mean.
+- **Whether a forward is verified before a flow depends on it.** `doc/authentication.md` already
+  records that a port collision lies - ssh binds `[::1]` when `127.0.0.1` is taken and says nothing
+  - and a login then completes against whatever is listening. Nothing checks. Raised by a security
+  review on 2026-09-10; the cheaper answer it also names is a device-code flow, which removes the
+  forward rather than checking it, and is only available where the provider offers one.
 - **Which of the two shapes an interface should use.** Both exist and both work; the trade is
   measured above, and choosing is the interface's decision rather than this one's. What is not
   measured is either shape over a real ssh hop from a second machine - this machine runs no sshd -
