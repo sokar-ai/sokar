@@ -67,11 +67,11 @@ jobs:
           ./mvnw -B -q -pl buildtools/hetzner dependency:build-classpath \
               -Dmdep.outputFile=target/cp.txt
 
-      # REMOTE_BUILD and SSH come from the environment; the key goes to an agent, never a file.
+      # HETZNER_API and HETZNER_SSH come from the environment; the key goes to an agent, never a file.
       - name: Tier 1 on ${{ matrix.os }}
         env:
-          REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
-          SSH: ${{ secrets.SSH }}
+          HETZNER_API: ${{ secrets.HETZNER_API }}
+          HETZNER_SSH: ${{ secrets.HETZNER_SSH }}
           # Both legs share GITHUB_RUN_ID, so the leg is what makes a server's label unique.
           SOKAR_CI_LEG: ${{ matrix.os }}
         run: |
@@ -92,7 +92,7 @@ jobs:
       - name: Delete what this run created
         if: always()
         env:
-          REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
+          HETZNER_API: ${{ secrets.HETZNER_API }}
           SOKAR_CI_LEG: ${{ matrix.os }}
         run: |
           java -cp "buildtools/hetzner/target/classes:$(cat buildtools/hetzner/target/cp.txt)" \

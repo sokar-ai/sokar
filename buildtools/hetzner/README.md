@@ -38,7 +38,7 @@ With no option it lists what would go and deletes nothing. `--mine` deletes what
 and only that: deleting by age instead would catch another run's server whenever that run is slower
 than the window, and ssh dying part way through somebody else's build is close to undebuggable.
 
-`REMOTE_BUILD` carries the API token and is read from the environment, never from an argument —
+`HETZNER_API` carries the API token and is read from the environment, never from an argument —
 `/proc/<pid>/cmdline` is world readable and neither supported distribution mounts `/proc` with
 `hidepid`.
 

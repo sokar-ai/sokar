@@ -21,7 +21,7 @@ jobs:
 
       - name: Delete anything older than an hour
         env:
-          REMOTE_BUILD: ${{ secrets.REMOTE_BUILD }}
+          HETZNER_API: ${{ secrets.HETZNER_API }}
         run: |
           ./mvnw -B -q -pl buildtools/hetzner -am install -DskipTests
           ./mvnw -B -q -pl buildtools/hetzner dependency:build-classpath \

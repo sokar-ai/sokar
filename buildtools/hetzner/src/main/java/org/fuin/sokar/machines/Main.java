@@ -29,6 +29,12 @@ public final class Main {
         throw new UnsupportedOperationException("Utility class");
     }
 
+    /** Where the Hetzner API token is read from. Named once: a half-done rename is silent. */
+    static final String API_TOKEN = "HETZNER_API";
+
+    /** Where the private key is read from, as material rather than a path. */
+    static final String SSH_KEY = "HETZNER_SSH";
+
     /**
      * Runs a sweep.
      *
@@ -38,7 +44,7 @@ public final class Main {
     public static void main(String[] args) {
         try {
             System.exit(run(args, COMPLAIN, () -> Hetzner.with(
-                    token(System.getenv("REMOTE_BUILD")), runId(System.getenv("GITHUB_RUN_ID"),
+                    token(System.getenv(API_TOKEN)), runId(System.getenv("GITHUB_RUN_ID"),
                             System.getenv("SOKAR_CI_LEG")))));
         } catch (IOException | IllegalStateException | IllegalArgumentException ex) {
             // The refusals this code makes on purpose - a missing token, an API that said no.
@@ -165,7 +171,7 @@ public final class Main {
             complain.accept("snapshot needs --os");
             return 2;
         }
-        final Credential credential = Credential.of(System.getenv("SSH"),
+        final Credential credential = Credential.of(System.getenv(SSH_KEY),
                 key == null ? null : java.nio.file.Path.of(key));
         java.nio.file.Path archive = null;
         String musl = null;
@@ -230,7 +236,7 @@ public final class Main {
                 candidate == null ? null : java.nio.file.Path.of(candidate), keep,
                 cucumber == null ? null : java.nio.file.Path.of(cucumber));
         try (Hetzner hetzner = open.get()) {
-            AgentLeg.run(hetzner, options, Credential.of(System.getenv("SSH"),
+            AgentLeg.run(hetzner, options, Credential.of(System.getenv(SSH_KEY),
                     key == null ? null : java.nio.file.Path.of(key)));
         }
         return 0;
@@ -299,7 +305,7 @@ public final class Main {
             return 2;
         }
         try (Hetzner hetzner = open.get()) {
-            Leg.run(hetzner, os, Spec.DEFAULT_TYPES, Credential.of(System.getenv("SSH"),
+            Leg.run(hetzner, os, Spec.DEFAULT_TYPES, Credential.of(System.getenv(SSH_KEY),
                     key == null ? null : java.nio.file.Path.of(key)),
                     archiveOf(java.nio.file.Path.of(repo)), keep,
                     into == null ? null : java.nio.file.Path.of(into),
@@ -339,7 +345,7 @@ public final class Main {
      */
     static String token(String fromEnvironment) {
         if (fromEnvironment == null || fromEnvironment.isBlank()) {
-            throw new IllegalStateException("No API token: set REMOTE_BUILD in the environment.");
+            throw new IllegalStateException("No API token: set " + API_TOKEN + " in the environment.");
         }
         return fromEnvironment;
     }

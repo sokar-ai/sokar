@@ -121,7 +121,7 @@ class MainTest {
         // distribution mounts /proc with hidepid.
         assertThatThrownBy(() -> Main.token(null))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("REMOTE_BUILD");
+                .hasMessageContaining(Main.API_TOKEN);
         assertThatThrownBy(() -> Main.token("  "))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(Main.token("a-token")).isEqualTo("a-token");
