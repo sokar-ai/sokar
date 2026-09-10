@@ -42,6 +42,7 @@ Where the position is not obvious, the last section says why.
 | B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it | |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | four | |
 | B40 | [The Domain That May Bind The Socket](B40-The-Domain-That-May-Bind-The-Socket.md) | Only Sokar may bind a socket carrying Sokar's label, so a task that connects to one reaches Sokar. | four, and the first decides the shape | [note](#b40) |
+| B41 | [What a Packaged Agent Installs](B41-What-A-Packaged-Agent-Installs.md) | `--supply-chain` says what a packaged agent's package ships, read from the bill that package installed. | two, and the first is whose job the reading is | |
 
 ### Later
 
