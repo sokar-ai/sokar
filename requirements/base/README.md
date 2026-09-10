@@ -132,7 +132,6 @@ and saying so cost a paragraph and bought a screen that is not lying.
 |---|---|---|---|
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved |
 | B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided |
-| B35 | [A Passphrase Nobody Can Type](B35-A-Passphrase-Nobody-Can-Type.md) | An operator can type a passphrase at the terminal, and nothing about how Sokar is built prevents it. | three, and the first settles it |
 | B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file |
 | B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file |
 | B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file |
@@ -172,6 +171,13 @@ above.
 Thirteen requirements have been met and retired. Their files are gone; what each measured is in
 [AGENT.md](../../AGENT.md), where it will be read again:
 
+- **A passphrase nobody could type.** Closed on 2026-09-10 because it does not reproduce - the
+  same binary, at a pty, over `ssh -tt`, and through the acceptance kit itself, all working a day
+  after it was recorded as failing three ways.
+  [Its file is kept](B35-A-Passphrase-Nobody-Can-Type.md) rather than deleted, because what it
+  teaches is not about passphrases: a defect recorded from one environment is a measurement, and
+  this one was written with a stack trace and three reproductions and still did not survive contact
+  with the same binary. What the original lacks is what would have made it checkable.
 - **The local daemon API.** `sokard` serves the domain over an owner-only varlink socket, and the
   CLI and the daemon reach it through the same objects, so neither can grow a behavior the other
   lacks. The two questions it left are part of [B06](B06-Remote-Access.md).

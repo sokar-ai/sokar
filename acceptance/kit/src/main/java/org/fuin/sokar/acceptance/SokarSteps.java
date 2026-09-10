@@ -43,29 +43,25 @@ public class SokarSteps {
      */
     @Given("the vault is unlocked with the passphrase {string}")
     public void theVaultIsUnlocked(String passphrase) throws IOException {
-        // Through a file the passphrase is written into over standard input, never through an
-        // argument. '--passphrase-command "printf <value>"' - the obvious form - puts the
-        // passphrase in the argv of sokar AND of the command it spawns, and /proc/<pid>/cmdline
-        // is world-readable with /proc mounted without hidepid on both supported distributions.
-        // That is measured and it is the reason 'vault put' reads from standard input.
+        // Typed at the prompt, which is what an operator does and what this kit exists to
+        // simulate. It also keeps the passphrase off every command line and out of every file:
+        // '--passphrase-command "printf <value>"' - the obvious form - puts it in the argv of
+        // sokar AND of the command it spawns, and /proc/<pid>/cmdline is world-readable with
+        // /proc mounted without hidepid on both supported distributions.
         //
         // A feature file's passphrase is public by construction, so nothing here is at risk. The
-        // reason to do it properly anyway is that this is a published kit: the obvious step is
-        // the one somebody reaches for with a real passphrase, and a step that cannot leak one is
-        // worth more than a comment asking them not to.
-        //
-        // Typing it at the prompt would be better still and does not work: the native image
-        // cannot switch terminal echo off, so every interactive passphrase throws. Recorded in
-        // B35 rather than worked around silently.
-        final Machine machine = world.machine();
-        final String file = ".sokar-acceptance-passphrase";
-        try {
-            machine.run("umask 077 && cat > " + file, passphrase);
-            final Ssh.Output output = machine.run(
-                    "sokar vault unlock --passphrase-command " + Shell.quote("cat " + file));
-            assertThat(output.status()).as("vault unlock said:%n%s", output.all()).isZero();
-        } finally {
-            machine.run("rm -f " + file);
+        // reason to do it properly is that this is a published kit: the obvious step is the one
+        // somebody reaches for with a real passphrase.
+        try (Terminal terminal = world.machine().terminal()) {
+            terminal.type("sokar vault unlock");
+            terminal.await("passphrase");
+            terminal.type(passphrase);
+            // 'await' matches literal text, not a pattern - so one word that only a successful
+            // unlock prints. A refusal ends as a timeout carrying the whole screen, which says
+            // more than a matched prefix would.
+            terminal.await("cached in the kernel keyring");
+            // The whole point of the prompt: it must not appear on the screen it was typed at.
+            assertThat(terminal.seen()).as("the passphrase was echoed").doesNotContain(passphrase);
         }
     }
 

@@ -1,6 +1,8 @@
 # B35 — A Passphrase Nobody Can Type
 
-**Status:** open, and it is a defect in the shipped binary rather than a missing feature. Found on
+**Status:** closed on 2026-09-10, and **it does not reproduce**. The acceptance criteria are met and
+the workaround is gone; what is not explained is what was measured on 2026-09-09. Read the section
+at the end before trusting the diagnosis above. Found on
 2026-09-09 while trying to make an acceptance step type a passphrase at the prompt, which is the
 one thing this product asks an operator to do.
 
@@ -62,3 +64,49 @@ That workaround is temporary and says so.
   code" in one command.
 - **What the fallback should be** if it cannot be fixed: reading the line with echo on is not
   acceptable, so the honest answer may be to refuse and name the non-interactive routes.
+
+
+## It does not reproduce, and that is the finding
+
+Tried three ways on 2026-09-10, all of them the ways this file claims it fails, and all of them working:
+
+- **The same binary**, `app/target/sokar`, built at 18:09 on 2026-09-09 - before this file was
+  written at 20:07 the same day - driven through a real `pty.fork()`. `Vault passphrase:` prompts,
+  reads, does not echo, and caches.
+- **The packaged binary on a test machine**, over `ssh -tt`. Same.
+- **Through the acceptance kit's own terminal**, which is where the defect was found in the first
+  place. Same.
+
+Nothing in `ConsolePassphrase` or `VaultPutCommand` has changed since - `git log` over both since
+2026-09-08 is empty. So the binary, the code and two of the three reproduction routes are the same,
+and the behaviour is not.
+
+**What settles the "to be checked" items anyway:**
+
+- **A JVM run of the same code works** - `java.io.ProxyingConsole`, 7 characters, not echoed - so
+  had it been real it would have been the image rather than this code.
+- **A minimal native image also works**, built with `native-image --no-fallback` on GraalVM 25.3.4,
+  which is newer than the 25.0.2 the product pins. If the fault was ever real it may live in that
+  gap, and that is the one hypothesis worth keeping.
+- **The fallback question is moot** while it works. Should it return, driving `tcgetattr` and
+  `tcsetattr` through FFM reads a line with echo off in both runtimes and was proven at a pty
+  during this work - the same mechanism `KernelKeyring` already uses, so it is in idiom.
+
+## What changed
+
+**The kit types the passphrase at the prompt**, which is what this requirement asked for and what
+an operator does. The workaround it describes - writing the passphrase to an owner-only file and
+pointing `--passphrase-command` at it - is gone, so the passphrase now reaches no file and no
+command line at all. The step asserts it was not echoed, which is the property the prompt exists
+for and would have caught a fix that traded a crash for a leak.
+
+Exercised by 13 scenarios in an agent repository against a real machine, credential scenarios
+included.
+
+## The lesson worth keeping
+
+**A defect recorded from one environment is a measurement, not a property.** This one was written
+with a stack trace and three reproductions and still did not survive contact with the same binary a
+day later. What is missing from the original is what would make it checkable: the exact command,
+the terminal it ran under, and whether the process was sandboxed - the last being the one
+difference nobody wrote down.
