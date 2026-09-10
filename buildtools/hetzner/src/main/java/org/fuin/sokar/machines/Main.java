@@ -59,6 +59,15 @@ public final class Main {
         if (args.length > 0 && "acceptance".equals(args[0])) {
             return acceptance(args, complain, open);
         }
+        if (args.length > 0 && !"sweep".equals(args[0])) {
+            // Named rather than answered with the usage text alone. A repository that resolves
+            // this from a published snapshot can be handed a build older than the command it is
+            // asking for, and a bare usage dump reads as a mistake in the workflow rather than
+            // as tooling that has not caught up.
+            complain.accept("unknown command '" + args[0] + "'. This build of the tooling knows"
+                    + " sweep, snapshot, leg and acceptance - if you expected another, it is"
+                    + " older than the caller.");
+        }
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
                 Usage: sweep [--mine] [--now] [--older-than <minutes>]

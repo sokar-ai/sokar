@@ -679,6 +679,17 @@ See [build.md](doc/build.md). Three things that will bite:
   15.7s to 8.5s. It never showed locally, because a hop to a VM on the same host is fast and
   forgiving in a way a rented server is not.
 
+## The agent repositories consume what this one publishes
+
+**Push this repository first, and wait for it to publish.** The three agent repositories resolve
+`sokar-machines` and `sokar-acceptance-kit` as snapshots from Central, and Sokar's own `main` build
+is what puts them there. Pushing both within a few minutes races: on 2026-09-10 an agent's leg
+started eleven minutes before the publish it needed and resolved the previous snapshot, failing
+with the usage text of tooling that predated the command asked of it.
+
+`settings.xml` already sets `updatePolicy` to `always`, so nothing is stale that the repository
+has. What cannot be fixed in a workflow is an artifact that does not exist yet.
+
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in
