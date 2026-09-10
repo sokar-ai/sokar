@@ -53,7 +53,7 @@ class KernelKeyringTest {
         keyring.store("secret".toCharArray());
         assertThat(keyring.read()).isPresent();
 
-        assertThat(keyring.forget()).isTrue();
+        assertThat(keyring.forget()).isEqualTo(KernelKeyring.Forgotten.CLEARED);
         assertThat(keyring.read()).isEmpty();
     }
 
@@ -62,7 +62,36 @@ class KernelKeyringTest {
 
         assumeTrue(KernelKeyring.available(), "libkeyutils is not installed");
 
-        assertThat(new KernelKeyring("sokar-absent-" + UUID.randomUUID()).forget()).isFalse();
+        assertThat(new KernelKeyring("sokar-absent-" + UUID.randomUUID()).forget())
+                .isEqualTo(KernelKeyring.Forgotten.NOTHING_CACHED);
+    }
+
+    @Test
+    void tellsAbsenceApartFromNotBeingAbleToTell() {
+        // The search returns -1 for any reason at all, and treating that as "nothing was cached"
+        // told an operator a passphrase was gone while it was still in the keyring. Absence,
+        // expiry and revocation are answers; every other errno is not.
+        assertThat(KernelKeyring.missing(126)).as("ENOKEY, nothing there").isTrue();
+        assertThat(KernelKeyring.missing(127)).as("EKEYEXPIRED, and --for makes this ordinary")
+                .isTrue();
+        assertThat(KernelKeyring.missing(128)).as("EKEYREVOKED, as pam_keyinit does at logout")
+                .isTrue();
+        assertThat(KernelKeyring.missing(13)).as("EACCES settles nothing about the secret")
+                .isFalse();
+        assertThat(KernelKeyring.missing(12)).as("ENOMEM settles nothing either").isFalse();
+        assertThat(KernelKeyring.missing(0)).as("no errno at all is not absence").isFalse();
+    }
+
+    @Test
+    void findsWhatWasStoredEvenWithoutTheSessionLink() {
+        // The key is added to the user keyring and was searched for in the session keyring, which
+        // finds it only through a link - and pam_keyinit revokes a session keyring at logout, so
+        // a process outliving its login searched a revoked keyring while the key sat in @u.
+        assumeTrue(KernelKeyring.available(), "libkeyutils is not installed");
+
+        keyring.store("secret".toCharArray());
+        assertThat(keyring.read()).isPresent();
+        assertThat(keyring.forget()).isEqualTo(KernelKeyring.Forgotten.CLEARED);
     }
 
     @Test

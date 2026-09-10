@@ -1,6 +1,6 @@
 # B32 — A Cached Passphrase That Says What It Is
 
-**Status:** open, and it is a false statement rather than a missing feature. Found on 2026-09-09 by
+**Status:** done on 2026-09-10. It was a false statement rather than a missing feature. Found on 2026-09-09 by
 reading a fix in the reference implementation and checking whether this code had the same shape. It
 did, one level worse.
 
@@ -88,3 +88,39 @@ that hid two files. Worth stating as a class rather than as six accidents.
   real deployment and currently has none.
 - **What `vault lock` should exit with** when it cannot establish the state. Zero would make a
   script believe it locked something.
+
+
+## What was done, on 2026-09-10
+
+**Three outcomes, not two.** `KernelKeyring.forget()` answers `CLEARED`, `NOTHING_CACHED` or
+`UNKNOWN`. Only `ENOKEY`, `EKEYEXPIRED` and `EKEYREVOKED` count as absence - a retry cannot change
+any of them and there is nothing for an operator to act on. Every other errno is `UNKNOWN`, and so
+is a key that was found and could not be unlinked, which is the one case that must never read as
+cleared.
+
+**`vault lock` says so, and exits non-zero when it cannot tell.** That answers the open question
+about the exit code: zero would let a script believe it had locked something. It prints what to
+check and says to treat the passphrase as still cached until the keyring answers.
+
+**The key is looked for where it was put.** The search covers the user keyring first and the
+session keyring second. It was searching only the session keyring, where the key is reachable
+through a link whose lifetime is the session's - so a `vault serve` outliving its login searched a
+revoked keyring while the key sat untouched in `@u`. That was the whole of the second half of this
+requirement, and it was as small as the note suspected.
+
+**The read path is unchanged and still silent.** Any failure falls through to asking for the
+passphrase, because there is nothing to report about a cache that could not answer when the answer
+is being asked for anyway. The two paths share a search and no longer share a verdict.
+
+**`vault passphrase` no longer stays quiet on a failure.** The cached passphrase is the wrong one
+after a rekey, so a keyring that could not drop it now says so - silence there left the next
+command failing in a way that reads like a damaged vault.
+
+**The daemon reports a clearing as one.** `wasCached` was a boolean made from the old return, so
+"could not answer" and "there was nothing" arrived at an interface identically.
+
+## Still open
+
+**Whether tiers are worth borrowing** - a chain of session keyring, user keyring, `systemd-creds`
+and a passphrase command - is untouched and remains the answer to "the cache must outlive a login",
+which is a real deployment with no answer today.

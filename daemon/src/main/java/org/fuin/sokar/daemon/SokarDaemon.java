@@ -172,9 +172,14 @@ public final class SokarDaemon {
             final Map<String, Object> answer = new LinkedHashMap<>();
             final boolean keyring = org.fuin.sokar.vault.KernelKeyring.available();
             answer.put("keyring", keyring);
-            answer.put("wasCached", keyring
-                    && new org.fuin.sokar.vault.KernelKeyring(
-                            context.paths().vaultKeyringKey()).forget());
+            final org.fuin.sokar.vault.KernelKeyring.Forgotten forgotten = keyring
+                    ? new org.fuin.sokar.vault.KernelKeyring(
+                            context.paths().vaultKeyringKey()).forget()
+                    : org.fuin.sokar.vault.KernelKeyring.Forgotten.NOTHING_CACHED;
+            // Only a clearing counts as one. A keyring that could not answer must not read as
+            // "there was nothing", which is what a boolean made of it.
+            answer.put("wasCached",
+                    forgotten == org.fuin.sokar.vault.KernelKeyring.Forgotten.CLEARED);
             // Locking does not reach a running task: its proxy read the credential when it
             // started and holds it in its own memory. Stopping the task is what ends that, and an
             // interface that said "locked" without saying this would be claiming more than

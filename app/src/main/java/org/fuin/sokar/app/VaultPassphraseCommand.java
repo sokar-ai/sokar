@@ -110,9 +110,18 @@ public class VaultPassphraseCommand implements Callable<Integer>, SokarFactory.C
 
             // The cached one is now the WRONG one, so it goes. Not a courtesy: leaving it turns
             // the next command into a failure that reads like a damaged vault.
-            if (KernelKeyring.available()
-                    && new KernelKeyring(context.paths().vaultKeyringKey()).forget()) {
-                out.println("dropped    the cached passphrase; 'sokar vault unlock' with the new one");
+            if (KernelKeyring.available()) {
+                final KernelKeyring.Forgotten forgotten =
+                        new KernelKeyring(context.paths().vaultKeyringKey()).forget();
+                if (forgotten == KernelKeyring.Forgotten.CLEARED) {
+                    out.println("dropped    the cached passphrase;"
+                            + " 'sokar vault unlock' with the new one");
+                } else if (forgotten == KernelKeyring.Forgotten.UNKNOWN) {
+                    // The cached passphrase is now the wrong one. Silence here would leave the
+                    // next command failing in a way that reads like a damaged vault.
+                    out.println("could not drop the cached passphrase, and it is now the OLD one;"
+                            + " run 'sokar vault lock' until it succeeds");
+                }
             }
 
             // Said every time it is true, for the same reason 'vault lock' says it: a proxy read

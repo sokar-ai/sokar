@@ -133,7 +133,6 @@ and saying so cost a paragraph and bought a screen that is not lying.
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | four, and one dialog is refused rather than solved |
 | B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided |
 | B35 | [A Passphrase Nobody Can Type](B35-A-Passphrase-Nobody-Can-Type.md) | An operator can type a passphrase at the terminal, and nothing about how Sokar is built prevents it. | three, and the first settles it |
-| B32 | [A Cached Passphrase That Says What It Is](B32-A-Cached-Passphrase-That-Says-What-It-Is.md) | Sokar never reports a cached passphrase gone unless it is gone. | three, and the fix is small |
 | B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file |
 | B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file |
 | B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file |
@@ -166,6 +165,7 @@ above.
 | B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | three, and the guard is built |
 | B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one - which agent an image was built for |
 | B20 | [Creating A Project](B20-Creating-A-Project.md) | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one - whether creating also prepares |
+| B32 | [A Cached Passphrase That Says What It Is](B32-A-Cached-Passphrase-That-Says-What-It-Is.md) | Sokar never reports a cached passphrase gone unless it is gone. | one - whether a chain of caches is worth the explaining |
 
 ## What was here and is finished
 

@@ -31,8 +31,35 @@ public class KernelKeyring {
     /** Special serial for the calling user's keyring. */
     static final int KEY_SPEC_USER_KEYRING = -4;
 
+    /**
+     * The errno values that mean the key is not there to be had.
+     * <p>
+     * Absence, expiry and revocation are the same answer to an operator: there is nothing cached
+     * and nothing to do about it. Every other failure means the search could not establish
+     * anything, and reporting that as absence is the tool making a claim about a secret that it
+     * has not checked. {@code --for} makes expiry ordinary rather than exotic - it is what the
+     * recommended option produces half an hour later.
+     */
+    private static final int ENOKEY = 126;
+
+    /** A key whose timeout has passed; a retry cannot change the verdict. */
+    private static final int EKEYEXPIRED = 127;
+
+    /** A key whose keyring was revoked, which is what {@code pam_keyinit} does at logout. */
+    private static final int EKEYREVOKED = 128;
+
     /** Special serial for the calling session's keyring. */
     static final int KEY_SPEC_SESSION_KEYRING = -3;
+
+    /**
+     * Where the passphrase is looked for, in order.
+     * <p>
+     * <strong>The user keyring first, because that is where it was put.</strong> The session
+     * keyring finds it only through a link, and {@code pam_keyinit} revokes a session keyring when
+     * its login ends - so a process that outlives its login, such as a {@code vault serve} for a
+     * long task, was searching a revoked keyring while the key sat untouched in {@code @u}.
+     */
+    private static final int[] SEARCHED = { KEY_SPEC_USER_KEYRING, KEY_SPEC_SESSION_KEYRING };
 
     /**
      * Owner may view, read, write, search, link and set attributes; nobody else may do anything.
@@ -200,10 +227,17 @@ public class KernelKeyring {
             final MethodHandle read = handle("keyctl_read", ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG);
 
-            final long serial = (long) search.invokeExact(errno, KEY_SPEC_SESSION_KEYRING,
-                    arena.allocateFrom(TYPE), arena.allocateFrom(description), 0);
+            long serial = -1L;
+            for (final int keyring : SEARCHED) {
+                serial = (long) search.invokeExact(errno, keyring,
+                        arena.allocateFrom(TYPE), arena.allocateFrom(description), 0);
+                if (serial != -1L) {
+                    break;
+                }
+            }
             if (serial == -1L) {
-                // Nothing cached is the ordinary case before the first unlock.
+                // Nothing cached is the ordinary case before the first unlock, and on this path
+                // every other failure is harmless: the passphrase is asked for instead.
                 return Optional.empty();
             }
 
@@ -224,14 +258,38 @@ public class KernelKeyring {
     }
 
     /**
-     * Removes the cached passphrase.
-     *
-     * @return {@code true} if something was removed.
+     * What became of the cached passphrase.
+     * <p>
+     * Three outcomes rather than two, because "nothing was cached" and "I could not tell" are
+     * different things to say to somebody who has just asked for a secret to be dropped.
      */
-    public boolean forget() {
+    public enum Forgotten {
+
+        /** It was cached and is not any more. */
+        CLEARED,
+
+        /** There was nothing cached: absent, expired or revoked, and a retry changes none of it. */
+        NOTHING_CACHED,
+
+        /** The keyring could not answer, so whether anything is still cached is not known. */
+        UNKNOWN
+    }
+
+    /**
+     * Removes the cached passphrase.
+     * <p>
+     * <strong>A failure is never reported as absence.</strong> The search returns {@code -1} for
+     * any reason at all, and treating that as "nothing was cached" told an operator the passphrase
+     * was gone while it was still in the keyring - a claim about a secret that had not been
+     * checked. Only absence, expiry and revocation are answers; everything else is
+     * {@link Forgotten#UNKNOWN}.
+     *
+     * @return What was established.
+     */
+    public Forgotten forget() {
 
         if (!available()) {
-            return false;
+            return Forgotten.NOTHING_CACHED;
         }
 
         try (Arena arena = Arena.ofConfined()) {
@@ -243,16 +301,42 @@ public class KernelKeyring {
             final MethodHandle unlink = handle("keyctl_unlink", ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT, ValueLayout.JAVA_INT);
 
-            final long serial = (long) search.invokeExact(errno, KEY_SPEC_SESSION_KEYRING,
-                    arena.allocateFrom(TYPE), arena.allocateFrom(description), 0);
-            if (serial == -1L) {
-                return false;
+            long serial = -1L;
+            int failure = 0;
+            for (final int keyring : SEARCHED) {
+                serial = (long) search.invokeExact(errno, keyring,
+                        arena.allocateFrom(TYPE), arena.allocateFrom(description), 0);
+                if (serial != -1L) {
+                    break;
+                }
+                // The worst answer wins: one keyring saying "not here" does not settle it when
+                // another said it could not tell.
+                final int said = errorNumber(errno);
+                failure = missing(said) && !missing(failure) && failure != 0 ? failure : said;
             }
-            return (long) unlink.invokeExact(errno, (int) serial, KEY_SPEC_USER_KEYRING) != -1L;
+            if (serial == -1L) {
+                return missing(failure) ? Forgotten.NOTHING_CACHED : Forgotten.UNKNOWN;
+            }
+            if ((long) unlink.invokeExact(errno, (int) serial, KEY_SPEC_USER_KEYRING) == -1L) {
+                // It was found and could not be removed, which is the one case that must never
+                // read as cleared.
+                return Forgotten.UNKNOWN;
+            }
+            return Forgotten.CLEARED;
 
         } catch (Throwable ex) {
-            return false;
+            return Forgotten.UNKNOWN;
         }
+    }
+
+    /**
+     * Tells whether an errno means the key is not there to be had.
+     *
+     * @param errno What the kernel said.
+     * @return Whether that settles it as absence.
+     */
+    static boolean missing(int errno) {
+        return errno == ENOKEY || errno == EKEYEXPIRED || errno == EKEYREVOKED;
     }
 
     private static void requireAvailable() {

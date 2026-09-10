@@ -37,8 +37,9 @@ public class VaultLockCommand implements Callable<Integer>, SokarFactory.Context
      *
      * @param context Where the keyring name and the running tasks come from.
      * @param out Where to report.
-     * @return Exit code, which is zero whether or not anything was cached: the wanted state is
-     *         "not cached", and it holds either way.
+     * @return Exit code. Zero whether or not anything was cached - the wanted state is "not
+     *         cached", and it holds either way - and non-zero when the keyring could not say,
+     *         because zero would let a script believe it had locked something.
      */
     static int lock(SokarContext context, PrintWriter out) {
 
@@ -50,8 +51,19 @@ public class VaultLockCommand implements Callable<Integer>, SokarFactory.Context
             return 0;
         }
 
-        final boolean cached = new KernelKeyring(context.paths().vaultKeyringKey()).forget();
-        out.println(cached ? "locked    the next command asks for the passphrase again"
+        final KernelKeyring.Forgotten forgotten =
+                new KernelKeyring(context.paths().vaultKeyringKey()).forget();
+        if (forgotten == KernelKeyring.Forgotten.UNKNOWN) {
+            // Never reported as "nothing was cached": that is a claim about a secret nobody
+            // checked, and the passphrase may still be sitting in the keyring.
+            out.println("could not be established whether a passphrase is cached; the keyring did"
+                    + " not answer. Check 'keyctl show @u' and try again, and treat the"
+                    + " passphrase as still cached until it does.");
+            out.flush();
+            return 70;
+        }
+        out.println(forgotten == KernelKeyring.Forgotten.CLEARED
+                ? "locked    the next command asks for the passphrase again"
                 : "nothing was cached");
 
         // Said only when it is true, and it changes what locking means: a running task's proxy
