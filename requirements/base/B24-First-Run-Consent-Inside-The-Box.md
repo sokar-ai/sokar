@@ -169,6 +169,34 @@ agent's own decision. That keeps the split this file argues for: Sokar writes by
 knows which. Each agent has to answer it for itself - the file that carries a token is useless
 without one, while a file recording that onboarding is done is not.
 
+## Measured 2026-09-10, both halves on one machine
+
+The first run where Sokar's change and the agent's sit together: `sokar` built from `89acce4`,
+`sokar-agent-claude` at `1.0.0~snapshot.46` installed from the repository. On the ubuntu26.04 VM,
+a task with **no credential in the vault at all**.
+
+**`prepared 2 file(s)`** - `.claude.json` and `settings.json` placed, `.credentials.json` correctly
+absent, and no `ANTHROPIC_API_KEY` in the container. Before the fix this task got *nothing*.
+
+**At a pty in `/workspace`, the CLI reaches its prompt directly.** No onboarding wizard, no trust
+question, no bypass warning. The footer reads `⏵⏵ bypass permissions on` and `Not logged in ·
+Run /login` - which is the honest state for a task that was given no credential, arrived at
+without asking anybody anything.
+
+That is this requirement's last acceptance criterion demonstrated rather than argued: *reached
+work without a prompt*, on the path that had never been looked at.
+
+**What this measurement cannot say.** The API-key dialog cannot appear here - there is no token to
+be asked about - so B24's third criterion is untouched by it and remains unmet. And the local
+GraalVM is 25.3.4 where CI builds with 25.0.2; irrelevant to which dialogs a CLI raises, but worth
+naming so the result is not read as a statement about CI.
+
+**Two traps on the way to it, both of which would have produced a false pass.** The old native
+binary from the day before sat unchanged at `app/target/sokar`, so checking that the file existed
+rather than its timestamp would have measured yesterday's code. And the first two builds failed
+with nothing but a link to a Maven help page, because `-q` swallowed the cause: the JDK on the
+PATH was not a GraalVM and had no `native-image`.
+
 ## To be checked
 
 - ~~**Whether the settings file actually silences it**~~ - measured above on 2026-09-10: it does.
@@ -176,8 +204,8 @@ without one, while a file recording that onboarding is done is not.
 - ~~**Whether the flag is now redundant.**~~ - measured above on 2026-09-10: it is. Dropping it
   waits only on separating the two settings keys, so the removal is made on a measurement rather
   than on a guess.
-- ~~**A task with no credential still meets the dialog.**~~ - fixed above on 2026-09-10 in
-  `TaskLaunch`. Each agent still has to say what it writes without a token; until every agent
-  does, this is only half closed.
+- ~~**A task with no credential still meets the dialog.**~~ - fixed and **measured** on
+  2026-09-10 with both halves installed together. Claude Code reaches its prompt with no dialog
+  at all; pi and omp correctly write nothing, their one file being useless without a token.
 - **What the other agents do.** Oh My Pi and Pi have not been checked for first-run dialogs, and
   Pi has not even declared its permission flag yet.

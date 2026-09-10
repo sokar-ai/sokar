@@ -22,7 +22,7 @@ Where the position is not obvious, the last section says why.
 
 | # | Requirement | What must be true | Open question | Why here |
 |---|---|---|---|---|
-| B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | two, and one dialog is refused rather than solved | [note](#b24) |
+| B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | one, and one dialog is refused rather than solved | [note](#b24) |
 | B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided | |
 | B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file | [note](#b29) |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one | |
