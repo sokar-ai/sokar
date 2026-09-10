@@ -71,7 +71,7 @@ destination stays blocked, and can still be answered afterwards through `Decide`
 has to reach somebody, and who can be reached is decided here rather than by the prompt.
 
 Notifications are the part this constrains that is not yet settled
-([F23](https://github.com/fuinorg/sokar-frontend/blob/main/requirements/F23-Notifications.md)):
+([F23](https://github.com/sokar-ai/sokar-frontend/blob/main/requirements/F23-Notifications.md)):
 a forwarded socket delivers events to a client that is connected, which is not the same as
 reaching a person whose client is closed.
 

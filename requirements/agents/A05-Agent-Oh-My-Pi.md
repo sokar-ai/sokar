@@ -1,6 +1,6 @@
 # A05 — Agent Oh My Pi
 
-**Status:** built, in [sokar-omp](https://github.com/fuinorg/sokar-omp), and every acceptance
+**Status:** built, in [sokar-omp](https://github.com/sokar-ai/sokar-omp), and every acceptance
 criterion is met and measured - including the last one, with a real credential.
 
 The acceptance suite it was missing now exists there: `buildtools/acceptance.sh` driven by

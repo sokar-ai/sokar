@@ -56,8 +56,8 @@ publishes without anyone being asked.
 ## What the split changed
 
 This was written when both agents lived in this repository. They do not: Claude Code is
-[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code), Pi is
-[sokar-pi](https://github.com/fuinorg/sokar-pi), and each already builds, packages,
+[sokar-claude-code](https://github.com/sokar-ai/sokar-claude-code), Pi is
+[sokar-pi](https://github.com/sokar-ai/sokar-pi), and each already builds, packages,
 publishes and acceptance-tests itself. So this is **three pipelines that share a shape**,
 not one pipeline with a switch, and the shape is the only thing worth keeping identical.
 

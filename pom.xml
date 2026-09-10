@@ -36,19 +36,19 @@
          a path that does not exist. One repository, one url. The project one belongs on
          <project> and the scm ones on <scm>: they are fields of different model objects. -->
 
-    <url>https://github.com/fuinorg/sokar/</url>
+    <url>https://github.com/sokar-ai/sokar/</url>
 
     <scm child.scm.url.inherit.append.path="false"
          child.scm.connection.inherit.append.path="false"
          child.scm.developerConnection.inherit.append.path="false">
-        <url>https://github.com/fuinorg/sokar/</url>
-        <connection>scm:git:git://github.com/fuinorg/sokar.git</connection>
-        <developerConnection>scm:git:git@github.com:fuinorg/sokar.git</developerConnection>
+        <url>https://github.com/sokar-ai/sokar/</url>
+        <connection>scm:git:git://github.com/sokar-ai/sokar.git</connection>
+        <developerConnection>scm:git:git@github.com:sokar-ai/sokar.git</developerConnection>
     </scm>
 
     <issueManagement>
         <system>GitHub Issues</system>
-        <url>https://github.com/fuinorg/sokar/issues</url>
+        <url>https://github.com/sokar-ai/sokar/issues</url>
     </issueManagement>
 
     <properties>

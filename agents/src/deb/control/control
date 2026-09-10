@@ -7,7 +7,7 @@ Section: utils
 Priority: optional
 Architecture: amd64
 Maintainer: fuin.org <info@fuin.org>
-Homepage: https://github.com/fuinorg/sokar
+Homepage: https://github.com/sokar-ai/sokar
 Depends: sokar
 Description: [[description]] [[agent.cli.version]]
  Installs into /usr/libexec/sokar/agents, where the sokar binary looks for

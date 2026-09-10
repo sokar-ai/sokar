@@ -25,9 +25,9 @@ set. Those four are the only artifacts Sokar puts on Maven Central, so the rule 
 agent in its own repository is *able* to resolve.
 
 **Every shipped agent is in its own repository** —
-[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code),
-[sokar-pi](https://github.com/fuinorg/sokar-pi) and
-[sokar-omp](https://github.com/fuinorg/sokar-omp) — building against that published
+[sokar-claude-code](https://github.com/sokar-ai/sokar-claude-code),
+[sokar-pi](https://github.com/sokar-ai/sokar-pi) and
+[sokar-omp](https://github.com/sokar-ai/sokar-omp) — building against that published
 contract with no checkout of this one. What remains in `agents/` is the contract and
 the **stub**, which exists so the acceptance suite still has something to drive; a
 suite that cannot run is one that quietly stops being maintained.
@@ -812,7 +812,7 @@ drifted when they were written down twice.
 
 `daemon/src/main/resources/varlink/org.fuin.sokar.Tasks1.varlink` is the API the frontend is
 built against, in a separate repository
-([sokar-frontend](https://github.com/fuinorg/sokar-frontend)). It is the contract, not a
+([sokar-frontend](https://github.com/sokar-ai/sokar-frontend)). It is the contract, not a
 description of one: the daemon serves it verbatim through
 `org.varlink.service.GetInterfaceDescription`, and `InterfaceDescriptionTest` fails the build
 when a method is registered without appearing in it, appears in it without being registered,

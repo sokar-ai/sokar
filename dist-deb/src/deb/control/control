@@ -7,7 +7,7 @@ Section: admin
 Priority: optional
 Architecture: amd64
 Maintainer: fuin.org <info@fuin.org>
-Homepage: https://github.com/fuinorg/sokar
+Homepage: https://github.com/sokar-ai/sokar
 Depends: podman, nftables, dnsmasq-base, git, util-linux
 Description: [[description]]
  Sandboxes an AI agent task in a hardened, rootless podman container: egress is

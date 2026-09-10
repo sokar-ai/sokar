@@ -109,7 +109,7 @@ public class VarlinkServer implements AutoCloseable, Runnable {
             info.put("vendor", "fuin.org");
             info.put("product", "Sokar");
             info.put("version", version);
-            info.put("url", "https://github.com/fuinorg/sokar");
+            info.put("url", "https://github.com/sokar-ai/sokar");
             info.put("interfaces", List.of("org.varlink.service", interfaceName));
             replies.last(info);
         });

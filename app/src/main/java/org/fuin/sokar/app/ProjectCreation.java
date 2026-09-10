@@ -187,7 +187,7 @@ public final class ProjectCreation {
             @Nullable String upstream, List<String> sets) {
         final StringBuilder text = new StringBuilder("""
                 # Everything here can be changed; see
-                # https://github.com/fuinorg/sokar#readme for what each field does.
+                # https://github.com/sokar-ai/sokar#readme for what each field does.
                 project:
                   name: "%s"
                   security_class: "%s"

@@ -66,7 +66,7 @@ sudo apt install --reinstall sokar sokar-agent-claude
 ### From a local build
 
 **An agent is built in its own repository** — Claude Code in
-[sokar-claude-code](https://github.com/fuinorg/sokar-claude-code) — so a build of Sokar
+[sokar-claude-code](https://github.com/sokar-ai/sokar-claude-code) — so a build of Sokar
 produces Sokar and no agent. Sokar's own package lands in `dist-deb/target`. Copy it
 somewhere readable first:
 
@@ -296,7 +296,7 @@ interchangeable — an API key and a subscription token go in different headers,
 sending one as the other fails in a way that looks exactly like a wrong key. Claude
 Code takes an API key or a subscription OAuth token; say which when you store it
 (`--type api-key` or `--type oauth`) and no task has to repeat it — see
-[the Claude Code guide](https://github.com/fuinorg/sokar-claude-code#readme) for where to get each.
+[the Claude Code guide](https://github.com/sokar-ai/sokar-claude-code#readme) for where to get each.
 `sokar agents --verbose` shows what each installed agent needs to reach.
 
 ## 4. Describe your project
