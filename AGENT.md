@@ -830,6 +830,26 @@ reads a parameter it does not describe, or throws an error it does not name.
 - **Log tokens abbreviated, never whole** — `PhantomToken.abbreviate`. A log that
   contains a working credential is a credential store with no lock on it.
 
+## Timestamps come from the clock, never from memory
+
+**Any date or time written anywhere - a channel entry, a requirement, a comment, a snapshot
+description, a note that says when something was measured - is read from the system first.**
+
+    date -u +"%Y-%m-%dT%H:%MZ"
+
+A model has no clock and no reliable sense of elapsed time, so a timestamp written from memory is a
+guess that looks like a fact. It has already gone wrong here more than once: a channel entry dated
+four hours off, twice; and every timestamp one agent had written in a shared file turned out to be
+composed rather than read, so the file's order was truthful and its dates were not.
+
+**The same rule for durations and ages.** "About twenty minutes ago" and "three weeks behind" are
+observations with a date attached, not properties - compute them from two timestamps that were both
+read, and say when they were taken. Something recorded as a property is read later as one that
+still holds.
+
+**Never correct a wrong timestamp with a second guess.** Read the clock and use what it says. A
+correction that is also estimated is the same fault twice, and the second one is more convincing.
+
 ## Commits
 
 One brief line. The reasoning behind a change is a finding, and a finding goes in
