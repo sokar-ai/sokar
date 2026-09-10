@@ -42,7 +42,7 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- The three artifacts Sokar publishes. -->
+            <!-- The four artifacts Sokar publishes. -->
             <dependency>
                 <groupId>org.fuin.sokar</groupId>
                 <artifactId>sokar-agent-api</artifactId>
@@ -56,6 +56,11 @@
             <dependency>
                 <groupId>org.fuin.sokar</groupId>
                 <artifactId>sokar-acceptance-kit</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-machines</artifactId>
                 <version>${sokar.version}</version>
             </dependency>
 

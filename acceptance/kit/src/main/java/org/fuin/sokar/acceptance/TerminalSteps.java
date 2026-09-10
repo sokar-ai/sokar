@@ -1,5 +1,6 @@
 package org.fuin.sokar.acceptance;
 
+import org.fuin.sokar.machines.Ssh;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.cucumber.java.After;
@@ -309,7 +310,7 @@ public class TerminalSteps {
      */
     @Then("a script running {string} mentions {string}")
     public void aScriptRunningMentions(String command, String text) throws IOException {
-        final Machine.Output output = world.machine().run(World.expand(command));
+        final Ssh.Output output = world.machine().run(World.expand(command));
         world.output(output);
         assertThat(output.all()).as("running: %s", command).contains(text);
     }

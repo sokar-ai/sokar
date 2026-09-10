@@ -33,6 +33,15 @@
         <!-- compile: a test kit, so what a consumer's scenarios need is compile scope HERE and
              test scope THERE. One dependency at the consumer rather than six. -->
 
+        <!-- Renting a machine and talking to one, shared with the CI tooling that creates
+             them. Four copies of that in Python is what this repository is unwinding. -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-machines</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>

@@ -1,5 +1,6 @@
 package org.fuin.sokar.acceptance;
 
+import org.fuin.sokar.machines.Ssh;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -32,7 +33,7 @@ public final class World implements AutoCloseable {
 
     private @Nullable Terminal terminal;
 
-    private Machine.@Nullable Output output;
+    private Ssh.@Nullable Output output;
 
     private final Map<String, String> secrets = new LinkedHashMap<>();
 
@@ -91,7 +92,7 @@ public final class World implements AutoCloseable {
      *
      * @return The output.
      */
-    public Machine.Output output() {
+    public Ssh.Output output() {
         if (output == null) {
             throw new AssertionError("No script has run yet: use 'When a script runs ...' first");
         }
@@ -103,7 +104,7 @@ public final class World implements AutoCloseable {
      *
      * @param last The output.
      */
-    public void output(Machine.Output last) {
+    public void output(Ssh.Output last) {
         output = last;
     }
 

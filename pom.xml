@@ -125,6 +125,7 @@
         <module>app</module>
         <module>daemon</module>
         <module>hooks</module>
+        <module>buildtools/hetzner</module>
         <module>acceptance</module>
         <module>dist-deb</module>
         <module>dist-rpm</module>

@@ -1,5 +1,6 @@
 package org.fuin.sokar.acceptance;
 
+import org.fuin.sokar.machines.Ssh;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.cucumber.java.en.Given;
@@ -60,7 +61,7 @@ public class SokarSteps {
         final String file = ".sokar-acceptance-passphrase";
         try {
             machine.run("umask 077 && cat > " + file, passphrase);
-            final Machine.Output output = machine.run(
+            final Ssh.Output output = machine.run(
                     "sokar vault unlock --passphrase-command " + Shell.quote("cat " + file));
             assertThat(output.status()).as("vault unlock said:%n%s", output.all()).isZero();
         } finally {
@@ -78,7 +79,7 @@ public class SokarSteps {
      */
     @Given("the vault holds the value of {string} as {string} of kind {string}")
     public void theVaultHolds(String variable, String name, String kind) throws IOException {
-        final Machine.Output output = world.machine().run(
+        final Ssh.Output output = world.machine().run(
                 "sokar vault put " + name + " --type " + kind, world.secret(variable));
         assertThat(output.status()).as("vault put said:%n%s", output.all()).isZero();
         assertThat(world.contains(variable, output.all()))
@@ -98,7 +99,7 @@ public class SokarSteps {
         final Matcher matcher = CONTAINER.matcher(world.terminal().seen());
         assertThat(matcher.find()).as("no start report named a container in:%n%s",
                 world.terminal().seen()).isTrue();
-        final Machine.Output output = world.machine().run(
+        final Ssh.Output output = world.machine().run(
                 "sokar task stop " + matcher.group(1) + " --purge");
         assertThat(output.status()).as("task stop said:%n%s", output.all()).isZero();
     }

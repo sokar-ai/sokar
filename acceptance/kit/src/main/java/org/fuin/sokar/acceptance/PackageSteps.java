@@ -1,5 +1,6 @@
 package org.fuin.sokar.acceptance;
 
+import org.fuin.sokar.machines.Ssh;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.cucumber.java.en.Then;
@@ -59,7 +60,7 @@ public class PackageSteps {
                 "version_lt \"$V\" \"$R\" && version_lt \"$V\" \"$R~snapshot.$((N + 1))\""
                         + " && version_lt \"$R~snapshot.9\" \"$R~snapshot.10\""
                         + " && echo \"OK: $V\" || { echo \"WRONG: $V does not order\"; exit 1; }");
-        final Machine.Output output = world.machine().run(script);
+        final Ssh.Output output = world.machine().run(script);
         assertThat(output.status()).as("%s", output.all().strip()).isZero();
     }
 
@@ -87,7 +88,7 @@ public class PackageSteps {
                 "names = {c['name'] for c in walk(bom.get('components'))}",
                 "assert sys.argv[2] in names, sys.argv[2] + ' is not among ' + str(sorted(names))",
                 "print(len(names), 'components')");
-        final Machine.Output output = world.machine().run(
+        final Ssh.Output output = world.machine().run(
                 "python3 - " + Shell.quote(path) + " " + Shell.quote(component) + " <<'PY'\n"
                         + python + "\nPY");
         assertThat(output.status()).as("%s", output.all().strip()).isZero();

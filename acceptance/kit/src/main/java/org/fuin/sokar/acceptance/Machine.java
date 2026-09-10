@@ -1,8 +1,9 @@
 package org.fuin.sokar.acceptance;
 
 import java.io.IOException;
-import net.schmizz.sshj.SSHClient;
-import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
+import java.nio.file.Path;
+import org.fuin.sokar.machines.Credential;
+import org.fuin.sokar.machines.Ssh;
 
 /**
  * The machine a scenario runs against.
@@ -11,15 +12,12 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
  * somebody is working and against the rented machines in CI; which one is a property, not a copy
  * of the scenarios.
  * <p>
- * <strong>Host keys are not verified, deliberately.</strong> These machines are created and
- * destroyed per run - a rented server booted from a snapshot has a key nobody has seen before, and
- * pinning one would mean the suite refusing to run on the machine it was given. What this suite
- * protects is not the channel; it is what Sokar does at the far end of it.
+ * <strong>What is here is what a scenario needs and a build tool does not.</strong> Connecting,
+ * authenticating and running a command are {@link Ssh}, shared with the code that rents these
+ * machines in the first place; the properties, the run-long connection, the terminal and the two
+ * wrappers below are this suite's own.
  */
 public final class Machine implements AutoCloseable {
-
-    /** How long a connection attempt may hang before the machine counts as unreachable. */
-    private static final int PROBE_TIMEOUT = 4000;
 
     /**
      * The connection every scenario in the run shares.
@@ -38,11 +36,13 @@ public final class Machine implements AutoCloseable {
      */
     private static @org.jspecify.annotations.Nullable Machine shared;
 
-    private SSHClient client;
+    private final Ssh ssh;
 
     private final String host;
 
     private final String user;
+
+    private final Credential credential;
 
     /**
      * Returns the run's connection, opening it the first time it is asked for.
@@ -80,81 +80,47 @@ public final class Machine implements AutoCloseable {
     public Machine() throws IOException {
         this.host = required("sokar.acceptance.host");
         this.user = required("sokar.acceptance.user");
-        this.client = connected();
-    }
-
-    private SSHClient connected() throws IOException {
-        final SSHClient fresh = new SSHClient();
-        fresh.addHostKeyVerifier(new PromiscuousVerifier());
-        fresh.connect(host);
-        authenticate(fresh);
-        return fresh;
+        this.credential = credential();
+        this.ssh = Ssh.to(host, user, credential);
     }
 
     /**
-     * Authenticates with the key, however it was given.
+     * Takes the key from the environment when there is one and from a file otherwise.
      * <p>
      * <strong>The material, not only a path.</strong> On a developer's machine the key is a file.
-     * In CI it is a secret that is deliberately never written to a filesystem - the reason is
-     * recorded in {@code hetzner.agent}: a stray carriage return in a temporary key file fails as
-     * "error in libcrypto", naming neither the file nor the reason. Taking the material directly
-     * keeps that property rather than making this the one place that breaks it.
+     * In CI it is a secret deliberately never written to a filesystem: a stray carriage return in
+     * a temporary key file fails as "error in libcrypto", naming neither the file nor the reason.
+     * Which of the two it is, and the cleaning either needs, is {@link Credential}'s.
      *
-     * @param client The client to authenticate.
-     * @throws IOException If the key cannot be used.
+     * @return The key this suite authenticates with.
      */
-    private void authenticate(SSHClient client) throws IOException {
+    private static Credential credential() {
         final String material = System.getenv("SOKAR_ACCEPTANCE_KEY");
         if (material != null && !material.isBlank()) {
-            // Carriage returns make an otherwise valid key unreadable, and the error says so no
-            // more clearly here than it does to ssh.
-            final String cleaned = material.replace("\r\n", "\n").replace("\r", "\n").strip()
-                    + "\n";
-            client.authPublickey(user, client.loadKeys(cleaned, null, null));
-            return;
+            return Credential.of(material, null);
         }
-        client.authPublickey(user, required("sokar.acceptance.key"));
+        return Credential.of(null, Path.of(required("sokar.acceptance.key")));
     }
 
     /**
      * Tells whether the machine answers, without disturbing the session.
+     * <p>
+     * Through the same credential the run uses, not a key file: in CI the key is material in the
+     * environment and the file property does not exist. Asking for it here once threw inside the
+     * probe, was caught as "unreachable", and made every probe answer false forever - so a restart
+     * scenario failed with "the machine did not come back within 5 minutes" about a machine that
+     * never went anywhere. A message accusing the infrastructure of a fault in this code is the
+     * worst shape a failure can take.
      *
      * @return {@code true} if something is listening and authenticating.
      */
     public boolean reachable() {
-        final SSHClient probe = new SSHClient();
-        probe.addHostKeyVerifier(new PromiscuousVerifier());
-        probe.setConnectTimeout(PROBE_TIMEOUT);
-        probe.setTimeout(PROBE_TIMEOUT);
-        try {
-            probe.connect(host);
-            // Through authenticate(), not the key file: in CI the key is material in the
-            // environment and the file property does not exist. Asking for it here threw inside
-            // this try, was caught as "unreachable", and made every probe answer false forever -
-            // so a restart scenario failed with "the machine did not come back within 5
-            // minutes" about a machine that never went anywhere. A message accusing the
-            // infrastructure of a fault in this code is the worst shape a failure can take.
-            authenticate(probe);
-            return true;
-        } catch (IOException | RuntimeException ex) {
-            // Down, or not up yet. Both are "no" here and the caller knows which it is waiting for.
-            return false;
-        } finally {
-            try {
-                probe.close();
-            } catch (IOException ex) {
-                // Nothing to do about a probe that will not close.
-            }
-        }
+        return Ssh.reachable(host, user, credential);
     }
 
     /** Drops the session, for a restart that is about to take it away anyway. */
     void disconnect() {
-        try {
-            client.disconnect();
-        } catch (IOException ex) {
-            // Already gone, which is what was wanted.
-        }
+        ssh.disconnect();
     }
 
     /**
@@ -163,7 +129,7 @@ public final class Machine implements AutoCloseable {
      * @throws IOException If the machine cannot be reached.
      */
     void reconnect() throws IOException {
-        client = connected();
+        ssh.reconnect();
     }
 
     /**
@@ -195,7 +161,7 @@ public final class Machine implements AutoCloseable {
      * @return What it wrote and what it exited with.
      * @throws IOException If the command cannot be run.
      */
-    public Output run(String command) throws IOException {
+    public Ssh.Output run(String command) throws IOException {
         return run(command, null);
     }
 
@@ -211,20 +177,8 @@ public final class Machine implements AutoCloseable {
      * @return What it wrote and what it exited with.
      * @throws IOException If the command cannot be run.
      */
-    public Output run(String command, String stdin) throws IOException {
-        try (var session = client.startSession()) {
-            final var exec = session.exec(asUser(onPath(command)));
-            if (stdin != null) {
-                try (var in = exec.getOutputStream()) {
-                    in.write(stdin.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                }
-            }
-            final String out = new String(exec.getInputStream().readAllBytes());
-            final String err = new String(exec.getErrorStream().readAllBytes());
-            exec.join();
-            final Integer status = exec.getExitStatus();
-            return new Output(out, err, status == null ? -1 : status);
-        }
+    public Ssh.Output run(String command, String stdin) throws IOException {
+        return ssh.run(asUser(onPath(command)), stdin);
     }
 
     /**
@@ -234,7 +188,7 @@ public final class Machine implements AutoCloseable {
      * @throws IOException If it cannot be opened.
      */
     public Terminal terminal() throws IOException {
-        return new Terminal(client);
+        return new Terminal(ssh.client());
     }
 
     /**
@@ -272,25 +226,6 @@ public final class Machine implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
-        client.disconnect();
-    }
-
-    /**
-     * What a command wrote and what it exited with.
-     *
-     * @param out Standard output.
-     * @param err Standard error.
-     * @param status Exit status, or {@code -1} when the far end reported none.
-     */
-    public record Output(String out, String err, int status) {
-
-        /**
-         * Returns everything it wrote, whichever stream it used.
-         *
-         * @return Both streams, standard output first.
-         */
-        public String all() {
-            return out + err;
-        }
+        ssh.close();
     }
 }
