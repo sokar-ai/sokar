@@ -222,12 +222,13 @@ public final class Snapshots {
     private static String packages(String os) {
         if ("fedora".equals(os)) {
             return "dnf install -y -q podman nftables git curl gnupg2 ca-certificates "
-                    + "shadow-utils slirp4netns passt fuse-overlayfs crun "
+                    + "shadow-utils slirp4netns passt fuse-overlayfs crun dnsmasq "
                     + "gcc glibc-devel zlib-devel libstdc++-static && dnf clean all";
         }
         return "export DEBIAN_FRONTEND=noninteractive && apt-get update -qq && "
                 + "apt-get install -y -qq podman nftables git curl gnupg ca-certificates "
-                + "uidmap slirp4netns passt fuse-overlayfs crun build-essential zlib1g-dev "
+                + "uidmap slirp4netns passt fuse-overlayfs crun dnsmasq-base "
+                + "build-essential zlib1g-dev "
                 + "&& apt-get clean && rm -rf /var/lib/apt/lists/*";
     }
 
@@ -273,6 +274,11 @@ public final class Snapshots {
                 /home/@USER@/.ssh/authorized_keys
             # Pulled as the user that will run them: rootless podman keeps its own store.
             @PULLS@
+            # Not merely present: a dnsmasq without nftset support opens nothing while
+            # resolving everything, which is a firewall that answers every question and admits
+            # nobody - and it fails as a task that cannot reach a host the project declared.
+            dnsmasq --version | head -1
+            dnsmasq --version | grep -q nftset || { echo 'dnsmasq has no nftset support'; exit 1; }
             echo '### prepared'
             df -h / | tail -1
             @GRAALVM@/bin/java --version | head -1

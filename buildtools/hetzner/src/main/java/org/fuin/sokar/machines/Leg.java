@@ -60,14 +60,27 @@ public final class Leg {
             step("building");
             run(lease, BUILD);
 
+            // Entirely in the user's own directories, with no sudo. Sokar scans
+            // ~/.local/share/sokar/providers before /usr/share and resolves hooks from
+            // ~/.local/bin before /usr/libexec, so an unprivileged install is a supported shape
+            // rather than a shortcut - and it is the shape a task actually runs in: rootless.
+            //
+            // All four copies matter. An earlier version of this driver left out the providers
+            // and the binary, and the leg failed with "No provider 'anthropic' is declared" -
+            // which reads like a broken machine and was a broken transcription.
             step("installing as a package would");
             run(lease, "mkdir -p ~/.local/bin ~/.local/share/sokar/agents "
-                    + "~/.local/share/sokar/providers && cp " + REPO + "/hooks/target/sokar-hook-* "
-                    + "~/.local/bin/");
+                    + "~/.local/share/sokar/providers"
+                    + " && cp " + REPO + "/hooks/target/sokar-hook-* ~/.local/bin/"
+                    + " && cp " + REPO + "/app/target/sokar ~/.local/bin/"
+                    + " && cp " + REPO + "/providers/*.yaml ~/.local/share/sokar/providers/"
+                    + " && ~/.local/bin/sokar setup");
 
             step("what sokar thinks of this machine");
-            // Not fatal: doctor reports, and a leg that stops here would hide the run below.
-            System.out.println(lease.ssh().run("cd " + REPO
+            // The podman version too: it decides whether this leg is really covering podman 4 or
+            // has quietly become a second Fedora. Not fatal - doctor reports, and stopping here
+            // would hide the run below.
+            System.out.println(lease.ssh().run("podman --version; cd " + REPO
                     + " && PATH=$HOME/.local/bin:$PATH sokar doctor 2>&1 "
                     + "|| echo '(sokar doctor failed)'").all().strip());
 

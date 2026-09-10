@@ -42,7 +42,7 @@ public final class Main {
             // The refusals this code makes on purpose - a missing token, an API that said no.
             // Anything else is a fault here and keeps its stack trace, because a one-line
             // message for a NullPointerException hides the only useful thing about it.
-            System.err.println("::error::" + ex.getMessage());
+            System.err.println(problem(ex.getMessage()));
             System.exit(1);
         }
     }
@@ -81,19 +81,19 @@ public final class Main {
                 case "--now" -> delete = true;
                 case "--older-than" -> {
                     if (at + 1 >= args.length) {
-                        System.err.println("::error::--older-than needs a number of minutes");
+                        System.err.println(problem("--older-than needs a number of minutes"));
                         return 2;
                     }
                     try {
                         olderThan = Duration.ofMinutes(Long.parseLong(args[++at]));
                     } catch (NumberFormatException ex) {
-                        System.err.println("::error::--older-than needs a number of minutes, not '"
-                                + args[at] + "'");
+                        System.err.println(problem("--older-than needs a number of minutes, not '"
+                                + args[at] + "'"));
                         return 2;
                     }
                 }
                 default -> {
-                    System.err.println("::error::unknown option: " + args[at]);
+                    System.err.println(problem("unknown option: " + args[at]));
                     return 2;
                 }
             }
@@ -136,13 +136,13 @@ public final class Main {
                 case "--key" -> key = at + 1 < args.length ? args[++at] : null;
                 case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
                 default -> {
-                    System.err.println("::error::unknown option: " + args[at]);
+                    System.err.println(problem("unknown option: " + args[at]));
                     return 2;
                 }
             }
         }
         if (os == null) {
-            System.err.println("::error::snapshot needs --os");
+            System.err.println(problem("snapshot needs --os"));
             return 2;
         }
         final Credential credential = Credential.of(System.getenv("SSH"),
@@ -208,13 +208,13 @@ public final class Main {
                 case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
                 case "--keep" -> keep = true;
                 default -> {
-                    System.err.println("::error::unknown option: " + args[at]);
+                    System.err.println(problem("unknown option: " + args[at]));
                     return 2;
                 }
             }
         }
         if (os == null || repo == null) {
-            System.err.println("::error::leg needs --os and --repo");
+            System.err.println(problem("leg needs --os and --repo"));
             return 2;
         }
         try (Hetzner hetzner = open.get()) {
@@ -223,6 +223,23 @@ public final class Main {
                     archiveOf(java.nio.file.Path.of(repo)), keep);
         }
         return 0;
+    }
+
+    /**
+     * Marks a message as a problem, in the form whoever is reading understands.
+     * <p>
+     * The {@code ::error::} prefix is a workflow command, and GitHub turns any line carrying one
+     * into an annotation on the job - including a line a unit test caused while checking that a
+     * bad option is refused. Three green jobs carried red annotations that way. So the prefix is
+     * added where a workflow is reading and nowhere else, the same rule the acceptance report
+     * follows.
+     *
+     * @param message What went wrong.
+     * @return The message, prefixed when CI is reading.
+     */
+    static String problem(String message) {
+        return System.getenv("GITHUB_ACTIONS") == null ? "sokar: " + message
+                : "::error::" + message;
     }
 
     /**

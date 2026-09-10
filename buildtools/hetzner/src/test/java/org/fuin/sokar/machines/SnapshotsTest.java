@@ -51,6 +51,22 @@ class SnapshotsTest {
     }
 
     @Test
+    void bringsTheResolverSokarDrivesTheFirewallWith() {
+        // Sokar's package pulls podman, nftables and dnsmasq as dependencies, but a leg builds
+        // Sokar from source and installs no package - so nothing pulled dnsmasq and six egress
+        // checks failed on a machine whose firewall could open nothing.
+        assertThat(Snapshots.recipe("ubuntu")).contains("dnsmasq-base");
+        assertThat(Snapshots.recipe("fedora")).contains("dnsmasq");
+    }
+
+    @Test
+    void refusesAResolverThatCannotOpenAnything() {
+        // Present is not enough: a dnsmasq without nftset support resolves everything and opens
+        // nothing, which fails later as a task that cannot reach a host the project declared.
+        assertThat(Snapshots.recipe("ubuntu")).contains("grep -q nftset");
+    }
+
+    @Test
     void leavesNoPlaceholderUnreplaced() {
         // A stray @NAME@ would reach the machine as a literal and fail somewhere unhelpful.
         assertThat(Snapshots.recipe("ubuntu")).doesNotContain("@");

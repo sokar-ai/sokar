@@ -27,6 +27,14 @@ class MainTest {
     };
 
     @Test
+    void doesNotAnnotateAJobWhileATestIsCheckingARefusal() {
+        // Every '::error::' line GitHub sees becomes an annotation on the job, including one a
+        // unit test caused on purpose. Three green jobs carried red annotations that way.
+        assertThat(Main.problem("unknown option: --nonsense")).startsWith("sokar: ");
+        assertThat(Main.problem("unknown option: --nonsense")).doesNotContain("::error::");
+    }
+
+    @Test
     void saysHowToUseItWhenAskedForNothing() throws IOException {
         assertThat(Main.run(new String[0], NEVER)).isEqualTo(2);
     }
