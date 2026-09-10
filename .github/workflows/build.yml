@@ -103,9 +103,6 @@ jobs:
           distribution: 'graalvm-community'
           cache: 'maven'
 
-      - name: Install the Hetzner client
-        run: pip install --quiet hcloud
-
       # Before anything is created, so the cleanup below can always run. That step is
       # 'if: always()', and a build that died before this module was compiled would leave it with
       # nothing to run and a server billing until the hourly sweep noticed.
@@ -135,7 +132,8 @@ jobs:
           # unique - and the cleanup below deletes by that label.
           SOKAR_CI_LEG: ${{ matrix.os }}
         run: |
-          python3 buildtools/ci/remote-tier1.py --os ${{ matrix.os }} --acceptance \
+          java -cp "buildtools/hetzner/target/classes:$(cat buildtools/hetzner/target/cp.txt)" \
+              org.fuin.sokar.machines.Main leg --os ${{ matrix.os }} --repo . --acceptance \
               ${{ matrix.os == 'ubuntu' && '--fetch binaries' || '' }}
 
       # Only the ubuntu leg, and only because of glibc: a native image links it dynamically, so a

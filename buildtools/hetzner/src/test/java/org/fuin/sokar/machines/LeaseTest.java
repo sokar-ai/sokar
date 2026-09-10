@@ -32,8 +32,18 @@ class LeaseTest {
                          "meta":{"pagination":{"next_page":null}}}""");
     }
 
+    /**
+     * The type these stubs answer for.
+     * <p>
+     * Named here rather than taken from {@link Spec#DEFAULT_TYPES}: a test that follows the
+     * default breaks when the default moves for a reason that has nothing to do with it, which
+     * is what happened when the images gained a 320 GB floor.
+     */
+    private static final String TYPE = "cpx41";
+
     private static Spec spec(Credential credential) {
-        return Spec.of("sokar-ci-test", "ubuntu", "build", credential);
+        return Spec.of("sokar-ci-test", "ubuntu", "build", credential)
+                .tryingInOrder(List.of(TYPE));
     }
 
     @Test

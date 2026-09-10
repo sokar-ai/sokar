@@ -682,9 +682,11 @@ See [build.md](doc/build.md). Three things that will bite:
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in
-a `finally`. `buildtools/ci/` holds the driver (`remote-tier1.py`) and the API
-helpers (`hetzner.py`); the leak sweeper and the snapshot builder are Java, in
-`buildtools/hetzner` - `org.fuin.sokar.machines.Main sweep` and `... snapshot --os <os> --repo .`.
+a `finally`. It is all Java now, in `buildtools/hetzner`:
+`org.fuin.sokar.machines.Main leg` runs a leg, `... sweep` deletes what a run left behind, and
+`... snapshot --os <os> --repo .` builds the image a leg boots. There is no Python left under
+`buildtools/ci/`; there were four copies of the same helpers across this repository and the three
+agents, and they had already drifted - one grew a key-cleaning step the others lacked.
 
 **The builder used to live outside the repository, and the cost of that showed.** Nobody could
 rebuild an image, so nobody did, and the pair in use had been taken on a 320 GB machine to hold

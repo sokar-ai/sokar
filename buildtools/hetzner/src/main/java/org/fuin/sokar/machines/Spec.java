@@ -21,11 +21,17 @@ public record Spec(String name, String os, List<String> serverTypes, String user
     /**
      * What to create when a caller names nothing.
      * <p>
-     * One type, and the one the build already used: a default that quietly picked something
+     * One type, and the one a leg has always used: a default that quietly picked something
      * smaller would change what every leg is tested on without anybody choosing it. Preferring
      * cheaper machines is a decision a workflow makes out loud, by naming the order it wants.
+     * <p>
+     * <strong>There is no fallback here, and that is a consequence rather than a choice.</strong>
+     * A snapshot only restores onto a disk at least as big as the one it was taken on, and the
+     * current images were built on a 320 GB machine because waiting on two cores was costing more
+     * than the flexibility was worth. Only types with that much disk can boot them. Rebuilding the
+     * images on a small machine is what would give the fallback back.
      */
-    public static final List<String> DEFAULT_TYPES = List.of("cpx41");
+    public static final List<String> DEFAULT_TYPES = List.of("cpx42");
 
     /**
      * Compact constructor, fixing the order and refusing an empty list.

@@ -1,6 +1,6 @@
 # Deletes test servers that a run could not clean up after itself.
 #
-# The one case buildtools/ci/remote-tier1.py cannot cover: a job canceled between two statements
+# The one case a leg cannot cover: a job canceled between two statements
 # never reaches its finally. That has happened - two pushes in quick succession, the first run
 # canceled by cancel-in-progress, and its server left billing at 0.111 EUR/hour, which is
 # 81 EUR a month if nobody notices.

@@ -61,6 +61,7 @@ public final class Main {
                 Usage: sweep [--mine] [--now] [--older-than <minutes>]
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
                        leg      --os <ubuntu|fedora> --repo <dir> [--key <file>] [--keep]
+                                [--fetch <dir>] [--acceptance]
 
                   --mine                 delete what this run created, whatever its age. What a
                                          job uses to clean up after itself - deleting by age
@@ -210,13 +211,17 @@ public final class Main {
         String os = null;
         String key = null;
         String repo = null;
+        String into = null;
         boolean keep = false;
+        boolean acceptance = false;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = at + 1 < args.length ? args[++at] : null;
                 case "--key" -> key = at + 1 < args.length ? args[++at] : null;
                 case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
                 case "--keep" -> keep = true;
+                case "--fetch" -> into = at + 1 < args.length ? args[++at] : null;
+                case "--acceptance" -> acceptance = true;
                 default -> {
                     complain.accept("unknown option: " + args[at]);
                     return 2;
@@ -230,7 +235,9 @@ public final class Main {
         try (Hetzner hetzner = open.get()) {
             Leg.run(hetzner, os, Spec.DEFAULT_TYPES, Credential.of(System.getenv("SSH"),
                     key == null ? null : java.nio.file.Path.of(key)),
-                    archiveOf(java.nio.file.Path.of(repo)), keep);
+                    archiveOf(java.nio.file.Path.of(repo)), keep,
+                    into == null ? null : java.nio.file.Path.of(into),
+                    acceptance ? java.nio.file.Path.of(repo) : null);
         }
         return 0;
     }
