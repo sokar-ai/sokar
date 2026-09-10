@@ -46,7 +46,16 @@ REPO = "/home/build/sokar"
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--type", default="cpx42", dest="server_type")
+    # cx33: 4 cores, 8 GB, 80 GB disk, 0.0136 EUR/h. It was cpx42 at 0.1114 while the CI
+    # snapshots demanded a 320 GB disk to hold 1.6 GB of content - no cheaper type could boot
+    # them at all. The snapshots are rebuilt at 40 GB now, so this is a choice again.
+    #
+    # Measured on cpx42: peak RSS 2.32 GB of the 13.4 GB offered, and a CPU load of 6.2 of 8. So
+    # memory was never the constraint and cores are what a build spends. Four of them puts the leg
+    # at an estimated 11.6 minutes against 8.5, which is about six times cheaper per run. cx23 is
+    # cheaper per hour and works out the same per run because it takes twice as long, with half
+    # the disk - so cx33 is the same money for twice the machine.
+    parser.add_argument("--type", default="cx33", dest="server_type")
     parser.add_argument("--location", default=None,
                         help="a specific location; by default one is chosen from the "
                              "eu-central zone that currently has the server type")
