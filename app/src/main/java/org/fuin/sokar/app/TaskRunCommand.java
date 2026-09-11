@@ -15,11 +15,21 @@ import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
 /**
- * Runs one agent task against a project, and hands the terminal to a shell inside it.
+ * Starts one agent task against a project, and hands the terminal to a shell inside it.
+ * <p>
+ * <strong>One verb for two cases.</strong> A task that does not exist is created; one that exists
+ * and is stopped is brought back with the workspace, the branch and the uncommitted changes it
+ * has. The caller cannot know which case they are in - that is what {@code startAction} on the
+ * listing is for - and pressing should not be how they find out. A task that is already running is
+ * refused rather than started twice.
+ * <p>
+ * <strong>The container is kept unless {@code --rm} says otherwise.</strong> This used to be the
+ * other way round: the command a person reaches for first removed what it had just made, which is
+ * how an operator lost a task by typing the obvious thing.
  */
-@Command(name = "run",
+@Command(name = "start",
         mixinStandardHelpOptions = true,
-        description = "Runs a task in a fresh container for the given project.")
+        description = "Starts a task: creates it, or brings back the one that is stopped.")
 public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
     /**
@@ -63,9 +73,9 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "What to start on attach: agent or shell. Default: ${DEFAULT-VALUE}")
     private String attach = "agent";
 
-    @Option(names = "--keep",
-            description = "Leaves the container in place after the shell exits.")
-    private boolean keep;
+    @Option(names = "--rm",
+            description = "Removes the container when the session ends. Default: it is kept.")
+    private boolean rm;
 
     @Option(names = "--dry-run",
             description = "Reports what would be done without starting anything.")
@@ -105,9 +115,14 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Shows the agent's output as it came, without its own formatter.")
     private boolean raw;
 
-    @Option(names = "--no-attach",
-            description = "Starts the container and returns, instead of handing over a shell.")
-    private boolean noAttach;
+    @Option(names = "--detach",
+            description = "Starts the task and returns, instead of handing over a shell.")
+    private boolean detach;
+
+    @Option(names = "--now",
+            description = "Returns as soon as the task exists, without waiting for the image"
+                    + " build. Needs --detach: there is nothing to attach to yet.")
+    private boolean now;
 
     @Spec
     private CommandSpec spec;
@@ -140,17 +155,95 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 : org.fuin.sokar.wire.TaskMode.AGENT;
     }
 
+    /**
+     * Brings back the task's container when it already has one.
+     * <p>
+     * The question this answers is the one the caller cannot: a task name maps to exactly one
+     * container now, so it either exists or it does not. Running is refused rather than started
+     * twice - a second container for one task would share the project's mirror and its gate with
+     * the first.
+     *
+     * @param out Where to report.
+     * @param err Where to refuse.
+     * @return An exit code when this handled it, or {@code null} when there is nothing to bring
+     *         back and the task has to be created.
+     */
+    private @org.jspecify.annotations.Nullable Integer startExisting(PrintWriter out,
+            PrintWriter err) {
+
+        if (dryRun) {
+            // A dry run must touch nothing, and asking the runtime what exists is touching it.
+            // The launch says what it would do; whether a container is already there does not
+            // change that answer, only which half of this command would produce it.
+            return null;
+        }
+        if (context.hooks().registration()
+                != org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE) {
+            // Refused by the launch below, and it must be refused before anything is asked of the
+            // runtime: a machine whose hooks are missing cannot start a task either way, and the
+            // first thing somebody sees should be the reason rather than a podman call.
+            return null;
+        }
+
+        final org.fuin.sokar.core.project.Project project;
+        try {
+            project = org.fuin.sokar.core.project.ProjectReader.read(projectFile);
+        } catch (RuntimeException ex) {
+            // Not this method's refusal to make: the launch below reads the same file and says
+            // what is wrong with it far better than a guess here would.
+            return null;
+        }
+
+        final String container = context.tasks().containerName(project, task);
+        final java.util.Optional<org.fuin.sokar.runtime.ContainerSummary> summary =
+                context.podman().sokarTasks().stream()
+                        .filter(found -> found.name().equals(container)).findFirst();
+        if (summary.isEmpty()) {
+            return null;
+        }
+        if (summary.get().running()) {
+            err.println("sokar: " + container + " is already running");
+            err.println("       go into it with 'sokar task attach " + container + "'.");
+            err.flush();
+            return 65;
+        }
+
+        // Its workspace, its branch and its uncommitted changes are all in that container. What
+        // has to be started again is everything that lives on the host, which is what resume does.
+        final int resumed = TaskResumeCommand.resume(context, container, out, err, null);
+        if (resumed != 0 || detach) {
+            return resumed;
+        }
+        return context.exec().applyAsInt(
+                context.tasks().attachCommand(container, shell, null,
+                        project.name() + "/" + task));
+    }
+
     @Override
     public Integer call() {
 
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
+        if (now && !detach) {
+            // Refused rather than guessed at. Returning before the build finishes and then
+            // attaching would mean attaching to an image that is not there yet.
+            err.println("sokar: --now needs --detach: there is nothing to attach to until the"
+                    + " image is built.");
+            err.flush();
+            return 64;
+        }
+
+        final Integer existing = startExisting(out, err);
+        if (existing != null) {
+            return existing;
+        }
+
         // Starting the task is the domain's job; what this class adds is the terminal. The
         // daemon builds the same request and gets the same behavior without running a CLI.
         final TaskLaunch launch = new TaskLaunch(context, new TaskLaunch.Request(task, projectFile,
                 agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
-                clearance, keep, mode(), prompt, model, maxTurns, minutes));
+                clearance, !rm, mode(), prompt, model, maxTurns, minutes));
 
         return launch.launch(out, err, running -> {
 
@@ -170,7 +263,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 return code == 0 ? 0 : 70;
             }
 
-            if (noAttach) {
+            if (detach) {
                 // Everything below replaces this process, which makes the normal path impossible
                 // to drive from a script or a test. This is the seam for both.
                 out.println("attached  no");
@@ -186,11 +279,11 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     ? org.fuin.sokar.runtime.ShellWords.quote(
                             running.selected().definition().sandboxedCommand())
                     : null;
-            out.println(keep
-                    ? "Attaching. The container is left in place; remove it with"
-                            + " 'podman rm -f " + running.container() + "'."
-                    : "Attaching. Leaving the shell removes the container; Ctrl-C stops it and"
-                            + " keeps it, because an interrupted run may hold work.");
+            out.println(rm
+                    ? "Attaching. Leaving the shell removes the container; Ctrl-C stops it and"
+                            + " keeps it, because an interrupted run may hold work."
+                    : "Attaching. The container is kept when you leave; remove it with"
+                            + " 'sokar task remove " + running.container() + "'.");
             if (startWith != null) {
                 out.println("Starting " + startWith + " first; you get a shell when it exits.");
             }

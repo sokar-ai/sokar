@@ -81,6 +81,33 @@ public final class TaskInventory {
             // several containers over time share one ref - so nothing a client lined up could be
             // right for more than one of them.
             map.put("waiting", waiting);
+
+            // Carried rather than left to the caller: 'name' is a container name, and the rule
+            // relating the two belongs here. It changed in this release, which is exactly why an
+            // interface must not cut a prefix off the name to get it.
+            final String within = project == null ? ""
+                    : org.fuin.sokar.runtime.ContainerName.taskIn(project, name);
+            map.put("task", within);
+
+            // What Start would do to this task, answered before anybody presses it. A listed task
+            // exists by definition, so CREATE cannot appear here.
+            //
+            // Two values this does NOT yet produce, and both are absences rather than oversights:
+            //
+            //   SUPERSEDED_NAME  a container from before one-container-per-task cannot be told
+            //                    apart from a task whose name genuinely ends in digits, and
+            //                    guessing would refuse to start a task that is perfectly fine.
+            //   NEEDS_VAULT      nothing here knows whether the vault is locked, and asking per
+            //                    row would make a listing of forty tasks forty questions.
+            //
+            // A client renders a value it does not know rather than failing on it, so both can
+            // start appearing without breaking anything.
+            map.put("startAction", running ? "RUNNING" : "RESUME");
+            map.put("startDetail", "");
+
+            // Nothing records a phase yet. "" is the honest answer for a task that is in none,
+            // and it is what every task answers until a detached Start has something to report.
+            map.put("phase", "");
             return map;
         }
     }

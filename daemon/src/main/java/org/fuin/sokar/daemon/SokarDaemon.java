@@ -118,35 +118,33 @@ public final class SokarDaemon {
             replies.last(Map.of("tasks", tasks));
         });
 
-        // Stop and Resume come from TaskControl, which is what 'sokar task stop' and
-        // 'sokar task resume' render. The refusals are the reason that matters: one that exists
+        // Stop and Remove come from TaskControl, which is what 'sokar task stop' and
+        // 'sokar task remove' render. The refusals are the reason that matters: one that exists
         // in the CLI and not here would be a task removed, over this socket, with work in it.
         final TaskControl control = new TaskControl(context);
 
         server.method("Stop", (parameters, replies) -> {
-            final TaskControl.Stopped result = control.stop(text(parameters, "task"),
-                    flag(parameters, "purge"), flag(parameters, "rescue"),
-                    flag(parameters, "force"));
+            // Stops and keeps. What used to be Stop(purge:) is Remove, because one verb that
+            // destroys depending on a flag is one people press without reading.
+            final TaskControl.Stopped result = control.stop(text(parameters, "task"));
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("outcome", result.outcome().name());
+            answer.put("helpers", result.helpers());
+            answer.put("surviving", result.surviving());
+            answer.put("detail", result.detail() == null ? "" : result.detail());
+            replies.last(answer);
+        });
+
+        server.method("Remove", (parameters, replies) -> {
+            final TaskControl.Stopped result = control.remove(text(parameters, "task"),
+                    flag(parameters, "rescue"), flag(parameters, "force"));
             final Map<String, Object> answer = new LinkedHashMap<>();
             answer.put("outcome", result.outcome().name());
             answer.put("work", result.work() == null ? "" : result.work());
             answer.put("rescuedRef", result.rescuedRef() == null ? "" : result.rescuedRef());
             answer.put("removed", result.removed());
-            answer.put("helpers", result.helpers());
-            answer.put("surviving", result.surviving());
             answer.put("detail", result.detail() == null ? "" : result.detail());
             answer.put("discarded", result.discarded());
-            replies.last(answer);
-        });
-
-        server.method("Resume", (parameters, replies) -> {
-            final TaskControl.Resumed result = control.resume(text(parameters, "task"));
-            final Map<String, Object> answer = new LinkedHashMap<>();
-            answer.put("outcome", result.outcome().name());
-            answer.put("started", result.started());
-            answer.put("recorded", result.recorded());
-            answer.put("imageDrift", result.imageDrift() == null ? "" : result.imageDrift());
-            answer.put("problems", result.problems());
             replies.last(answer);
         });
 
@@ -167,7 +165,7 @@ public final class SokarDaemon {
             // never an acceptable answer for an interface.
             //
             // It stops and never removes: every workspace, log and unpushed commit survives, and
-            // Resume brings a task back with the work it had.
+            // Start brings a task back with the work it had.
             final TaskPanic.Result result = new TaskPanic(context).panic(flag(parameters, "dryRun"));
             final Map<String, Object> answer = new LinkedHashMap<>();
             answer.put("tasks", result.tasks().stream().map(TaskPanic.Stopped::asMap).toList());
@@ -1186,7 +1184,10 @@ public final class SokarDaemon {
                 flag(parameters, "dryRun"),
                 text(parameters, "clearance").isEmpty() ? "prompt"
                         : text(parameters, "clearance"),
-                flag(parameters, "keep"),
+                // Inverted: the contract asks whether to REMOVE, and the request records whether
+                // to keep. The default flipped with the verb - what a caller reaches for first
+                // used to destroy what it had just made.
+                !flag(parameters, "rm"),
                 // The same vocabulary the CLI uses, taken from the caller rather than guessed at:
                 // a task started over the socket is as much a shell, a session or an unattended
                 // run as one started at the machine, and it has to say which afterwards.

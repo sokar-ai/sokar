@@ -21,15 +21,38 @@ public final class ContainerName {
     }
 
     /**
-     * Returns the container name for one task run.
+     * Returns the container name for one task.
+     * <p>
+     * <strong>One container per project and task, with nothing unique appended.</strong> It used
+     * to carry the pid of the process that launched it, so two invocations never shared a
+     * container and nothing could map a task to one - which is why starting a task that existed
+     * built a second one beside it instead. An operator lost a task that way on 2026-09-11, and
+     * three containers named for one task were the evidence.
+     * <p>
+     * The cost is deliberate: a task cannot run twice at once. Two runs of one task share the
+     * project's mirror and its gate, so what is lost is a thing that only appeared to work.
      *
      * @param project The project.
      * @param task Task name.
-     * @param runId Identifier unique within the task.
      * @return Container name.
      */
-    public static String of(Project project, String task, String runId) {
-        return PREFIX + project.name() + "-" + task + "-" + runId;
+    public static String of(Project project, String task) {
+        return PREFIX + project.name() + "-" + task;
+    }
+
+    /**
+     * Returns the task name inside a container name, when it holds one.
+     * <p>
+     * The interface is given this rather than deriving it: the rule relating the two belongs to
+     * Sokar and has already changed once.
+     *
+     * @param project The project the container belongs to.
+     * @param container Container name.
+     * @return The task name, or {@code ""} when the name does not have this shape.
+     */
+    public static String taskIn(String project, String container) {
+        final String prefix = PREFIX + project + "-";
+        return container.startsWith(prefix) ? container.substring(prefix.length()) : "";
     }
 
     /**
