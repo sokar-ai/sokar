@@ -1018,6 +1018,23 @@ method DeleteProject(
 
 method Projects() -> (projects: []Project)
 
+# The same answer, again whenever it changes.
+#
+# Called without "more" this answers once, exactly as Projects does, so a client that cannot
+# stream is not locked out of the data.
+#
+# Called with "more" it sends the whole list on every change and nothing in between. Unlike
+# Watch there is no age to exclude: every field here is a count, a state or a recorded
+# moment, and "behindMeasured" moving IS a change - the age an interface draws beside the
+# number resets with it.
+#
+# Slower than Watch on purpose. A scan runs the container runtime and reads the gate's refs
+# for every project, and what it answers changes on human timescales: a project created, a
+# push arriving at the gate, an environment prepared. The one place where latency costs
+# something real is Prompts, where a question expires; work waiting at the gate has no
+# deadline.
+method WatchProjects() -> (projects: []Project)
+
 # What this node calls itself.
 #
 # GetInfo answers a vendor and a version, which says what a daemon is and never which one. This

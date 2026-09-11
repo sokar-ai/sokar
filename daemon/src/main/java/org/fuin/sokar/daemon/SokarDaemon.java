@@ -69,6 +69,17 @@ public final class SokarDaemon {
     /** How often a watch looks for a change. */
     static final java.time.Duration WATCH_INTERVAL = java.time.Duration.ofMillis(500);
 
+    /**
+     * How often a project scan is repeated, and deliberately slower than {@link #WATCH_INTERVAL}.
+     * <p>
+     * A scan runs {@code podman} and reads the gate's refs for every project, so half a second
+     * would spend subprocesses continuously on answers that change on human timescales - a project
+     * created, a push arriving at the gate, an environment prepared. The contract names the one
+     * place where latency costs something real, and it is {@code Prompts} rather than this: work
+     * waiting at the gate has no deadline and sitting there for days is not a failure.
+     */
+    static final java.time.Duration PROJECT_WATCH_INTERVAL = java.time.Duration.ofSeconds(3);
+
     /** How long a prompt stream waits before looking for newly started tasks. */
     static final java.time.Duration PROMPT_INTERVAL = java.time.Duration.ofMillis(500);
 
@@ -219,6 +230,31 @@ public final class SokarDaemon {
                     previous = settled;
                 }
                 sleep(WATCH_INTERVAL);
+            }
+        });
+
+        server.method("WatchProjects", (parameters, replies) -> {
+            if (!replies.streaming()) {
+                // Same shape as Watch: asked without 'more' it answers once, so one method serves
+                // a client that streams and one that cannot.
+                replies.last(Map.of("projects", new ProjectInventory(context).projects().stream()
+                        .map(ProjectInventory.Summary::asMap).toList()));
+                return;
+            }
+            List<Map<String, Object>> previous = null;
+            while (true) {
+                final List<Map<String, Object>> projects =
+                        new ProjectInventory(context).projects().stream()
+                                .map(ProjectInventory.Summary::asMap).toList();
+                // The whole answer, unlike Watch, which has to strip an age first. Nothing here is
+                // derived from a clock: the counts are counts, and 'behindMeasured' moves only when
+                // the timer that measures it runs - which is a change worth pushing, because the
+                // age an interface draws beside the number resets with it.
+                if (!projects.equals(previous)) {
+                    replies.more(Map.of("projects", projects));
+                    previous = projects;
+                }
+                sleep(PROJECT_WATCH_INTERVAL);
             }
         });
 
