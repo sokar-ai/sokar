@@ -19,6 +19,21 @@
 
 # ---------------------------------------------------------------------------- compatibility
 #
+# NOT IN FORCE YET. Everything below describes what this interface promises once there is a
+# release. There is none: the version is 0.1.0-SNAPSHOT, there is no release tag, and the only
+# clients are the daemon and the frontend in this same organisation, changed together by the
+# people writing them. Until that stops being true, a method here may be renamed, removed or
+# given a different meaning in place, and the frontend is adapted in the same breath - rather
+# than growing a Tasks2 to carry a mistake nobody ever depended on.
+#
+# What this exemption does NOT license: silently changing a method while a client still reads
+# the old meaning. The rule it replaces is "keep the old shape"; the rule it does not replace is
+# "both sides agree, deliberately, and the change is written down".
+#
+# It ends at the first release, and the decision to release is the decision to freeze this. From
+# then on the interface only grows, exactly as described below, and a shape that turns out wrong
+# costs a Tasks2 instead of an edit.
+#
 # A fleet is not upgraded at once, so a frontend has to work against a daemon older than
 # itself. Three things make that possible, and a client should use all three.
 #

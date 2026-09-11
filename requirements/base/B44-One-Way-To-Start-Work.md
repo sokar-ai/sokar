@@ -87,10 +87,15 @@ when it looks at the state.
    never maps to one container - which is why step 2 above could happen at all. A `run` that can
    resume needs one container per project and task, or a rule saying which of several is meant.
    Dropping the suffix changes names people and scripts already use.
-3. **Does the contract change?** `Start` and `Resume` are in
-   `org.fuin.sokar.Tasks1.varlink` and the interface is built on both. The CLI can be collapsed
-   without touching them, but then the two models disagree, which point 5 forbids. Deciding this
-   needs the frontend, not just this repository.
+3. ~~**Does the contract change?**~~ **Decided on 2026-09-11: yes, in place.** `Start` and
+   `Resume` are in `org.fuin.sokar.Tasks1.varlink`, and its compatibility rules would normally
+   forbid removing either - a shape that turns out wrong costs a `Tasks2` served beside `Tasks1`
+   for a release. Those rules are now marked *not in force yet* in the file itself: there is no
+   release, no tag, and the only clients are this daemon and the frontend beside it, changed
+   together. So the contract is edited rather than forked, and the frontend moves with it. What
+   the exemption does not license is changing a method while the frontend still reads the old
+   meaning: both sides agree first, and the change is written down. The exemption ends at the
+   first release.
 4. **What does `--detach` do about the first build?** `Start` streams the image build because it
    takes minutes and silence is indistinguishable from a hang. A detaching `run` has to say
    something useful about a build it is not waiting for.
