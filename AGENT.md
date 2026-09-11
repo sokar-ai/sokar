@@ -32,6 +32,14 @@ contract with no checkout of this one. What remains in `agents/` is the contract
 the **stub**, which exists so the acceptance suite still has something to drive; a
 suite that cannot run is one that quietly stops being maintained.
 
+**Testing by hand rather than by leg.** `buildtools/e2e-tier1.sh` runs once on a machine
+that is then deleted, which is the wrong shape for sitting in front of an interface.
+`SOKAR_VM=user@host buildtools/deploy-vm.sh` builds the same packages CI would publish and
+installs them on a machine that stays: it enables lingering so tasks survive a logout,
+restarts the daemon, and prints the socket an interface connects to. `--skip-build` installs
+what is already in `target/`. The interface is not installed by it - that runs natively where
+the person is and forwards the socket over ssh.
+
 `SOKAR_E2E_AGENT` selects which agent `buildtools/e2e-tier1.sh` drives, defaulting to
 `stub`. Everything else it needs — the tool's name, its prompt flag, its provider, the
 variables it is pointed at a proxy with — is read from that agent's own `describe`
