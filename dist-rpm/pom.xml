@@ -18,7 +18,6 @@
 
     <properties>
         <rpm.version>1.13.0</rpm.version>
-        <build-helper.version>3.6.1</build-helper.version>
         <package.name>sokar</package.name>
         <hook.install.dir>/usr/libexec/sokar/hooks</hook.install.dir>
         <provider.install.dir>/usr/share/sokar/providers</provider.install.dir>
@@ -53,27 +52,6 @@
             <build>
                 <plugins>
 
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>build-helper-maven-plugin</artifactId>
-                        <version>${build-helper.version}</version>
-                        <executions>
-                            <execution>
-                                <id>package-version</id>
-                                <phase>validate</phase>
-                                <goals>
-                                    <goal>regex-property</goal>
-                                </goals>
-                                <configuration>
-                                    <name>sokar.package.version</name>
-                                    <value>${project.version}</value>
-                                    <regex>-SNAPSHOT$</regex>
-                                    <replacement>~snapshot.${sokar.snapshot.run}${sokar.snapshot.suffix}</replacement>
-                                    <failIfNoMatch>false</failIfNoMatch>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
 
                     <plugin>
                         <groupId>de.dentrassi.maven</groupId>

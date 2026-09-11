@@ -18,7 +18,6 @@
 
     <properties>
         <jdeb.version>1.14</jdeb.version>
-        <build-helper.version>3.6.1</build-helper.version>
         <!-- The package name, which is not the module name: the module builds the package, the
              package is what an operator installs and what an agent package depends on. -->
         <package.name>sokar</package.name>
@@ -56,33 +55,6 @@
             <build>
                 <plugins>
 
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>build-helper-maven-plugin</artifactId>
-                        <version>${build-helper.version}</version>
-                        <executions>
-                            <execution>
-                                <id>package-version</id>
-                                <phase>validate</phase>
-                                <goals>
-                                    <goal>regex-property</goal>
-                                </goals>
-                                <configuration>
-                                    <!-- Debian sorts '~' below everything, so 0.1.0~snapshot.N
-                                         is older than 0.1.0. Left as '-SNAPSHOT' it sorts ABOVE
-                                         the release and apt refuses the upgrade.
-                                         The run number is what makes one snapshot newer than the
-                                         last: a flat ~SNAPSHOT is the same version every build,
-                                         so apt has nothing to upgrade to. -->
-                                    <name>sokar.package.version</name>
-                                    <value>${project.version}</value>
-                                    <regex>-SNAPSHOT$</regex>
-                                    <replacement>~snapshot.${sokar.snapshot.run}${sokar.snapshot.suffix}</replacement>
-                                    <failIfNoMatch>false</failIfNoMatch>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
 
                     <plugin>
                         <groupId>org.vafer</groupId>

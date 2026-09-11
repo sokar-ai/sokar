@@ -261,8 +261,15 @@ esac
 #
 # Metadata can be right while the package does not install. Both are checked in a clean
 # container, including that the agent package's dependency on sokar actually resolves.
+# What a binary says about itself has to be what the package says about it. It was not: the
+# resource the version is read from was filtered from ${project.version}, so every build ever
+# made answered '0.1.0-SNAPSHOT' while its package carried a build number. Nothing compared the
+# two, because the check below ran 'sokar --version' and threw the answer away - it proved the
+# binary starts, which is not the same question. The cost was not theoretical: the daemon reports
+# this same string over the wire so an interface can tell which Sokar it is talking to, and a test
+# VM sat three weeks behind on a build nothing could name.
 install_check() {
-    local label="$1" image="$2" script="$3"
+    local label="$1" image="$2" script="$3" expected="$4"
     echo
     echo "-- installs on $label --"
     local out
@@ -285,10 +292,20 @@ install_check() {
             echo "$out" | tail -5 | while read -r line; do info "$line"; done
         fi
     done
+
+    local reported
+    reported="$(echo "$out" | sed -n 's/^REPORTED://p' | tail -1)"
+    if [ "$reported" = "sokar $expected" ]; then
+        pass "the binary names the build it came from ($expected)"
+    else
+        fail "the package is $expected but the binary says '${reported:-nothing}'"
+        info "an interface cannot tell two daemons apart when every build answers the same"
+    fi
 }
 
 COMMON='
     sokar --version >/dev/null 2>&1 && echo SOKAR-OK
+    echo "REPORTED:$(sokar --version 2>/dev/null)"
     sokar setup >/dev/null 2>&1 && echo SETUP-OK
     grep -qho "/usr/libexec/sokar/hooks/sokar-hook-nft" \
         /root/.config/containers/oci/hooks.d/* 2>/dev/null && echo HOOKS-PACKAGED
@@ -300,12 +317,12 @@ install_check "Debian" ubuntu:24.04 "
     apt-get update -qq >/dev/null 2>&1
     apt-get install -y -qq /deb/sokar_*.deb >/dev/null 2>&1
     apt-get install -y -qq /agent/sokar-agent-stub_*.deb >/dev/null 2>&1 && echo AGENT-OK
-    $COMMON"
+    $COMMON" "$DEB_VERSION"
 
 install_check "Fedora" fedora:41 "
     dnf install -y -q /rpm/sokar-0*.rpm >/dev/null 2>&1
     dnf install -y -q /agent/sokar-agent-stub-*.rpm >/dev/null 2>&1 && echo AGENT-OK
-    $COMMON"
+    $COMMON" "$RPM_VERSION"
 
 echo
 if [ "$FAILURES" -eq 0 ]; then

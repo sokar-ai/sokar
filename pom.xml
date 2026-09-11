@@ -95,6 +95,7 @@
              machine back. Verified against dpkg and rpm themselves, below in check-packages.sh. -->
         <sokar.snapshot.suffix></sokar.snapshot.suffix>
         <maven.build.timestamp.format>yyyyMMdd'T'HHmmss</maven.build.timestamp.format>
+        <build-helper.version>3.6.1</build-helper.version>
         <fuin-bom.version>1.0.2</fuin-bom.version>
         <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
         <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
@@ -367,6 +368,48 @@
         </pluginManagement>
 
         <plugins>
+
+            <!-- The package version, computed once for every module.
+
+                 It used to be computed twice, in dist-deb and dist-rpm, and nowhere else - so the
+                 binary could not say which build it was. The version command read ${project.version}
+                 and answered '0.1.0-SNAPSHOT' for every build there has ever been, and the daemon
+                 reported the same string over the wire. An interface therefore could not tell two
+                 daemons apart, which is exactly what it needed to do: a test VM sat three weeks
+                 behind on 0.1.0~snapshot.9011 and nothing could say so.
+
+                 Here rather than in the dist profile, because the answer has to exist in an
+                 ordinary build too - app filters it into sokar-version.properties at
+                 process-resources, and validate runs first.
+
+                 Per-module by design: regex-property resolves ${project.version} against the
+                 project it runs in. Agent modules are on their own version line and compute
+                 'agent.package.version' for themselves; this one is Sokar's. -->
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>${build-helper.version}</version>
+                <executions>
+                    <execution>
+                        <id>package-version</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>regex-property</goal>
+                        </goals>
+                        <configuration>
+                            <!-- '~' sorts below everything in both dpkg and rpm, so
+                                 0.1.0~snapshot.N is older than 0.1.0. Left as '-SNAPSHOT' it
+                                 sorts ABOVE the release and apt refuses the upgrade. -->
+                            <name>sokar.package.version</name>
+                            <value>${project.version}</value>
+                            <regex>-SNAPSHOT$</regex>
+                            <replacement>~snapshot.${sokar.snapshot.run}${sokar.snapshot.suffix}</replacement>
+                            <failIfNoMatch>false</failIfNoMatch>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
 
             <!-- sokar.version duplicates <version> above, and the duplication is load-bearing:
                  a parent's ${project.version} is interpolated against the module that inherits
