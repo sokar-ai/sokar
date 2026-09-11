@@ -147,7 +147,56 @@ cannot today.
 that is how the accidental second daemon came to exist. A flag that prints something must not
 start a service.
 
-### 6. One coordinated cut
+### 6. Something has to collect what is left over
+
+Three leftovers, all found within an hour of looking on one test machine, none of them reported by
+anything:
+
+**A removed container's runtime directory stays.** An operator ran `task run` three times on
+2026-09-11; each removed its container on exit, and each left
+`$XDG_RUNTIME_DIR/sokar/<name>/` behind - sockets, logs, the nftables ruleset, and `resume.json`
+with `SOKAR_GATE_TOKEN` in clear. Four hours later, three gate tokens for three containers that no
+longer existed. `task stop --purge` does remove the directory and says so; the ephemeral path of
+`run` does not.
+
+**The same is true of `podman rm`.** A person removing a container by hand is not doing anything
+wrong, and it mostly works: the poststop hook reads the `*.pid` files and reaps the gate, the
+watcher and the resolver, and the task leaves `task list` because that reads the runtime. What
+stays is the same directory with the same token. Sokar cannot prevent this and should not try -
+but it must be able to notice it afterwards.
+
+**There is no way to clear more than one task.** Every cleanup after a test session is the same
+hand-written loop over `task list`.
+
+**Decided: `sokar cleanup`.** It lists by default and removes with `--now`, as `sweep` does, because
+the thing it deletes cannot be got back.
+
+The rule it uses has to be narrow, or it becomes a command nobody dares run: **something that
+belongs to a named task, where no container of that name exists.** That covers the runtime
+directory, the durable state directory from point 2, and any helper process still holding a pid
+file in one - a gate serving a token for a container that is gone is exactly what should not
+outlive it.
+
+What it must **not** touch, because "unused" is not the same as "orphaned": the task images
+(`sokar/<project>`), the build directories under `~/.local/share/sokar/build/`, and the project
+mirrors. Those belong to a project rather than to a task, they are what makes the next start fast,
+and a machine with no task running has all of them idle by definition. The clearance journals stay
+too - they are the record of what happened, and outliving the task is their purpose
+([B26](B26-What-This-Machine-Has-Been-Doing.md)).
+
+**And a refusal must not advise the impossible.** Removing the operator's stale task answered:
+
+```
+refusing to remove sokar-utils4j-shell-5684: it is stopped and nothing recorded what it holds
+    resume it with 'sokar task resume sokar-utils4j-shell-5684' to see, or --force to discard it unseen
+```
+
+The refusal is right. The way out it names cannot work: `resume` needs the record the reboot
+erased, which is why it is refusing. What was left was `--force` - discard unseen - for a task that
+in fact held nothing. Point 2 removes the cause; until then, a refusal that cannot be answered
+except by overriding it teaches people to override it.
+
+### 7. One coordinated cut
 
 `Start`, `Resume` and `Stop` are in `org.fuin.sokar.Tasks1.varlink`, whose compatibility rules
 would forbid removing `Resume` or changing what `Start` means. Those rules are marked *not in force
@@ -205,6 +254,11 @@ Points 5 and 6 are the frontend's, asked for on the channel on 2026-09-11.
   useful about a build it is not waiting for.
 - A second `sokard` started against a live socket refuses and names what holds it; one started
   against a stale socket takes it. `sokard --version` prints a version and starts nothing.
+- `sokar cleanup` lists what belongs to a task with no container, and removes it with `--now`. A
+  test starts a task, removes its container with `podman rm`, and asserts that cleanup names the
+  runtime directory, the state directory and any helper still holding a pid file in them - and
+  that it names no image, no build directory and no journal.
+- No refusal names a way out that is unavailable in the state it is refusing in.
 - `start` after a reboot brings the task back whole - container **and** helpers - with the gate
   token it already had, or reports that it did not.
 - `remove` on a running task refuses; `remove --force` stops and removes; `HOLDS_WORK` and
