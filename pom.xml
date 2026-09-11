@@ -79,6 +79,22 @@
              Verified against dpkg and rpm themselves, including 9 < 10, which is a numeric
              comparison in both and not a lexical one. -->
         <sokar.snapshot.run>0</sokar.snapshot.run>
+        <!-- Appended to a package version when this is NOT a CI build. Empty here; the
+             'local-package' profile at the end of this file sets it.
+
+             Why it exists: the run number cannot say where a package came from, and a local
+             build that wants to replace a published one has to claim a HIGHER number to be
+             installable at all. That number then outranks every future CI build, so apt and dnf
+             refuse to upgrade the machine ever again - silently, because refusing is the correct
+             answer to the question they were asked. Measured on a test VM carrying
+             0.1.0~snapshot.9011 against a repository at 0.1.0~snapshot.99: three weeks behind and
+             reporting nothing to do.
+
+             '+local.<stamp>' sorts ABOVE the run it names and BELOW the next one, so a local
+             package replaces the published build it was made from and the next CI build takes the
+             machine back. Verified against dpkg and rpm themselves, below in check-packages.sh. -->
+        <sokar.snapshot.suffix></sokar.snapshot.suffix>
+        <maven.build.timestamp.format>yyyyMMdd'T'HHmmss</maven.build.timestamp.format>
         <fuin-bom.version>1.0.2</fuin-bom.version>
         <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
         <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
@@ -484,5 +500,21 @@
         </dependency>
 
     </dependencies>
+
+    <profiles>
+        <profile>
+            <!-- Not a CI build. Keyed on the same signal 'org.fuin.sokar.machines' uses to tell
+                 one from the other, so the two cannot come to disagree about what local means. -->
+            <id>local-package</id>
+            <activation>
+                <property>
+                    <name>!env.GITHUB_RUN_ID</name>
+                </property>
+            </activation>
+            <properties>
+                <sokar.snapshot.suffix>+local.${maven.build.timestamp}</sokar.snapshot.suffix>
+            </properties>
+        </profile>
+    </profiles>
 
 </project>

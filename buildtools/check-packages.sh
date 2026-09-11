@@ -208,6 +208,8 @@ case "$DEB_VERSION" in
         # numeric, so build 10 beats build 9 rather than sorting beside build 1.
         RELEASE="${DEB_VERSION%%~*}"
         RUN="${DEB_VERSION##*~snapshot.}"
+        # Without this the arithmetic below chokes on a local build's "+local.<stamp>".
+        RUN="${RUN%%+*}"
         if dpkg --compare-versions "$DEB_VERSION" lt "$RELEASE"; then
             pass "it still sorts below the release $RELEASE"
         else
@@ -222,7 +224,36 @@ case "$DEB_VERSION" in
             pass "build numbers compare numerically, so 10 beats 9"
         else
             fail "build 10 does not sort above build 9 - the comparison is lexical"
-        fi ;;
+        fi
+        # Where a package came from, which the run number alone cannot say. A local build that
+        # wanted to replace a published one used to have to claim a higher run, and that number
+        # then outranked every future CI build - so the machine refused to upgrade for good, and
+        # said nothing, because refusing was the right answer to the question it was asked. Found
+        # on a test VM at 0.1.0~snapshot.9011 against a repository at 0.1.0~snapshot.99.
+        case "$DEB_VERSION" in
+            *+local.*)
+                pass "this package says it was built locally"
+                # Both directions, because only having one of them is how it went wrong before:
+                # installable over what it was made from, and superseded by what comes next.
+                BASE="${DEB_VERSION%%+local.*}"
+                NEXT="${RELEASE}~snapshot.$((${BASE##*~snapshot.} + 1))"
+                if dpkg --compare-versions "$DEB_VERSION" gt "$BASE"; then
+                    pass "it replaces the published $BASE it was built from"
+                else
+                    fail "$DEB_VERSION does not sort above $BASE, so it cannot be installed over it"
+                fi
+                if dpkg --compare-versions "$NEXT" gt "$DEB_VERSION"; then
+                    pass "the next CI build $NEXT takes the machine back"
+                else
+                    fail "$NEXT does not sort above $DEB_VERSION - a local build would pin this machine forever"
+                fi ;;
+            *)
+                if [ -n "${GITHUB_RUN_ID:-}" ]; then
+                    pass "a CI build carries no local marker"
+                else
+                    fail "built outside CI and carrying no '+local.' marker: this package can outrank every published one"
+                fi ;;
+        esac ;;
     *) info "version $DEB_VERSION is not a snapshot" ;;
 esac
 
