@@ -162,7 +162,7 @@ are still up, and when a task will not give up what it holds.
 sokar setup [--uninstall]
 ```
 
-Installs the OCI hooks into this user's podman configuration. **A task run does this itself** when
+Installs the OCI hooks into this user's podman configuration. **Starting a task does this itself** when
 the descriptors are missing or an upgrade left older ones behind, so it is rarely typed. It cannot
 be the package's job: podman reads hook descriptors per user, and an install script running as root
 does not know whose configuration to write.

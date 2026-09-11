@@ -102,14 +102,14 @@ installed /home/you/.config/containers/oci/hooks.d/sokar-hook-nft-poststop.json
 ...
 ```
 
-**You can forget this.** A task run registers the hooks itself if they are missing,
+**You can forget this.** Starting a task registers the hooks itself if they are missing,
 and brings them up to date if an upgrade left older ones behind — it says so when it
 does. Running it here just means the first task starts without a detour.
 
 The *package* deliberately does not do it. Podman reads OCI hook descriptors per
 user, so an install script running as root does not know whose configuration to
 write, and putting a `hooks_dir` in the system configuration would point every
-user's podman at Sokar. Doing it from a task run instead keeps it in your own
+user's podman at Sokar. Doing it from a task start instead keeps it in your own
 configuration, because you asked for a task. Re-running `sokar setup` is safe.
 
 Two states are still refused rather than repaired, because neither is a missing

@@ -13,7 +13,7 @@ one will list the names it would have taken if you leave it out.
 
 ```
 sokar doctor                     # can this machine run a task? each failure names its fix
-sokar setup                      # register the OCI hooks (a task run does this for you)
+sokar setup                      # register the OCI hooks (starting a task does this for you)
 sokar agents                     # which agents are installed
 ```
 
@@ -128,5 +128,5 @@ sokar task clearance TASK allow              # or allow, deny, off
 | is there work in there I would lose? | `sokar task status TASK` — while it is still running |
 | a container starts and does nothing | `sokar task logs TASK` — something it needs is probably blocked |
 | a push never arrives | `sokar gate pending` — it is waiting for review |
-| "hooks are not registered" | `sokar setup`, though a task run does it for you |
+| "hooks are not registered" | `sokar setup`, though starting a task does it for you |
 | everything at once | `sokar panic`, which removes nothing |

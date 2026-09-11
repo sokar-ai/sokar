@@ -113,7 +113,8 @@ project, and that name is its identity in four places at once: the container, th
 is pushed to, its workspace, and its log files.
 
 A task outlives its run. Stopping one keeps its workspace, its logs and whatever never reached the
-gate, and `Resume` brings it back. Only removing it destroys anything.
+gate, and starting it again brings it back - one verb, deciding from the task's state. Only
+removing it destroys anything, and that is a verb of its own.
 
 **A task's label is not its name.** A label is a changeable caption a person gives it, shown beside
 the name and never instead of it — the name is what every method takes and what somebody types at
@@ -260,7 +261,7 @@ task live in its [profile](#profile) instead.
 was asked to do, which ref its work goes to.
 
 None of it can be recovered afterwards — the container knows only that it is up — so it is recorded
-at the one moment it is known. It survives a resume and outlives the container.
+at the one moment it is known. It survives being started again and outlives the container.
 
 **Not the sidecar.** This file has no readers outside Sokar, which is exactly why operator-facing
 facts go here rather than into a contract with three installed binaries.

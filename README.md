@@ -130,7 +130,7 @@ echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/art
 sudo apt update
 sudo apt install -y sokar sokar-agent-claude
 
-# The OCI hooks, once per user. A task run does this itself if you skip it - the package
+# The OCI hooks, once per user. Starting a task does this itself if you skip it - the package
 # cannot, because podman reads hook descriptors per user and root does not know whose.
 sokar setup
 
@@ -157,7 +157,7 @@ sokar vault login claude
 # name from this directory - Enter accepts every default. What it writes includes an
 # 'egress' block: a task reaches only what the file names, so add 'maven', 'nodejs' or
 # whatever your build needs. 'sokar shield sets' lists them.
-sokar task run
+sokar task start
 ```
 
 **Fedora and RHEL**
@@ -177,7 +177,7 @@ EOF
 # no new release of Sokar - and podman, nftables and dnsmasq come along as dependencies.
 sudo dnf install -y sokar sokar-agent-claude
 
-# The OCI hooks, once per user. A task run does this itself if you skip it - the package
+# The OCI hooks, once per user. Starting a task does this itself if you skip it - the package
 # cannot, because podman reads hook descriptors per user and root does not know whose.
 sokar setup
 
@@ -208,7 +208,7 @@ sokar vault login claude
 # name from this directory - Enter accepts every default. What it writes includes an
 # 'egress' block: a task reaches only what the file names, so add 'maven', 'nodejs' or
 # whatever your build needs. 'sokar shield sets' lists them.
-sokar task run
+sokar task start
 ```
 
 **No Claude Code on this host?** Then there is nothing to import, and the credential goes in

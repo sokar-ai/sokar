@@ -267,10 +267,12 @@ nothing leaves until you have approved it.
 - **Factory:** hand off a job and walk away. Because the room is sealed,
   working unattended is safe, and every result waits in an in-tray (the
   *gate*) for your review, on your machine instead of in a vendor's cloud.
-- **Control tower:** one app, on desktop or phone, shows every job on every
-  machine, tells you which one is waiting for you, and lets you answer from
-  wherever you are. It also brings the safety nets a control tower usually
-  lacks: nothing goes out without review, and everything blocked is recorded.
+- **Control tower:** one app shows every job on every machine, tells you which
+  one is waiting for you, and lets you answer without going to find it. It also
+  brings the safety nets a control tower usually lacks: nothing goes out without
+  review, and everything blocked is recorded. Today that app is a desktop one
+  and the machines it reaches are reached over ssh; answering from a phone is
+  where this is going, not where it is.
 
 What Sokar cannot change: each AI company still decides how its helper may
 sign in. If a vendor closes that door, Sokar feels it too.
