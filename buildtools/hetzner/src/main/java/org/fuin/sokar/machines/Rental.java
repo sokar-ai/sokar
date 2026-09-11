@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A machine rented, prepared, and handed to something that runs somewhere else.
@@ -74,6 +75,20 @@ public final class Rental {
         final Lease lease = hetzner.acquireFromStock(spec, image);
         lease.awaitSsh();
 
+        // Written here rather than at the end, and written again when it is complete. Every step
+        // below can fail with the server already rented, and until this file existed a failure
+        // left nothing naming what to delete: locally Maven stops in pre-integration-test and
+        // 'sweep --from' had no file to read. The machine is deliberately NOT deleted on failure -
+        // the message below names a log on it, and that is worth nothing once it is gone.
+        final Map<String, String> leased = new LinkedHashMap<>();
+        leased.put("server", String.valueOf(lease.id()));
+        leased.put("address", lease.address());
+        leased.put("user", USER);
+        // The id the sweep matches on. In CI both steps derive the same one from the environment;
+        // locally it is a timestamp, and this file is the only way a second process learns it.
+        leased.put("run", hetzner.runId());
+        write(options.write(), leased);
+
         System.out.println("\n-- installing Sokar from " + options.artifactory()
                 + ", as an operator would --");
         run(lease, AgentLeg.install(options.os(), options.artifactory(), ""));
@@ -99,28 +114,27 @@ public final class Rental {
                     + " is not there. Its log is /home/" + USER + "/sokard.log on " + lease.address());
         }
 
-        final Map<String, String> leased = new LinkedHashMap<>();
-        leased.put("server", String.valueOf(lease.id()));
-        leased.put("address", lease.address());
-        leased.put("user", USER);
+        // Complete now: the socket is the one thing that is not knowable until the daemon is up.
         leased.put("socket", socket);
-        // The id the sweep matches on. In CI both steps derive the same one from the environment;
-        // locally it is a timestamp, and this file is the only way a second process learns it.
-        leased.put("run", hetzner.runId());
+        write(options.write(), leased);
 
-        if (options.write() != null) {
-            final StringBuilder out = new StringBuilder(
-                    "# What the lease took. Written by sokar-machines; read by whatever runs next.\n");
-            leased.forEach((key, value) -> out.append(key).append('=').append(value).append('\n'));
-            final Path parent = options.write().toAbsolutePath().getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            Files.writeString(options.write(), out.toString(), StandardCharsets.UTF_8);
-            System.out.println("\n-- wrote " + options.write() + " --");
-        }
         leased.forEach((key, value) -> System.out.println("  " + key + "=" + value));
         return Map.copyOf(leased);
+    }
+
+    private static void write(@Nullable Path file, Map<String, String> leased) throws IOException {
+        if (file == null) {
+            return;
+        }
+        final StringBuilder out = new StringBuilder(
+                "# What the lease took. Written by sokar-machines; read by whatever runs next.\n");
+        leased.forEach((key, value) -> out.append(key).append('=').append(value).append('\n'));
+        final Path parent = file.toAbsolutePath().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        Files.writeString(file, out.toString(), StandardCharsets.UTF_8);
+        System.out.println("\n-- wrote " + file + " --");
     }
 
     private static void run(Lease lease, String command) throws IOException {
