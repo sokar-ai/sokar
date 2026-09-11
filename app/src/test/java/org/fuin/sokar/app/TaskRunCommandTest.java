@@ -330,6 +330,22 @@ class TaskRunCommandTest {
                 "-p", projectFile(dir, MINIMAL).toString(), "--nope")).isEqualTo(2);
     }
 
+    @Test
+    void printsTheTwoLinesOtherRepositoriesReadFromIt(@TempDir Path dir) throws IOException {
+
+        // These two lines are a contract, not decoration. The three agent repositories parse them
+        // out of a start: all three take 'container' to know what to act on, and sokar-omp's
+        // broker-check.sh takes 'sidecar' to find the state directory. Nothing guarded them, so a
+        // tidy-up of this output would have gone out green here and turned six acceptance legs red
+        // somewhere else. Asked for by name on the agent channel on 2026-09-11.
+        execute(context(dir, true), "task", "start", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(out.toString())
+                .containsPattern("(?m)^container " + containerName() + "$")
+                .containsPattern("(?m)^sidecar   \\S+sidecar\\.json$");
+    }
+
     private String containerName() {
         // One container per project and task, with nothing unique appended. It used to carry the
         // launching process's pid, which is why a task could never be found again by its name.
