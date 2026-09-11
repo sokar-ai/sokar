@@ -87,13 +87,37 @@ covers `Outcome`.
   a state that is right for one agent and silently wrong for another is worse than one that is
   missing.
 
-  **There is now evidence for the second answer, from outside this project.** AI Beacon, a fleet
-  dashboard for coding agents, reports *working / idle / awaiting permission* without asking the
-  agent anything: it wraps the process and observes it. Read on 2026-09-11. That is the same
-  argument this project uses for the agent and provider split - what is observable from outside
-  works for agents nobody has written yet, while a signal every agent must emit is a bet on all
-  future ones. It is weaker per agent and it cannot be silently wrong for one of them, which is
-  the trade this question is about.
+  **Measured on 2026-09-11, and the answer is both options rather than one.**
+
+  *What the outside route covers, and it needs nothing new.* The agent's own output already reaches
+  the host: `TaskLaunch` hands `runAgent` a `task.log` in the container's state directory, and
+  `podman` writes it there as the agent runs. Sampled every three seconds against a real omp turn
+  on the ubuntu VM, the file grew on **every** sample - 0, 670, 35314, 63905 bytes in twelve
+  seconds, never older than two. So **quiet is not "working silently"**: for this agent, in this
+  mode, output arrives continuously while it works. That gives *working* against *not producing
+  output* for any agent at all, with no per-agent knowledge and no new way out of the container -
+  the host reads a file it already owns.
+
+  *What the outside route does not cover.* Quiet is quiet. It cannot tell **waiting for a person**
+  from finished, stuck, or rate-limited, and this file's own warning stands: a quiet task is not a
+  waiting one, and guessing is wrong in the direction that costs.
+
+  *So the per-agent flag is needed after all, but only for one value.* The agent-repositories agent
+  measured the shipped artifacts on 2026-09-11: `claude` and `pi` each carry an event for it -
+  Claude Code's `Notification` and Pi's `ui_prompt_start`/`_end`, the latter documented for exactly
+  this - and `omp` 18.1.13 has none. So the honest shape is **`working` and `idle` observed from
+  outside for everybody, and `waiting` declared per agent** - absent where the agent cannot say it,
+  shown as *"this agent cannot tell us"* rather than as a guess.
+
+  *One thing that has to cross, and does not.* Every per-agent signal fires **inside** the
+  container. Giving one a path to the host would be a fourth way out beside the vault socket, the
+  ssh-agent socket and the gate, and it would invert the direction this design rests on - a channel
+  the agent writes into. A status value does not justify that. Whether `waiting` can be had at all
+  therefore depends on something the host can ask for rather than be told, and that is unsolved.
+
+  **Also worth recording: nothing agent-independent delivers this, including the tool it was
+  learnt from.** AI Beacon reports *awaiting permission* from a plugin that knows Claude Code, not
+  from the wrapper that observes the process.
 
 - **~~Is work waiting on a clearance decision distinguishable from work waiting on its own
   prompt?~~ Mostly answered by [B24](B24-First-Run-Consent-Inside-The-Box.md), 2026-09-11.** Inside
