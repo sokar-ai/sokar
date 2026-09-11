@@ -268,7 +268,7 @@ class TaskLifecycleCommandsTest {
                 .contains("before this machine restarted")
                 .contains("podman cp sokar-uc-shell-1:/workspace")
                 .as("the workspace survives even though the container cannot start")
-                .contains("--purge --force");
+                .contains("sokar task remove sokar-uc-shell-1 --force");
         assertThat(runner.lines()).as("podman is not asked to do something that cannot work")
                 .noneMatch(line -> line.startsWith("podman start"));
     }

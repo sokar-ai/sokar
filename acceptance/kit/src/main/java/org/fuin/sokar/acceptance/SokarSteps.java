@@ -95,8 +95,12 @@ public class SokarSteps {
         final Matcher matcher = CONTAINER.matcher(world.terminal().seen());
         assertThat(matcher.find()).as("no start report named a container in:%n%s",
                 world.terminal().seen()).isTrue();
+        // Two commands since removing became a verb of its own: stopping keeps everything, and
+        // only the second destroys. --force because this step's job is to leave nothing behind,
+        // whatever the task was holding.
+        world.machine().run("sokar task stop " + matcher.group(1));
         final Ssh.Output output = world.machine().run(
-                "sokar task stop " + matcher.group(1) + " --purge");
-        assertThat(output.status()).as("task stop said:%n%s", output.all()).isZero();
+                "sokar task remove " + matcher.group(1) + " --force");
+        assertThat(output.status()).as("task remove said:%n%s", output.all()).isZero();
     }
 }

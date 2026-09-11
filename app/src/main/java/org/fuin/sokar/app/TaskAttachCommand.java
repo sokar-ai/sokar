@@ -159,8 +159,8 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
             // one level down already makes for itself: attach-or-create is one operation, so
             // coming back is not a second code path exercised less often.
             if (!offerToStart(out, System.console())) {
-                err.println("sokar: " + container + " is not running - 'sokar task resume "
-                        + container + "' brings it back with the workspace it has");
+                err.println("sokar: " + container + " is not running - 'sokar task start'"
+                        + " in its project brings it back with the workspace it has");
                 err.flush();
                 return 69;
             }

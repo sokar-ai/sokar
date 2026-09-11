@@ -76,14 +76,14 @@ class TaskAttachCommandTest {
     }
 
     @Test
-    void aStoppedTaskIsSentToResumeRatherThanToTheList(@TempDir Path dir) {
+    void aStoppedTaskIsSentToStartRatherThanToTheList(@TempDir Path dir) {
 
         // Two different things a person has to do next. "No such task" would send somebody
         // looking at the list for something that is right there, stopped.
         runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
 
         assertThat(run(dir, "task", "attach", "sokar-uc-shell-1")).isEqualTo(69);
-        assertThat(err.toString()).contains("is not running").contains("task resume");
+        assertThat(err.toString()).contains("is not running").contains("sokar task start");
         assertThat(attached).as("nothing was attached to").isEmpty();
     }
 

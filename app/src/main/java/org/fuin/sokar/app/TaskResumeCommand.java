@@ -118,8 +118,8 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
                 err.println();
                 err.println("         podman cp " + container + ":/workspace ./recovered");
                 err.println();
-                err.println("       Then discard it with 'sokar task stop " + container
-                        + " --purge --force'.");
+                err.println("       Then discard it with 'sokar task remove " + container
+                        + " --force'.");
                 err.flush();
                 return 69;
             }
