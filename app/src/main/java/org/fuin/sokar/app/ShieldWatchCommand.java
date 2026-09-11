@@ -65,6 +65,10 @@ public class ShieldWatchCommand implements Callable<Integer> {
             description = "NFLOG group to bind. Default: ${DEFAULT-VALUE}")
     private int group = NftRuleset.NFLOG_GROUP;
 
+    /** When each open question runs out, by the key the hub deduplicates on. */
+    private final java.util.Map<String, String> deadlines =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     @Option(names = "--timeout", paramLabel = "<seconds>",
             description = "How long to wait for an answer. Default: ${DEFAULT-VALUE}")
     private int timeoutSeconds = 60;
@@ -306,8 +310,20 @@ public class ShieldWatchCommand implements Callable<Integer> {
             // connection was blocked, and the wait starts when the question is asked, which is
             // the line below. A reader that has fallen behind would otherwise publish a deadline
             // already in the past.
+            // Per question, not per packet. A dropped connection is retried, so the same key is
+            // published again and again while one question is open - the hub records its verdict
+            // before asking precisely so a burst does not ask twice. Recomputing here would hand
+            // a countdown a fresh minute on every retry, so it would never visibly run out: wrong
+            // in the direction that costs. Measured on the VM, four events for one destination
+            // inside five seconds.
+            //
+            // Keyed by the same key the hub deduplicates on, so the two cannot disagree about what
+            // one question is. It grows with distinct destinations, exactly as the hub's own map
+            // does, and a watcher lives as long as its task.
             prompt.put("deadline", timeoutSeconds <= 0 ? ""
-                    : java.time.Instant.now().plusSeconds(timeoutSeconds).toString());
+                    : deadlines.computeIfAbsent(blocked.key(),
+                            ignored -> java.time.Instant.now().plusSeconds(timeoutSeconds)
+                                    .toString()));
             service.publish(prompt);
 
             return hub.handle(blocked);
