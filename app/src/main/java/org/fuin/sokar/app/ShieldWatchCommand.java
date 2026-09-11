@@ -288,6 +288,15 @@ public class ShieldWatchCommand implements Callable<Integer> {
             // three separate fields at the far end is a rule in two places that can drift. The
             // resolved name comes with it, because an address alone is not something an operator
             // can judge.
+            // An answered destination is not a question. The retries of a dropped connection
+            // keep arriving here long after somebody decided, and publishing them left an
+            // interface showing a settled question with buttons under it - the client cannot tell
+            // the two apart, because on the wire they are the same event. Answered here rather
+            // than there, so every client gets it right rather than each one guarding.
+            if (hub.settled(blocked.key())) {
+                return hub.handle(blocked);
+            }
+
             final java.util.Map<String, Object> prompt = new java.util.LinkedHashMap<>();
             prompt.put("key", blocked.key());
             prompt.put("destination", destination);

@@ -194,6 +194,25 @@ public class ClearanceHub {
      *
      * @return Decisions so far.
      */
+    /**
+     * Returns whether this destination has already been answered.
+     * <p>
+     * Asked before a question is published, so an answered one is not announced again. A dropped
+     * connection is retried, and this hub deliberately records a verdict before asking so a burst
+     * produces one question rather than many - without this, every retry still reached a
+     * subscriber as though it were open, and an interface put a decided question back on screen
+     * with buttons under it. Measured against a real blocked connection on 2026-09-11.
+     * <p>
+     * A cheaper answer than {@link #decisions()}, which copies the whole map, and this is asked
+     * for every dropped packet.
+     *
+     * @param key Key the destination is decided under.
+     * @return Whether something has already been decided for it.
+     */
+    public boolean settled(String key) {
+        return decided.containsKey(key);
+    }
+
     public Map<String, Verdict> decisions() {
         return Map.copyOf(decided);
     }

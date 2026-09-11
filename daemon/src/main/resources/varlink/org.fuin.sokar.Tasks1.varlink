@@ -470,6 +470,10 @@ type Prompt (
   # not. Recomputing it per event would hand a countdown a fresh minute every retry and it would
   # never visibly run out.
   deadline: string,
+  # A destination is announced as open at most once. Its connection is retried and the watcher
+  # sees every retry, but a key it has already answered is not published again - so a client that
+  # took a settled question off screen never has it put back with buttons under it.
+  #
   # Absent while the question is open. Once it is settled the same destination arrives again
   # carrying "allow", "deny" or "timeout", and that is the only way an interface learns that a
   # prompt ran out: nothing will ask about it again, so a question that simply stops arriving is
