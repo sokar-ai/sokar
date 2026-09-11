@@ -8,15 +8,25 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Spec;
 
 /**
- * Lists the projects this machine knows about.
+ * The projects this machine knows about.
  * <p>
  * The same answer the daemon serves, rendered. What makes it worth a command of its own is the
  * file column: it is where each project's {@code project.yml} was when a task last ran with it,
  * which is the thing nobody can remember across a dozen checkouts.
+ * <p>
+ * <strong>Verbs, like {@code sokar task}.</strong> Deleting a project existed only over the socket
+ * - an interface could do it and a terminal could not, so somebody with only a terminal deleted a
+ * directory by hand and went around both refusals doing it. Whatever an interface can do, this can
+ * do.
+ * <p>
+ * {@code projects} stays as a spelling, and running it with no verb still lists, because that is
+ * what it did and scripts read it.
  */
-@Command(name = "projects",
+@Command(name = "project",
+        aliases = { "projects" },
         mixinStandardHelpOptions = true,
-        description = "Lists the projects this machine has run tasks for.")
+        subcommands = { ProjectListCommand.class, ProjectDeleteCommand.class },
+        description = "Lists and removes the projects this machine has run tasks for.")
 public class ProjectsCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
     @Spec
@@ -31,8 +41,20 @@ public class ProjectsCommand implements Callable<Integer>, SokarFactory.ContextA
 
     @Override
     public Integer call() {
+        return render(spec.commandLine().getOut());
+    }
 
-        final PrintWriter out = spec.commandLine().getOut();
+    /**
+     * Renders the listing.
+     * <p>
+     * Separate from {@link #call()} so the {@code list} verb and the bare command produce the same
+     * bytes rather than two renderings that drift.
+     *
+     * @param out Where to write.
+     * @return Exit code.
+     */
+    Integer render(PrintWriter out) {
+
         final List<ProjectInventory.Summary> projects = new ProjectInventory(context).projects();
 
         if (projects.isEmpty()) {

@@ -97,6 +97,29 @@ class ProjectDeletionTest {
     }
 
     @Test
+    void stopsWhenATaskWillNotGiveUpWhatItHolds(@TempDir Path dir) throws IOException {
+
+        // The answer from removing each task was discarded. A task refusing because it holds work
+        // the gate never saw was ignored, and the mirror - the only place unreviewed pushes exist
+        // - was deleted a moment later. Nothing reported it, because nothing looked.
+        final SokarContext context = context(dir);
+        project("uc");
+        task("sokar-uc-shell-1", "uc", "Exited (0) 2 minutes ago");
+        runner.answering("for-each-ref", "");
+        // Stopped, and nothing recorded what it holds: 'task remove' answers NOTHING_KNOWS, which
+        // is a refusal and not a removal.
+
+        final ProjectDeletion.Result result =
+                new ProjectDeletion(context).delete("uc", false, false);
+
+        assertThat(result.outcome()).isEqualTo(ProjectDeletion.Outcome.HOLDS_WORK);
+        assertThat(result.detail()).contains("sokar-uc-shell-1").contains("was not removed");
+        assertThat(Files.isDirectory(dir.resolve("data/sokar/mirrors/uc.git")))
+                .as("the mirror is where unreviewed pushes live, and nothing else has them")
+                .isTrue();
+    }
+
+    @Test
     void forceProceedsAndStillNamesWhatItDestroyed(@TempDir Path dir) throws IOException {
 
         // Saying it twice means the same here as for 'task stop --force'. What force must NOT do

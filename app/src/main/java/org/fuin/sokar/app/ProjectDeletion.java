@@ -182,7 +182,23 @@ public final class ProjectDeletion {
                 // Through the same removal 'task remove' uses, so a deletion writes down what
                 // a task held exactly as a deliberate removal does. force carries through: a
                 // deletion the operator confirmed is not asked again per task.
-                new TaskControl(context).remove(task.name(), false, force);
+                //
+                // And the answer is READ. It was discarded, and that quietly broke the promise at
+                // the top of this class: a task refusing because it holds work the gate never saw
+                // was ignored, and the mirror was deleted a moment later - the one place those
+                // pushes exist. Nothing reported it, because nothing looked.
+                final TaskControl.Stopped removal =
+                        new TaskControl(context).remove(task.name(), false, force);
+                if (!removal.removed()) {
+                    return new Result(Outcome.HOLDS_WORK, removes, keeps,
+                            List.of(task.name()), running,
+                            "task " + task.name() + " was not removed: "
+                                    + removal.outcome().name().toLowerCase(java.util.Locale.ROOT)
+                                            .replace('_', ' ')
+                                    + (removal.work() == null ? "" : " - " + removal.work())
+                                    + ". Nothing else has been removed. Deal with it, or say"
+                                    + " force.");
+                }
             }
             context.podman().removeImage("sokar/" + project);
             deleteTree(mirrorOf(project));
