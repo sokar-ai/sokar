@@ -30,7 +30,7 @@ build. Each index orders its own set by what to do next.
 
 **A finished requirement is deleted, not marked done.** What it measured — the things that were
 expensive to learn, and the traps that would otherwise be learned twice — moves into
-[AGENT.md](../AGENT.md), and any question it leaves behind moves to whichever requirement now
+[AGENTS.md](../AGENTS.md), and any question it leaves behind moves to whichever requirement now
 owns it. The set is therefore what is left to do, not a history of what was done; the history is
 in git.
 

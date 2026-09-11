@@ -105,7 +105,7 @@ above.
 ## What was here and is finished
 
 Thirteen requirements have been met and retired. Their files are gone; what each measured is in
-[AGENT.md](../../AGENT.md), where it will be read again:
+[AGENTS.md](../../AGENTS.md), where it will be read again:
 
 - **A passphrase nobody could type.** Closed on 2026-09-10 because it does not reproduce - the
   same binary, at a pty, over `ssh -tt`, and through the acceptance kit itself, all working a day
@@ -154,7 +154,7 @@ Thirteen requirements have been met and retired. Their files are gone; what each
   back on while a task runs - the scope a required value rather than a default, and turning it off
   deliberately not `WidenTask` with a special value, because folding "stop asking about anything"
   into a method that grants names would make one method mean two unrelated things. What it measured
-  is in [AGENT.md](../../AGENT.md): a set holds addresses and not names, so a grant and a withdrawal
+  is in [AGENTS.md](../../AGENTS.md): a set holds addresses and not names, so a grant and a withdrawal
   are not mirror images; the resolver cannot be told without being restarted; and nothing applied to
   a running task survives `Resume` unless it was written down - which is why turning enforcement off
   also takes the watcher out of what a resume would restart.

@@ -9,3 +9,6 @@ target
 
 # Python bytecode from the CI provisioning scripts
 __pycache__/
+
+# Local notes for whoever works here. Not shared, by design.
+.AGENTS.md

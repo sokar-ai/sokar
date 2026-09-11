@@ -5,6 +5,37 @@ codebase. Everything here is either visible in the code or was established by
 measurement; where a rule exists because something went wrong, the failure is
 named, because a rule without its reason gets discarded by the next person.
 
+## Before you propose a push
+
+**`mvn test` is not "the tests".** It runs surefire, which is unit tests only - a test that needs
+podman belongs in `buildtools/e2e-tier1.sh`, and one that needs a machine belongs in the acceptance
+suite. Both are invisible to surefire, so "1131 tests green" can be true while the product is
+broken in ways CI will find fifteen minutes and two rented machines later. That happened three
+times on 2026-09-11, each time reported as green from here.
+
+**So the acceptance suite runs against a real machine before a push is suggested, not after.**
+
+```
+SOKAR_VM=user@host buildtools/deploy-vm.sh                    # install what you are about to push
+./mvnw -pl acceptance/suite verify -Dsokar.acceptance.host=<ip> 2>&1 | tee suite.log
+```
+
+Two things about that second line, both learned the hard way:
+
+- **Do not pipe it into `grep`.** The pipeline buffers and you see nothing for fifteen minutes,
+  which is indistinguishable from a hang and was read as one. `tee` shows each scenario as it
+  happens; the whole suite is a few minutes, not a quarter of an hour.
+- **`sokar.acceptance.user` and `sokar.acceptance.key` default to the test identity.** Pointing the
+  suite at a machine is one property; the rest is already right.
+
+What the suite covers that nothing else does: the CLI's own words at a real terminal, with a pty -
+`isTerminal()` is false everywhere else, so a message a person sees is one no unit test reads.
+
+**A machine-specific note may exist in `.AGENTS.md`**, beside this file and not committed. It holds
+what is true of one machine rather than of the project - which VM is there, which account, where a
+key is. Read it if it exists; do not put anything in it that the next person on a different machine
+would need.
+
 ## The one architectural rule
 
 **Nothing outside `agents/` may name an agent.** Not a class, not a string, not

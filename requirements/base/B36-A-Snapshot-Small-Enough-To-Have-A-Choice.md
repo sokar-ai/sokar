@@ -64,7 +64,7 @@ six native images, install, doctor, tier 1 with its container work - the peak wa
 9%. The open question below asked whether the disk survives a full build; it survives it four
 times over.
 
-**What the images actually contain, checked against the list in `AGENT.md` rather than by eye:**
+**What the images actually contain, checked against the list in `AGENTS.md` rather than by eye:**
 GraalVM 25.0.2, the musl toolchain and a musl-built `libz.a` under the build user's
 `~/.local/opt`, gcc 15.2.0, `zlib.h`, `dnsmasq` with `nftset`, `ubuntu:24.04` and `alpine:3.20`
 pre-pulled, a 95 MB `~/.m2`, and on fedora SELinux `Enforcing` with `sokar_socket` loaded.

@@ -48,7 +48,7 @@ between their base and this project's is unmeasured. A one-line change that is n
 nobody can delete later, because nobody knows what it was for.
 
 **This project has been bitten by an HTTP version once already.** `HttpClient` negotiating HTTP/2
-and exposing its pseudo-headers is in AGENT.md: it surfaced as `Unable to connect to API` after 21
+and exposing its pseudo-headers is in AGENTS.md: it surfaced as `Unable to connect to API` after 21
 responses that were all HTTP 200. Different mechanism, same shape - a protocol difference wearing
 an authentication failure's clothes.
 
