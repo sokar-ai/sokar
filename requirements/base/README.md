@@ -23,7 +23,7 @@ Where the position is not obvious, the last section says why.
 | # | Requirement | What must be true | Open question | Why here |
 |---|---|---|---|---|
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | one, and one dialog is refused rather than solved | [note](#b24) |
-| B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four, one decided; the first decides the shape | [note](#b44) |
+| B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four, and the shape is decided | [note](#b44) |
 | B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided | |
 | B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file | [note](#b29) |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one | |
@@ -40,7 +40,7 @@ Where the position is not obvious, the last section says why.
 | B33 | [A Task's Own Fetches](B33-A-Tasks-Own-Fetches.md) | A task can fetch from the forges its work depends on, and a failure to do so is never reported as a credential problem. | three, and the first is whether it reproduces | |
 | B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | A machine can say what it has done, for longer than the tasks themselves existed. | three, and four are decided | [note](#b26) |
 | B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | six, and four are decided | [note](#b39) |
-| B43 | [Tasks After The Machine Restarts](B43-Tasks-After-The-Machine-Restarts.md) | A restart is visibly why tasks are down, and getting them back brings the helpers with the container or reports that it did not. | four | [note](#b43) |
+| B43 | [Tasks After The Machine Restarts](B43-Tasks-After-The-Machine-Restarts.md) | A restart is visibly why tasks are down, and getting them back needs no list of names. | four, and B44 took its cause | [note](#b43) |
 | B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it | |
 | B06 | [Remote Access](B06-Remote-Access.md) | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | four | |
 | B40 | [The Domain That May Bind The Socket](B40-The-Domain-That-May-Bind-The-Socket.md) | Only Sokar may bind a socket carrying Sokar's label, so a task that connects to one reaches Sokar. | four, and the first decides the shape | [note](#b40) |
@@ -238,7 +238,7 @@ doing and it is not urgent.
 
 <a id="b44"></a>**B44 is in Now although nothing is broken by it.** Everything it touches works; what fails is the operator. Asking to run an existing task accepted the name, built something else beside it, and removed that again on exit - three wrong turns, none of them reported, on the command a person reaches for first. It is above B27 because B27 is how it would have been caught, and below B24 because B24 stops work rather than confusing it.
 
-<a id="b43"></a>**B43 is in Soon rather than Now** because the work survives the restart - the container, the branch and the uncommitted changes are all still there, and one command per task brings each back. What is missing is that anyone is told. It sits beside the other operating questions rather than above them, and its first question may change its size to almost nothing.
+<a id="b43"></a>**B43 is in Soon rather than Now, and shrank once B44 was decided.** What made a restart unrecoverable - the records a resume needs living in tmpfs - is B44's to fix, and B44 fixes it. What is left here is whether a machine coming back should do anything by itself, and how a person finds out that a restart is why their tasks are down. Its first question may reduce it to a line in the listing.
 
 <a id="b42"></a>**B42 is in Later although it blocks nothing and is cheap.** It is reading rather
 than building, and three of its four edges already have an answer here - the value is in comparing
