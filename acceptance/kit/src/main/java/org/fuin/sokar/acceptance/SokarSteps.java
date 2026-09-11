@@ -4,22 +4,21 @@ import org.fuin.sokar.machines.Ssh;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.cucumber.java.en.Given;
-import io.cucumber.java.en.Then;
 import java.io.IOException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * The Sokar-shaped setup a scenario needs before the thing it is about: an unlocked vault, a
- * credential in it, and a task put away afterwards.
+ * The Sokar-shaped setup a scenario needs before the thing it is about: an unlocked vault and a
+ * credential in it.
  * <p>
  * Here rather than in each agent's repository, so that a suite of agent scenarios needs no glue of
  * its own. Each step runs the real command; nothing writes a file Sokar would have written.
+ * <p>
+ * Tearing a task down is deliberately <em>not</em> here. It was, as one step that knew the verbs,
+ * and that is what made it wrong: when the lifecycle verbs changed, the step went on building a
+ * command the CLI refuses, and every repository using the kit went red at once from a line none of
+ * them could see. Removing a task is a script a scenario runs, in the words the scenario chose.
  */
 public class SokarSteps {
-
-    /** The start report names the container on a line of its own. */
-    private static final Pattern CONTAINER = Pattern.compile("(?m)^container\\s+(\\S+)");
 
     private final World world;
 
@@ -82,25 +81,4 @@ public class SokarSteps {
                 .as("vault put printed the value of %s", variable).isFalse();
     }
 
-    /**
-     * Stops and removes the task the terminal's start report named.
-     * <p>
-     * A rented machine is destroyed with its tasks; a developer's VM is not, and a suite that
-     * leaves a container behind every run is one that stops being run.
-     *
-     * @throws IOException If the machine cannot be reached.
-     */
-    @Then("the task that was started is stopped and purged")
-    public void theTaskIsStoppedAndPurged() throws IOException {
-        final Matcher matcher = CONTAINER.matcher(world.terminal().seen());
-        assertThat(matcher.find()).as("no start report named a container in:%n%s",
-                world.terminal().seen()).isTrue();
-        // Two commands since removing became a verb of its own: stopping keeps everything, and
-        // only the second destroys. --force because this step's job is to leave nothing behind,
-        // whatever the task was holding.
-        world.machine().run("sokar task stop " + matcher.group(1));
-        final Ssh.Output output = world.machine().run(
-                "sokar task remove " + matcher.group(1) + " --force");
-        assertThat(output.status()).as("task remove said:%n%s", output.all()).isZero();
-    }
 }
