@@ -27,11 +27,34 @@ public final class Leg {
     /** The user a leg runs as: unprivileged, because that is the shape a task runs in. */
     private static final String USER = "build";
 
-    /** How the product is built, named once and identical to what CI runs. */
-    private static final String BUILD =
-            "cd " + REPO + " && JAVA_HOME=/opt/graalvm GRAALVM_HOME=/opt/graalvm "
-            + "PATH=/opt/graalvm/bin:$PATH ./mvnw -B -Pnative -DskipTests package "
-            + "-pl app,daemon,hooks,agents/stub -am";
+    /**
+     * How the product is built, named once and identical to what CI runs.
+     * <p>
+     * <strong>The run number has to travel with it.</strong> These binaries are compiled here and
+     * packaged on the runner, and the version is decided in both places: the packaging passes
+     * {@code -Dsokar.snapshot.run=<run number>}, and the root pom marks a build '+local.<stamp>'
+     * when GITHUB_RUN_ID is absent. On a rented machine it is absent, so a CI run produced a
+     * package called 0.1.0~snapshot.129 holding a binary that called itself
+     * 0.1.0~snapshot.0+local.20260911T121128 - a local build, shipped as a CI one. Caught by
+     * check-packages.sh comparing the two for the first time, on the first run after it learned to.
+     * <p>
+     * Outside CI neither is set, nothing is passed, and the remote build marks itself local -
+     * which is what it is.
+     *
+     * @param runId GITHUB_RUN_ID, or {@code null} outside CI.
+     * @param runNumber GITHUB_RUN_NUMBER, or {@code null} outside CI.
+     * @return The command to run on the machine.
+     */
+    static String build(@org.jspecify.annotations.Nullable String runId,
+            @org.jspecify.annotations.Nullable String runNumber) {
+        return "cd " + REPO + " && JAVA_HOME=/opt/graalvm GRAALVM_HOME=/opt/graalvm "
+                // Exported rather than only passed as a property: what the profile switches on is
+                // the variable, and a -D would leave it active while the version said otherwise.
+                + (runId == null ? "" : "GITHUB_RUN_ID=" + runId + " ")
+                + "PATH=/opt/graalvm/bin:$PATH ./mvnw -B -Pnative -DskipTests package "
+                + (runNumber == null ? "" : "-Dsokar.snapshot.run=" + runNumber + " ")
+                + "-pl app,daemon,hooks,agents/stub -am";
+    }
 
     /**
      * What a leg sends home, and what the publish job installs.
@@ -90,7 +113,8 @@ public final class Leg {
                     + " && tar -x -C " + REPO + " -f /tmp/tree.tar && rm -f /tmp/tree.tar");
 
             step("building");
-            run(build, BUILD);
+            run(build, build(System.getenv("GITHUB_RUN_ID"),
+                    System.getenv("GITHUB_RUN_NUMBER")));
 
             // Entirely in the user's own directories, with no sudo. Sokar scans
             // ~/.local/share/sokar/providers before /usr/share and resolves hooks from

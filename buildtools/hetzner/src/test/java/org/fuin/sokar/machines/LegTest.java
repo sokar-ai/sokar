@@ -64,4 +64,29 @@ class LegTest {
         assertThatThrownBy(() -> Leg.proved(reports))
                 .hasMessageContaining(reports.toString());
     }
+
+    @Test
+    void carriesTheRunNumberToTheMachineInCi() {
+
+        // The binaries are compiled there and packaged on the runner, and both decide the version.
+        // Without this the package said 0.1.0~snapshot.129 and the binary inside it said
+        // 0.1.0~snapshot.0+local.<stamp> - a local build shipped as a CI one.
+        final String command = Leg.build("34593277007", "129");
+
+        assertThat(command)
+                .contains("GITHUB_RUN_ID=34593277007 ")
+                .contains("-Dsokar.snapshot.run=129 ");
+    }
+
+    @Test
+    void marksARemoteBuildLocalWhenItIsOne() {
+
+        // A developer running a leg from their own machine is building locally, whatever it is
+        // compiled on. Passing nothing lets the root pom's local-package profile say so.
+        final String command = Leg.build(null, null);
+
+        assertThat(command)
+                .doesNotContain("GITHUB_RUN_ID")
+                .doesNotContain("sokar.snapshot.run");
+    }
 }
