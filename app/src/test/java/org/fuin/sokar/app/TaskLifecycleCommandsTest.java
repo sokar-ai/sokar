@@ -122,6 +122,23 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void theNounAnswersTheQuestionItLooksLikeItIsAsking(@TempDir Path dir) {
+
+        // Six spellings, one answer. 'sokar projects' listed and 'sokar task' printed help, which
+        // is the kind of difference nobody can predict and everybody trips over once. A command
+        // whose name is a noun lists; the verbs sit under it.
+        runner.answering("ps", "sokar-uc-shell\tUp 4 minutes\t1700000000\t0\t\n");
+
+        for (final String[] spelling : new String[][] {
+                { "task" }, { "tasks" }, { "task", "list" } }) {
+            out.getBuffer().setLength(0);
+            assertThat(execute(context(dir), spelling)).as(String.join(" ", spelling)).isZero();
+            assertThat(out.toString()).as(String.join(" ", spelling))
+                    .contains("sokar-uc-shell");
+        }
+    }
+
+    @Test
     void namesTheTasksWhenNoneWasGiven(@TempDir Path dir) {
 
         // Asked for after a verb answered "Missing required parameter: TASK" on a machine where

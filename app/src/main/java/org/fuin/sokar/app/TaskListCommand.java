@@ -32,8 +32,20 @@ public class TaskListCommand implements Callable<Integer>, SokarFactory.ContextA
 
     @Override
     public Integer call() {
+        return render(spec.commandLine().getOut());
+    }
 
-        final PrintWriter out = spec.commandLine().getOut();
+    /**
+     * Renders the listing.
+     * <p>
+     * Separate from {@link #call()} so the bare command and the {@code list} verb produce the same
+     * bytes rather than two renderings that drift.
+     *
+     * @param out Where to write.
+     * @return Exit code.
+     */
+    Integer render(PrintWriter out) {
+
         // Asked of the inventory rather than assembled here: the daemon answers the same question
         // for the interface, and two implementations of it would drift.
         final List<TaskInventory.Task> tasks = new TaskInventory(context).tasks();
