@@ -65,6 +65,9 @@ public final class Main {
         if (args.length > 0 && "acceptance".equals(args[0])) {
             return acceptance(args, complain, open);
         }
+        if (args.length > 0 && "lease".equals(args[0])) {
+            return lease(args, complain, open);
+        }
         if (args.length > 0 && !"sweep".equals(args[0])) {
             // Named rather than answered with the usage text alone. A repository that resolves
             // this from a published snapshot can be handed a build older than the command it is
@@ -76,12 +79,16 @@ public final class Main {
         }
         if (args.length == 0 || !"sweep".equals(args[0])) {
             System.err.println("""
-                Usage: sweep [--mine] [--now] [--older-than <minutes>]
+                Usage: sweep [--mine | --from <file>] [--now] [--older-than <minutes>]
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
                        leg      --os <ubuntu|fedora> --repo <dir> [--key <file>] [--keep]
                                 [--fetch <dir>] [--acceptance]
                        acceptance --package <p> --script <f> [--os <o>] [--type <t>]
                                 [--candidate <dir>] [--cucumber <dir>] [--keep]
+                       lease    --os <ubuntu|fedora> [--key <file>] [--write <file>]
+                                [--type <t>] - rents a machine, installs Sokar, starts the
+                                daemon as an unprivileged user, and leaves it running. What
+                                deletes it is 'sweep --mine'.
 
                   --mine                 delete what this run created, whatever its age. What a
                                          job uses to clean up after itself - deleting by age
@@ -96,11 +103,13 @@ public final class Main {
         }
 
         boolean mine = false;
+        String from = null;
         boolean delete = false;
         Duration olderThan = DEFAULT_AGE;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--mine" -> mine = true;
+                case "--from" -> from = at + 1 < args.length ? args[++at] : null;
                 case "--now" -> delete = true;
                 case "--older-than" -> {
                     if (at + 1 >= args.length) {
@@ -123,10 +132,33 @@ public final class Main {
         }
 
         try (Hetzner hetzner = open.get()) {
-            if (mine) {
+            if (mine || from != null) {
                 // Always deletes, whatever else was passed: a job cleaning up after itself is
-                // not a question, and age does not come into it.
-                System.out.println("deleted " + hetzner.deleteMine() + " of this run's servers");
+                // not a question, and age does not come into it. --from is the same act for a run
+                // whose id this process could not derive, so it belongs on this side of the
+                // branch - it was nested under --mine when first written, which made the usage
+                // text say 'either' while the code meant 'both'.
+                if (from != null) {
+                    // The run id a lease wrote down, for the case its own could not be derived
+                    // again. Reading the file rather than taking an id on the command line: the
+                    // caller then has one thing to pass between two steps instead of five.
+                    final java.util.Properties leased = new java.util.Properties();
+                    try (var in = java.nio.file.Files.newInputStream(
+                            java.nio.file.Path.of(from))) {
+                        leased.load(in);
+                    }
+                    final String run = leased.getProperty("run");
+                    if (run == null || run.isBlank()) {
+                        complain.accept(from + " names no run, so there is nothing to match on."
+                                + " It should have been written by 'lease --write'.");
+                        return 2;
+                    }
+                    System.out.println("deleted " + hetzner.deleteRun(run) + " server(s) of "
+                            + run);
+                } else {
+                    System.out.println("deleted " + hetzner.deleteMine()
+                            + " of this run's servers");
+                }
                 return 0;
             }
             final int swept = hetzner.sweep(olderThan, !delete);
@@ -237,6 +269,44 @@ public final class Main {
                 cucumber == null ? null : java.nio.file.Path.of(cucumber));
         try (Hetzner hetzner = open.get()) {
             AgentLeg.run(hetzner, options, Credential.of(System.getenv(SSH_KEY),
+                    key == null ? null : java.nio.file.Path.of(key)));
+        }
+        return 0;
+    }
+
+    /**
+     * Rents a machine and leaves it running, recording what it took.
+     *
+     * @param args {@code lease --os <os> [--key <file>] [--write <file>] [--type <t>]}.
+     * @param complain Where a refusal goes.
+     * @param open How to reach the provider.
+     * @return Exit code.
+     * @throws IOException If a step fails.
+     */
+    private static int lease(String[] args, Consumer<String> complain,
+            Supplier<Hetzner> open) throws IOException {
+        String os = "ubuntu";
+        String key = null;
+        String write = null;
+        String type = "cpx12";
+        String artifactory = "https://fuinorg.jfrog.io/artifactory";
+        for (int at = 1; at < args.length; at++) {
+            switch (args[at]) {
+                case "--os" -> os = at + 1 < args.length ? args[++at] : null;
+                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
+                case "--write" -> write = at + 1 < args.length ? args[++at] : null;
+                case "--type" -> type = at + 1 < args.length ? args[++at] : null;
+                case "--artifactory" -> artifactory = at + 1 < args.length ? args[++at] : null;
+                default -> {
+                    complain.accept("unknown option: " + args[at]);
+                    return 2;
+                }
+            }
+        }
+        final Rental.Options options = new Rental.Options(os, List.of(type), artifactory,
+                write == null ? null : java.nio.file.Path.of(write));
+        try (Hetzner hetzner = open.get()) {
+            Rental.run(hetzner, options, Credential.of(System.getenv(SSH_KEY),
                     key == null ? null : java.nio.file.Path.of(key)));
         }
         return 0;

@@ -535,9 +535,26 @@ public final class Hetzner implements Machines {
      * @throws IOException If the API refuses.
      */
     public int deleteMine() throws IOException {
+        return deleteRun(runId);
+    }
+
+    /**
+     * Deletes what one named run created.
+     * <p>
+     * <strong>Named rather than implied, because a run id is not always reproducible.</strong> In
+     * CI it comes from {@code GITHUB_RUN_ID} and the leg, so every step of one leg derives the
+     * same one and {@link #deleteMine()} is enough. Locally it is a timestamp, and a second
+     * process cannot derive what a first one used - so a lease writes its id down and a sweep is
+     * told it. Without this, that line in the file would be something nothing could read.
+     *
+     * @param run The id to match, as {@code lease --write} recorded it.
+     * @return How many were deleted.
+     * @throws IOException If the provider refuses.
+     */
+    public int deleteRun(String run) throws IOException {
         int deleted = 0;
         for (final Server server : servers()) {
-            if (server.run().equals(runId)) {
+            if (server.run().equals(run)) {
                 System.out.println("deleting " + server.name());
                 delete(server.id());
                 deleted++;
