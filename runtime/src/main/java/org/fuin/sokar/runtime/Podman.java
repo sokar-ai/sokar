@@ -786,10 +786,31 @@ public class Podman {
         final StringBuilder script = new StringBuilder();
         if (command != null) {
             script.append(command).append("; ");
-            // The agent draws a full-screen interface. When it ends, the terminal is still in raw
-            // mode and possibly on the alternate screen, so the shell that follows inherits a
-            // scrambled display. Leave it, show the cursor, restore line discipline.
-            script.append("printf '\\033[?1049l\\033[?25h\\033[0m'; stty sane; ");
+            // The agent draws a full-screen interface, and what it leaves behind is inherited by
+            // the shell that follows. Four things have to be undone, and only the first two were:
+            //
+            //   [?1049l  leave the alternate screen
+            //   [?25h    show the cursor again
+            //   [r       reset the scrolling region - a full-screen app sets one, and a terminal
+            //            that keeps it confines every later line to that band. This is what made
+            //            a session look hung: the shell WAS there, in a strip, with the cursor
+            //            somewhere else entirely.
+            //   [?7h     autowrap back on, so long lines wrap instead of overwriting themselves
+            //
+            // Mouse reporting goes too: an agent that enabled it and did not turn it off leaves a
+            // shell where clicking types escape sequences.
+            //
+            // Then the screen is cleared. Resetting the modes is not enough on its own: leaving
+            // the alternate screen restores the cursor position saved when it was ENTERED, and an
+            // agent that never entered it - as the stub does not - restores a stale one. The
+            // result reads as a hung session: the last output at the bottom, the cursor at the
+            // top, and a shell that is running and does not look like it.
+            //
+            // 'clear' rather than a cursor move, because what is on the screen belongs to the
+            // agent that just ended. The scrollback keeps it for anyone who wants to read back.
+            script.append("printf '\\033[?1049l\\033[?25h\\033[0m\\033[r\\033[?7h"
+                    + "\\033[?1000l\\033[?1002l\\033[?1003l\\033[?1006l'; stty sane; ");
+            script.append("clear 2>/dev/null || printf '\\033[H\\033[2J'; ");
         }
         if (label != null) {
             // A container hostname says nothing about which task it is, and an operator with

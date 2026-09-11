@@ -375,6 +375,21 @@ class PodmanTest {
 
         assertThat(line).contains("1049l");
         assertThat(line).contains("stty sane");
+
+        // Reported from the machine: the shell WAS running and did not look like it - the last
+        // output at the bottom, the cursor at the top, and nothing responding where somebody
+        // was typing. Three of these were missing.
+        assertThat(line)
+                // The scrolling region a full-screen app sets. Left in place it confines every
+                // later line to a band, which is what made the session look hung.
+                .contains("[r")
+                // Autowrap, or long lines overwrite themselves instead of wrapping.
+                .contains("?7h")
+                // Mouse reporting: left on, clicking types escape sequences into the shell.
+                .contains("?1000l")
+                // And the screen is cleared, because leaving the alternate screen restores a
+                // cursor position that an agent which never entered it never saved.
+                .contains("clear");
     }
 
     @Test
