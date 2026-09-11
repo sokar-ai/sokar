@@ -314,6 +314,14 @@ COMMON='
 
 install_check "Debian" ubuntu:24.04 "
     export DEBIAN_FRONTEND=noninteractive
+    # The same mirror Sokar writes into the images it builds, for the same reason and measured the
+    # same way: on 2026-09-11 this step took 582 of the Publish job's 610 seconds, because a plain
+    # ubuntu:24.04 fetches from a disrupted archive.ubuntu.com. The Containerfile's rewrite does not
+    # reach here - this container is started by the script, not built by Sokar.
+    printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::Retries "2";' \
+        > /etc/apt/apt.conf.d/99-sokar-timeouts
+    sed -i 's|^URIs:.*|URIs: http://azure.archive.ubuntu.com/ubuntu/|' \
+        /etc/apt/sources.list.d/*.sources 2>/dev/null || true
     apt-get update -qq >/dev/null 2>&1
     apt-get install -y -qq /deb/sokar_*.deb >/dev/null 2>&1
     apt-get install -y -qq /agent/sokar-agent-stub_*.deb >/dev/null 2>&1 && echo AGENT-OK
