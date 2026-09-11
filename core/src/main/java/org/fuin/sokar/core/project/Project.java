@@ -23,17 +23,34 @@ public record Project(String name, String description, SecurityClass securityCla
     /**
      * Where apt fetches from, when a project names nothing.
      * <p>
-     * The CDN first, deliberately. Measured from a machine on an ordinary network on 2026-09-11,
-     * while Ubuntu's archive was disrupted:
+     * One entry, not a list with a fallback. Measured on 2026-09-11 from a rented machine of the
+     * kind the build actually runs on, pulling a 19 MB package index while Ubuntu's archive was
+     * disrupted:
      *
      * <pre>
-     * azure.archive.ubuntu.com   http    HTTP 200    0.18s
-     * archive.ubuntu.com         http    HTTP 200   18.86s
+     * azure.archive.ubuntu.com   19.3 MB in  0.08s   230 MB/s
+     * de.archive.ubuntu.com      19.3 MB in  0.23s    83 MB/s
+     * archive.ubuntu.com          2.2 MB in 60.00s    37 kB/s   (timed out)
      * </pre>
      *
-     * Every image build was hanging until Sokar's own ten-minute cap, on two rented machines per
-     * run, reporting nothing until it expired. A default that answers is worth more than one that
-     * is canonical.
+     * <strong>Why no fallback.</strong> apt spreads its requests over the URIs it is given rather
+     * than holding the second in reserve, so a slow mirror beside a fast one drags the whole
+     * update down to its speed. Measured on the same machine, same minute:
+     *
+     * <pre>
+     * both mirrors   apt-get update  65.2 MB in 4m03s   whole build 4m16s
+     * azure alone    apt-get update  32.6 MB in    1s   pull, update and install in 8s
+     * </pre>
+     *
+     * The halved volume is the proof of the mechanism: with two URIs apt fetched the indices from
+     * both, and the slower one set the pace. A second source is insurance only if the first
+     * fails outright; against one that is merely crawling it is a tax on every build. Somebody
+     * whose network prefers a different mirror says so with image.package_sources.
+     *
+     * <strong>Latency is the wrong measure here, and choosing on it was a mistake once already.</strong>
+     * These mirrors answer a small Release file in well under a second even when they cannot
+     * deliver an index at any useful rate; archive.ubuntu.com served the Release file in 8s and
+     * the index at 37 kB/s. What an image build spends its time on is 65 MB of indices.
      *
      * <strong>http, not https, and that is not an oversight.</strong> This mirror serves no TLS -
      * https against it times out rather than refusing, so a default written with the wrong scheme
@@ -42,7 +59,7 @@ public record Project(String name, String description, SecurityClass securityCla
      * plain http. Measured: https to the same host, HTTP 000 after 25s.
      */
     public static final java.util.List<String> DEFAULT_PACKAGE_SOURCES = java.util.List.of(
-            "http://azure.archive.ubuntu.com/ubuntu/", "http://archive.ubuntu.com/ubuntu/");
+            "http://azure.archive.ubuntu.com/ubuntu/");
 
     /**
      * Constructor without package sources, which take their default.
