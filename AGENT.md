@@ -218,10 +218,11 @@ See [build.md](doc/build.md). Three things that will bite:
   but the loop sleeps 200 ms between chunks so a backlog drains at roughly 320 KB/s whatever the
   transport can do. The sleep is there so a live tail does not spin; changing it is a deliberate
   decision, not a tidy-up.
-- **A failure is held, not swept up.** `--keep` has to be decided before a run, and the run worth
-  looking at is the one that went wrong - which is known only afterwards. So a non-zero exit stops
-  the container through `TaskControl` and leaves it: workspace, logs and unpushed commits intact,
-  `task resume` to go back in, `task stop --purge` to discard. Stopped rather than left running,
+- **A failure is held, not swept up.** The container is kept by default now, and `--rm` has to be
+  decided before a run - but the run worth looking at is the one that went wrong, which is known
+  only afterwards. So a non-zero exit stops the container through `TaskControl` and leaves it even
+  when `--rm` was given: workspace, logs and unpushed commits intact, `task start` to go back in,
+  `task remove` to discard. Stopped rather than left running,
   because a task nobody is watching that still holds a firewall, a gate and a credential proxy is
   not kept, it is abandoned.
 - **`sokar panic` stops everything and removes nothing.** The reason for reaching for it is that
@@ -283,9 +284,9 @@ See [build.md](doc/build.md). Three things that will bite:
   the `podman start` it runs itself - defaults kept, other containers untouched
   (`LoopbackMapping`). **Only `start` reads it**; setting it on `create` does
   nothing and says nothing, and the symptom is a push that hangs. Under
-  slirp4netns podman ignores it in silence, so `task run` asks
+  slirp4netns podman ignores it in silence, so `task start` asks
   (`podman info -f {{.Host.RootlessNetworkCmd}}`), binds every interface and says
-  why. **`task resume` replays the gate command it recorded**, so a task first run
+  why. **Bringing a task back replays the gate command it recorded**, so a task first run
   under pasta comes back bound to `127.0.0.1` even if podman has since been switched
   to slirp4netns, and the push then hangs. Deciding the bind again on resume would
   contradict the recorded-command design that makes resume reconstructible at all.
@@ -356,7 +357,7 @@ See [build.md](doc/build.md). Three things that will bite:
   asked for `HEAD` before it committed, printed `nothing to push`, exited zero, and the
   container was removed as rescued while the mirror never saw a ref. Commit first, and exit
   non-zero when there is genuinely nothing.
-- **The guard covers `sokar task stop --purge` and nothing else.** A `podman rm` typed
+- **The guard covers `sokar task remove` and nothing else.** A `podman rm` typed
   directly, or a tidy-up script, still destroys a workspace without a word: nothing Sokar
   writes can stop the runtime's own command.
 - **The clearance watcher has two ways in, and only one of them broadcast.** When it starts
@@ -484,7 +485,7 @@ See [build.md](doc/build.md). Three things that will bite:
   `openssh-client` and `tmux`, and nothing else.
 
 - **Ctrl-C left a task running without its gate, its broker or its watcher.** A `finally` covers
-  every way an attached `task run` can end except the one that happens: a signal reaches the whole
+  every way an attached `task start` can end except the one that happens: a signal reaches the whole
   foreground process group, so the helpers — plain children, not detached — die with the CLI while
   the container, its ruleset and its resolver keep running. Measured on the test machine: a
   container up eleven minutes with the agent still working inside, nothing to push through and no
@@ -535,19 +536,20 @@ See [build.md](doc/build.md). Three things that will bite:
   the `containers.conf.d` drop-in are written once by `setup`; the package replaces only the
   binaries. Every check asked whether the files were *there*, so a descriptor from an older
   release reported `ACTIVE` while podman went on running what it said. `Registration.STALE`
-  compares contents, `outdated()` names the files, and `task run` refuses on it like any other
+  compares contents, `outdated()` names the files, and `task start` refuses on it like any other
   non-`ACTIVE` state — a container with no firewall looks entirely normal, so this must stop
   rather than warn. Note the asymmetry it fixes: a hook that is *added* was always caught, because
   the missing file has a new name; one whose contents changed was not.
 
-- **`task resume` does not attach.** It starts the container and its helpers and returns, so
-  "go back in with 'sokar task resume'" promised something it does not do. Both the resume output
-  and the kept-task message now name `task attach` as the separate step.
+- **Bringing a task back does not attach.** It starts the container and its helpers and returns,
+  so "go back in" promised something it does not do. Both that output and the kept-task message
+  name `task attach` as the separate step. Since the cut there is no separate verb for it at all:
+  `task start` creates or resumes, deciding from the task's state.
 
 - **A fact about a container belongs on the container.** Project and security class were written
   only into `sidecar.json` under `$XDG_RUNTIME_DIR`, which the system destroys when the user's last
-  session ends - so after a reboot every surviving task listed both as `-`, and `task resume`
-  failed obscurely because the fail-closed nft hook could no longer read the sidecar its
+  session ends - so after a reboot every surviving task listed both as `-`, and bringing one
+  back failed obscurely because the fail-closed nft hook could no longer read the sidecar its
   annotation still pointed at. They are now podman **labels** as well. Labels rather than
   annotations because only labels come back from `podman ps`: an annotation would cost one
   `inspect` per row of a list an interface redraws. Splitting `k=v,k=v` is safe for these two -
@@ -563,7 +565,7 @@ See [build.md](doc/build.md). Three things that will bite:
 
 - **"Run this command first" is a defect when the command is always the same.** `sokar setup`
   writes the hook descriptors and the podman drop-in, and being told to run it is a thing people
-  forget - which is how a machine ends up with an installation nobody completed. A task run now
+  forget - which is how a machine ends up with an installation nobody completed. A task start now
   repairs the two states that are only ever "write the files", `MISSING` and `STALE`, and says so.
   It still cannot be the package's job: podman reads descriptors per user, so an install script
   running as root does not know whose configuration to write, and a system-wide `hooks_dir` would
@@ -574,15 +576,15 @@ See [build.md](doc/build.md). Three things that will bite:
   file.
 
 - **The same destruction, guarded on one path and not the other.** `/workspace` lives in the
-  container's own writable layer, so removing the container destroys it. `task stop --purge` asks
+  container's own writable layer, so removing the container destroys it. `task remove` asks
   `unhandedWork` first and refuses with `HOLDS_WORK`, offering `--rescue`; the end of an attached
-  run removed without asking, so walking out of a shell discarded what `--purge` would have
+  run removed without asking, so walking out of a shell discarded what a removal would have
   refused to touch. Now both ask. It is only answerable while the container runs - which it still
   is at that moment, because the shell was an `exec` beside `sleep infinity`. Keeping only when
   there is actually something held is what stops this refilling `task list` with dead containers.
 
 - **A destructive command used as a query is a missing query.** Whether a workspace held changes
-  nobody had pushed was answerable only by running `task stop --purge` and reading the refusal.
+  nobody had pushed was answerable only by running a removal and reading the refusal.
   `task status` asks the same `unhandedWork` without touching anything. Note what it cannot do:
   the workspace is inside the container, so once a task is stopped the only source is the note
   `task stop` wrote on the way out - and a task stopped by a reboot or a kill has neither. It says
