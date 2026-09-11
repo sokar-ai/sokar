@@ -1,8 +1,12 @@
 # B44 — One Way To Start Work
 
-**Status:** shape decided on 2026-09-11, not built. It removes commands rather than adding them.
+**Status:** decided and mostly built on 2026-09-11. It removes commands rather than adding them.
 Written after an operator used the obvious command on an existing task and Sokar silently did
 something else.
+
+Built and landed: points 1, 3, 4 (the rule; the files have not all moved yet), 5, 6's refusal
+half, and 8. Outstanding: point 2 (the gate token into the vault, so a task survives a restart),
+point 6's `sokar cleanup`, and point 7 (streaming the build).
 
 ## What happened
 
@@ -196,7 +200,49 @@ erased, which is why it is refusing. What was left was `--force` - discard unsee
 in fact held nothing. Point 2 removes the cause; until then, a refusal that cannot be answered
 except by overriding it teaches people to override it.
 
-### 7. One coordinated cut
+### 7. A build that takes minutes has to say so
+
+Reported from the machine on 2026-09-11: *"Es dauert recht lange, bis der Container läuft und man
+denkt er ist abgestürzt."* A first `start` builds an image, which takes minutes, and prints nothing
+at all while it does.
+
+**The cause is not a missing message, it is the shape of the call.** `CommandRunner.run(Command)`
+returns a `CommandResult` when the process has ended; there is no streaming variant. While podman
+builds, its output exists nowhere - not on the terminal, not in a file.
+
+**The same shape cost a day of diagnosis.** When the build ran into Sokar's ten-minute cap in CI,
+the log held this and nothing else:
+
+    sokar: Cannot run 'podman build --tag sokar/e2e-tier1 ...': Timed out after 600 s
+
+No `STEP`, no `Get:`, no error - the wrapper killed the process and reported its own sentence, and
+everything podman would have said went with it. Two runs were spent finding out that an Ubuntu
+mirror was slow, on two rented machines each, because the one place that knew was discarded.
+
+**Decided on 2026-09-11: stream it.** `CommandRunner` gains a variant that hands each line to a
+consumer as it arrives; `Podman.buildImage` takes one; `Start` prints them. Additive - a default
+method leaves every existing caller alone - but it touches the process layer everything uses, and
+the fake runner in the tests has to feed the consumer too.
+
+The operator chose this over a heartbeat that only prints elapsed time, for the second reason
+rather than the first: a spinner answers "is it alive", and the thing that was actually missing was
+"what is it doing, and what did it say when it stopped".
+
+**What must be true:**
+
+1. A build that takes minutes shows what it is doing while it does it.
+2. A build that fails or is killed leaves what the runtime said, where whoever reads the log next
+   will find it.
+3. The interface gets the same thing over `Tail`, so a detached start is not a second code path.
+
+**Acceptance criteria:**
+
+- A `start` that builds an image prints the runtime's step lines as they happen.
+- A build that hits the cap leaves those lines in the task's log, and a test asserts the log is not
+  empty after a killed build.
+- Nothing that does not build - a start that resumes, a dry run - prints build output.
+
+### 8. One coordinated cut
 
 `Start`, `Resume` and `Stop` are in `org.fuin.sokar.Tasks1.varlink`, whose compatibility rules
 would forbid removing `Resume` or changing what `Start` means. Those rules are marked *not in force
