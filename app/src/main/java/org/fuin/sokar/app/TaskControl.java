@@ -164,7 +164,10 @@ public final class TaskControl {
      * @return What happened.
      */
     public Stopped remove(String container, boolean rescue, boolean force) {
-        if (ContainerName.isTask(container) && !force) {
+        // Not when rescuing: pushing what the workspace holds needs the container up, so refusing
+        // a running one here would make --rescue impossible to use. Found by the tests that cover
+        // rescue, which is what they are for.
+        if (ContainerName.isTask(container) && !force && !rescue) {
             final boolean running = context.podman().sokarTasks().stream()
                     .filter(task -> task.name().equals(container))
                     .anyMatch(ContainerSummary::running);

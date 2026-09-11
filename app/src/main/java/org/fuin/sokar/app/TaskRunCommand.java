@@ -171,6 +171,20 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     private @org.jspecify.annotations.Nullable Integer startExisting(PrintWriter out,
             PrintWriter err) {
 
+        if (dryRun) {
+            // A dry run must touch nothing, and asking the runtime what exists is touching it.
+            // The launch says what it would do; whether a container is already there does not
+            // change that answer, only which half of this command would produce it.
+            return null;
+        }
+        if (context.hooks().registration()
+                != org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE) {
+            // Refused by the launch below, and it must be refused before anything is asked of the
+            // runtime: a machine whose hooks are missing cannot start a task either way, and the
+            // first thing somebody sees should be the reason rather than a podman call.
+            return null;
+        }
+
         final org.fuin.sokar.core.project.Project project;
         try {
             project = org.fuin.sokar.core.project.ProjectReader.read(projectFile);

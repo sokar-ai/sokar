@@ -258,7 +258,7 @@ class TaskRunCommandTest {
         // Nothing exists to hold, so the tidy-up runs as it always did.
         runner.failing("start", 125, "hook failed");
 
-        final int code = execute(context(dir, true), "task", "start", "--attach", "shell",
+        final int code = execute(context(dir, true), "task", "start", "--rm", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(70);
@@ -275,7 +275,7 @@ class TaskRunCommandTest {
         runner.answering("container inspect", "c0ffee\n");
         runner.failing("start", 125, "hook failed");
 
-        final int code = execute(context(dir, true), "task", "start", "--attach", "shell",
+        final int code = execute(context(dir, true), "task", "start", "--rm", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(70);
@@ -331,7 +331,9 @@ class TaskRunCommandTest {
     }
 
     private String containerName() {
-        return "sokar-uc-shell-" + ProcessHandle.current().pid();
+        // One container per project and task, with nothing unique appended. It used to carry the
+        // launching process's pid, which is why a task could never be found again by its name.
+        return "sokar-uc-shell";
     }
 
     @Test
@@ -379,7 +381,7 @@ class TaskRunCommandTest {
 
         // The bug this exists for: attaching used to replace this process, so nothing was left to
         // remove the container. Every interactive task leaked one while printing the opposite.
-        execute(context(dir, true), "task", "start", "-p", projectFile(dir, MINIMAL).toString());
+        execute(context(dir, true), "task", "start", "--rm", "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.invocations()).anySatisfy(command ->
                 assertThat(command.describe()).contains("rm"));
@@ -397,7 +399,7 @@ class TaskRunCommandTest {
         // keep branch is unreachable, and the test would pass however the verdict is computed.
         runner.answering("container inspect", "c0ffee\n");
 
-        final int code = execute(context(dir, true), "task", "start", "--attach", "shell",
+        final int code = execute(context(dir, true), "task", "start", "--rm", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(out.toString()).doesNotContain("it failed");
@@ -420,7 +422,7 @@ class TaskRunCommandTest {
         // What the container answers when asked: one changed file, two commits nobody pushed.
         runner.answering("exec", "1 2\n");
 
-        execute(context(dir, true), "task", "start", "--attach", "shell",
+        execute(context(dir, true), "task", "start", "--rm", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).as("work that exists nowhere else must not be removed")
@@ -439,7 +441,7 @@ class TaskRunCommandTest {
         runner.answering("container inspect", "c0ffee\n");
         runner.answering("exec", "0 0\n");
 
-        execute(context(dir, true), "task", "start", "--attach", "shell",
+        execute(context(dir, true), "task", "start", "--rm", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).anyMatch(line -> line.contains("rm --force"));

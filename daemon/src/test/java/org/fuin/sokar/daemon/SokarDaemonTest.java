@@ -112,8 +112,7 @@ class SokarDaemonTest {
                 final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Stop",
                         Map.of("task", "sokar-uc-shell-1"));
 
-                assertThat(reply).containsEntry("outcome", "STOPPED")
-                        .containsEntry("removed", false);
+                assertThat(reply).containsEntry("outcome", "STOPPED");
                 assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman stop"));
             }
         });
@@ -130,29 +129,33 @@ class SokarDaemonTest {
 
         serving(dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
-                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Stop",
-                        Map.of("task", "sokar-uc-shell-1", "purge", true));
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Remove",
+                        Map.of("task", "sokar-uc-shell-1"));
 
-                assertThat(reply).containsEntry("outcome", "HOLDS_WORK")
-                        .containsEntry("work", "2 commits and 3 changed files");
+                // The refusal a running task gets, which is the one this surface could most
+                // easily have been given a way around. What it holds is refused by the same
+                // TaskControl call and covered where the fixtures for it live, in the CLI tests.
+                assertThat(reply).containsEntry("outcome", "STILL_RUNNING");
                 assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
             }
         });
     }
 
     @Test
-    void resumingSomethingAlreadyUpIsAnswered(@TempDir Path dir) throws Exception {
+    void removingSomethingStillUpIsAnswered(@TempDir Path dir) throws Exception {
 
+        // Over the socket as at the terminal: stopping ends an agent's session and removing
+        // destroys its work, so a running task is refused rather than stopped as a side effect.
         runner.answering("container inspect", "4711");
         runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
 
         serving(dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
-                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Resume",
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Remove",
                         Map.of("task", "sokar-uc-shell-1"));
 
-                assertThat(reply).containsEntry("outcome", "ALREADY_RUNNING");
-                assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman start"));
+                assertThat(reply).containsEntry("outcome", "STILL_RUNNING");
+                assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
             }
         });
     }
@@ -165,7 +168,7 @@ class SokarDaemonTest {
             try (VarlinkClient client = new VarlinkClient(socket)) {
                 assertThat(client.call(SokarDaemon.INTERFACE + ".Stop", Map.of()))
                         .containsEntry("outcome", "NOT_A_TASK");
-                assertThat(client.call(SokarDaemon.INTERFACE + ".Resume", Map.of()))
+                assertThat(client.call(SokarDaemon.INTERFACE + ".Remove", Map.of()))
                         .containsEntry("outcome", "NOT_A_TASK");
             }
         });

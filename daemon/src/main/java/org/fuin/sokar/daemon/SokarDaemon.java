@@ -1184,7 +1184,10 @@ public final class SokarDaemon {
                 flag(parameters, "dryRun"),
                 text(parameters, "clearance").isEmpty() ? "prompt"
                         : text(parameters, "clearance"),
-                flag(parameters, "keep"),
+                // Inverted: the contract asks whether to REMOVE, and the request records whether
+                // to keep. The default flipped with the verb - what a caller reaches for first
+                // used to destroy what it had just made.
+                !flag(parameters, "rm"),
                 // The same vocabulary the CLI uses, taken from the caller rather than guessed at:
                 // a task started over the socket is as much a shell, a session or an unattended
                 // run as one started at the machine, and it has to say which afterwards.
