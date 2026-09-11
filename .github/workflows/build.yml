@@ -12,9 +12,14 @@ on:
   workflow_dispatch:
 
 # One run per branch.
+# Runs queue rather than cancel each other. A newer push used to kill the run in progress, which
+# saved two rented machines when commits stacked up - and could also kill Publish halfway, between
+# the jars reaching Central and the packages reaching Artifactory. Both halves of that split break
+# every agent repository at once: their legs install the published CLI and resolve the published
+# kit, and either one alone is wrong. Queueing costs minutes on a busy branch; a split costs six
+# acceptance legs and three unattended update jobs, and nobody is watching when it happens.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
 

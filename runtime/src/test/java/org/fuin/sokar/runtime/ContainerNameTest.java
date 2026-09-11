@@ -26,11 +26,34 @@ class ContainerNameTest {
         final String task = ContainerName.of(
                 new org.fuin.sokar.core.project.Project("utils4j", "Utils",
                         org.fuin.sokar.core.project.SecurityClass.GUARDED, "ubuntu:24.04", null),
-                "shell", "25471");
-        assertThat(task).isEqualTo("sokar-utils4j-shell-25471");
+                "shell");
+        assertThat(task).isEqualTo("sokar-utils4j-shell");
         assertThat(ContainerName.isSokar(task)).isTrue();
         assertThat(ContainerName.isLogin(task)).isFalse();
         assertThat(ContainerName.isTask(task)).isTrue();
+    }
+
+    @Test
+    void namesOneContainerPerTaskSoStartingTwiceFindsTheFirst() {
+
+        // The whole point of dropping the run id. It used to carry the launching process's pid,
+        // so two invocations never shared a container and nothing could map a task to one -
+        // 'start' would build a second beside the one that was named.
+        final org.fuin.sokar.core.project.Project project =
+                new org.fuin.sokar.core.project.Project("utils4j", "",
+                        org.fuin.sokar.core.project.SecurityClass.GUARDED, "ubuntu:24.04", null);
+
+        assertThat(ContainerName.of(project, "shell"))
+                .isEqualTo(ContainerName.of(project, "shell"));
+    }
+
+    @Test
+    void handsBackTheTaskInsideAContainerName() {
+
+        // Carried to an interface rather than derived by it: the rule relating the two belongs
+        // here and has already changed once.
+        assertThat(ContainerName.taskIn("utils4j", "sokar-utils4j-shell")).isEqualTo("shell");
+        assertThat(ContainerName.taskIn("utils4j", "sokar-other-shell")).isEmpty();
     }
 
     @Test

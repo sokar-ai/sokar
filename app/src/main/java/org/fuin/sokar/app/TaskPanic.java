@@ -94,7 +94,7 @@ public final class TaskPanic {
             // Through the same operation 'task stop' uses, so a panic writes down what a task held
             // that never reached the gate, exactly as a deliberate stop does. A faster path that
             // skipped that would lose the one record of what was lost.
-            final TaskControl.Stopped result = control.stop(task.name(), false, false, false);
+            final TaskControl.Stopped result = control.stop(task.name());
             stopped.add(new Stopped(task.name(), result.helpers(), result.surviving()));
             surviving.addAll(result.surviving());
         }

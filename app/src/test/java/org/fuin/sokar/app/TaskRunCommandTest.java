@@ -112,7 +112,7 @@ class TaskRunCommandTest {
     @Test
     void reportsTheResolvedProject(@TempDir Path dir) throws IOException {
 
-        final int code = execute(context(dir, true), "task", "run",
+        final int code = execute(context(dir, true), "task", "start",
                 "-p", projectFile(dir, MINIMAL).toString(), "--dry-run");
 
         assertThat(code).isZero();
@@ -129,7 +129,7 @@ class TaskRunCommandTest {
         // A container started without its firewall looks completely normal, which is why this
         // must stop rather than warn. Writing descriptors would not help: they would name
         // binaries that are not there, which is a broken installation rather than a missing step.
-        final int code = execute(context(dir, false), "task", "run",
+        final int code = execute(context(dir, false), "task", "start",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(69);
@@ -148,8 +148,8 @@ class TaskRunCommandTest {
         // write them, because podman reads them per user and root does not know whose.
         hookBinaries(dir);
 
-        final int code = execute(context(dir, false), "task", "run", "--attach", "shell",
-                "--no-attach", "-p", projectFile(dir, MINIMAL).toString());
+        final int code = execute(context(dir, false), "task", "start", "--attach", "shell",
+                "--detach", "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isZero();
         // Said out loud: this writes into the operator's own podman configuration.
@@ -168,7 +168,7 @@ class TaskRunCommandTest {
                 "config/containers/oci/hooks.d/sokar-hook-nft-poststop.json");
         Files.writeString(descriptor, "{\"version\":\"1.0.0\",\"hook\":{}}");
 
-        final int code = execute(context, "task", "run", "--attach", "shell", "--no-attach",
+        final int code = execute(context, "task", "start", "--attach", "shell", "--detach",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isZero();
@@ -181,7 +181,7 @@ class TaskRunCommandTest {
 
         // The nft hook reads both files while the container is being created. Writing them
         // afterwards would leave a window with a container and no firewall.
-        execute(context(dir, true), "task", "run", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString());
+        execute(context(dir, true), "task", "start", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString());
 
         final Path state = root.resolve("run/sokar").resolve(containerName());
         assertThat(state.resolve("ruleset.nft")).exists();
@@ -192,7 +192,7 @@ class TaskRunCommandTest {
     @Test
     void annotatesTheContainerSoTheHooksFire(@TempDir Path dir) throws IOException {
 
-        execute(context(dir, true), "task", "run", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString());
+        execute(context(dir, true), "task", "start", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.only("create").describe())
                 .contains("--annotation org.fuin.sokar.sidecar=")
@@ -202,7 +202,7 @@ class TaskRunCommandTest {
     @Test
     void handsTheTerminalToTheShell(@TempDir Path dir) throws IOException {
 
-        execute(context(dir, true), "task", "run", "--attach", "shell",
+        execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString(), "--shell", "/bin/sh");
 
         assertThat(execCalls).hasSize(1);
@@ -219,7 +219,7 @@ class TaskRunCommandTest {
         // something it was not - and the person who asked for an agent got a bare prompt with
         // nothing explaining why. CanStart already answered NO_AGENT for this, so the check and
         // the launch disagreed about the same machine.
-        final int code = execute(context(dir, true), "task", "run",
+        final int code = execute(context(dir, true), "task", "start",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(69);
@@ -232,7 +232,7 @@ class TaskRunCommandTest {
 
         // Working inside the container by hand is exactly what a shell task is for, so refusing
         // it for want of an agent would take away the case the refusal above points people at.
-        final int code = execute(context(dir, true), "task", "run", "--attach", "shell",
+        final int code = execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isZero();
@@ -245,7 +245,7 @@ class TaskRunCommandTest {
         // The difference between "started" and "ran". A prompt asks for work to be performed, and
         // a run that answers success without an agent having done anything leaves somebody waiting
         // for output that was never going to come.
-        final int code = execute(context(dir, true), "task", "run",
+        final int code = execute(context(dir, true), "task", "start",
                 "-p", projectFile(dir, MINIMAL).toString(), "-P", "fix the parser");
 
         assertThat(code).isEqualTo(69);
@@ -258,7 +258,7 @@ class TaskRunCommandTest {
         // Nothing exists to hold, so the tidy-up runs as it always did.
         runner.failing("start", 125, "hook failed");
 
-        final int code = execute(context(dir, true), "task", "run", "--attach", "shell",
+        final int code = execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(70);
@@ -275,7 +275,7 @@ class TaskRunCommandTest {
         runner.answering("container inspect", "c0ffee\n");
         runner.failing("start", 125, "hook failed");
 
-        final int code = execute(context(dir, true), "task", "run", "--attach", "shell",
+        final int code = execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(70);
@@ -292,8 +292,8 @@ class TaskRunCommandTest {
 
         runner.failing("start", 125, "hook failed");
 
-        execute(context(dir, true), "task", "run",
-                "-p", projectFile(dir, MINIMAL).toString(), "--keep");
+        execute(context(dir, true), "task", "start",
+                "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).noneMatch(line -> line.contains("rm --force"));
     }
@@ -308,7 +308,7 @@ class TaskRunCommandTest {
     @Test
     void failsOnAMissingProjectFile(@TempDir Path dir) throws IOException {
 
-        assertThat(execute(context(dir, true), "task", "run", "-p", "/does/not/exist.yml", "--dry-run"))
+        assertThat(execute(context(dir, true), "task", "start", "-p", "/does/not/exist.yml", "--dry-run"))
                 .isEqualTo(2);
         assertThat(err.toString()).contains("No project file at /does/not/exist.yml");
     }
@@ -318,7 +318,7 @@ class TaskRunCommandTest {
 
         final Path file = projectFile(dir, "project:\n  name: uc\n");
 
-        assertThat(execute(context(dir, true), "task", "run", "-p", file.toString(), "--dry-run"))
+        assertThat(execute(context(dir, true), "task", "start", "-p", file.toString(), "--dry-run"))
                 .isEqualTo(2);
         assertThat(err.toString()).contains("no 'image' section");
     }
@@ -326,7 +326,7 @@ class TaskRunCommandTest {
     @Test
     void rejectsAnUnknownOption(@TempDir Path dir) throws IOException {
 
-        assertThat(execute(context(dir, true), "task", "run",
+        assertThat(execute(context(dir, true), "task", "start",
                 "-p", projectFile(dir, MINIMAL).toString(), "--nope")).isEqualTo(2);
     }
 
@@ -349,7 +349,7 @@ class TaskRunCommandTest {
         final Process helper = new ProcessBuilder("sleep", "120").start();
         Files.writeString(state.resolve("vault.pid"), String.valueOf(helper.pid()));
 
-        execute(context, "task", "run", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString(), "--no-attach");
+        execute(context, "task", "start", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString(), "--detach");
 
         assertThat(helper.waitFor(10, java.util.concurrent.TimeUnit.SECONDS))
                 .as("the helper must be stopped, not left holding its socket").isTrue();
@@ -368,8 +368,8 @@ class TaskRunCommandTest {
         Files.createDirectories(state);
         Files.writeString(state.resolve("vault.pid"), "4711");
 
-        execute(context, "task", "run", "-p", projectFile(dir, MINIMAL).toString(),
-                "--no-attach", "--keep");
+        execute(context, "task", "start", "-p", projectFile(dir, MINIMAL).toString(),
+                "--detach");
 
         assertThat(state.resolve("vault.pid")).exists();
     }
@@ -379,7 +379,7 @@ class TaskRunCommandTest {
 
         // The bug this exists for: attaching used to replace this process, so nothing was left to
         // remove the container. Every interactive task leaked one while printing the opposite.
-        execute(context(dir, true), "task", "run", "-p", projectFile(dir, MINIMAL).toString());
+        execute(context(dir, true), "task", "start", "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.invocations()).anySatisfy(command ->
                 assertThat(command.describe()).contains("rm"));
@@ -397,7 +397,7 @@ class TaskRunCommandTest {
         // keep branch is unreachable, and the test would pass however the verdict is computed.
         runner.answering("container inspect", "c0ffee\n");
 
-        final int code = execute(context(dir, true), "task", "run", "--attach", "shell",
+        final int code = execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(out.toString()).doesNotContain("it failed");
@@ -420,7 +420,7 @@ class TaskRunCommandTest {
         // What the container answers when asked: one changed file, two commits nobody pushed.
         runner.answering("exec", "1 2\n");
 
-        execute(context(dir, true), "task", "run", "--attach", "shell",
+        execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).as("work that exists nowhere else must not be removed")
@@ -439,7 +439,7 @@ class TaskRunCommandTest {
         runner.answering("container inspect", "c0ffee\n");
         runner.answering("exec", "0 0\n");
 
-        execute(context(dir, true), "task", "run", "--attach", "shell",
+        execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).anyMatch(line -> line.contains("rm --force"));
@@ -455,7 +455,7 @@ class TaskRunCommandTest {
         execDies = true;
         runner.answering("container inspect", "c0ffee\n");
 
-        execute(context(dir, true), "task", "run", "--attach", "shell",
+        execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).as("an interrupted run must not be swept up")
@@ -467,7 +467,7 @@ class TaskRunCommandTest {
 
         // So a listing can still say what a task belongs to after a reboot. The sidecar holding
         // the same two facts is in $XDG_RUNTIME_DIR and does not survive one.
-        execute(context(dir, true), "task", "run", "--attach", "shell", "--no-attach",
+        execute(context(dir, true), "task", "start", "--attach", "shell", "--detach",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).anyMatch(line -> line.contains("create")
@@ -479,7 +479,7 @@ class TaskRunCommandTest {
     void leavesTheContainerAloneWithKeep(@TempDir Path dir) throws IOException {
 
         // The negative case: --keep has to mean something, and today it did not.
-        execute(context(dir, true), "task", "run", "--keep",
+        execute(context(dir, true), "task", "start", 
                 "-p", projectFile(dir, MINIMAL).toString());
 
         // 'rm --force', which is how a task container is removed - not any argument containing
@@ -493,7 +493,7 @@ class TaskRunCommandTest {
     void attachesAPlainShellWhenAsked(@TempDir Path dir) throws IOException {
 
         // The negative case: --attach shell must not wrap anything around the shell.
-        execute(context(dir, true), "task", "run", "--attach", "shell",
+        execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         // No agent runs, so there is no full-screen interface to clean up after.

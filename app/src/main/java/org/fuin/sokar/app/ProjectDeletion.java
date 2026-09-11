@@ -179,9 +179,10 @@ public final class ProjectDeletion {
 
         try {
             for (final TaskInventory.Task task : tasks) {
-                // Through the same stop 'task stop --purge' uses, so a deletion writes down what
-                // a task held exactly as a deliberate removal does.
-                new TaskControl(context).stop(task.name(), true, false, force);
+                // Through the same removal 'task remove' uses, so a deletion writes down what
+                // a task held exactly as a deliberate removal does. force carries through: a
+                // deletion the operator confirmed is not asked again per task.
+                new TaskControl(context).remove(task.name(), false, force);
             }
             context.podman().removeImage("sokar/" + project);
             deleteTree(mirrorOf(project));

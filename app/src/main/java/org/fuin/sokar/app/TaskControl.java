@@ -50,6 +50,18 @@ public final class TaskControl {
         /** Rescue attempted and the work did not arrive; nothing was removed. */
         RESCUE_FAILED,
 
+        /** Removed: the container is gone and its helpers were already down. */
+        REMOVED,
+
+        /**
+         * Removal refused: the task is running.
+         * <p>
+         * Stopping ends an agent's session and removing destroys its work. Somebody who asked for
+         * the second did not ask for the first, and until these were two verbs they could not say
+         * so - {@code stop --purge} did both whatever the task was doing.
+         */
+        STILL_RUNNING,
+
         /** Started again, with the workspace it had. */
         RESUMED,
 
@@ -130,6 +142,41 @@ public final class TaskControl {
     }
 
     /**
+     * Stops a task and the helpers beside it, keeping everything it holds.
+     *
+     * @param container Container name.
+     * @return What happened.
+     */
+    public Stopped stop(String container) {
+        return stop(container, false, false, false);
+    }
+
+    /**
+     * Removes a task: its container, its state, and the workspace inside it.
+     * <p>
+     * Refuses a running task rather than stopping it as a side effect. Stopping ends an agent's
+     * session and removing destroys its work; somebody who typed one of those did not ask for the
+     * other, and the two used to be the same command with a flag.
+     *
+     * @param container Container name.
+     * @param rescue Push what the workspace holds to a ref of its own first.
+     * @param force Stop it if it runs, and discard work that never reached the gate.
+     * @return What happened.
+     */
+    public Stopped remove(String container, boolean rescue, boolean force) {
+        if (ContainerName.isTask(container) && !force) {
+            final boolean running = context.podman().sokarTasks().stream()
+                    .filter(task -> task.name().equals(container))
+                    .anyMatch(ContainerSummary::running);
+            if (running) {
+                return new Stopped(Outcome.STILL_RUNNING, null, null, false, 0, List.of(), null,
+                        null, 0);
+            }
+        }
+        return stop(container, true, rescue, force);
+    }
+
+    /**
      * Stops a task, and removes it when asked.
      *
      * @param container Container name.
@@ -138,7 +185,7 @@ public final class TaskControl {
      * @param force Remove it even though work would be lost.
      * @return What happened.
      */
-    public Stopped stop(String container, boolean purge, boolean rescue, boolean force) {
+    private Stopped stop(String container, boolean purge, boolean rescue, boolean force) {
 
         if (!ContainerName.isTask(container)) {
             return new Stopped(Outcome.NOT_A_TASK, null, null, false, 0, List.of(), null, null, 0);

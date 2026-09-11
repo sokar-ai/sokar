@@ -226,7 +226,7 @@ public final class TaskLaunch {
 
         final TaskRunner runner = context.tasks();
         final String container =
-                runner.containerName(project, request.task(), String.valueOf(ProcessHandle.current().pid()));
+                runner.containerName(project, request.task());
 
         try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
 
@@ -883,8 +883,7 @@ public final class TaskLaunch {
         final boolean exists = context.podman().idOf(container).isPresent();
 
         if (code != 0 && exists && !request.keep()) {
-            final TaskControl.Stopped held = new TaskControl(context)
-                    .stop(container, false, false, false);
+            final TaskControl.Stopped held = new TaskControl(context).stop(container);
             out.println("kept      " + container + " - it failed, so nothing was removed");
             if (held.work() != null) {
                 out.println("          it holds " + held.work());
@@ -912,7 +911,7 @@ public final class TaskLaunch {
                 // Stopped rather than left up, for the reason the failed branch is: a task
                 // nobody is watching that still holds a firewall, a gate and a credential proxy
                 // is not kept, it is abandoned.
-                new TaskControl(context).stop(container, false, false, false);
+                new TaskControl(context).stop(container);
                 out.println("kept      " + container + " - it holds " + held
                         + " that never reached the gate");
                 out.println("          look with 'sokar task attach " + container + "' after"

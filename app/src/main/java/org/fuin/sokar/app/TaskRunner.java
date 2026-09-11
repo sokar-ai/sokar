@@ -45,11 +45,10 @@ public class TaskRunner {
      *
      * @param project The project.
      * @param task Task name.
-     * @param runId Identifier unique within the task.
      * @return Container name.
      */
-    public String containerName(Project project, String task, String runId) {
-        return ContainerName.of(project, task, runId);
+    public String containerName(Project project, String task) {
+        return ContainerName.of(project, task);
     }
 
     /**

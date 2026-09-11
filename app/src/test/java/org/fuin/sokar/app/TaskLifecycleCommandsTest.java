@@ -471,10 +471,10 @@ class TaskLifecycleCommandsTest {
     void purgeRemovesTheContainerAsWell(@TempDir Path dir) throws IOException {
 
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
-        stateOf("sokar-uc-shell-1");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 minute ago\n");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1")).isZero();
 
         assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman rm"));
     }
@@ -648,11 +648,11 @@ class TaskLifecycleCommandsTest {
         // The harm this exists for: removal is a cleanup command, and it used to destroy work
         // that existed nowhere else without saying anything.
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
-        stateOf("sokar-uc-shell-1");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 minute ago\n");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
         workspaceReports(dir, "3 2");
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isEqualTo(65);
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1")).isEqualTo(65);
         assertThat(err.toString())
                 .contains("2 commits and 3 changed files")
                 .contains("--rescue")
@@ -667,9 +667,9 @@ class TaskLifecycleCommandsTest {
         // before this the refusal simply did not apply and the work went quietly.
         final SokarContext context = context(dir);
         runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
-        stateOf("sokar-uc-shell-1");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isEqualTo(65);
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1")).isEqualTo(65);
         assertThat(err.toString()).contains("nothing recorded what it holds").contains("resume");
         assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
     }
@@ -702,7 +702,7 @@ class TaskLifecycleCommandsTest {
         final Path state = stateOf("sokar-uc-shell-1");
         UnhandedWork.note(state, new UnhandedWork.Held(true, 0, 2, null));
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isEqualTo(65);
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1")).isEqualTo(65);
         assertThat(err.toString()).contains("it holds 2 commits");
         assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
     }
@@ -716,7 +716,7 @@ class TaskLifecycleCommandsTest {
         runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
         UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1")).isZero();
         assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman rm"));
     }
 
@@ -728,7 +728,7 @@ class TaskLifecycleCommandsTest {
         runner.answering("ps", "sokar-uc-shell-1\tExited (0) 2 minutes ago\n");
         UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 2, null));
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--rescue"))
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1", "--rescue"))
                 .isEqualTo(70);
         assertThat(err.toString()).contains("task resume");
         assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
@@ -740,7 +740,7 @@ class TaskLifecycleCommandsTest {
         final SokarContext context = context(dir);
         runner.answering("ps", "");
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1")).isZero();
         assertThat(out.toString()).contains("nothing to stop");
     }
 
@@ -750,15 +750,15 @@ class TaskLifecycleCommandsTest {
         // Measured: a workspace whose repository had no initial commit printed "nothing to push",
         // exited zero, and the container was removed as rescued while the mirror never saw a ref.
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 minute ago\n");
         // Registered before the ref, and matched on the commit message: answers are tried in
         // insertion order, and the push command mentions SOKAR_TASK_REF as well.
         runner.answering("agent: uncommitted work", "nothing to push");
         runner.answering("SOKAR_TASK_REF", "refs/sokar/incoming/shell");
-        stateOf("sokar-uc-shell-1");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
         workspaceReports(dir, "3 0");
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--rescue"))
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1", "--rescue"))
                 .isEqualTo(70);
         assertThat(err.toString()).contains("could not push the work");
         assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
@@ -768,11 +768,11 @@ class TaskLifecycleCommandsTest {
     void forceRemovesItAnyway(@TempDir Path dir) throws IOException {
 
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
-        stateOf("sokar-uc-shell-1");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 minute ago\n");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
         workspaceReports(dir, "3 2");
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--force"))
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1", "--force"))
                 .isZero();
         assertThat(runner.lines()).anyMatch(line -> line.startsWith("podman rm"));
     }
@@ -781,11 +781,11 @@ class TaskLifecycleCommandsTest {
     void aCleanWorkspaceIsNotInTheWay(@TempDir Path dir) throws IOException {
 
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
-        stateOf("sokar-uc-shell-1");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 minute ago\n");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
         workspaceReports(dir, "0 0");
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1")).isZero();
         assertThat(out.toString()).doesNotContain("work      ");
     }
 
@@ -798,9 +798,9 @@ class TaskLifecycleCommandsTest {
         final SokarContext context = context(dir);
         runner.answering("ps", "sokar-uc-shell-1\tExited (0) 3 minutes ago\n");
         runner.answering("diff", "C /etc\nA /opt/tool\nA /opt/tool/bin\nC /var\n");
-        stateOf("sokar-uc-shell-1");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--force"))
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1", "--force"))
                 .isZero();
 
         // Added paths only: a container that ran at all has changed /etc and /var, and a number
@@ -814,12 +814,12 @@ class TaskLifecycleCommandsTest {
         // Rescued work is not work an agent offered up, so it lands beside the reviewed ref
         // rather than in it.
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 minute ago\n");
         runner.answering("SOKAR_TASK_REF", "refs/sokar/incoming/shell");
-        stateOf("sokar-uc-shell-1");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
         workspaceReports(dir, "3 2");
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--rescue"))
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1", "--rescue"))
                 .isZero();
 
         assertThat(out.toString()).contains("rescued   refs/sokar/incoming/shell-rescued");
@@ -838,12 +838,12 @@ class TaskLifecycleCommandsTest {
         // Rescuing it would publish unreviewed work, which is the one thing the gate exists
         // to prevent.
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 minute ago\n");
         runner.answering("SOKAR_TASK_REF", "refs/heads/shell");
-        stateOf("sokar-uc-shell-1");
+        UnhandedWork.note(stateOf("sokar-uc-shell-1"), new UnhandedWork.Held(true, 0, 0, null));
         workspaceReports(dir, "0 2");
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge", "--rescue"))
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1", "--rescue"))
                 .isEqualTo(70);
         assertThat(err.toString()).contains("without publishing it");
         assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
@@ -853,10 +853,11 @@ class TaskLifecycleCommandsTest {
     void purgeRemovesTheStateDirectory(@TempDir Path dir) throws IOException {
 
         final SokarContext context = context(dir);
-        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 1 minute ago\n");
         final Path state = stateOf("sokar-uc-shell-1");
+        UnhandedWork.note(state, new UnhandedWork.Held(true, 0, 0, null));
 
-        assertThat(execute(context, "task", "stop", "sokar-uc-shell-1", "--purge")).isZero();
+        assertThat(execute(context, "task", "remove", "sokar-uc-shell-1")).isZero();
         assertThat(state).doesNotExist();
     }
 }
