@@ -86,10 +86,24 @@ covers `Outcome`.
   the value to what is observable from outside the agent. Settle it before anything depends on it:
   a state that is right for one agent and silently wrong for another is worse than one that is
   missing.
-- **Is work waiting on a clearance decision distinguishable from work waiting on its own prompt?**
-  They need different answers from the person — one is answered in the interface, the other by
-  going into the session — so if the signal cannot tell them apart, that is worth knowing before
-  a screen offers the wrong one.
+
+  **There is now evidence for the second answer, from outside this project.** AI Beacon, a fleet
+  dashboard for coding agents, reports *working / idle / awaiting permission* without asking the
+  agent anything: it wraps the process and observes it. Read on 2026-09-11. That is the same
+  argument this project uses for the agent and provider split - what is observable from outside
+  works for agents nobody has written yet, while a signal every agent must emit is a bet on all
+  future ones. It is weaker per agent and it cannot be silently wrong for one of them, which is
+  the trade this question is about.
+
+- **~~Is work waiting on a clearance decision distinguishable from work waiting on its own
+  prompt?~~ Mostly answered by [B24](B24-First-Run-Consent-Inside-The-Box.md), 2026-09-11.** Inside
+  a task the agent's own prompts are turned off - the container is the answer - and B24's measured
+  outcome is a CLI reaching its prompt with no dialog at all. So the second kind is not a state to
+  display here; **an agent stopping to ask is a defect in B24's shape rather than something an
+  interface should learn to show**. What remains is the clearance decision, which this machine
+  *knows* rather than infers: the resolver raised it, `Prompts` streams it, and it carries a
+  deadline. The residue worth keeping is narrow - an agent that ships a new dialog, which B24's
+  last acceptance criterion already watches for.
 - **Does the mode survive a restart?** `Resume` brings a container back; whether it comes back as
   the same kind of thing decides whether the field is recorded once or re-derived, and an
   interface that showed a resumed task as a different mode from the one it was started as would
