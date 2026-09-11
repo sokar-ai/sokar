@@ -126,13 +126,13 @@ jobs:
           gpg_private_key: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
 
-      # Jars only.
-      - name: Deploy the jars
-        env:
-          OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
-          OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
-          OSS_SONATYPE_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
-        run: ./mvnw -B clean deploy -Pcentral-sonatype-release -s settings.xml
+      # Built and installed here, published further down. Nothing reaches Central or Artifactory
+      # until every check below has passed: a check that runs after one half is published can only
+      # ever ship that half. On 2026-09-11 it did exactly that - the jars went out, the check went
+      # red, and Central held a kit that no published CLI matched.
+      - name: Build and install
+        run: ./mvnw -B clean install -Pcentral-sonatype-release -s settings.xml
+
 
       # The binaries come from the ubuntu acceptance leg rather than being rebuilt here, for two reasons.
       - uses: actions/download-artifact@v8
@@ -159,6 +159,19 @@ jobs:
       # Checks the two packages against each other and installs both in a clean Debian and a clean.
       - name: Check the packages
         run: ./buildtools/check-packages.sh
+
+      # Both halves, after the checks and as close together as the job can put them. They still
+      # cannot be made atomic: measured on 2026-09-11, the deb followed the jars by 15m42s, and a
+      # kit that builds one command beside a CLI that knows another breaks every agent repository
+      # in that window. What closes it is not this ordering but each consumer refusing to move
+      # until both halves are newer than what it has.
+      # Jars only.
+      - name: Deploy the jars
+        env:
+          OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
+          OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
+          OSS_SONATYPE_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
+        run: ./mvnw -B deploy -Pcentral-sonatype-release -s settings.xml -DskipTests
 
       # The action publishes build-info by itself at the end of the workflow.
       - uses: jfrog/setup-jfrog-cli@v5
