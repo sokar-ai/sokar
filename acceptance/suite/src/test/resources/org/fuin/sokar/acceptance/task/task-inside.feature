@@ -8,6 +8,12 @@ Feature: Being inside a task, the way a person is
   prompt, what a bare push does and what leaving the shell decides are all things that exist only
   once somebody is inside.
 
+  Every scenario removes its task at the end. It did not have to before the lifecycle cut: every
+  run made its own container and leaving the shell removed it. Now there is one container per
+  project and task and it is kept when you leave, so a scenario that does not clean up hands the
+  next one a task that is already running - which 'start' refuses, correctly, and which reads as
+  a hang while the harness waits for a prompt that will never come.
+
   Scenario: the workspace holds the project, not just a .git directory
     Given a project called "accept" with a file in it
     And a terminal on the machine
@@ -18,6 +24,7 @@ Feature: Being inside a task, the way a person is
     And the terminal shows ".git"
     When I run "exit"
     Then the terminal shows "ready$"
+    And a script runs "sokar task remove sokar-accept-shell --force"
 
   Scenario: the prompt inside a task says which task it is
     Given a project called "accept" with a file in it
@@ -27,6 +34,7 @@ Feature: Being inside a task, the way a person is
     Then the terminal shows "sokar[accept/shell]"
     When I run "exit"
     Then the terminal shows "ready$"
+    And a script runs "sokar task remove sokar-accept-shell --force"
 
   Scenario: a bare push inside a task reaches the gate, not a branch in the mirror
     Given a project called "accept" with a file in it
@@ -37,6 +45,7 @@ Feature: Being inside a task, the way a person is
     Then the terminal shows "refs/sokar/incoming"
     When I run "exit"
     Then the terminal shows "ready$"
+    And a script runs "sokar task remove sokar-accept-shell --force"
 
   Scenario: leaving a shell with work in it keeps the task rather than discarding it
     Given a project called "accept" with a file in it
@@ -46,3 +55,4 @@ Feature: Being inside a task, the way a person is
     And I run "echo uncommitted >> /workspace/README.md"
     And I run "exit"
     Then the terminal shows "never reached the gate"
+    And a script runs "sokar task remove sokar-accept-shell --force"

@@ -52,7 +52,23 @@ ssh "${SSH_OPTS[@]}" "$VM" "
     echo 'binary says: '\$(sokar --version)
 "
 
-say "making the daemon survive a logout"
+say "checking nothing shadows what was just installed"
+# A stale copy in ~/.local/bin comes first on PATH and silently wins. An acceptance run against
+# this machine then measures a binary nobody installed: on 2026-09-11 a whole suite ran the CLI
+# from before the lifecycle cut and failed on verbs that had been renamed, while the package with
+# those verbs sat unused in /usr/bin.
+ssh "${SSH_OPTS[@]}" "$VM" "
+    found=\$(bash -lc 'command -v sokar')
+    if [ \"\$found\" != /usr/bin/sokar ]; then
+        echo \"PATH finds \$found, not the package at /usr/bin/sokar\"
+        echo \"  \$found says: \$(\$found --version 2>&1 | head -1)\"
+        echo \"  the package says: \$(/usr/bin/sokar --version 2>&1 | head -1)\"
+        echo \"Remove the shadowing copy, or everything after this measures the wrong binary.\"
+        exit 1
+    fi
+    echo \"sokar on PATH is the package: \$(sokar --version)\"
+"
+
 # Without this systemd stops everything the user owns when their last session ends - including
 # conmon, so every task dies with exit 143 and the workspace is only reachable again by resuming.
 # Every machine Sokar rents gets this at creation; a machine somebody keeps has to be told once.

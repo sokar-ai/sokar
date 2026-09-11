@@ -22,9 +22,15 @@ SOKAR_VM=user@host buildtools/deploy-vm.sh                    # install what you
 
 Two things about that second line, both learned the hard way:
 
-- **Do not pipe it into `grep`.** The pipeline buffers and you see nothing for fifteen minutes,
+- **Do not pipe it into `grep`.** The pipeline buffers and you see nothing at all until it ends,
   which is indistinguishable from a hang and was read as one. `tee` shows each scenario as it
-  happens; the whole suite is a few minutes, not a quarter of an hour.
+  happens.
+- **It is slower here than in CI, not faster.** Measured on 2026-09-11: half an hour locally
+  against six minutes on a rented `cpx42`, because the scenarios that build images and wait up to
+  480s for a prompt dominate, and a VM on a desktop is slower at both. What it buys is not speed -
+  it is an answer without spending a CI round and two rented machines, and one you can watch and
+  interrupt. Run the fast half first with `-Dcucumber.filter.tags='not @slow'` when the change only
+  touches what the CLI prints.
 - **`sokar.acceptance.user` and `sokar.acceptance.key` default to the test identity.** Pointing the
   suite at a machine is one property; the rest is already right.
 
