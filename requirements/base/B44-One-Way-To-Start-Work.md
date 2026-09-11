@@ -116,7 +116,38 @@ The rule: **describes something live, it is volatile; is it knowledge about the 
 durable.** Sockets, pid files, the nftables ruleset and the resolver's files stay in the runtime
 directory. `resume.json`, the work note and the task's own description move to state.
 
-### 5. One coordinated cut
+### 5. A second daemon may not take the socket
+
+Not a verb, but the same failure in the layer below them: **a second `sokard` binds a socket that
+is already served, and neither side says anything.** Measured on the Ubuntu test VM on
+2026-09-11, after a daemon was started by accident while another was running:
+
+```
+u_str LISTEN 0 50 /run/user/1000/sokar/sokard.sock 71525      users:(("sokard",pid=12876))
+u_str LISTEN 0 50 /run/user/1000/sokar/sokard.sock 27791903   users:(("sokard",pid=1494773))
+```
+
+Two processes, one path, two inodes. The path resolved to the newer one, so every connection
+reached a daemon with nothing in it while the first went on holding two running tasks - reachable
+by nothing. The interface showed an empty machine; the tasks were fine. Nothing was logged by
+either daemon, because from each one's point of view nothing went wrong.
+
+It was found by accident, and it is the kind of thing that is only ever found by accident: the
+symptom is *absence*. A task list that is empty looks like a machine with no work on it.
+
+**What must be true:** a daemon that finds a live socket at its path refuses to start and says what
+holds it. A stale socket - the path exists, nothing listens - is cleaned up and taken, because that
+is what a machine that crashed leaves behind and refusing there would need a person for something
+Sokar can decide.
+
+This also makes `sokar doctor` able to answer "am I talking to the daemon I think I am", which it
+cannot today.
+
+**The second half is `--version` starting a daemon.** `sokard --version` ignores the flag and runs;
+that is how the accidental second daemon came to exist. A flag that prints something must not
+start a service.
+
+### 6. One coordinated cut
 
 `Start`, `Resume` and `Stop` are in `org.fuin.sokar.Tasks1.varlink`, whose compatibility rules
 would forbid removing `Resume` or changing what `Start` means. Those rules are marked *not in force
@@ -172,6 +203,8 @@ Points 5 and 6 are the frontend's, asked for on the channel on 2026-09-11.
   nothing.
 - `start --detach` leaves a task that `attach` reaches, and returns promptly. It says something
   useful about a build it is not waiting for.
+- A second `sokard` started against a live socket refuses and names what holds it; one started
+  against a stale socket takes it. `sokard --version` prints a version and starts nothing.
 - `start` after a reboot brings the task back whole - container **and** helpers - with the gate
   token it already had, or reports that it did not.
 - `remove` on a running task refuses; `remove --force` stops and removes; `HOLDS_WORK` and
