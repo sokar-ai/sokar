@@ -24,6 +24,7 @@ Where the position is not obvious, the last section says why.
 |---|---|---|---|---|
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | one, and one dialog is refused rather than solved | [note](#b24) |
 | B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
+| B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
 | B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided | |
 | B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file | [note](#b29) |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one | |
@@ -237,6 +238,8 @@ guards against is already running as the operator and can already read the vault
 doing and it is not urgent.
 
 <a id="b44"></a>**B44 is in Now although nothing is broken by it.** Everything it touches works; what fails is the operator. Asking to run an existing task accepted the name, built something else beside it, and removed that again on exit - three wrong turns, none of them reported, on the command a person reaches for first. It is above B27 because B27 is how it would have been caught, and below B24 because B24 stops work rather than confusing it.
+
+<a id="b45"></a>**B45 is in Now although no code depends on it.** The documentation is what a person meets before any of it, and it currently answers a simple question - what can a project file hold - only by reading the reader's source. A third of it is one text maintained twice by hand. It is above B27 because B27 makes the product testable by a person and this makes it usable by one, and the second is what somebody hits first.
 
 <a id="b43"></a>**B43 is in Soon rather than Now, and shrank once B44 was decided.** What made a restart unrecoverable - the records a resume needs living in tmpfs - is B44's to fix, and B44 fixes it. What is left here is whether a machine coming back should do anything by itself, and how a person finds out that a restart is why their tasks are down. Its first question may reduce it to a line in the listing.
 
