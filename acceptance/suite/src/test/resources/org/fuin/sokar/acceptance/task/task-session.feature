@@ -11,7 +11,7 @@ Feature: Leaving a task and coming back to it
   Scenario: work carries on while nobody is attached, and is still there on return
     Given a project called "session" with a file in it
     And a terminal on the machine
-    When I run "cd ~/session && sokar task run --attach shell --no-attach"
+    When I run "cd ~/session && sokar task start --attach shell --detach"
     And I run "sokar task attach $(sokar task list | grep -o 'sokar-session[^ ]*' | head -1)"
     And I wait for the session inside the container
     And I run "echo MARKER-BEFORE-LEAVING"
@@ -32,5 +32,5 @@ Feature: Leaving a task and coming back to it
     Then the terminal shows "STILL-RUNNING"
 
   Scenario: the task is cleaned up afterwards
-    When a script runs "sokar task stop $(sokar task list | grep -o 'sokar-session[^ ]*' | head -1) --purge --force"
+    When a script runs "sokar task remove $(sokar task list | grep -o 'sokar-session[^ ]*' | head -1) --force"
     Then it exits zero

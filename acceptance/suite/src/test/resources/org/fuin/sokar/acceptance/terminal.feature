@@ -6,7 +6,7 @@ Feature: What a person sees at a terminal
 
   Scenario: a command that needs a name says which names it would have taken
     Given a terminal on the machine
-    When I run "sokar task resume"
+    When I run "sokar task remove"
     Then the terminal shows "missing required parameter"
 
   Scenario: a name that names nothing is not a task with no logs
