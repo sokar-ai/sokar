@@ -2,7 +2,8 @@
 
 **Status:** open, written 2026-09-11. It is the half of continuing that
 [B43](B43-Tasks-After-The-Machine-Restarts.md) and [B44](B44-One-Way-To-Start-Work.md) do not
-cover: both bring the *container* back, neither brings the *conversation* back.
+cover: both bring the *container* back, neither brings the *conversation* back. It covers a task
+somebody drives at a terminal as well as an unattended run, decided on 2026-09-11.
 
 ## What happens today
 
@@ -43,14 +44,17 @@ and is discarded, several times a session.
    restart, survives a reboot, and is destroyed by `remove` along with everything else the task
    owns. That puts it in the durable task state B44 deferred, not in `/run/user/<uid>`, which a
    reboot wipes.
-2. **The id is taken from output the host already owns.** Nothing new crosses out of the
-   container for it. The agent's output is already written to `task.log` in the container's state
-   directory by the runtime, and the headless path already parses it event by event; this reads a
-   field from an event it already reads.
-3. **Which event carries the id, and under which key, is declared by the agent package** - beside
+2. **The id is taken from what the host already owns.** Nothing new crosses out of the
+   container for it. Headless runs are the easy half: the agent's output is already written to
+   `task.log` in the container's state directory by the runtime, and that path already parses it
+   event by event, so this reads a field from an event it already reads. A task somebody drives by
+   hand writes a terminal instead, and there the id is read from the agent's own session files in
+   the config directory Sokar already writes into the container - still a thing the host looks at,
+   still nothing the agent is given a way to send.
+3. **Where the id is, in either mode, is declared by the agent package** - beside
    `supports_resume` and `resume_flag`, in the agent's own YAML. Nothing outside `agents/` may
-   name an agent, and *"the id is in the `system` event's `session_id`"* is a fact about one
-   agent, not about Sokar.
+   name an agent, and *"the id is in the `system` event's `session_id`"* and *"the sessions are
+   files under this directory"* are both facts about one agent, not about Sokar.
 4. **Continuing is what `start` does, not a fourth verb.** B44 settled the vocabulary: `start`,
    `stop`, `remove`. A task with a recorded id, whose agent supports resuming, starts by
    continuing; the report says which of the two happened, the way `StartAction` already says
@@ -72,7 +76,9 @@ and is discarded, several times a session.
 
 - A task is started, does some work, and its machine is rebooted. Starting it again continues the
   same conversation: the agent is asked something that only the earlier turns answer, and it
-  answers.
+  answers. **Asserted for both modes** - an unattended run and a task somebody drove at a
+  terminal - because the two read the id from different places and only the second proves the
+  harder one.
 - The recorded id survives `stop` and `start` and is gone after `remove`, each asserted.
 - An agent whose definition declares no session id is started and stopped and started again. It
   reports a fresh session; nothing anywhere claims a continuation.
@@ -84,13 +90,14 @@ and is discarded, several times a session.
 
 ## To be checked
 
-- **Where does the id come from for a task a person drives by hand?** Headless mode emits
-  stream-json and this reads it. An attached shell does not: the agent runs interactively and
-  writes a terminal, not a stream of events. The id still exists - the agent keeps its own session
-  files in the config directory Sokar already writes into the container - but reading it there is
-  a second mechanism with a second set of per-agent knowledge. Settle whether shell tasks get this
-  at all before designing for both; a feature that works only for unattended runs is defensible
-  and should be *said* rather than discovered.
+- **~~Does a task a person drives by hand get this too?~~ Yes, decided by the operator on
+  2026-09-11.** The question was whether to promise it for unattended runs only, and the answer is
+  both modes. What that costs is now design rather than doubt: headless mode emits stream-json and
+  the id is read from an event, an attached shell emits a terminal and there is no event to read.
+  The id still exists there - the agent keeps its own session files in the config directory Sokar
+  already writes into the container - so the second route is a file the host can look at rather
+  than a stream it can parse, and a definition that declares only one of the two is incomplete
+  rather than merely limited. Whether it is one declaration covering both or two is open below.
 - **What happens to a recorded id when the agent is updated under it?** A02 moves an agent's CLI
   version without asking. Whether a session written by the old version is continuable by the new
   one is the agent's business and not ours, but the failure mode is ours: a continuation that
@@ -100,6 +107,11 @@ and is discarded, several times a session.
   the task. If a session id is part of what makes the work recoverable, it may belong in whatever
   rescue leaves behind - or it may be meaningless there, because the container it referred to is
   gone.
+- **One declaration for both modes, or two?** An event and a key describe the headless route; a
+  directory and a file shape describe the other. If the id is the same string in both - and for at
+  least one agent it visibly is, because the file is named after it - a single declaration with
+  two ways of finding the same thing is honest. If it is not, a definition has to say so, and
+  whatever reads it has to know which mode it is in.
 - **One task, one session, or several?** A long-lived task may run many sessions over its life.
   Recording only the last is the simple answer and is probably right; recording a list is the one
   that supports *"go back to what it was doing on Tuesday"*, and nobody has asked for that.

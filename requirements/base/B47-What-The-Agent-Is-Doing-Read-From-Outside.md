@@ -1,6 +1,7 @@
 # B47 — What The Agent Is Doing, Read From Outside
 
-**Status:** open, written 2026-09-11. It supplies the one producer
+**Status:** open, written 2026-09-11, and covering a task somebody drives at a terminal as well
+as an unattended run - decided on 2026-09-11. It supplies the one producer
 [B11](B11-What-A-Task-Says-About-Itself.md) is missing, and it answers the question B11 left
 unsolved rather than re-opening it.
 
@@ -54,7 +55,9 @@ F28 keeps its refusal and gets what it wanted from it.
 ## What must be true
 
 1. **Waiting is derived from the agent's own output, read where the host already writes it.**
-   Nothing new crosses out of the container, and no agent gains a channel it can write into.
+   Nothing new crosses out of the container, and no agent gains a channel it can write into. This
+   holds for a task somebody drives at a terminal as much as for an unattended run - the terminal
+   one being the mode a person walks away from, and so the one the state is worth most in.
 2. **What waiting looks like is declared by the agent package**, beside `supports_resume` and
    `resume_flag`, in the agent's own YAML. Sokar carries no agent's wording.
 3. **A derived state is marked as derived**, and is never mixed with what the runtime observed.
@@ -83,7 +86,8 @@ F28 keeps its refusal and gets what it wanted from it.
 
 - An agent is driven to the point where it waits on a person. Within a bounded time the task
   reports `waiting`, over the contract, without anything inside the container having sent
-  anything.
+  anything. **Asserted at a terminal as well as headless**, because a terminal's redraws are what
+  makes the detection hard and a test that only covers the easy mode proves the wrong half.
 - The same agent, working, never reports `waiting`; and the same agent, quiet and finished, reports
   idle rather than waiting. Both asserted, because the second is the expensive mistake.
 - An agent whose definition declares no patterns reports that it cannot say. A test asserts the
@@ -101,11 +105,15 @@ F28 keeps its refusal and gets what it wanted from it.
   service shipped through the update pipeline. The candidates are a linear-time engine, a matcher
   restricted to anchored literals, or a hard time bound per match - and the answer decides point 7
   rather than following from it.
-- **Does this work for a task somebody is driving by hand?** An attached agent renders a terminal:
-  the log then holds cursor movement and redraws rather than lines, and the same sentence may
-  appear as several writes interleaved with escape sequences. Whether the declared patterns match
-  that at all has to be measured before this is promised for shell tasks; an honest answer of
-  *"unattended runs only"* is better than one that works in a test and not at a terminal.
+- **~~Does this cover a task somebody is driving by hand?~~ Yes, decided by the operator on
+  2026-09-11**, and it is the harder half rather than the optional one. An attached agent renders a
+  terminal: the log holds cursor movement and redraws rather than lines, and one sentence may
+  arrive as several writes interleaved with escape sequences. So matching raw bytes is not it -
+  something has to reduce a terminal's writes to the text currently on the screen before a
+  declared pattern is applied to it, and what that costs has to be measured rather than assumed.
+  What is no longer in question is whether it is worth doing: an agent waiting at a terminal
+  nobody is looking at is precisely the case this requirement exists for, and it is the mode a
+  person is most likely to walk away from.
 - **Is there a structured route where the output is structured?** Headless mode already emits
   typed events rather than prose, and an event type is a far better thing to declare than a
   sentence. If so, a definition may need to say both - which event in one mode, which wording in
