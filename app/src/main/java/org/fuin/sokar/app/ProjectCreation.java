@@ -186,8 +186,8 @@ public final class ProjectCreation {
     static String render(String name, SecurityClass securityClass, String baseImage,
             @Nullable String upstream, List<String> sets) {
         final StringBuilder text = new StringBuilder("""
-                # Everything here can be changed; see
-                # https://github.com/sokar-ai/sokar#readme for what each field does.
+                # Everything here can be changed. Every key this file can carry, with what it
+                # is for: https://github.com/sokar-ai/sokar/blob/main/doc/project-file.md
                 project:
                   name: "%s"
                   security_class: "%s"

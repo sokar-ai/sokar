@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class EgressEditTest {
 
     private static final String WITH_COMMENTS = """
-            # Written by 'sokar task run'. Everything here can be changed.
+            # Written by 'sokar task start'. Everything here can be changed.
             project:
               name: "uc"
               security_class: "guarded"
@@ -30,7 +30,7 @@ class EgressEditTest {
         // comments, the quoting and the key order in the file people review.
         final String edited = EgressEdit.withEgress(WITH_COMMENTS, List.of("maven"), List.of());
 
-        assertThat(edited).contains("# Written by 'sokar task run'.")
+        assertThat(edited).contains("# Written by 'sokar task start'.")
                 .contains("# What this project's own tooling may reach.")
                 .contains("  name: \"uc\"")
                 .contains("  base_image: \"ubuntu:24.04\"");

@@ -521,7 +521,7 @@ giving you a shell.
 run you will want to look at, so a non-zero exit stops the container instead of
 removing it — workspace, logs and unpushed commits all still there. `sokar task list`
 shows it, `sokar task start` puts you back inside, and
-`sokar task stop <name> --purge` discards it. A purge also says how many files the
+`sokar task remove <name>` discards it. A removal also says how many files the
 agent had installed inside the container, because those have nowhere to go and
 nothing else records that they existed.
 

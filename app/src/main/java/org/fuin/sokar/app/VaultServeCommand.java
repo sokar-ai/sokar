@@ -21,7 +21,7 @@ import picocli.CommandLine.Spec;
  * <p>
  * <strong>This process mints the phantom token, not the caller.</strong> The token and the real
  * credential then live in the same place, which is what lets the credential be read per request
- * and never handed to anyone else - including the {@code task run} process that started this one.
+ * and never handed to anyone else - including the {@code task start} process that started this one.
  * The minted value is written to {@code --token-file} for the task to inject into the container.
  * <p>
  * Minting also fails fast: {@link TokenBroker#mint} refuses a scope the vault cannot honor, so a

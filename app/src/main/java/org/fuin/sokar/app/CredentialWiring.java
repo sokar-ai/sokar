@@ -347,7 +347,7 @@ final class CredentialWiring {
      * from inside the box yields nothing reusable.
      * <p>
      * Detached and pid-filed for the same reason as the gate and the credential proxy - it has to
-     * outlive a {@code task run} that either returns or replaces itself with a shell, and the
+     * outlive a {@code task start} that either returns or replaces itself with a shell, and the
      * poststop hook reaps every {@code *.pid} in the state directory.
      *
      * @param container Container name.
