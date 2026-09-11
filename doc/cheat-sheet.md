@@ -1,7 +1,8 @@
 # Sokar Cheat Sheet
 
 What to type, arranged by what you are trying to do. For the command tree itself, see
-[commands](commands.md); `sokar <command> --help` is always the authority.
+[commands](commands.md); `sokar <command> --help` is always the authority. Every key a project file can carry is in
+[the project file](project-file.md).
 
 Throughout: **TASK** is a container name as `sokar task list` shows it, and a command that needs
 one will list the names it would have taken if you leave it out.

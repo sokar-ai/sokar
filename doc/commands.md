@@ -3,7 +3,8 @@
 Every command, in the shape the CLI actually has. `sokar <command> --help` is always the
 authority — this page exists so you can find the name without guessing it.
 
-The [cheat sheet](cheat-sheet.md) is the other way round: it starts from what you are trying to
+The [cheat sheet](cheat-sheet.md) is the other way round: it starts from what you are trying to Every key a project file can carry is in
+[the project file](project-file.md).
 do rather than from the command tree.
 
 ## The ten groups

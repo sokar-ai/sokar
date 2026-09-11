@@ -221,6 +221,11 @@ what goes wrong when it is skipped:
 See [the cheat sheet](doc/cheat-sheet.md) — arranged by what you are doing, not by the command
 tree — and [commands](doc/commands.md) for the complete list with a line each.
 
+## Everything a project file can say
+See [the project file](doc/project-file.md) — one annotated example with every key, what it is
+for, and what is deliberately not in it. The wizard writes a working file for you; this is for
+when you want to know what else is possible.
+
 ## What each security class actually does
 See [the three security classes](doc/security-classes.md) — one picture each for `offline`,
 `guarded` and `online`: who is involved, how work gets in and out, and where somebody reads it.
