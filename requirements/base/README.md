@@ -54,6 +54,7 @@ Where the position is not obvious, the last section says why.
 | B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 | |
 | B37 | [The Build That Runs Somewhere Else](B37-The-Build-That-Runs-Somewhere-Else.md) | A task learns the verdict and the reason for the build its own work triggered, without reaching the forge and without holding a forge credential. | seven, and the first may end it | [note](#b37) |
 | B38 | [How Far Something That Got Through Can Get](B38-How-Far-Something-That-Got-Through-Can-Get.md) | How far a convinced agent can get is bounded where it can be, named where it cannot, and the reviewer sees what matters before what is merely large. | six, and one may have no answer | [note](#b38) |
+| B42 | [Where The Agent Protocols Touch This](B42-Where-The-Agent-Protocols-Touch-This.md) | Each of A2A, MCP, ACP and AG-UI is adopted, answered otherwise, or refused - with the reason. | five, and the first decides whether ACP is interesting at all | [note](#b42) |
 | B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | two | [note](#b08) |
 
 
@@ -232,3 +233,8 @@ it from scratch.
 decision. What it closes is a second lock on a door whose first lock is the uid: the process it
 guards against is already running as the operator and can already read the vault file. It is worth
 doing and it is not urgent.
+
+<a id="b42"></a>**B42 is in Later although it blocks nothing and is cheap.** It is reading rather
+than building, and three of its four edges already have an answer here - the value is in comparing
+those answers with what the field settled on, which is worth doing before somebody defends them in
+public and not before that.
