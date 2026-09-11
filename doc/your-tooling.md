@@ -61,7 +61,7 @@ one.
 installing packages is what they are almost always for. They also run *after* the
 agent layer, so they can rely on the agent CLI already being present.
 
-`sokar task run --dry-run` shows what would be built without building it, and the
+`sokar task start --dry-run` shows what would be built without building it, and the
 generated `Containerfile` is left in `$XDG_DATA_HOME/sokar/build/<project>/` — it
 is meant to be read.
 

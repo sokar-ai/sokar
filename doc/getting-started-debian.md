@@ -218,7 +218,7 @@ sokar vault import claude
 
 That reads what the agent already has, records the kind for you, and never puts the
 value through your shell — which is where the placeholder above tends to end up
-verbatim. `sokar task run` also says so when the agent's own credential has moved on
+verbatim. `sokar task start` also says so when the agent's own credential has moved on
 and the vault's copy is behind.
 
 **Otherwise unlock and store, in that order.**
@@ -264,7 +264,7 @@ Some details worth knowing:
   `--systemd-credential <file>` replace the prompt entirely.
 - **`--type` belongs to the credential, not to the run.** A provider that accepts
   more than one kind puts them in different headers, so the kind is recorded once
-  here and every task uses it without being told. `sokar task run
+  here and every task uses it without being told. `sokar task start
   --credential-type` overrides it; nothing else needs to.
 - The **name must be the agent's name** — `sokar agents` lists what is installed.
   Sokar looks the credential up by that name and by nothing else.
@@ -301,7 +301,7 @@ Code takes an API key or a subscription OAuth token; say which when you store it
 
 ## 4. Describe your project
 
-**You do not have to write this file.** `sokar task run` in a directory without one offers
+**You do not have to write this file.** `sokar task start` in a directory without one offers
 to write it, taking the project name from the directory and Enter for every default:
 
 ```
@@ -411,7 +411,7 @@ of your repository on your own machine, at
 Every request must carry a per-task token, and the port is bound on `127.0.0.1`, so
 nothing on your local network can reach it at all — the container gets in because
 Sokar maps your machine's loopback into the containers it starts itself. Where podman
-cannot do that, `task run` binds every interface instead and says so on that run's
+cannot do that, `task start` binds every interface instead and says so on that run's
 output. The container's `origin` points at that mirror rather than at your real
 remote, and a push lands in `refs/sokar/incoming/<task>`, where it waits for you.
 
@@ -433,7 +433,7 @@ is used, and seeded from the first of these that applies:
 | the repository you are standing in | neither of the above and the current directory is a git work tree |
 | nothing, so the mirror starts empty | you are not in a repository |
 
-The third is the usual case and needs no flag — `sokar task run` prints
+The third is the usual case and needs no flag — `sokar task start` prints
 `seed  <path>` when it uses it, so the choice is never silent. A local path works
 exactly like a URL; git does not care.
 
@@ -475,7 +475,7 @@ To add your own tooling to the image, see [your tooling](your-tooling.md).
 ## 5. Run a task
 
 ```
-sokar task run
+sokar task start
 ```
 
 By default it starts the agent for you and leaves a shell behind when the agent
@@ -520,7 +520,7 @@ giving you a shell.
 **A task that fails is kept without being asked.** You cannot know in advance which
 run you will want to look at, so a non-zero exit stops the container instead of
 removing it — workspace, logs and unpushed commits all still there. `sokar task list`
-shows it, `sokar task resume <name>` puts you back inside, and
+shows it, `sokar task start` puts you back inside, and
 `sokar task stop <name> --purge` discards it. A purge also says how many files the
 agent had installed inside the container, because those have nowhere to go and
 nothing else records that they existed.

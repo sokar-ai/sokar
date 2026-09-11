@@ -29,13 +29,13 @@ Everything that starts, joins, or ends a piece of agent work.
 
 | Command | What it does |
 |---|---|
-| `sokar task run [TASK]` | Runs a task in a fresh container for the given project. |
+| `sokar task start [TASK]` | Starts a task: creates it, or brings back the one that is stopped. |
 | `sokar task list` | Lists the tasks on this machine, with how long each has been in its state. |
 | `sokar task status TASK` | Says what a task is doing and what its workspace holds. |
 | `sokar task logs TASK [LOG]` | Shows what a task's helpers on this machine wrote. |
 | `sokar task attach TASK` | Opens a shell in a running task. Leaving it does not end it. |
-| `sokar task resume TASK` | Starts a stopped task again, keeping its workspace. |
-| `sokar task stop TASK` | Stops a task, its container and its helpers. |
+| `sokar task stop TASK` | Stops a task and its helpers. The container and its workspace stay. |
+| `sokar task remove TASK` | Removes a stopped task: its container, its state and its workspace. |
 | `sokar task label TASK` | Gives a task a caption to read it by. Not a rename. |
 | `sokar task prepare` | Builds this project's task image without starting a task. |
 | `sokar task clearance TASK` | Changes what a running task does about a blocked connection. |
@@ -51,12 +51,24 @@ restart**.
 fit a table; `status` is everything this machine knows about one task, including whether its
 workspace holds changes nobody has pushed. That last answer is only available while the task runs:
 the workspace is inside the container, and once it is stopped the only source is the note
-`task stop` wrote on the way out.
+`task stop` wrote on the way out - which is also what `task remove` reads before it refuses.
 
-**Worth knowing about the ones that end a task.** `stop` keeps the container so the task can be
-resumed; `--purge` removes it, and refuses when the workspace holds commits that never reached the
-gate — `--rescue` pushes those to the gate first, `--force` discards them. Leaving an attached
-shell removes the container too, unless it holds work nobody handed back.
+**One verb starts, and it decides from the task's state.** `start` creates a task that is not
+there and brings back one that is stopped, with the workspace, the branch and the uncommitted
+changes it already has. A task that is already running is refused rather than started twice, and
+the refusal names `attach`. `--detach` starts it without handing over a shell; `--now` returns
+before the image is built, for a caller that follows the task's phase instead of waiting.
+
+**Stopping and removing are two verbs, because one destroys and the other does not.** `stop` ends
+the session and the helpers and keeps everything; `remove` is the one that throws the workspace
+away. `remove` refuses three times over: the task is running (`stop` it first, or `--force`), it
+holds commits that never reached the gate (`--rescue` pushes them to the gate first, `--force`
+discards them), or nothing could say what it holds. They were one command with a flag between
+them, which is a verb whose meaning depends on a word people do not read.
+
+**The container is kept when you leave an attached shell.** `--rm` on `start` is how you say you
+want it thrown away — it used to be the other way round, and the command a person reaches for
+first removed what it had just made.
 
 ## shield
 
@@ -126,13 +138,22 @@ Lists the agents installed on this machine. `--verbose` adds what each one needs
 `--supply-chain` reports what its install pins, so "which version ran" is answerable from the
 definition rather than from a build log.
 
-## projects
+## project
 
 ```
-sokar projects
+sokar project list
+sokar project delete PROJECT [--dry-run] [--force]
 ```
 
-Lists the projects this machine has run tasks for.
+Lists the projects this machine has run tasks for, and removes what Sokar built for one.
+`sokar projects` and a bare `sokar project` both list, as `sokar tasks` and a bare `sokar task` do:
+a command whose name is a noun answers the question it looks like it is asking.
+
+**`delete` does not delete the project.** The project file, the checkout and the real upstream are
+the operator's and are not touched. What goes is the gate mirror, the task image, the build
+directory, the registry entry and every task with it - all of which a later run rebuilds, which is
+what makes it safe to offer. It refuses while work is waiting unreviewed at the gate, while tasks
+are still up, and when a task will not give up what it holds.
 
 ## setup
 

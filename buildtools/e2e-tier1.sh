@@ -843,24 +843,28 @@ if podman exec "$CONTAINER" sh -c 'cd /workspace \
         && git -c user.email=agent@localhost -c user.name=agent commit -q --allow-empty \
              -m "e2e: work that was never pushed"' 2>/dev/null; then
 
-    STOP_OUT="$(cd "$WORK" && "$SOKAR" task stop "$CONTAINER" 2>&1)"
-    if echo "$STOP_OUT" | grep -q "never reached the gate"; then
-        pass "stopping a task says what it holds that never reached the gate"
-    else
-        fail "stopping a task said nothing about the work it holds"
-        echo "$STOP_OUT" | head -3 | while read -r line; do info "  $line"; done
-    fi
-
-    PURGE_OUT="$(cd "$WORK" && "$SOKAR" task stop "$CONTAINER" --purge 2>&1)"
-    PURGED=$?
+    # Stopping keeps, and says nothing about the work: what a task holds is Remove's question,
+    # because Remove is what would destroy it. Stop only writes the note that lets Remove answer
+    # once the container is down - nothing can look inside a stopped one.
+    (cd "$WORK" && "$SOKAR" task stop "$CONTAINER" >/dev/null 2>&1)
     if podman container exists "$CONTAINER" 2>/dev/null; then
-        pass "removing a stopped task that holds unpushed work is refused"
+        pass "stopping a task keeps it, so the work is still there to decide about"
     else
-        fail "a stopped task was removed with work that existed nowhere else"
-        echo "$PURGE_OUT" | head -3 | while read -r line; do info "  $line"; done
+        fail "stopping a task removed it"
     fi
 
-    if (cd "$WORK" && "$SOKAR" task stop "$CONTAINER" --purge --force >/dev/null 2>&1) \
+    REMOVE_OUT="$(cd "$WORK" && "$SOKAR" task remove "$CONTAINER" 2>&1)"
+    if podman container exists "$CONTAINER" 2>/dev/null \
+            && echo "$REMOVE_OUT" | grep -q "never reached the gate"; then
+        pass "removing a stopped task that holds unpushed work is refused, and says what it holds"
+    else
+        # Checked together on purpose. Refusing without naming the work is a dead end for whoever
+        # reads it, and naming it without refusing is worse than either.
+        fail "removing a stopped task with unpushed work was not refused with what it holds"
+        echo "$REMOVE_OUT" | head -3 | while read -r line; do info "  $line"; done
+    fi
+
+    if (cd "$WORK" && "$SOKAR" task remove "$CONTAINER" --force >/dev/null 2>&1) \
             && ! podman container exists "$CONTAINER" 2>/dev/null; then
         pass "--force removes it anyway, which is the deliberate way to discard work"
         CONTAINER=""

@@ -44,15 +44,18 @@ for a passphrase they never used to be asked for.
 ## Run something
 
 ```
-sokar task run                                  # interactive shell in a fresh container
-sokar task run --attach agent                   # start the agent, shell when it exits
-sokar task run --prompt "fix the failing test"  # unattended, no terminal
-sokar task run --keep                           # leave the container in place afterwards
-sokar task prepare                              # build the image without starting a task
+sokar task start                                  # interactive shell; creates it or brings it back
+sokar task start --attach agent                   # start the agent, shell when it exits
+sokar task start --prompt "fix the failing test"  # unattended, no terminal
+sokar task start --detach                         # start it and keep your prompt
+sokar task start --rm                             # throw the container away when you leave
+sokar task prepare                                # build the image without starting a task
 ```
 
-Leaving the shell removes the container — unless it holds work that never reached the gate, and
-then it is kept and says so. Ctrl-C keeps it too: an interrupted run is not a finished one.
+One verb, and it decides from the task's state: nothing there, it is created; stopped, it comes
+back with the workspace it had; already running, it says so and names `attach`.
+
+Leaving the shell **keeps** the container. `--rm` is how you say otherwise.
 
 ## Find and re-enter a task
 
@@ -62,21 +65,21 @@ sokar task status TASK           # everything about one, including uncommitted w
 sokar task logs TASK             # which logs its helpers on this machine wrote
 sokar task logs TASK gate.log -f # follow one
 sokar task attach TASK           # go into a running one (offers to start a stopped one)
-sokar task resume TASK           # start a stopped one again, workspace intact
 sokar task label TASK "..."      # a caption to tell several apart
 ```
 
 ## End a task
 
 ```
-sokar task stop TASK             # stop it, keep it resumable
-sokar task stop TASK --purge     # remove it as well — refuses if it holds unpushed work
-sokar task stop TASK --rescue    # push that work to the gate first
-sokar task stop TASK --purge --force   # discard it anyway
+sokar task stop TASK             # stop it and its helpers; everything it holds stays
+sokar task remove TASK           # remove it — refuses if it is up or holds unpushed work
+sokar task remove TASK --rescue  # push that work to the gate first, then remove
+sokar task remove TASK --force   # stop it if it runs, and discard the work anyway
 sokar panic                      # stop everything, remove nothing
 ```
 
-`--purge` destroys the workspace: it lives in the container, not on the host.
+`remove` destroys the workspace: it lives in the container, not on the host. `stop` never does —
+that is why they are two verbs and not one with a flag.
 
 ## Push from inside a task
 

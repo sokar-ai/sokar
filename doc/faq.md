@@ -25,7 +25,7 @@ re-deriving it. `domains` is the escape hatch for a host no shipped set covers.
 
 **Declaring nothing reaches nothing.** An absent `egress` section is not a generous default
 that quietly widens when a release adds a set — it is deny. A project file created by
-`sokar task run` gets a starter block written into it for that reason: the common case works
+`sokar task start` gets a starter block written into it for that reason: the common case works
 immediately, and the grant is still visible in a file you review.
 
 **Ports 80 and 443 only.** A declared name opens web ports at the addresses it resolves to,

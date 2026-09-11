@@ -64,7 +64,7 @@ The rest of this document is that sentence, unpacked.
 
 ## 4. What actually happens when you run a task
 
-You type `sokar task run` in your project directory. Then, in order:
+You type `sokar task start` in your project directory. Then, in order:
 
 1. **Sokar reads `project.yml`** — the file beside your code that says which Linux to
    start from, how locked down this project is, and what the agent may reach on the
@@ -88,7 +88,7 @@ You type `sokar task run` in your project directory. Then, in order:
    you pass `-P "do this and that"` and let it run headlessly with no one watching.
 9. **The agent pushes its result to the gate** — your in-tray, on your machine.
 10. **The container is destroyed** when you leave. Nothing survives except the work in
-    the gate and the audit log. `--keep` keeps the container if you want to poke at it.
+    the gate and the audit log. The container is kept when you leave; `--rm` throws it away instead.
 
 ## 5. The hardening, point by point
 
@@ -272,7 +272,7 @@ escape hatch for a host no set covers. Anything you did not name does not resolv
    want baked in.
 
 Your lines run as administrator inside the *image build* and after the agent layer, so
-they can install packages and rely on the agent already being there. `sokar task run
+they can install packages and rely on the agent already being there. `sokar task start
 --dry-run` shows you the generated recipe without building it, and the recipe is left on
 disk to be read.
 
