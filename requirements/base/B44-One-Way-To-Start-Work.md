@@ -128,6 +128,24 @@ shim neither side will ever need again. Between the two pushes an old frontend g
 `MethodNotFound` and a tile action does nothing. Nobody outside notices; the operator will, and
 accepted that.
 
+**And no shim at the command line either, decided 2026-09-11.** `task run`, `--keep` and
+`--no-attach` are removed rather than kept as accepted spellings. Keeping them would have been
+safe - `run --keep --no-attach` and `start --detach` do the same thing for a task that does not
+exist yet, which is every call that uses them - so this is a choice to take the churn now rather
+than leave a compatibility layer that somebody has to remember to delete before the release.
+
+Three consequences follow, and the third is a scheduling constraint rather than a technical one:
+
+1. **This repository changes in the same commit**: `buildtools/e2e-tier1.sh` uses `--no-attach`
+   twice, and the acceptance kit's `TaskSteps` builds `task run`. The kit is published by the same
+   `deploy` job as the CLI, so it cannot lag behind it.
+2. **The agent repositories break the moment the package is published**, and stay broken until
+   their own `acceptance.sh` is pushed - they install the published CLI and call `task run`.
+   Their branches are prepared and unpushed for exactly this.
+3. **The window must not straddle Monday 05:17 UTC**, when three update jobs run `acceptance.sh`
+   unattended. A cut on a Friday afternoon with nobody pushing until Monday is the one way this
+   decision turns expensive.
+
 ## What must be true
 
 1. A name that already identifies a task is never quietly reinterpreted. Asking to start a thing
