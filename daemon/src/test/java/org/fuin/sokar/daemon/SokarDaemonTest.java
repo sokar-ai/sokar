@@ -165,10 +165,10 @@ class SokarDaemonTest {
                 final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Remove",
                         Map.of("task", "sokar-uc-shell-1"));
 
-                // The refusal a running task gets, which is the one this surface could most
-                // easily have been given a way around. What it holds is refused by the same
-                // TaskControl call and covered where the fixtures for it live, in the CLI tests.
-                assertThat(reply).containsEntry("outcome", "STILL_RUNNING");
+                // What it holds is asked before it is refused for running, so that rescue is
+                // still possible - the container has to be up for work to be pushed out of it.
+                assertThat(reply).containsEntry("outcome", "HOLDS_WORK")
+                        .containsEntry("work", "2 commits and 3 changed files");
                 assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rm"));
             }
         });

@@ -165,13 +165,21 @@ public final class TaskControl {
      */
     public Stopped remove(String container, boolean rescue, boolean force) {
         // Not when rescuing: pushing what the workspace holds needs the container up, so refusing
-        // a running one here would make --rescue impossible to use. Found by the tests that cover
-        // rescue, which is what they are for.
+        // a running one here would make --rescue impossible to use.
         if (ContainerName.isTask(container) && !force && !rescue) {
             final boolean running = context.podman().sokarTasks().stream()
                     .filter(task -> task.name().equals(container))
                     .anyMatch(ContainerSummary::running);
             if (running) {
+                // What it holds is asked FIRST, and the order is the whole point. Rescuing needs
+                // the container up, so a caller told "it is running" would stop it, be told "it
+                // holds work", and have to start it again to save that work. Asking now puts the
+                // question while the answer can still be acted on.
+                final String work = heldBy(container).phrase();
+                if (work != null) {
+                    return new Stopped(Outcome.HOLDS_WORK, work, null, false, 0, List.of(),
+                            context.paths().containerState(container), null, 0);
+                }
                 return new Stopped(Outcome.STILL_RUNNING, null, null, false, 0, List.of(), null,
                         null, 0);
             }
