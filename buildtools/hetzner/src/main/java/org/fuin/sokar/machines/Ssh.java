@@ -2,6 +2,8 @@ package org.fuin.sokar.machines;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import net.schmizz.keepalive.KeepAliveProvider;
+import net.schmizz.sshj.DefaultConfig;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 
@@ -19,11 +21,28 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
  * and drops connections that fast looks like something worth refusing. Measured by counting
  * {@code Accepted publickey} in the machine's journal: about 80 connections and 15.7s before, 2 and
  * 8.5s after. Callers share one of these and open channels on it.
+ * <p>
+ * <strong>One connection needs a heartbeat.</strong> The connection that lives for a whole leg
+ * spends minutes producing nothing while an image builds, and something on the path between a
+ * GitHub runner and a rented machine drops a TCP flow that idle. Both tier 1 legs of run
+ * 93676645170 lost it the same way: last output at 08:57:51 as tier 1 began, five minutes of
+ * silence, then {@code Connection reset} - no test had failed, and the suite's own banner never
+ * arrived because everything buffered went with the connection. sshj sends nothing of its own
+ * unless it is asked to, so this is the cost of holding one connection rather than eighty, and it
+ * is paid here.
+ * <p>
+ * HEARTBEAT rather than KEEP_ALIVE: it sends SSH_MSG_IGNORE and expects no answer, so it cannot
+ * itself end the connection. KEEP_ALIVE disconnects after five unanswered requests, and a small
+ * machine with native-image on every core is exactly where five answers might not come in time -
+ * turning a working build into a lost one for the sake of noticing a dead peer sooner.
  */
 public final class Ssh implements AutoCloseable {
 
     /** How long a probe may hang before the machine counts as unreachable. */
     private static final int PROBE_TIMEOUT = 4000;
+
+    /** Seconds between heartbeats. Below every idle timeout that has been seen to cut this. */
+    private static final int HEARTBEAT_INTERVAL = 30;
 
     private final String host;
 
@@ -87,10 +106,21 @@ public final class Ssh implements AutoCloseable {
     }
 
     private SSHClient connected() throws IOException {
-        final SSHClient fresh = new SSHClient();
+        final DefaultConfig config = new DefaultConfig();
+        config.setKeepAliveProvider(KeepAliveProvider.HEARTBEAT);
+        final SSHClient fresh = new SSHClient(config);
         fresh.addHostKeyVerifier(new PromiscuousVerifier());
         fresh.connect(host);
         authenticate(fresh, user, credential);
+        // After connecting, because the keepalive belongs to the connection rather than the client.
+        // Started by hand, which sshj's own example omits: setting the interval only sets a field
+        // and flips isEnabled() to true - the thread stays in state NEW, and nothing in connect,
+        // authenticate or startSession ever starts it. Measured, after a first version of this
+        // that set the interval and sent nothing: with the interval set and the thread unstarted,
+        // a connection idle for 60s sent exactly as many segments as one with no keepalive at all.
+        final net.schmizz.keepalive.KeepAlive heartbeat = fresh.getConnection().getKeepAlive();
+        heartbeat.setKeepAliveInterval(HEARTBEAT_INTERVAL);
+        heartbeat.start();
         return fresh;
     }
 
