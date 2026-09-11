@@ -232,11 +232,11 @@ START_LOG="$WORK/start.log"
 # then wait for it. A blocked destination is data here, not a question.
 # --agent, not "whatever is installed": another agent on the machine would otherwise decide
 # what this run measures, or refuse it outright for being ambiguous.
-if (cd "$WORK" && "$SOKAR" task run --agent "$AGENT_NAME" --keep --no-attach --clearance deny \
+if (cd "$WORK" && "$SOKAR" task start --agent "$AGENT_NAME" --detach --clearance deny \
         > "$START_LOG" 2>&1); then
-    pass "task run built the image and started the container"
+    pass "task start built the image and started the container"
 else
-    fail "task run failed"
+    fail "task start failed"
     grep -v SLF4J "$START_LOG" | tail -5
 fi
 CONTAINER="$(grep '^container ' "$START_LOG" | awk '{print $2}')"
@@ -537,7 +537,7 @@ image:
 egress:
   sets: [mvn]
 EOF
-if (cd "$WORK/typo" && "$SOKAR" task run --agent "$AGENT_NAME" --dry-run 2>&1 || true) \
+if (cd "$WORK/typo" && "$SOKAR" task start --agent "$AGENT_NAME" --dry-run 2>&1 || true) \
         | grep -q "Unknown egress set"; then
     pass "an unknown set name stops the run"
 else
@@ -807,7 +807,7 @@ image:
   base_image: "sokar-no-such-base-image:0"
 EOF
 
-if (cd "$FAIL_DIR" && "$SOKAR" task run --agent "$AGENT_NAME" --keep --no-attach --clearance deny \
+if (cd "$FAIL_DIR" && "$SOKAR" task start --agent "$AGENT_NAME" --detach --clearance deny \
         > "$FAIL_DIR/start.log" 2>&1); then
     fail "a task with an unbuildable image reported success"
 else
@@ -874,7 +874,7 @@ fi
 # ------------------------------------------------------------ an unattended run
 #
 # Everything above ran the agent with 'podman exec', which measures the agent. This measures the
-# two ways a person or an interface actually starts one: 'task run -P' and the daemon's Start with
+# two ways a person or an interface actually starts one: 'task start -P' and the daemon's Start with
 # a prompt. They share a single method, and "they share a method" is an argument rather than a
 # measurement - the daemon's half was returning "started" for a run nobody performed until the
 # method moved, and nothing here would have noticed.
@@ -889,7 +889,7 @@ RUN_LOG="$WORK/unattended.log"
 
 # Same project, so the image is the one already built; a second project would rebuild every layer
 # for nothing.
-if (cd "$WORK" && "$SOKAR" task run headless --agent "$AGENT_NAME" --keep --clearance deny \
+if (cd "$WORK" && "$SOKAR" task start headless --agent "$AGENT_NAME" --clearance deny \
         -P "say hello and stop" > "$RUN_LOG" 2>&1); then
     :
 fi
@@ -898,10 +898,10 @@ HEADLESS_CONTAINER="$(basename "${HEADLESS_STATE:-none}")"
 [ "$HEADLESS_CONTAINER" != "none" ] && UNATTENDED_CONTAINERS="$HEADLESS_CONTAINER"
 
 if [ -s "$HEADLESS_STATE/task.log" ]; then
-    pass "task run -P ran the agent and kept its output"
+    pass "task start -P ran the agent and kept its output"
     info "$(wc -c < "$HEADLESS_STATE/task.log") bytes at $HEADLESS_STATE/task.log"
 else
-    fail "task run -P produced no agent output at $HEADLESS_STATE/task.log"
+    fail "task start -P produced no agent output at $HEADLESS_STATE/task.log"
 fi
 
 # The same thing over the socket. Not a second implementation: the point is that this path calls
@@ -1066,7 +1066,7 @@ rm -rf "$REFUSED_MIRROR"
 
 REFUSED_LOG="$WORK/nocred-run.log"
 REFUSED_CODE=0
-(cd "$WORK" && "$SOKAR" task run nocredrun --project nocred-project.yml --agent "$AGENT_NAME" \
+(cd "$WORK" && "$SOKAR" task start nocredrun --project nocred-project.yml --agent "$AGENT_NAME" \
         --clearance deny -P "say hello and stop" > "$REFUSED_LOG" 2>&1) || REFUSED_CODE=$?
 
 if [ "$REFUSED_CODE" -eq 0 ]; then

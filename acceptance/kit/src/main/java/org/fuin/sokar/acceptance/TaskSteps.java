@@ -10,7 +10,7 @@ import java.io.IOException;
  * <strong>What, not how.</strong> A feature file says a task nobody is watching was started; which
  * flags produce that, and where the vault keeps its file, are decisions this kit makes and changes
  * without every agent's scenarios changing with it. A scenario that spells out
- * {@code cd ~/p && sokar task run --agent a --prompt hello} is not describing behaviour, it is
+ * {@code cd ~/p && sokar task start --agent a --prompt hello} is not describing behaviour, it is
  * describing this class - and it goes stale the day a flag is renamed.
  * <p>
  * The exception, deliberately, is a scenario about the command line itself: what a person types at
@@ -84,7 +84,7 @@ public class TaskSteps {
      * @return The command.
      */
     static String startCommand(String project, String agent) {
-        return inProject(project) + " && sokar task run --agent " + Shell.quote(agent)
+        return inProject(project) + " && sokar task start --agent " + Shell.quote(agent)
                 + " --prompt " + Shell.quote(PROMPT);
     }
 
@@ -111,8 +111,8 @@ public class TaskSteps {
      * @return The command.
      */
     static String planCommand(String project, String agent) {
-        return inProject(project) + " && sokar task run --agent " + Shell.quote(agent)
-                + " --dry-run --no-attach";
+        return inProject(project) + " && sokar task start --agent " + Shell.quote(agent)
+                + " --dry-run --detach";
     }
 
     /**
