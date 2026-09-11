@@ -9,10 +9,10 @@ Feature: The task commands
 
     Examples:
       | command   |
-      | run       |
+      | start     |
       | list      |
       | stop      |
-      | resume    |
+      | remove    |
       | label     |
       | attach    |
       | status    |
@@ -31,7 +31,7 @@ Feature: The task commands
 
     Examples:
       | command |
-      | resume  |
+      | remove  |
       | attach  |
       | status  |
       | logs    |
