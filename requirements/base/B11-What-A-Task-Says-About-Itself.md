@@ -113,7 +113,9 @@ covers `Outcome`.
   container. Giving one a path to the host would be a fourth way out beside the vault socket, the
   ssh-agent socket and the gate, and it would invert the direction this design rests on - a channel
   the agent writes into. A status value does not justify that. Whether `waiting` can be had at all
-  therefore depends on something the host can ask for rather than be told, and that is unsolved.
+  therefore depends on something the host can ask for rather than be told, and that is unsolved. **Taken up on 2026-09-11 by
+  [B47](B47-What-The-Agent-Is-Doing-Read-From-Outside.md)**, which asks for exactly that: the
+  output the host already writes, read against patterns the agent's own package declares.
 
   **Also worth recording: nothing agent-independent delivers this, including the tool it was
   learnt from.** AI Beacon reports *awaiting permission* from a plugin that knows Claude Code, not

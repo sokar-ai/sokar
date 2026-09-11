@@ -3,6 +3,9 @@
 **Status:** open, and smaller than when it was written on 2026-09-11. What made a restart
 unrecoverable moved to [B44](B44-One-Way-To-Start-Work.md), which fixes the cause. What is left is
 whether anything should happen by itself when a machine comes back, and how a person finds out.
+What a task brings back *with* it is
+[B46](B46-The-Conversation-A-Restart-Loses.md): this requirement is about the container, that one
+is about the conversation inside it.
 
 ## What happens today
 
