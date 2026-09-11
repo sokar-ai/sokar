@@ -66,8 +66,11 @@ public class GateCheckoutCommand implements Callable<Integer>, SokarFactory.Cont
             return 2;
         }
 
+        // Sokar's own directory unless somebody says otherwise. It used to default beside the
+        // project file, which is normally inside the operator's git repository - so reviewing an
+        // agent's work left an untracked directory in a checkout Sokar promises not to touch.
         final Path target = into != null ? into
-                : projectFile.toAbsolutePath().getParent().resolve("sokar-review-" + name);
+                : context.paths().reviewCheckout(project.name(), name);
         try {
             GateSupport.gate(project, null).checkout(name, target);
         } catch (GateException ex) {

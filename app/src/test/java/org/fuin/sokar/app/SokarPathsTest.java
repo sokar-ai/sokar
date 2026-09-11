@@ -95,6 +95,26 @@ class SokarPathsTest {
         assertThat(one.vaultKeyringKey()).isEqualTo(one.vaultKeyringKey());
     }
 
+
+    @Test
+    void putsAReviewCopyWhereSomebodyWillFindIt(@TempDir Path dir) {
+
+        // Two things this pins, and the second is easy to undo by accident. It must not land in
+        // the operator's repository - the default used to be beside the project file, so a review
+        // left 'sokar-review-shell/' untracked in a checkout Sokar promises not to touch; one had
+        // sat on a test machine for two days. And it must not land under the data directory
+        // either: this is the one thing Sokar makes for a person to open in their own editor, and
+        // a file dialog does not show .local/share.
+        final XdgPaths xdg = XdgPaths.of(name -> null, dir);
+        final Path review = new SokarPaths(xdg, dir.resolve("bin"))
+                .reviewCheckout("utils4j", "shell");
+
+        assertThat(review).isEqualTo(dir.resolve("sokar").resolve("reviews")
+                .resolve("utils4j-shell"));
+        assertThat(review.startsWith(xdg.data()))
+                .as("visible, not under the data directory").isFalse();
+    }
+
     @Test
     void usesTheOperatorsOwnVaultWhenNothingOverridesIt(@TempDir Path dir) {
 

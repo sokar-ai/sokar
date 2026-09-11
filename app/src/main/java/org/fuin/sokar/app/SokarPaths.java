@@ -196,6 +196,28 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns where a readable copy of waiting work is put.
+     * <p>
+     * <strong>Visible, in the home directory, and not under the data directory.</strong> This is
+     * the one thing Sokar makes for a person to open in their own editor rather than for itself
+     * to read back, and {@code ~/.local/share} is where neither a file dialog nor a person looks.
+     * The command exists so the safe way is also the convenient one; hiding its result would have
+     * repaired the convenience in one place by breaking it in another.
+     * <p>
+     * It used to default beside the project file, which normally sits inside the operator's git
+     * checkout - so reviewing an agent's work left an untracked directory in a repository Sokar
+     * promises not to touch, committable by accident and cleaned up by nothing. Reported from a
+     * test machine where one had sat for two days.
+     *
+     * @param project Project the work belongs to.
+     * @param name The waiting ref's name.
+     * @return The directory to check out into.
+     */
+    public Path reviewCheckout(String project, String name) {
+        return xdg.home().resolve("sokar").resolve("reviews").resolve(project + "-" + name);
+    }
+
+    /**
      * Returns the file holding this node's identity.
      * <p>
      * Under the data directory, so it is per OS user without anything having to say so: two

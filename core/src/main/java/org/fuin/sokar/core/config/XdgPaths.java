@@ -18,7 +18,7 @@ import org.jspecify.annotations.Nullable;
  * @param state Logs and audit trails, {@code $XDG_STATE_HOME/sokar}.
  * @param runtime Sockets, {@code $XDG_RUNTIME_DIR/sokar}.
  */
-public record XdgPaths(Path config, Path data, Path state, Path runtime) {
+public record XdgPaths(Path config, Path data, Path state, Path runtime, Path home) {
 
     private static final String APPLICATION = "sokar";
 
@@ -44,7 +44,11 @@ public record XdgPaths(Path config, Path data, Path state, Path runtime) {
                 base(env, "XDG_CONFIG_HOME", home.resolve(".config")),
                 base(env, "XDG_DATA_HOME", home.resolve(".local/share")),
                 base(env, "XDG_STATE_HOME", home.resolve(".local/state")),
-                base(env, "XDG_RUNTIME_DIR", Path.of("/run/user").resolve(String.valueOf(uid()))));
+                base(env, "XDG_RUNTIME_DIR", Path.of("/run/user").resolve(String.valueOf(uid()))),
+                // Kept rather than only consulted. One thing Sokar makes is for a person to open
+                // in their own editor, and none of the four directories above is somewhere a
+                // person or a file dialog looks.
+                home);
     }
 
     private static Path base(EnvironmentLookup env, String variable, Path fallback) {
