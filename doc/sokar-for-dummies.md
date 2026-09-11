@@ -8,6 +8,11 @@ firewalls or git is assumed. Every term is explained the first time it appears.
 If you already know what a container and an nftables ruleset are, read
 [the README](../README.md) instead — it says the same things in one tenth of the words.
 
+If you are not sure this kind of tool is for you at all, read
+[three ways of working](way-of-working.md) first: it explains what such tools put at the centre -
+the project, the agent or the person - and where Sokar sits among them, before any of the
+machinery below matters.
+
 <br clear="left"/>
 
 ## 1. The problem, in one paragraph

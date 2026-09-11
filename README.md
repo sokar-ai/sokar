@@ -234,6 +234,11 @@ you are not sitting at the machine.
 See [the glossary](doc/glossary.md) — node, project, task, agent, provider, gate, vault and the
 rest, including the ones this product deliberately does not use.
 
+## How this kind of tool is used at all, and where Sokar sits
+See [three ways of working](doc/way-of-working.md) — what a tool puts at the centre, the project,
+the agent or the person, and why that says more than how much the agent does on its own. Written
+for somebody who has never used one.
+
 ## Not sure what any of that meant
 See [Sokar for dummies](doc/sokar-for-dummies.md) — the hardening and the features explained point by point, assuming no prior knowledge.
 
