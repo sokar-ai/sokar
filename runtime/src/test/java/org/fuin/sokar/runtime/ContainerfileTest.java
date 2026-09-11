@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.nio.charset.StandardCharsets;
+import org.fuin.sokar.core.project.Limits;
+import org.fuin.sokar.core.project.Egress;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.core.project.SecurityClass;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,36 @@ class ContainerfileTest {
         final Project project = new Project("uc", "Ultimate Container", SecurityClass.GUARDED, "ubuntu:24.04", null);
 
         assertThat(Containerfile.render(project)).isEqualTo(golden("Containerfile.uc"));
+    }
+
+    @Test
+    void writesTheSourcesAProjectNames() {
+
+        // The point of the key: a machine behind a corporate mirror, or one where Canonical's own
+        // is the only thing reachable, says so once in the project file.
+        final Project project = new Project("uc", "", SecurityClass.GUARDED, "ubuntu:24.04", null,
+                null, Limits.defaults(), Egress.none(),
+                List.of("http://mirror.example.test/ubuntu/"));
+
+        // The URIs line itself, not the whole file: the comment above it names the default's
+        // hosts as measurements, and a naive doesNotContain trips over its own documentation.
+        assertThat(Containerfile.render(project))
+                .contains("URIs: http://mirror.example.test/ubuntu/|")
+                .doesNotContain("URIs: http://azure.archive.ubuntu.com");
+    }
+
+    @Test
+    void refusesNamedSourcesOnABaseWithNoApt() {
+
+        // Said rather than ignored. Somebody who names sources under an image that cannot use them
+        // has an expectation nothing will meet, and a silent no-op reads as configured.
+        final Project named = new Project("uc", "", SecurityClass.GUARDED, "fedora:41", null,
+                null, Limits.defaults(), Egress.none(), List.of("http://mirror.example.test/f/"));
+        assertThat(Containerfile.render(named)).contains("elif true; then");
+
+        // And a project that named nothing must still build on the same base.
+        final Project silent = new Project("uc", "", SecurityClass.GUARDED, "fedora:41", null);
+        assertThat(Containerfile.render(silent)).contains("elif false; then");
     }
 
     @Test

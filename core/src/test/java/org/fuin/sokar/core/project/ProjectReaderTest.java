@@ -189,6 +189,66 @@ class ProjectReaderTest {
     }
 
     @Test
+    void readsWhereAptShouldFetchFrom() {
+
+        final Project project = read("""
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                  package_sources:
+                    - "http://mirror.corp.example/ubuntu/"
+                    - "http://archive.ubuntu.com/ubuntu/"
+                """);
+
+        assertThat(project.declaresPackageSources()).isTrue();
+        assertThat(project.effectivePackageSources())
+                .containsExactly("http://mirror.corp.example/ubuntu/",
+                        "http://archive.ubuntu.com/ubuntu/");
+    }
+
+    @Test
+    void namingNoSourcesIsNotTheSameAsNamingTheDefault() {
+
+        // The distinction is load-bearing: a base image with no apt is refused for a project that
+        // asked for sources and left alone for one that asked for nothing.
+        final Project project = read(MINIMAL);
+
+        assertThat(project.declaresPackageSources()).isFalse();
+        assertThat(project.effectivePackageSources())
+                .isEqualTo(Project.DEFAULT_PACKAGE_SOURCES)
+                .allMatch(source -> source.startsWith("http://"),
+                        "Ubuntu's mirrors serve no TLS; an https default never answers");
+    }
+
+    @Test
+    void refusesSourcesThatCannotBeFetchedFrom() {
+
+        assertThatThrownBy(() -> read("""
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                  package_sources: ["ftp://mirror.corp.example/ubuntu/"]
+                """))
+                .isInstanceOf(ProjectException.class)
+                .hasMessageContaining("is not an http or https URL");
+
+        assertThatThrownBy(() -> read("""
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                  package_sources: []
+                """))
+                .isInstanceOf(ProjectException.class)
+                .hasMessageContaining("Remove the key to use the default");
+    }
+
+    @Test
     void readsWhatTheProjectMayReach() {
 
         final Project project = read("""

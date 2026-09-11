@@ -5,6 +5,9 @@ label: Debian and Ubuntu packages
 domains:
   - deb.debian.org
   - security.debian.org
+  # The CDN Sokar's own default reaches first. Here too, or a task that installs a package
+  # at RUNTIME is refused by the firewall for using the source the image was built from.
+  - azure.archive.ubuntu.com
   - archive.ubuntu.com
   - security.ubuntu.com
   - ports.ubuntu.com

@@ -80,7 +80,31 @@ public final class ProjectReader {
                 snippet(image, origin),
                 text(project.get("upstream")).isEmpty() ? null : text(project.get("upstream")),
                 limits(root, origin),
-                egress(root, origin));
+                egress(root, origin),
+                packageSources(image, origin));
+    }
+
+    /**
+     * Reads the optional {@code image.package_sources} list.
+     * <p>
+     * Where apt fetches from while the image is built. A project that names none gets
+     * {@link Project#DEFAULT_PACKAGE_SOURCES} at the point of use; {@code null} here means the
+     * project named none, which is not the same as naming the default.
+     *
+     * @param image The image section.
+     * @param origin Name used in error messages.
+     * @return What the project declared, or the default.
+     */
+    private static java.util.@org.jspecify.annotations.Nullable List<String> packageSources(
+            Map<?, ?> image, String origin) {
+        final Object value = image.get("package_sources");
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof java.util.List<?> list)) {
+            throw new ProjectException(origin + ": 'image.package_sources' is a list of URLs");
+        }
+        return list.stream().map(ProjectReader::text).toList();
     }
 
     /**

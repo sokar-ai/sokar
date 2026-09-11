@@ -9,6 +9,39 @@ FROM ubuntu:24.04
 # than three layers further down. tmux is here so a session survives leaving it:
 # 'sokar task attach' runs it, and a closed window leaves the session running.
 USER root
+
+# Where apt fetches from, before anything fetches. Only the URIs line is replaced,
+# never the file rewritten: suites, components and the signing key differ between
+# Debian and Ubuntu and between releases, and a file written from guesses breaks an
+# image that worked. apt takes the first URI that answers.
+#
+# Measured on 2026-09-11 during a disruption at Ubuntu's archive, from a machine on
+# an ordinary network - a Release file, same host, same minute:
+#
+#   http://azure.archive.ubuntu.com   HTTP 200    0.18s
+#   http://archive.ubuntu.com         HTTP 200   18.86s
+#   https://azure.archive.ubuntu.com  HTTP 000   no answer in 25s
+#
+# The third line is why these are http. Ubuntu's mirrors serve no TLS, and apt takes
+# its integrity from the signed Release file rather than from the transport; an https
+# URL here would put a source into every image that never answers.
+#
+# Image builds were hanging until Sokar's own ten-minute cap, on two rented machines
+# per run, reporting nothing until it expired. The timeout below is what turns a
+# source that does not answer into seconds instead of that.
+RUN set -eux; \
+    if command -v apt-get >/dev/null 2>&1; then \
+        printf '%s\n' 'Acquire::http::Timeout "20";' \
+            'Acquire::https::Timeout "20";' 'Acquire::Retries "2";' \
+            > /etc/apt/apt.conf.d/99-sokar-timeouts; \
+        for f in /etc/apt/sources.list.d/*.sources; do \
+            [ -e "$f" ] || continue; \
+            sed -i 's|^URIs:.*|URIs: http://azure.archive.ubuntu.com/ubuntu/ http://archive.ubuntu.com/ubuntu/|' "$f"; \
+        done; \
+    elif false; then \
+        echo 'this project names image.package_sources, and ubuntu:24.04 has no apt to apply them to' >&2; exit 1; \
+    fi
+
 RUN set -eux; \
     if command -v curl >/dev/null 2>&1 && command -v git >/dev/null 2>&1 \
         && command -v ssh >/dev/null 2>&1 && command -v tmux >/dev/null 2>&1; then :; \

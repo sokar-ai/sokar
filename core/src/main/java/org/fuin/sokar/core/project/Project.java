@@ -17,7 +17,51 @@ package org.fuin.sokar.core.project;
  */
 public record Project(String name, String description, SecurityClass securityClass, String baseImage,
         @org.jspecify.annotations.Nullable String imageSnippet,
-        @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress) {
+        @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
+        java.util.List<String> packageSources) {
+
+    /**
+     * Where apt fetches from, when a project names nothing.
+     * <p>
+     * The CDN first, deliberately. Measured from a machine on an ordinary network on 2026-09-11,
+     * while Ubuntu's archive was disrupted:
+     *
+     * <pre>
+     * azure.archive.ubuntu.com   http    HTTP 200    0.18s
+     * archive.ubuntu.com         http    HTTP 200   18.86s
+     * </pre>
+     *
+     * Every image build was hanging until Sokar's own ten-minute cap, on two rented machines per
+     * run, reporting nothing until it expired. A default that answers is worth more than one that
+     * is canonical.
+     *
+     * <strong>http, not https, and that is not an oversight.</strong> This mirror serves no TLS -
+     * https against it times out rather than refusing, so a default written with the wrong scheme
+     * would put a source into every image that never answers. apt takes its integrity from the
+     * signed Release file rather than from the transport, which is why every Ubuntu mirror is
+     * plain http. Measured: https to the same host, HTTP 000 after 25s.
+     */
+    public static final java.util.List<String> DEFAULT_PACKAGE_SOURCES = java.util.List.of(
+            "http://azure.archive.ubuntu.com/ubuntu/", "http://archive.ubuntu.com/ubuntu/");
+
+    /**
+     * Constructor without package sources, which take their default.
+     *
+     * @param name Short name.
+     * @param description Human-readable description.
+     * @param securityClass How much the agent is trusted.
+     * @param baseImage Image the task image is built from.
+     * @param imageSnippet Extra container-build lines, or {@code null}.
+     * @param upstream Repository the work belongs to, or {@code null}.
+     * @param limits What a task may consume.
+     * @param egress What it may reach.
+     */
+    public Project(String name, String description, SecurityClass securityClass, String baseImage,
+            @org.jspecify.annotations.Nullable String imageSnippet,
+            @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress) {
+        this(name, description, securityClass, baseImage, imageSnippet, upstream, limits, egress,
+                null);
+    }
 
     /**
      * Constructor without a declared egress.
@@ -77,6 +121,27 @@ public record Project(String name, String description, SecurityClass securityCla
      * @param baseImage Container image the task image is built from.
      * @param imageSnippet Extra container-build lines, or {@code null}.
      */
+    /**
+     * Returns where apt should fetch from, declared or default.
+     *
+     * @return Never empty.
+     */
+    public java.util.List<String> effectivePackageSources() {
+        return packageSources == null ? DEFAULT_PACKAGE_SOURCES : packageSources;
+    }
+
+    /**
+     * Tells whether the project named its own sources.
+     * <p>
+     * Apart from the default so that a base image with no apt can be refused for a project that
+     * asked for something, and left alone for one that asked for nothing.
+     *
+     * @return {@code true} when 'image.package_sources' was written.
+     */
+    public boolean declaresPackageSources() {
+        return packageSources != null;
+    }
+
     public Project {
         if (name.isBlank()) {
             throw new ProjectException("The project name is required");
@@ -103,6 +168,21 @@ public record Project(String name, String description, SecurityClass securityCla
             // rather than at clone time, inside a container, where the failure is a git error.
             throw new ProjectException("Project '" + name + "' is online, so it needs an upstream");
         }
+        if (packageSources != null && packageSources.isEmpty()) {
+            // An empty list is not "use the default" - it is a project that named sources and
+            // named none, which would silently leave the base image's own and read as configured.
+            throw new ProjectException("Project '" + name + "' declares 'image.package_sources'"
+                    + " with nothing in it. Remove the key to use the default.");
+        }
+        for (final String source : packageSources == null ? java.util.List.<String>of() : packageSources) {
+            if (!source.startsWith("http://") && !source.startsWith("https://")) {
+                // Refused here rather than inside a container, where it is an apt parse error in
+                // a file nobody wrote by hand.
+                throw new ProjectException("Project '" + name + "': package source '" + source
+                        + "' is not an http or https URL");
+            }
+        }
+        packageSources = packageSources == null ? null : java.util.List.copyOf(packageSources);
     }
 
     /**
