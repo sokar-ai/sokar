@@ -293,6 +293,21 @@ public class ShieldWatchCommand implements Callable<Integer> {
             prompt.put("name", name == null ? "" : name);
             prompt.put("shown", shown);
             prompt.put("project", project);
+            // Carried through rather than left out. The IDL declares both on Prompt and this
+            // event had neither, so an interface reading them off an open question got nothing
+            // and had to substitute the moment it happened to see the event - which is its own
+            // clock answering a question about this machine's.
+            prompt.put("at", String.valueOf(event.get("at")));
+            prompt.put("prefix", String.valueOf(event.get("prefix")));
+            // When this watcher gives up, as a moment rather than a length. Computed here
+            // because the timeout lives here: one that differs per watcher, or is changed by
+            // --timeout, then arrives already applied instead of being arithmetic a client does
+            // on a number it assumed. Measured from now rather than from 'at': 'at' is when the
+            // connection was blocked, and the wait starts when the question is asked, which is
+            // the line below. A reader that has fallen behind would otherwise publish a deadline
+            // already in the past.
+            prompt.put("deadline", timeoutSeconds <= 0 ? ""
+                    : java.time.Instant.now().plusSeconds(timeoutSeconds).toString());
             service.publish(prompt);
 
             return hub.handle(blocked);

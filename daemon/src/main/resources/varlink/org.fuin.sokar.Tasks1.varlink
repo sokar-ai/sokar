@@ -456,6 +456,15 @@ type Prompt (
   # Where in the ruleset it was stopped, for an operator who needs to know which rule fired.
   # Empty on an event carrying a verdict: nothing decided it a second time.
   prefix: string,
+  # When the watcher gives up, ISO-8601, on an open question. "" when it never will, and "" on
+  # an event carrying a verdict - nothing is waiting any more.
+  #
+  # A moment rather than a length, and computed where the timeout lives: an interface showing
+  # "three minutes left" would otherwise be doing arithmetic on a number nobody sent it. It is
+  # measured from when the question was asked rather than from "at", because "at" is when the
+  # connection was blocked and a reader that has fallen behind would publish a deadline already
+  # in the past.
+  deadline: string,
   # Absent while the question is open. Once it is settled the same destination arrives again
   # carrying "allow", "deny" or "timeout", and that is the only way an interface learns that a
   # prompt ran out: nothing will ask about it again, so a question that simply stops arriving is

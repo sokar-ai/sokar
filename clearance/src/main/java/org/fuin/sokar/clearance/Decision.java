@@ -64,6 +64,10 @@ public record Decision(Instant at, String project, String task, String key, Stri
         event.put("shown", shown);
         event.put("project", project);
         event.put("at", at.toString());
+        // Empty rather than absent: the field is not optional on the wire, and nothing is waiting
+        // on an answer that has already arrived. A client that drew a countdown from it would be
+        // counting down to a moment that no longer means anything.
+        event.put("deadline", "");
         event.put("verdict", verdict.name().toLowerCase(java.util.Locale.ROOT));
         event.put("source", source);
         return event;
