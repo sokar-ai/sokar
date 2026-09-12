@@ -1,3 +1,6 @@
+# Dot files and directories are not checked in - which is what makes a local '.AGENTS.md'
+# private and a shared 'AGENTS.md' tracked, without either needing a rule of its own. The
+# exceptions below are what a Java build needs. Identical in every repository of this product.
 .*
 !.gitignore
 !.gitkeep
@@ -9,6 +12,3 @@ target
 
 # Python bytecode from the CI provisioning scripts
 __pycache__/
-
-# Local notes for whoever works here. Not shared, by design.
-.AGENTS.md
