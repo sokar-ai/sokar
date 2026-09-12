@@ -75,17 +75,32 @@ ssh "${SSH_OPTS[@]}" "$VM" "
 ssh "${SSH_OPTS[@]}" "$VM" "sudo loginctl enable-linger $USER_NAME && loginctl show-user $USER_NAME --property=Linger"
 
 say "restarting the daemon"
-# Stopped by name rather than by pid file: a daemon started by hand from a build tree leaves none,
-# and a second one silently rebinds the socket - leaving the first running, unreachable, with its
-# tasks invisible. Measured once; it cost an afternoon of a task list that showed nothing.
+# Through the user unit the package installs, so what runs here is supervised and comes back after
+# a failure - and so this script stops being the only thing that knows how to start a daemon.
+#
+# The socket is no longer cleaned up by hand. It used to be, because stopping by name left one
+# behind and a second daemon then silently rebound it - leaving the first running, unreachable,
+# with its tasks invisible; measured once, and it cost an afternoon of a task list that showed
+# nothing. Both halves of that are fixed in the daemon itself now: it unlinks on a signal, and it
+# refuses to bind over a socket somebody is still answering on. Deleting the file here would walk
+# straight past the second guard.
 ssh "${SSH_OPTS[@]}" "$VM" "
-    pkill -u $USER_NAME -x sokard || true
-    sleep 1
-    rm -f /run/user/\$(id -u)/sokar/sokard.sock
-    XDG_RUNTIME_DIR=/run/user/\$(id -u) nohup sokard > \$HOME/sokard.log 2>&1 &
+    if [ -f /usr/lib/systemd/user/sokard.service ]; then
+        systemctl --user daemon-reload
+        systemctl --user enable sokard >/dev/null
+        systemctl --user restart sokard
+        echo 'daemon: systemd user unit, '\$(systemctl --user is-active sokard)
+    else
+        # An older package, or a binary somebody copied. Kept so this script still works against
+        # a machine that has not been updated yet.
+        pkill -u $USER_NAME -x sokard || true
+        sleep 1
+        XDG_RUNTIME_DIR=/run/user/\$(id -u) nohup sokard > \$HOME/sokard.log 2>&1 &
+        echo 'daemon: started by hand, no unit in this package'
+    fi
     sleep 2
     test -S /run/user/\$(id -u)/sokar/sokard.sock \
-        || { echo 'the daemon did not come up; its log is '\$HOME/sokard.log; exit 1; }
+        || { echo 'the daemon did not come up'; systemctl --user status sokard --no-pager 2>&1 | tail -20; exit 1; }
     echo SOCKET=/run/user/\$(id -u)/sokar/sokard.sock
     echo 'agents it can run: '\$(sokar agents 2>/dev/null | tail -n +2 | awk '{print \$1}' | paste -sd' ')
 " | tee /tmp/sokar-deploy-vm.out
