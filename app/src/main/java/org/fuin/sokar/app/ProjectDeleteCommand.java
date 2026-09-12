@@ -71,8 +71,18 @@ public class ProjectDeleteCommand implements Callable<Integer>, SokarFactory.Con
         final ProjectDeletion.Result result = new ProjectDeletion(context).delete(project, dryRun,
                 force);
 
+        // The word follows the OUTCOME, not the --dry-run flag, and that is the whole point of
+        // doing it here rather than in the loop below. A refusal used to print "removed mirror",
+        // "removed build", "removed task ..." and then "nothing has been removed" three lines
+        // later, with the project still in the listing afterwards. Found while clearing a test
+        // machine on 2026-09-12: five lines claiming a removal, one saying none happened, and the
+        // reader has to decide which to believe.
+        //
+        // On a refusal the list is exactly what a preview would have shown - what it WOULD have
+        // taken - which is the useful thing to print beside the reason it stopped.
+        final boolean happened = result.outcome() == ProjectDeletion.Outcome.DELETED;
         for (final ProjectDeletion.Removal removal : result.removes()) {
-            out.println((dryRun ? "would remove " : "removed   ") + removal.kind().toLowerCase(
+            out.println((happened ? "removed   " : "would remove ") + removal.kind().toLowerCase(
                     java.util.Locale.ROOT) + "  " + removal.what());
         }
         for (final String kept : result.keeps()) {

@@ -911,6 +911,16 @@ public class Podman {
 
         final StringBuilder script = new StringBuilder();
         if (command != null) {
+            // The agent starts at the top of the terminal, not wherever the launch report left
+            // the cursor. Starting a task prints two dozen lines - the token, the gate, every
+            // reachable host - and the agent then drew its own full-screen interface into the
+            // middle of them, which reads as two programs sharing one screen.
+            //
+            // ESC[H puts the cursor home and ESC[2J erases the screen. ESC[3J - which erases the
+            // SCROLLBACK, and which is what 'clear' sends on a modern terminfo - is deliberately
+            // NOT here: the report carries the gate URL and what the container may reach, and
+            // scrolling back to it is the only way to read it once the agent owns the screen.
+            script.append("printf '\\033[H\\033[2J'; ");
             script.append(command).append("; ");
             // The agent draws a full-screen interface, and what it leaves behind is inherited by
             // the shell that follows. Four things have to be undone, and only the first two were:

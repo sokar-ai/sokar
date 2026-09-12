@@ -511,4 +511,41 @@ class PodmanTest {
                 .containsExactly("podman", "exec", "--interactive", "--tty",
                         "--env", "TERM=xterm-256color", "box", "/bin/bash");
     }
+
+    @Test
+    void theAgentStartsAtTheTopOfTheTerminal() {
+
+        // Reported on 2026-09-12: starting a task prints two dozen lines - the token, the gate,
+        // every reachable host - and the agent then drew its full-screen interface into the
+        // middle of them. Two programs sharing one screen, and neither of them wrong.
+        final String script = String.join(" ",
+                podman.attachArguments("box", "/bin/bash", "agent-cli", null, List.of()));
+
+        assertThat(script).contains("\\033[H\\033[2J");
+        assertThat(script.indexOf("\\033[H\\033[2J"))
+                .as("cleared before the agent runs, not after").isLessThan(script.indexOf("agent-cli"));
+    }
+
+    @Test
+    void clearingTheScreenKeepsTheScrollback() {
+
+        // ESC[3J erases the scrollback and is what 'clear' sends on a modern terminfo. The launch
+        // report carries the gate URL and what the container may reach, and once the agent owns
+        // the screen, scrolling back is the only way to read it.
+        final String script = String.join(" ",
+                podman.attachArguments("box", "/bin/bash", "agent-cli", null, List.of()));
+
+        assertThat(script).doesNotContain("[3J");
+    }
+
+    @Test
+    void aShellWithNoAgentIsNotCleared() {
+
+        // Nothing has drawn over the report yet, and clearing it would take away the only copy of
+        // what was just printed for no gain at all.
+        final String script = String.join(" ",
+                podman.attachArguments("box", "/bin/bash", null, null, List.of()));
+
+        assertThat(script).doesNotContain("[2J");
+    }
 }
