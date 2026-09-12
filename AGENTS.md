@@ -942,6 +942,26 @@ reads a parameter it does not describe, or throws an error it does not name.
   its own `key` because a client rebuilding it from the other fields is one separator away from
   answering a prompt that does not exist, while the task stays blocked.
 
+## The skills this repository expects you to have
+
+Two skills are the house's, not a preference. **Every repository in this product that builds a
+native image or is written in Java uses both** - which is all of them except the interface, where
+the stack is Flutter and Dart and neither applies.
+
+- **GraalVM** — <https://github.com/oracle/skills/tree/main/graal>, Oracle's own.
+- **Java** — <https://github.com/decebals/claude-code-java>.
+
+**Why it is a rule rather than a suggestion.** Most of what has cost this project a day was neither
+a design mistake nor a bug: it was a property of the toolchain that somebody had to rediscover.
+FFM and static linking being mutually exclusive, a reachability-metadata file deciding whether a
+resource exists in the image at all, a passphrase read that works in a JVM and not in a native
+image - each of those is written down further up this file *because* it was learnt the expensive
+way. A skill that carries the same knowledge in advance is the cheaper end of the same lesson.
+
+**What it does not change.** A skill is knowledge, not authority: where it and a measurement from
+this repository disagree, the measurement wins and the disagreement is worth writing down. The
+facts above this section were all measured here, on the versions this build pins.
+
 ## Rules the four repositories share
 
 Sokar, the interface and the three agent repositories are worked on by different agents, and these
