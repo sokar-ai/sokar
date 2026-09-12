@@ -22,6 +22,7 @@ Ordered by what to do next, not by number: the number is only the file's identit
 |---|---|---|---|---|
 | A01 | [Pi Forge Subscription](A01-Pi-Forge-Subscription.md) | half built | A provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
 | A02 | [Automated Agent Updates](A02-Automated-Agent-Updates.md) | open | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
+| A11 | [What An Agent Declares About Waiting](A11-What-An-Agent-Declares-About-Waiting.md) | open | Each agent declares what "waiting for a person" looks like in its own output, and its own repository proves the declaration still matches the version it pins. | yes |
 
 ## One file per agent
 
