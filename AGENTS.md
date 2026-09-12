@@ -951,6 +951,16 @@ the stack is Flutter and Dart and neither applies.
 - **GraalVM** — <https://github.com/oracle/skills/tree/main/graal>, Oracle's own.
 - **Java** — <https://github.com/decebals/claude-code-java>.
 
+**Where they come from here: <https://fuinorg.jfrog.io/artifactory/agent-skills/>.** The skills are
+republished into that Artifactory repository rather than pulled from GitHub by each machine, for
+the reason every other dependency in this product is: a tag upstream is a name its owner may
+repoint, and a machine that fetches at install time gets whatever it points at that day. What is in
+`agent-skills` is what was reviewed.
+
+That also makes them the same kind of thing as the packages this build publishes, which is the
+point - an agent's knowledge is a dependency, and a dependency nobody versions is one nobody can
+roll back.
+
 **Why it is a rule rather than a suggestion.** Most of what has cost this project a day was neither
 a design mistake nor a bug: it was a property of the toolchain that somebody had to rediscover.
 FFM and static linking being mutually exclusive, a reachability-metadata file deciding whether a
