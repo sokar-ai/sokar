@@ -133,6 +133,39 @@ is *cannot say*, with the message itself shown so a person can decide in one gla
 **What this needs from the launcher:** nothing new. The run already ends, the log is already
 written, and the last message is already in it.
 
+## The smallest thing upstream could change, and why we build as if it never will
+
+The whole of stage 1's awkwardness is one missing distinction: **a headless run that ends because
+it has a question is byte-for-byte a run that ends because it finished**. Everything above works
+around that. The agents are where it could simply not be true - two of the three are open source,
+and the operator asked for that avenue to be explored on 2026-09-12.
+
+**What to ask for is one field on a record they already emit**, not a new event, not a callback,
+not a channel. pi and omp both end a run with a final record (`agent_end`, and pi's `agent_settled`
+after it); claude's `result` already carries `subtype`, `stop_reason` and `terminal_reason`. The
+ask is a **value on that existing field that means "I stopped because I put something to the
+person"**, distinct from finishing. It costs an upstream one enum value and a line where the run
+ends, and it needs no agreement about what a question looks like - the agent is the only thing that
+knows, and it knows it exactly.
+
+Phrased that way it is also useful to *them*: anything that drives these CLIs unattended - a CI
+job, a queue, a wrapper - has the same problem and today has the same non-answer.
+
+**It changes nothing about what gets built here.** Three reasons, and they are the reason this
+section is short:
+
+- **A version pins it.** Agents are installed at a pinned version and moved by A02, so a signal
+  that lands upstream reaches a task only when somebody moves that pin - and never for the versions
+  already in use.
+- **It cannot cover claude**, where the most that can be done is to ask. A design that needs every
+  agent to have it is a design with a hole in the middle of its roster.
+- **The declaration already has room for it.** A11 says what an agent can offer; an agent that
+  grows a real terminal reason declares that instead of *nothing*, the daemon reads a record rather
+  than guessing, and the same field on the contract goes from *cannot say* to *asked* - which is
+  precisely the three-valued shape existing for this.
+
+So: worth proposing, worth pinning when it arrives, and not worth waiting for.
+
 ## Stage 2 — the attached run, from the screen
 
 This is the part with new machinery, and most of its questions have answers.
