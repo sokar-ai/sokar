@@ -30,50 +30,71 @@ distinguishable question must be allowed to say so rather than be guessed at.
 
 ## What is known today, per shipped agent
 
-Measured live on 2026-09-11 against the pinned artifacts, for B11's open question. This is the
-starting material, not the declaration itself: every line of it is re-measured against the pinned
-version before it is written down, because the pin moves weekly under
-[A02](A02-Automated-Agent-Updates.md).
+**Measured 2026-09-12 against the pinned artifacts** - claude 2.1.267 and omp 18.1.13 fetched by
+the pinned URL and checked against the pinned SHA-256, pi 0.85.0 out of the published
+`sokar-agent-pi` package - in both modes: headless with the flags Sokar puts on the command line,
+and attached in a tmux session driven to a real question. Re-measured on every version bump,
+because the pin moves weekly under [A02](A02-Automated-Agent-Updates.md).
 
-### A03 Claude Code
+### The headless mode has nothing to declare, for any of them
 
-- **Records:** the `-p` run emits `stream-json`, which
-  `ClaudeStreamJsonFormatter` in `sokar-claude-code` already parses for display, so this repository
-  has read that stream before. Its hooks fire `SessionStart`, `UserPromptSubmit`, `Stop` and
-  `SessionEnd` in `-p`. The three `Notification` kinds that would say it best - `idle_prompt`,
-  `elicitation_dialog`, `permission_prompt` - exist in the binary but **cannot fire in `-p`**.
-  So whether a waiting record reaches `task.log` at all is the first thing to measure.
-- **Screen:** the richest of the three. Claude Code sets its **window title with a spinner while
-  it works** - the most reliable working signal it offers, because it is a sequence rather than a
-  sentence - and draws a prompt box whose body is where its questions appear. The permission prompt has stable wording around a numbered
-  choice list.
+Driven with a prompt that asks the agent to put a question to the person and wait, **all three
+answered and exited.** None of them can block on a person in a headless run - there is nobody to
+type, and each treats that as "finish".
+
+- **claude** emits `system/init`, `assistant`, `result` and ends with `stop_reason=end_turn`,
+  `terminal_reason=completed`, `num_turns=1`. **Nothing distinguishes a run that ended by asking
+  from one that ended by finishing.**
+- **pi** emits `session agent_start turn_start message_* turn_end agent_end agent_settled`, and
+  `agent_settled` is the **last line before exit** - it marks the end of a run, not a wait,
+  despite what its documentation suggests the event is for.
+- **omp** emits the same minus `agent_settled`, plus `advisor_cost_changed`.
+
+So a declared *record* has nothing to match, and the unattended failure worth reporting is a
+different one: **a run that ended early with a question in its last message.** That belongs beside
+"finished", not beside "waiting", and it is not what this requirement was written for.
+
+### A03 Claude Code - declarable, from the screen
+
+- **Working:** the status line carries `esc to interrupt`, and a line above the box counts up
+  (`Calculating… (6s · ↓ 588 tokens)`).
+- **Waiting on the person:** a numbered list under the question, with the footer
+  `Enter to select · ↑/↓ to navigate · Esc to cancel`. The first-run consents - theme, detected
+  API key, security notes, folder trust, bypass-permissions - use `Enter to confirm · Esc to
+  cancel`. Both disappear the moment the question is answered.
+- **Idle:** neither marker. `Esc to cancel` is therefore the one literal that separates waiting
+  from both other states.
+- **The window title is useless here.** It is `✳ Claude Code` at startup and then `✳ <what the
+  task is about>`, and it does **not** change between working, waiting and idle.
 - **Already shipped here:** `ClaudeSettings` writes this agent's `settings.json` inside the
-  container, so if the hook route below is ever ruled in, the machinery to install it exists.
+  container, and `ClaudeFirstRun` is what gets past the consent screens above.
 
-### A04 Pi
+### A04 Pi - working only, and honest about the rest
 
-- **Records:** `--print --mode json`. Its extension API fires `session_start`, `agent_start`,
-  `turn_start`, `turn_end`, `agent_end`, `agent_settled`, `session_shutdown`, and the shipped
-  `docs/extensions.md` names `agent_settled` and `ui_prompt_start/_end` as the ones meant for
-  status integrations - "waiting for user" in its own words. Whether they reach the JSON stream in
-  `--print` mode, as opposed to only an extension, is the measurement.
-- **Screen:** one literal, `"Working..."`, appears to be all pi's screen offers; everything else
-  worth knowing comes from its extension API rather than from what it draws. A one-rule
-  declaration is the expected outcome here, not a sign the survey was lazy.
-- **Already shipped here:** `PiRoutingExtension` installs an extension into the container already.
-- **Note:** pi asks no tool-approval questions at all. Its one in-box question was project trust,
-  and `--no-approve` removes it (`sokar-pi` `4bf5a11`). An agent that has been deliberately stripped
-  of its questions has correspondingly little to declare, and that is a good outcome rather than a
-  gap.
+- **Working:** a separator line `── ⠏ Working ───…` with a braille spinner.
+- **Waiting:** **nothing.** Its question is plain text in the transcript and the chrome around it
+  is byte-for-byte the idle screen - no footer, no selector, no marker. Measured over repeated
+  captures while it sat waiting.
+- **The window title never changes**: `π - <directory>` in every state.
+- So pi declares a working rule and **declares nothing for waiting**, which the contract must
+  report as *cannot say* rather than as *not waiting*.
+- **Note:** pi asks no tool-approval questions at all; `--no-approve` removes its only in-box
+  question (`sokar-pi` `4bf5a11`). An agent deliberately stripped of its questions has little to
+  declare, and that is a good outcome rather than a gap.
 
-### A05 Oh My Pi
+### A05 Oh My Pi - the best signal of the three, against expectation
 
-- A fork of a different Pi, and the awkward one: **no `agent_settled`, no `ui_prompt_*`, no
-  `project_trust`** at 18.1.13. Its interactive `ask` tool would appear only as a tool execution.
-  This is an inference from the shipped tree, not a live measurement.
-- If that holds, **omp declares nothing and reports that it cannot say.** That is this
-  requirement's honest answer for it, and the acceptance criteria below assert it rather than
-  treating it as unfinished work.
+The earlier inference that omp has nothing was **wrong**, and measuring it is what showed that.
+omp puts its state in the **window title**, where it costs nothing to read and cannot be confused
+with the agent quoting itself:
+
+- `π ⠦ <task>` while working (a braille spinner that advances),
+- `π > <task>` when idle,
+- **`π ! <task>` while it waits for the person** - stable across repeated samples, and back to
+  `π > ` the moment the question is answered.
+
+Its question also draws a box with the footer `Enter select · n note · ↑/↓ move · Esc cancel`, and
+its five-step first-run wizard uses `↑/↓ select · enter confirm · esc skip · ctrl+c exit setup`.
 
 ## What each agent's repository must do
 
@@ -129,10 +150,13 @@ It is written down rather than started, because it needs three answers first:
 
 ## To be checked
 
-- **Does a waiting record reach `task.log` for any of the three?** The events are known to exist;
-  whether they survive `-p` / `--print --mode json` is not. Measured per agent, and it decides
-  whether B47's stage 1 is worth building for that agent at all.
-- **What does the attached screen actually look like** at the pinned versions, region by region?
-  Nobody here has captured one. It has to be read from a real attached session under tmux, because
-  a description written against a different terminal stack would not survive contact with ours.
-- **Does omp really have nothing?** The inference is from a shipped tree, not from a run.
+- **What a declaration may contain**, once the daemon's matcher exists: the three agents need a
+  literal in a named region, a footer line, and a window title - the title being the one omp puts
+  its whole state in. Whether the title is declared like any other region or is its own thing is
+  B47's to settle.
+- **Whether the wording survives a version bump**, which is the standing question A02 creates and
+  the reason point 3 above exists. Claude Code announced 2.1.269 and pi 0.85.1 while these
+  measurements ran.
+- **What an agent driven by a person, rather than by a prompt, looks like in the middle of a
+  turn** - measured here only for a task the agent was given, not for one somebody typed into an
+  attached session over several turns.
