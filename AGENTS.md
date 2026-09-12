@@ -1042,6 +1042,12 @@ become four rules.
   counter-test was run too. The same day, a race condition was asserted here, written into three
   code comments as a measurement, and then measured - five probes, no race. The explanation had
   been invented and the behaviour it "explained" was correct all along.
+- **Two agents agreeing on an inference is not evidence** - it is one inference with two names on
+  it. Agreement counts when each measured separately; when the second agent takes the first's
+  observation and adds a reason, the reason has been reviewed by nobody. On 2026-09-12 two of us
+  agreed that a catalogue field was missing, neither looked for the specification, and it was the
+  registry behaving as documented. **Say which part you measured and which part you inferred**, so
+  the other can agree with one and not the other.
 - **From "both are valid" it does not follow that both should exist.** Two indexes, two markers,
   two manifests, the same skills in two repositories - every expensive defect of 2026-09-12 had
   that shape, and not one of them was a wrong fact. They were correct facts with one inference too
