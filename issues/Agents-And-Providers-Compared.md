@@ -34,14 +34,14 @@ real credential or go unsupported.
 
 | Agent | Provider(s) | Tied to one? | Authentication | Redirectable endpoint? |
 |---|---|---|---|---|
-| [Claude Code](agents/A03-Agent-Claude-Code.md) | Anthropic; also three cloud vendors | model yes, endpoint no | subscription token or API key | **yes**, verified |
+| Claude Code | Anthropic; also three cloud vendors | model yes, endpoint no | subscription token or API key | **yes**, verified |
 | [Codex CLI](agents/A06-Agent-Codex-CLI.md) | OpenAI | yes | account sign-in or API key | unverified |
 | [Gemini CLI](agents/A07-Agent-Gemini-CLI.md) | Google | yes | account sign-in or API key | unverified |
 | [GitHub Copilot CLI](agents/A08-Agent-Copilot-CLI.md) | GitHub Copilot | yes | forge account, device flow | unlikely, unverified |
 | [Grok Build](agents/A09-Agent-Grok-Build.md) | xAI | yes | subscription account | unverified |
 | [OpenCode](agents/A10-Agent-OpenCode.md) | many, per session | **no** | key, sign-in, or variable | **documented** |
-| [Pi](agents/A04-Agent-Pi.md) | several, count unverified | **no** | key, variable, or sign-in with refresh | **yes**, verified - by an extension, not a variable |
-| [Oh My Pi](agents/A05-Agent-Oh-My-Pi.md) | 60+, claimed | **no** | key, variable, or OAuth sign-in | unverified |
+| Pi | several, count unverified | **no** | key, variable, or sign-in with refresh | **yes**, verified - by an extension, not a variable |
+| Oh My Pi | 60+, claimed | **no** | key, variable, or OAuth sign-in | unverified |
 
 Ordered by reported usage among professional developers, except the last three: Grok
 Build is too recent for usage to mean anything, Pi is here because it is

@@ -4,8 +4,8 @@
 OpenRouter, answers a real prompt, and the credential never enters the container. The forge
 subscription with its browser sign-in is the remaining half.
 
-The agent is [Pi](../agents/A04-Agent-Pi.md) - `earendil-works/pi`, not the separate project called
-Oh My Pi ([A05](../agents/A05-Agent-Oh-My-Pi.md)), which these files named by mistake until
+The agent is Pi - `earendil-works/pi`, not the separate project called
+Oh My Pi, which these files named by mistake until
 2026-09-05. Nothing built was affected: the module, the package and the definition always
 said `pi` and always installed `@earendil-works/pi-coding-agent`.
 
@@ -219,7 +219,7 @@ Settling it needs the request path at `api.github.com`, which a disposable accou
   subscription, which may not use the same dialect.
 - **Whether this agent reaches a forge subscription at all.** The requirement assumed it
   does and never checked. Oh My Pi advertises GitHub Copilot among its providers; Pi's own
-  list does not say so. If it does not, [A05](../agents/A05-Agent-Oh-My-Pi.md) is the cheaper
+  list does not say so. If it does not, Oh My Pi is the cheaper
   vehicle for this question than a new agent.
 - ~~Whether the sign-in yields something storable at all.~~ **Answered:** a 40-character
   `gho_` token in a file. Storable and portable.

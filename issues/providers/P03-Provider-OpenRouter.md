@@ -24,7 +24,7 @@ provider proved with an agent that is not its own.
 
 ## Notes
 
-Verified on 2026-09-04 with [Pi](../agents/A04-Agent-Pi.md): a real prompt answered, the
+Verified on 2026-09-04 with Pi: a real prompt answered, the
 broker logging `POST /api/v1/chat/completions -> 200 from the provider`, and no trace of
 the key in the container's environment or files.
 

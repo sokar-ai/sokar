@@ -25,27 +25,30 @@ names one. These files say what must be true of an agent, not how Sokar finds it
 How each of these compares with the others - and which can be brokered at all - is
 [one level up](../Agents-And-Providers-Compared.md), because that comparison covers providers too.
 
-## Agents as a class
+## The candidates
 
 Ordered by what to do next, not by number: the number is only the file's identity.
 
-| # | Requirement | Status | What it covers | Open question |
-|---|---|---|---|---|
-| A02 | [Automated Agent Updates](A02-Automated-Agent-Updates.md) | open | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
-| A11 | [What An Agent Declares About Waiting](A11-What-An-Agent-Declares-About-Waiting.md) | open | Each agent declares what "waiting for a person" looks like in its own output, and its own repository proves the declaration still matches the version it pins. | yes |
-
-## One file per agent
-
 | # | Agent | Status | Open question |
 |---|---|---|---|
-| A03 | [Claude Code](A03-Agent-Claude-Code.md) | **shipped** | yes |
-| A04 | [Pi](A04-Agent-Pi.md) | **shipped** | yes |
-| A05 | [Oh My Pi](A05-Agent-Oh-My-Pi.md) | **shipped** | yes |
 | A06 | [Codex CLI](A06-Agent-Codex-CLI.md) | candidate | yes |
 | A07 | [Gemini CLI](A07-Agent-Gemini-CLI.md) | candidate | yes |
-| A08 | [Copilot CLI](A08-Agent-Copilot-CLI.md) | candidate | yes |
+| A08 | [Copilot CLI](A08-Agent-Copilot-CLI.md) | candidate, and the brokering question is answered | yes |
 | A09 | [Grok Build](A09-Agent-Grok-Build.md) | candidate | yes |
 | A10 | [OpenCode](A10-Agent-OpenCode.md) | candidate | yes |
+
+## Where the shipped agents' requirements went
+
+Claude Code, Pi and Oh My Pi each have a repository, so their requirements live there, in that
+repository's own set: `sokar-claude-code`, `sokar-pi`, `sokar-omp`. Handed over on 2026-09-12.
+
+Two of them were not one requirement each. **Automated agent updates** and **what an agent declares
+about waiting** existed here as one file apiece and arrived there as three - the pipeline and the
+declaration exist separately in every agent repository, and an issue that spans three repositories
+is three issues with a named dependency rather than one with a footnote. That the files were single
+was a fact about this directory, not about the work.
+
+**No row is kept for them here.** An index holds what is still to do, and none of that is.
 
 ## Notes
 

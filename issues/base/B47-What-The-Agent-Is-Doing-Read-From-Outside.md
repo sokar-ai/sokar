@@ -6,7 +6,7 @@ so there was nothing there to detect. What stage 1 is about now is a run that *e
 question and said so to nobody.
 **This file is Sokar's half**: the manifest field, the two sources of text, the matcher, the
 contract and the budget. What each agent must declare and prove is
-[A11](../agents/A11-What-An-Agent-Declares-About-Waiting.md), in the agents set, because it is a
+each agent repository, because it is a
 fact about one agent's wording and nothing outside `agents/` may name one.
 
 It supplies the one producer [B11](B11-What-A-Task-Says-About-Itself.md) is missing.
@@ -116,7 +116,7 @@ it inferred.
 3. **Where the answer came from**, carried with it: a rule the agent package declared, or nothing.
    An interface renders a derived value as a guess and an observed one as a statement, and it
    cannot make that choice from the shape of a value.
-4. **The rule, where there is one, is declared by the agent package** ([A11](../agents/A11-What-An-Agent-Declares-About-Waiting.md)) -
+4. **The rule, where there is one, is declared by the agent package** - tracked as an issue in each agent repository -
    the same mechanism stage 2 uses for a screen, applied to a message instead. A11's measurement
    says what each agent can offer here, and for the headless mode today the answer is *nothing*,
    which is a legitimate declaration rather than a gap to be filled with a heuristic.

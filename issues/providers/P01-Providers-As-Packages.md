@@ -49,8 +49,8 @@ not of either side, and the pair is what a task actually runs.
 Evidence this is real rather than tidy-minded: a provider serving a compatible
 dialect ([P08](P08-Provider-Zhipu.md)) is already reachable only by making the
 broker's upstream a variable, and two of the candidate agents authenticate per
-provider rather than per agent ([A10](../agents/A10-Agent-OpenCode.md),
-[A04](../agents/A04-Agent-Pi.md)).
+provider rather than per agent ([A10](../agents/A10-Agent-OpenCode.md), and Pi, whose
+requirements now live in `sokar-pi`).
 
 There is already one place where the two are mixed: what the first agent writes into
 a fresh container is partly its own first-run state and partly the shape its
