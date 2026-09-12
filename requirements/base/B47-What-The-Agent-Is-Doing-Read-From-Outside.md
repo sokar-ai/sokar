@@ -1,6 +1,9 @@
 # B47 — What The Agent Is Doing, Read From Outside (the daemon's half)
 
-**Status:** open, written 2026-09-11, split in two on 2026-09-12.
+**Status:** open, written 2026-09-11, split in two on 2026-09-12, and **stage 1 rewritten the
+same day** after all three shipped agents were measured: none of them waits in an unattended run,
+so there was nothing there to detect. What stage 1 is about now is a run that *ended* with a
+question and said so to nobody.
 **This file is Sokar's half**: the manifest field, the two sources of text, the matcher, the
 contract and the budget. What each agent must declare and prove is
 [A11](../agents/A11-What-An-Agent-Declares-About-Waiting.md), in the agents set, because it is a
@@ -58,40 +61,77 @@ interface *reads* an answer instead of inventing one, and two interfaces cannot 
 same task. And it is marked as derived, so nothing presents a guess as an observation. F28 keeps
 its refusal and gets what it wanted from it.
 
-## The two sources are not equally hard, and that decides the order
+## The two sources are not equally hard, and the measurement changed which one this is about
 
 `task.log` exists for an **unattended** run and only for that one: `TaskLaunch.runAgent` writes it
 (`app/.../TaskLaunch.java:450`), and it starts the agent with `machineReadable = true`, so the
 agent's own machine-readable output flags are on the command line
-(`HeadlessCommandBuilder`, `agents/api/.../HeadlessCommandBuilder.java:58`). **An unattended run's
-log is therefore already a stream of JSON records rather than prose.** A declared *event* is a
-far better thing to match than a declared sentence, and matching one needs no terminal emulation,
-no regular expression and no budget argument.
+(`HeadlessCommandBuilder`, `agents/api/.../HeadlessCommandBuilder.java:58`). An unattended run's
+log is therefore already a stream of JSON records rather than prose.
 
-An **attached** run writes nothing here at all. `task attach` runs tmux
-(`app/.../TaskAttachCommand.java:81`), the bytes go to the person's terminal, `task.log` does not
-exist, and `TaskInventory.activityOf` correctly reports `UNKNOWN`
-(`app/.../TaskInventory.java:267`). That half needs a source of text that does not exist yet, and
-it is the half B47 calls the harder and more valuable one.
+An **attached** run writes nothing here at all. `task attach` runs tmux, the bytes go to the
+person's terminal, `task.log` does not exist, and `TaskInventory.activityOf` correctly reports
+`UNKNOWN`.
 
-So this is built in two stages, and the first is worth having on its own.
+## What the measurement found, and why stage 1 is now a different requirement
 
-## Stage 1 — the unattended run, from records
+**Measured against the pinned artifacts on 2026-09-12, all three shipped agents, driven with a
+prompt that asks them to put a question to the person and wait. Not one of them waits.**
 
-1. **A `waiting:` block in the agent manifest**, read into `AgentDefinition`
-   (`agents/api/.../AgentDefinition.java`), through `AgentDefinitionReader` and
-   `AgentDefinitionJson`, and shown by `sokar agents --verbose` the way `refused_domains` is. The
-   reader maps known keys by hand and ignores what it does not know, so an agent package may
-   declare this **before** the daemon reads it: this is not a cut and nothing goes red in either
-   order. A11 owns the block's contents; this file owns its existence and its limits.
-2. **A matcher over the records the log already holds.** Each line is a JSON object; a declaration
-   names a field path and a value, or a small set of them. No regular expression is involved, and
-   an agent that emits records is answered exactly.
-3. **The derived value on the contract**, beside `activity` rather than inside it - see *What goes
-   on the wire* below.
-4. **An agent that declares nothing says so**, and that is distinct from *not waiting*.
+- **claude** `-p --output-format stream-json --verbose`: `system/init`, two `assistant`, `result`.
+  It asked its question and **ended** - `subtype=success`, `stop_reason=end_turn`,
+  `terminal_reason=completed`, `num_turns=1`.
+- **pi** `--print --mode json`: `agent_settled` is the **last line, at exit**. It marks the end of
+  a run, not a wait, whatever its documentation says it is for.
+- **omp** `--print --mode json`: no `agent_settled` and no `ui_prompt_*` at all.
 
-Measured signals exist for two of the three shipped agents today; A11 carries them.
+So **there is no waiting state to detect in an unattended run**, and a feature built to find one
+would have been correct and fired never. What the measurement exposes instead is the failure this
+product should actually be afraid of:
+
+> **A run ended early because it had a question, and nothing anywhere says so.**
+
+It looks exactly like a run that finished its work. `Attention` in the interface sorts it under
+*stopped* - last, below quiet and unseen, in the same words as a successful run: *"Not running"* -
+and the count the window opens on does not include it. **The worst case is today the least visible
+one.** That is what stage 1 is for, and it belongs beside *finished*, not beside *waiting*.
+
+## Stage 1 — the last thing a finished run said
+
+**Nothing in the stream distinguishes *ended by asking* from *ended by finishing*.** That is the
+finding, and the design has to respect it rather than paper over it: the daemon must not claim to
+know which happened. What it can do is carry the material, and separate what it observed from what
+it inferred.
+
+1. **The last message of a finished run, on the contract.** This is an observation, not a guess:
+   the record is in `task.log`, the run is over, and that message is what the agent said last.
+   Today an interface can only send somebody to a log file - which is the thing a listing exists
+   to save them.
+2. **Whether it was a question, as three values**: *asked*, *did not ask*, and **cannot say**.
+   Never two. pi attached says nothing at all when it waits - its question is plain text and the
+   chrome around it is the idle screen exactly - so a boolean would report pi as *did not ask*
+   while it sits there waiting, which is a statement, and a wrong one. This is the same rule as
+   point 4 below, applied one level up, and the interface has both of the other renderings
+   already.
+3. **Where the answer came from**, carried with it: a rule the agent package declared, or nothing.
+   An interface renders a derived value as a guess and an observed one as a statement, and it
+   cannot make that choice from the shape of a value.
+4. **The rule, where there is one, is declared by the agent package** ([A11](../agents/A11-What-An-Agent-Declares-About-Waiting.md)) -
+   the same mechanism stage 2 uses for a screen, applied to a message instead. A11's measurement
+   says what each agent can offer here, and for the headless mode today the answer is *nothing*,
+   which is a legitimate declaration rather than a gap to be filled with a heuristic.
+5. **It clears itself.** The field reflects the last message of the last run, so starting the task
+   again with the answer - which is what an interface would offer, `Start` with `now` - replaces
+   it. A question with no deadline must not quietly lapse, and it must not need a channel that
+   does not exist to be cleared.
+
+**Not a heuristic.** Deciding from the text whether something is a question - a trailing question
+mark, a phrase - is exactly the guess this requirement refuses everywhere else, and it would be
+wrong most confidently on the agents that need it most. Absent a declared rule the honest answer
+is *cannot say*, with the message itself shown so a person can decide in one glance.
+
+**What this needs from the launcher:** nothing new. The run already ends, the log is already
+written, and the last message is already in it.
 
 ## Stage 2 — the attached run, from the screen
 
@@ -152,12 +192,19 @@ a rule nobody has written.
 
 ## What goes on the wire
 
-A new field beside `activity`, never folded into it. `activity` stays what B11 fixed it as, and
-`state` stays the runtime's own words for a person. The new value carries three things a client
-needs to render honestly: whether the agent is **waiting**, what it is **waiting for** where the
-declaration says so, and **where the answer came from** - a declared record, a declared screen
-match, or nothing because the agent declares nothing. `Watch` reports it when it changes, on
-B48's terms, not on a clock.
+**Two fields, for two different questions, and neither folded into `activity`.** `activity` stays
+what B11 fixed it as, and `state` stays the runtime's own words for a person.
+
+**A running task: is it waiting?** Whether the agent is **waiting**, what it is **waiting for**
+where the declaration says so, and **where the answer came from** - a declared screen match, or
+nothing because the agent declares nothing. This is stage 2's value. `Watch` reports it when it
+changes, on B48's terms, not on a clock.
+
+**A finished task: what did it say last, and was that a question?** The **last message**, which is
+observed; whether it **asked**, as three values, which is derived; and **where that came from**.
+This is stage 1's value, and it is carried in the list rather than pushed as an event - a window
+opened an hour later has to see it, and `Refresh` is how an interface catches up on everything
+that is not pushed.
 
 Four values, and the fourth is the point: *waiting*, *not waiting*, *cannot say because this agent
 declares nothing*, and *cannot say because nothing here can see the output*. **The tempting
@@ -168,12 +215,15 @@ waiting"* from an agent that was never able to say is a lie with a timestamp on 
 
 ## What must be true
 
-1. **Waiting is derived from the agent's own output, read where the host already writes it.**
-   Nothing new crosses out of the container, and no agent gains a channel it can write into.
+1. **Everything here is derived from the agent's own output, read where the host already writes
+   it.** Nothing new crosses out of the container, and no agent gains a channel it can write into.
+   That holds for a running task's screen and for a finished run's last message alike.
 2. **What waiting looks like is declared by the agent package** (A11). Sokar carries no agent's
    wording, and `grep` over everything outside `agents/` proves it.
 3. **A derived state is marked as derived** and is never mixed with what the runtime observed.
 4. **An agent that declares nothing reports that it cannot say**, not that the task is fine.
+   Both fields obey this, and pi is why it is not academic: attached, it says nothing at all when
+   it waits, so a boolean would report it as *not asking* while it sits there waiting.
 5. **Only a declared match produces `waiting`.** Quiet is quiet: a task that stopped producing
    output and matched nothing is idle. A timeout must never be allowed to graduate into `waiting`.
 6. **A declaration that has stopped matching is visible.** An agent's wording changes when its CLI
@@ -185,18 +235,26 @@ waiting"* from an agent that was never able to say is a lie with a timestamp on 
 7. **A declaration cannot cost the daemon its health.** The bound is on the declaration, checked
    when it is read, and not on the good behaviour of whoever wrote it.
 8. **The derived state arrives through `Watch` when it changes**, not when a clock moves.
-9. **A screen that is not the agent's live interface freezes the state rather than replacing it.**
+9. **A run that ended with a question is as visible as one that is waiting.** It sorts with what
+   needs a person rather than under *stopped*, where it currently sits below quiet and unseen, in
+   the same words as a run that finished its work.
+10. **A screen that is not the agent's live interface freezes the state rather than replacing it.**
    A transcript viewer or a pager open over the agent's own screen is still the agent's pane, and
    reading it reports on the pager. A declaration needs a way to say *this is not the agent's
    screen* and publish nothing, or opening a pager reports the agent idle.
 
 ## Acceptance criteria
 
-- **Stage 1:** an unattended agent is driven to the point where it waits on a person. Within a
-  bounded time the task reports `waiting` over the contract, without anything inside the container
-  having sent anything.
-- **Stage 2:** the same, asserted **at a terminal**, because a terminal's redraws are what makes
-  the detection hard and a test that only covers the easy mode proves the wrong half.
+- **Stage 1:** an unattended agent is driven to ask a question and ends. The task carries **what
+  it said last** over the contract, and a listing can show it without anybody opening a log file.
+- **Stage 1:** the same run reports whether it asked as one of three values, and **an agent with
+  no declared rule reports *cannot say*** - asserted to be distinguishable from *did not ask*,
+  because that is the whole point and a boolean is the mistake being avoided.
+- **Stage 1:** starting the task again replaces the field. A question that cannot be cleared is
+  one somebody learns to ignore.
+- **Stage 2:** an attached agent driven to a question reports `waiting` **at a terminal**, because
+  a terminal's redraws are what makes the detection hard and a test that only covers the easy mode
+  proves the wrong half.
 - The same agent, working, never reports `waiting`; and the same agent, quiet and finished,
   reports idle rather than waiting. Both asserted, because the second is the expensive mistake.
 - An agent whose definition declares nothing reports that it cannot say, and a test asserts the
@@ -210,15 +268,34 @@ waiting"* from an agent that was never able to say is a lie with a timestamp on 
 
 ## To be checked
 
-- **Can `tmux capture-pane -p` be issued against a session somebody is attached to, cheaply and
-  without disturbing them?** If yes, stage 2 needs no terminal emulation at all. If no, the
-  fallback is `pipe-pane` plus a reduction here, which is a subsystem rather than a call.
+- **~~Can `tmux capture-pane -p` be issued against a session somebody is attached to, cheaply and
+  without disturbing them?~~ Yes, measured 2026-09-12.** The capture itself costs 2.3-2.8 ms and
+  the whole call ~131 ms, which is the `podman exec` around it rather than the capture. With a
+  real client attached, 400 captures wrote **0 bytes** to that client: it is server-side and
+  invisible to the person. So stage 2 is a scheduled call, not a subsystem, and no terminal
+  emulator is needed.
+
+  Two things came with that answer. **The pane's geometry follows whoever is attached** - it went
+  120x40 to 80x23 the moment a client attached - so a declared *"last N lines"* region is measured
+  against a window the person resizes, and the declaration rules have to say what that means.
+  And the numbers were taken against a session created by `task attach`; the launch path now runs
+  in the same session (`4a0cdae`), so **re-measure against a task started the new way** before
+  anything depends on the figure.
 - **Which engine** - the ruling above is a recommendation, not a decision, and it belongs to
   whoever builds the matcher.
 - **How long may a task be `waiting` before something else happens?** This requirement only makes
   the state visible. Whether an unattended run that has waited for hours should be reported
   somewhere a person is actually looking belongs where attention is already collected - B48.
-- **Does the unattended JSON stream actually carry a waiting record for any shipped agent?** A11
-  measured the events each agent can emit; whether one of them reaches `task.log` in
-  `--print`/`-p` mode is measured there, and stage 1 is worth building only for the agents where
-  it does.
+- **~~Does the unattended JSON stream actually carry a waiting record for any shipped agent?~~ No,
+  for none of the three, measured 2026-09-12** - and that is what rewrote stage 1. See *What the
+  measurement found* above.
+- **Does a run that ended with a question need a way to be answered, or only to be seen?** Stage 1
+  makes it visible and clears itself when the task is started again with the answer, which needs
+  no new channel. Whether somebody should be able to reply to an ended run *in place* is a bigger
+  question - it is a channel into a container that is no longer running anything - and it is not
+  this requirement's to answer.
+- **A trap for whoever builds stage 2:** a new tmux session inherits the **server's** environment,
+  not the client's. Measured on 2026-09-12 by starting a second session against a server already
+  running in a container: the second pane came up with the first one's variables and reported no
+  credential. Sokar creates exactly one named session per task, so this does not bite today;
+  anything that adds a second one will meet it.
