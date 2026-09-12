@@ -14,9 +14,46 @@ no route to the upstream — not for the agent, and not for a person inside the 
 | | |
 |---|---|
 | **In** | seeded from the mirror |
-| **Out** | nowhere |
+| **Out** | into the mirror; off the machine only by hand |
 | **Credential in the container** | none |
 | **Review** | by hand, out of the mirror |
+
+### Where the history comes from, and where the work goes
+
+*"Nothing leaves"* is about the container, and the mirror is not in it. The mirror is a bare
+repository on the host, under the data directory as `mirrors/<project>.git`, and it is both ends of
+the journey: the agent clones from it and pushes back into it. So the two questions this raises -
+how the history got in, and how changed work gets out - are both answered on the host, by a person,
+deliberately.
+
+**Getting a history in, when there is no route to an upstream from the host either.** The mirror is
+seeded from the first of these that exists:
+
+1. `--upstream` on the command,
+2. the project's `upstream:`,
+3. **the checkout you are standing in** - committed history only, since a bare clone has no working
+   tree.
+
+The third is the offline case and needs no network at all: `cd` into your own working copy and
+start the task. It is printed rather than done silently, because a seed decides what the agent will
+believe the project is. A mirror that already exists is never re-seeded. The other way in is
+`sokar gate restore`, from a bundle carried here by whatever means a disconnected machine has.
+
+**Getting changed work out.** The agent's push lands in that mirror, so the work is on the host the
+moment the task ends - it has left the container, which is the boundary this class is about. From
+there:
+
+- `sokar gate checkout <name>` opens waiting work as a copy you can read;
+- `sokar gate backup <file>` writes the whole mirror, pending pushes included, as **one bundle** -
+  a single file to carry to a machine that does have a route;
+- or fetch from the mirror into your own checkout, since it is an ordinary git repository on your
+  own disk.
+
+**What the class is therefore for.** A project whose upstream must not be reachable from a task -
+because the code is sensitive, or the agent is not trusted with a route, or the machine genuinely
+has none - and a project that has no upstream at all, where the mirror *is* the origin. What it
+costs is that transport is manual: nothing moves off this machine unless a person moves it. That is
+the guarantee, not a gap in it.
 
 ## guarded
 
