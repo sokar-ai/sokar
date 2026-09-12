@@ -36,7 +36,19 @@ public class TaskRunner {
      * @param paths Where files go.
      */
     public TaskRunner(CommandRunner runner, SokarPaths paths) {
-        this.podman = new Podman(runner, "podman", paths.networkConfiguration());
+        this(runner, paths, name -> null);
+    }
+
+    /**
+     * Constructor with the environment the operator's terminal is read from.
+     *
+     * @param runner Runs commands.
+     * @param paths Where files go.
+     * @param environment Reads an environment variable.
+     */
+    public TaskRunner(CommandRunner runner, SokarPaths paths,
+            java.util.function.UnaryOperator<String> environment) {
+        this.podman = new Podman(runner, "podman", paths.networkConfiguration(), environment);
         this.paths = paths;
     }
 
@@ -377,7 +389,8 @@ public class TaskRunner {
      * @return Argument list.
      */
     public List<String> attachCommand(String container, String shell) {
-        return podman.attachArguments(container, shell);
+        return podman.attachArguments(container, java.util.List.of(shell),
+                podman.terminalFor(container));
     }
 
     /**
@@ -389,7 +402,8 @@ public class TaskRunner {
      * @return Command and arguments.
      */
     public List<String> attachCommand(String container, String shell, String command) {
-        return podman.attachArguments(container, shell, command);
+        return podman.attachArguments(container, shell, command, null,
+                podman.terminalFor(container));
     }
 
     /**
@@ -403,7 +417,8 @@ public class TaskRunner {
      */
     public List<String> attachCommand(String container, String shell,
             @org.jspecify.annotations.Nullable String command, String label) {
-        return podman.attachArguments(container, shell, command, label);
+        return podman.attachArguments(container, shell, command, label,
+                podman.terminalFor(container));
     }
 
     /**

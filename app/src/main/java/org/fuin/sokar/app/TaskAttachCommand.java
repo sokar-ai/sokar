@@ -175,7 +175,12 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
 
         // Replaces this process with the session, which is why the arguments are returned rather
         // than run: what is on the far end of the ssh channel has to be the terminal itself.
-        return context.exec().applyAsInt(
-                context.podman().attachArguments(container, sessionCommand()));
+        // The terminal is resolved here rather than inside the builder: it costs a round trip
+        // into the container, and this is the one path where a person's own terminal is on the
+        // other end. One handle for both calls - context.podman() builds a new one each time, so
+        // asking through two of them would ask the container twice.
+        final org.fuin.sokar.runtime.Podman podman = context.podman();
+        return context.exec().applyAsInt(podman.attachArguments(container,
+                sessionCommand(), podman.terminalFor(container)));
     }
 }

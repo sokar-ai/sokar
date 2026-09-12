@@ -403,4 +403,112 @@ class PodmanTest {
         assertThat(line).doesNotContain("stty sane");
         assertThat(line).contains("PS1=");
     }
+
+    @Test
+    void passesTheOperatorsTerminalWhenTheContainerCanResolveIt() {
+
+        // Measured on 2026-09-12: 'podman exec -t' invents TERM=xterm and passes nothing else,
+        // whatever the operator is actually sitting at. Everything inside then renders in eight
+        // colours.
+        runner.answering("podman exec box infocmp xterm-256color", "");
+        final Podman probing = new Podman(runner, "podman", null,
+                name -> "TERM".equals(name) ? "xterm-256color" : null);
+
+        assertThat(probing.terminalFor("box"))
+                .containsExactly("--env", "TERM=xterm-256color");
+    }
+
+    @Test
+    void fallsBackWhenTheContainerHasNeverHeardOfTheTerminal() {
+
+        // The reason the container is asked at all. The base image carries ncurses' base set and
+        // nothing else - no alacritty, no xterm-kitty, no foot - and sending one of those names
+        // to a container that cannot look it up is worse than saying nothing: a program that
+        // cannot resolve its terminal falls back further than xterm would have.
+        runner.failing("podman exec box infocmp alacritty", 1, "");
+        runner.answering("podman exec box infocmp xterm-256color", "");
+        final Podman probing = new Podman(runner, "podman", null,
+                name -> "TERM".equals(name) ? "alacritty" : null);
+
+        assertThat(probing.terminalFor("box"))
+                .containsExactly("--env", "TERM=" + Podman.FALLBACK_TERMINAL);
+    }
+
+    @Test
+    void saysNothingWhenTheContainerCannotResolveEitherName() {
+
+        // An image with a terminfo set smaller than ncurses' base. Leaving podman's own TERM in
+        // place is the honest answer; naming something it does not have is not.
+        runner.failing("podman exec box infocmp alacritty", 1, "");
+        runner.failing("podman exec box infocmp xterm-256color", 1, "");
+        final Podman probing = new Podman(runner, "podman", null,
+                name -> "TERM".equals(name) ? "alacritty" : null);
+
+        assertThat(probing.terminalFor("box")).isEmpty();
+    }
+
+    @Test
+    void aTerminalThatCanDoNothingIsNotPassedOn() {
+
+        // TERM=dumb is what a pipe and a build log say. Passing it on would tell the agent to
+        // render nothing at all, which is worse than podman's guess.
+        final Podman probing = new Podman(runner, "podman", null,
+                name -> "TERM".equals(name) ? "dumb" : null);
+
+        assertThat(probing.terminalFor("box")).isEmpty();
+        assertThat(runner.invocations()).as("and it did not even ask").isEmpty();
+    }
+
+    @Test
+    void colourSupportRidesAlongBecauseItNamesNoTerminfoEntry() {
+
+        runner.answering("podman exec box infocmp xterm-256color", "");
+        final Podman probing = new Podman(runner, "podman", null,
+                name -> switch (name) {
+                    case "TERM" -> "xterm-256color";
+                    case "COLORTERM" -> "truecolor";
+                    default -> null;
+                });
+
+        assertThat(probing.terminalFor("box"))
+                .containsExactly("--env", "TERM=xterm-256color", "--env", "COLORTERM=truecolor");
+    }
+
+    @Test
+    void theContainerIsAskedOncePerContainerRatherThanPerAttach() {
+
+        // Attaching, leaving and attaching again is the ordinary way to use this, and the answer
+        // cannot change while the container lives.
+        runner.answering("podman exec box infocmp xterm-256color", "");
+        final Podman probing = new Podman(runner, "podman", null,
+                name -> "TERM".equals(name) ? "xterm-256color" : null);
+
+        probing.terminalFor("box");
+        probing.terminalFor("box");
+
+        assertThat(runner.invocations()).hasSize(1);
+    }
+
+    @Test
+    void buildingTheArgumentsStillRunsNothing() {
+
+        // The builders are handed straight to exec(), and the test above this one pins why the
+        // asking is separate: a builder that ran a command would make every caller pay for a
+        // round trip whether a person's terminal was on the other end or not.
+        podman.attachArguments("box", List.of("/bin/bash"), List.of("--env", "TERM=xterm-256color"));
+        podman.attachArguments("box", "/bin/bash", "agent-cli", "p/t", List.of());
+
+        assertThat(runner.invocations()).isEmpty();
+    }
+
+    @Test
+    void theTerminalArgumentsGoBeforeTheContainerName() {
+
+        // podman reads them as options of 'exec'; after the container name they would be
+        // arguments of the program instead, which is a different and very confusing failure.
+        assertThat(podman.attachArguments("box", List.of("/bin/bash"),
+                List.of("--env", "TERM=xterm-256color")))
+                .containsExactly("podman", "exec", "--interactive", "--tty",
+                        "--env", "TERM=xterm-256color", "box", "/bin/bash");
+    }
 }

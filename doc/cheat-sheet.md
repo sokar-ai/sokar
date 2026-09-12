@@ -42,6 +42,30 @@ sokar vault passphrase           # re-encrypt under a new passphrase
 There is no default bound on `--for`. A bound that arrived as a default would start asking people
 for a passphrase they never used to be asked for.
 
+## Describe a project
+
+`project.yml` sits beside your code, in the directory you start tasks from. `sokar task start`
+offers to write it when it is missing, and takes Enter for every default.
+
+```yaml
+project:
+  name: "myproject"
+  security_class: "guarded"
+  # upstream: "git@github.com:you/myproject.git"   # required by online; optional otherwise
+image:
+  base_image: "ubuntu:24.04"
+egress:                     # what the build may reach; nothing else resolves
+  sets: [os-packages-debian, git-hosting]
+  # domains: ["nexus.corp.example"]   # a private mirror, if you have one
+limits:                     # optional; these are the defaults
+  memory: "8g"              # "none" to opt out on purpose
+  pids: 2048
+  # cpus: "2.0"             # unset means no CPU limit
+```
+
+Only `name`, `security_class` and `base_image` are required; everything else has a default. Every
+key it can carry is in [the project file](project-file.md).
+
 ## Run something
 
 ```

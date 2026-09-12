@@ -49,6 +49,11 @@ class TaskRunCommandTest {
     private Path root;
 
     private SokarContext context(Path dir, boolean hooksInstalled) throws IOException {
+        return context(dir, hooksInstalled, name -> null);
+    }
+
+    private SokarContext context(Path dir, boolean hooksInstalled,
+            java.util.function.UnaryOperator<String> environment) throws IOException {
         root = dir;
         // A machine Sokar will run on. Without this the fake answers nothing to 'podman version',
         // which is indistinguishable from a podman too old to support - and every run refuses.
@@ -82,7 +87,7 @@ class TaskRunCommandTest {
                 throw new IllegalStateException("the session died");
             }
             return execExit;
-        });
+        }, environment);
     }
 
     /** The hook binaries without the descriptors: what 'apt install' leaves behind. */
@@ -209,6 +214,35 @@ class TaskRunCommandTest {
         assertThat(execCalls.getFirst()).startsWith("podman", "exec", "--interactive", "--tty",
                 containerName(), "/bin/sh");
         assertThat(String.join(" ", execCalls.getFirst())).contains("exec /bin/sh -l");
+    }
+
+    @Test
+    void tellsTheContainerWhichTerminalTheOperatorIsAt(@TempDir Path dir) throws IOException {
+
+        // End to end through the wiring, because the parts were right and the thread between them
+        // was not: the context builds the runner, the runner builds podman, and each of them used
+        // to fall back to this process's own environment. What that cost was not production - it
+        // was a test that read the terminal of whoever ran it and asserted something different in
+        // CI, which is the same class of defect as the one this feature fixes.
+        final SokarContext context = context(dir, true,
+                name -> "TERM".equals(name) ? "xterm-256color" : null);
+        runner.answering("podman exec " + containerName() + " infocmp xterm-256color", "");
+
+        execute(context, "task", "start", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString(), "--shell", "/bin/sh");
+
+        assertThat(execCalls.getFirst())
+                .containsSubsequence("--env", "TERM=xterm-256color", containerName());
+    }
+
+    @Test
+    void aTestContextReadsNoEnvironmentAtAll() {
+
+        // The seam that keeps the test above honest. A context built the three-argument way -
+        // which is how every test builds one - must read nothing from this process, or a suite
+        // passes on a developer's machine and asserts something else where there is no terminal.
+        assertThat(new SokarContext(runner, SokarPaths.current(), arguments -> 0)
+                .environment().apply("TERM")).isNull();
     }
 
     @Test

@@ -30,6 +30,8 @@ public class Podman {
 
     private final CommandRunner runner;
 
+    private final java.util.function.UnaryOperator<String> environment;
+
     private final String executable;
 
     private final @Nullable Path networkConfiguration;
@@ -63,9 +65,100 @@ public class Podman {
      */
     public Podman(CommandRunner runner, String executable,
             @Nullable Path networkConfiguration) {
+        this(runner, executable, networkConfiguration, System::getenv);
+    }
+
+    /**
+     * Constructor with the environment to read the operator's terminal from.
+     *
+     * @param runner Runs the commands.
+     * @param executable Program name or path.
+     * @param networkConfiguration File {@link LoopbackMapping} is written to, or {@code null}.
+     * @param environment Reads an environment variable, for a test that has its own.
+     */
+    public Podman(CommandRunner runner, String executable,
+            @Nullable Path networkConfiguration,
+            java.util.function.UnaryOperator<String> environment) {
         this.runner = runner;
         this.executable = executable;
         this.networkConfiguration = networkConfiguration;
+        this.environment = environment;
+    }
+
+    /** What a terminal that cannot do anything calls itself; never worth passing on. */
+    private static final String NOTHING = "dumb";
+
+    /** The safe 256-colour entry, present wherever ncurses' base terminfo set is. */
+    static final String FALLBACK_TERMINAL = "xterm-256color";
+
+    /** Resolved once per container: attaching twice must not ask twice. */
+    private final java.util.Map<String, java.util.List<String>> terminalEnvironment =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Returns the {@code --env} arguments that tell a container what terminal it is on.
+     * <p>
+     * <strong>podman passes no environment through, and invents {@code TERM=xterm}.</strong>
+     * Measured on 2026-09-12: {@code podman exec -t} sets that and nothing else, whatever the
+     * operator's own terminal is. Everything inside then renders in eight colours, and an agent's
+     * interface is the thing that suffers most.
+     * <p>
+     * <strong>The operator's own value is passed only when the container can resolve it.</strong>
+     * The base image carries the ncurses base set - {@code xterm-256color}, {@code screen-256color}
+     * and {@code tmux-256color} are there - and nothing else: no {@code alacritty}, no
+     * {@code xterm-kitty}, no {@code foot}. Sending one of those names to a container that has
+     * never heard of it is worse than saying nothing, because a program that cannot look its
+     * terminal up falls back further than {@code xterm} would have. So the container is asked
+     * first, and {@link #FALLBACK_TERMINAL} is what an unknown name becomes - a superset for
+     * colour, and compatible in practice with every terminal that would have reported one.
+     * <p>
+     * {@code COLORTERM} rides along when it is set. It names no terminfo entry, so nothing can
+     * fail to resolve it, and it is how a program decides it may emit 24-bit colour at all.
+     *
+     * <strong>This asks the container, so it is not part of building an argument list.</strong>
+     * The builders below are pure on purpose - what they return is handed straight to {@code exec}
+     * - and a builder that ran a command would make every caller pay for a round trip whether it
+     * was attaching a person's terminal or not. The callers that are pass the result in.
+     *
+     * @param container Container about to be attached to.
+     * @return Arguments to insert, possibly empty.
+     */
+    public List<String> terminalFor(String container) {
+        return terminalEnvironment.computeIfAbsent(container, name -> {
+            final List<String> arguments = new ArrayList<>();
+            final String wanted = environment.apply("TERM");
+            if (wanted != null && !wanted.isBlank() && !NOTHING.equals(wanted)) {
+                final String usable = knows(name, wanted) ? wanted
+                        : knows(name, FALLBACK_TERMINAL) ? FALLBACK_TERMINAL : null;
+                if (usable != null) {
+                    arguments.add("--env");
+                    arguments.add("TERM=" + usable);
+                }
+            }
+            final String colour = environment.apply("COLORTERM");
+            if (colour != null && !colour.isBlank()) {
+                arguments.add("--env");
+                arguments.add("COLORTERM=" + colour);
+            }
+            return List.copyOf(arguments);
+        });
+    }
+
+    /**
+     * Asks a container whether it can look a terminal name up.
+     *
+     * @param container Container name.
+     * @param terminal Terminal name.
+     * @return Whether {@code infocmp} resolves it there.
+     */
+    private boolean knows(String container, String terminal) {
+        try {
+            return runner.run(podman("exec", container, "infocmp", terminal)).exitCode() == 0;
+        } catch (RuntimeException ex) {
+            // A container that cannot be asked is one that cannot be attached to either, and the
+            // attach itself is about to say so far better than this could.
+            return false;
+        }
     }
 
     private Command podman(String... arguments) {
@@ -713,8 +806,26 @@ public class Podman {
      * @return Arguments.
      */
     public List<String> attachArguments(String container, List<String> command) {
+        return attachArguments(container, command, List.of());
+    }
+
+    /**
+     * Returns the arguments that attach to a container, with extra arguments for {@code exec}.
+     * <p>
+     * Pure: nothing here runs anything. {@code environment} is what {@link #terminalFor(String)}
+     * returned, resolved by the caller because resolving it costs a round trip into the container.
+     *
+     * @param container Container name.
+     * @param command Program and arguments to run inside it.
+     * @param environment Extra arguments for {@code exec}, before the container name.
+     * @return Arguments.
+     */
+    public List<String> attachArguments(String container, List<String> command,
+            List<String> environment) {
         final List<String> arguments = new ArrayList<>(
-                List.of(executable, "exec", "--interactive", "--tty", container));
+                List.of(executable, "exec", "--interactive", "--tty"));
+        arguments.addAll(environment);
+        arguments.add(container);
         arguments.addAll(command);
         return List.copyOf(arguments);
     }
@@ -752,7 +863,7 @@ public class Podman {
     }
 
     public List<String> attachArguments(String container, String shell) {
-        return List.of(executable, "exec", "--interactive", "--tty", container, shell);
+        return attachArguments(container, List.of(shell));
     }
 
     /**
@@ -782,6 +893,21 @@ public class Podman {
      */
     public List<String> attachArguments(String container, String shell,
             @Nullable String command, @Nullable String label) {
+        return attachArguments(container, shell, command, label, List.of());
+    }
+
+    /**
+     * Returns the arguments that run a command, leave a shell, and say what terminal it is on.
+     *
+     * @param container Container name.
+     * @param shell Shell to leave behind.
+     * @param command Command to run first, or {@code null} to go straight to the shell.
+     * @param label Text for the prompt, or {@code null} to leave the shell's own.
+     * @param environment Extra arguments for {@code exec}, from {@link #terminalFor(String)}.
+     * @return Arguments.
+     */
+    public List<String> attachArguments(String container, String shell,
+            @Nullable String command, @Nullable String label, List<String> environment) {
 
         final StringBuilder script = new StringBuilder();
         if (command != null) {
@@ -819,7 +945,6 @@ public class Podman {
             script.append("export PROMPT_COMMAND=\"PS1='sokar[\\$SOKAR_PROMPT] \\w\\$ '\"; ");
         }
         script.append("exec ").append(shell).append(" -l");
-        return List.of(executable, "exec", "--interactive", "--tty", container, shell, "-lc",
-                script.toString());
+        return attachArguments(container, List.of(shell, "-lc", script.toString()), environment);
     }
 }

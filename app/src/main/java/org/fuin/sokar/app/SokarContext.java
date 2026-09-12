@@ -17,9 +17,30 @@ import org.fuin.sokar.runtime.HookInstaller;
  * @param runner Runs external programs.
  * @param paths Where files go.
  * @param exec Runs a command on this process's terminal and waits for it.
+ * @param environment Reads an environment variable; the operator's terminal is the only thing
+ *        taken from it.
  */
 public record SokarContext(CommandRunner runner, SokarPaths paths,
-        java.util.function.ToIntFunction<List<String>> exec) {
+        java.util.function.ToIntFunction<List<String>> exec,
+        java.util.function.UnaryOperator<String> environment) {
+
+    /**
+     * Constructor for a context that reads no environment.
+     * <p>
+     * <strong>Empty rather than this process's, and that is the point.</strong> The only thing
+     * read from the environment is the operator's terminal, and a test that picked up the
+     * terminal of whoever ran it would pass on a developer's machine and assert something else
+     * in CI - which is the failure this very change was made to stop having. Production builds
+     * its context through {@link #real()}, which passes the real one.
+     *
+     * @param runner Runs commands.
+     * @param paths Where files go.
+     * @param exec Runs a command on this process's terminal.
+     */
+    public SokarContext(CommandRunner runner, SokarPaths paths,
+            java.util.function.ToIntFunction<List<String>> exec) {
+        this(runner, paths, exec, name -> null);
+    }
 
     /**
      * Runs a command with this process's terminal and returns its exit code.
@@ -49,7 +70,7 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
      */
     public static SokarContext real() {
         return new SokarContext(new ProcessCommandRunner(), SokarPaths.current(),
-                SokarContext::runInTerminal);
+                SokarContext::runInTerminal, System::getenv);
     }
 
     /**
@@ -162,7 +183,7 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
      */
     public org.fuin.sokar.runtime.Podman podman() {
         return new org.fuin.sokar.runtime.Podman(runner, "podman",
-                paths.networkConfiguration());
+                paths.networkConfiguration(), environment);
     }
 
     /**
@@ -171,6 +192,6 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
      * @return Runner.
      */
     public TaskRunner tasks() {
-        return new TaskRunner(runner, paths);
+        return new TaskRunner(runner, paths, environment);
     }
 }
