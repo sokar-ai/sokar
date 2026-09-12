@@ -133,6 +133,31 @@ is *cannot say*, with the message itself shown so a person can decide in one gla
 **What this needs from the launcher:** nothing new. The run already ends, the log is already
 written, and the last message is already in it.
 
+## Pulled, never pushed - the line an agent-side signal must not cross
+
+An agent can be made to write its own state down: pi has prompt-start and prompt-end events, and an
+extension subscribing to them can record *asking* / *not asking* as it happens. That is a far
+better signal than reading a screen, and it is admissible **only in one shape**.
+
+**The file stays inside the container, and the host reaches in and reads it.** `podman exec` to
+read a path in the container's own filesystem is the host pulling, exactly as `capture-pane` is;
+the container gains no path outward and cannot make anything happen on this side. Nothing about
+the boundary changes.
+
+**What would cross the line, and will look like an obvious simplification later:**
+
+- **A mounted directory**, so the agent writes straight into the host's state directory and the
+  read costs nothing. That is a channel the container writes into - the thing this whole design
+  refuses - and the saving is one `podman exec`.
+- **A socket, a callback, a port.** Same objection, more plumbing.
+- **Anything the host acts on without reading it first.** A pull that is really a push because the
+  host reacts to a write it did not ask for is the same inversion wearing a filename.
+
+The rule, so it survives somebody refactoring for speed: **the host decides when to look; the
+container never decides when the host learns something.** A11 carries the same rule for a hook that
+prints into the agent's own output - the moment such a hook needs to reach anything other than
+stdout, it has become the refused design.
+
 ## The smallest thing upstream could change, and why we build as if it never will
 
 The whole of stage 1's awkwardness is one missing distinction: **a headless run that ends because
