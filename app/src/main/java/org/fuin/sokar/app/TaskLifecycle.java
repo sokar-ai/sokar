@@ -91,10 +91,9 @@ final class TaskLifecycle {
     }
 
     private static java.util.Optional<ProcessHandle> handle(Path pidFile) {
-        try {
-            return ProcessHandle.of(Long.parseLong(Files.readString(pidFile).strip()));
-        } catch (IOException | RuntimeException ex) {
-            return java.util.Optional.empty();
-        }
+        // Verified, not merely parsed. A process id is reused, so the number in a file that
+        // outlived its helper can belong to anything this user is running - and signalling on the
+        // strength of it is how a tidy-up stops something nobody asked it to touch.
+        return org.fuin.sokar.wire.HelperPid.verified(pidFile);
     }
 }

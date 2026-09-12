@@ -101,7 +101,17 @@ public class InstalledAgent implements AutoCloseable {
                     exited = true;
                     break;
                 }
-                Thread.onSpinWait();
+                // Sleeping, not spinning. This was 'Thread.onSpinWait()', which burns a core for
+                // as long as the agent takes to answer - up to the whole timeout for one that
+                // hangs, on every launch and for every agent asked. A millisecond costs nothing
+                // against a process that is starting and bounds the waste at a thousand wakeups.
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    exited = true;
+                    break;
+                }
             }
         } catch (IOException ex) {
             throw new AgentException("Cannot read from " + executable, ex);

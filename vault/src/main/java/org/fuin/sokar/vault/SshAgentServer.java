@@ -64,6 +64,10 @@ public class SshAgentServer implements AutoCloseable, Runnable {
         this.keys = List.copyOf(keys);
         try {
             Files.createDirectories(socketPath.toAbsolutePath().getParent());
+            // Never over a live one. This socket signs with the operator's key; taking it from a
+            // running agent on the strength of a pathname is the last thing that should happen
+            // by accident.
+            org.fuin.sokar.wire.LiveSocket.refuseToStealFrom(socketPath, "ssh agent");
             Files.deleteIfExists(socketPath);
             // The DIRECTORY is the access control, not the socket file. Measured: a rootless
             // container's agent user is a subordinate uid on the host, so it cannot open an

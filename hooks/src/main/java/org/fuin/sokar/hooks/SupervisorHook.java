@@ -108,11 +108,13 @@ public class SupervisorHook extends Hook {
     private void reapOne(Sidecar sidecar, Path pidFile) {
         final String name = pidFile.getFileName().toString().replace(".pid", "");
         try {
-            final long pid = Long.parseLong(Files.readString(pidFile, StandardCharsets.UTF_8).strip());
-            ProcessHandle.of(pid).ifPresent(handle -> {
+            // Verified against the recorded start time, not just parsed. An id is reused, and a
+            // file that outlived its helper otherwise names whatever holds that id now.
+            org.fuin.sokar.wire.HelperPid.verified(pidFile).ifPresentOrElse(handle -> {
                 handle.destroy();
-                log(sidecar, "poststop", name + " " + pid + " stopped");
-            });
+                log(sidecar, "poststop", name + " " + handle.pid() + " stopped");
+            }, () -> log(sidecar, "poststop",
+                    name + " was gone, or its record no longer names it; nothing was signalled"));
             Files.deleteIfExists(pidFile);
         } catch (IOException | RuntimeException ex) {
             log(sidecar, "poststop", "could not reap " + name + ": " + ex);

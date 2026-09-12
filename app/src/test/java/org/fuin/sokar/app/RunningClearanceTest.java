@@ -88,7 +88,10 @@ class RunningClearanceTest {
         // resume.json, so leaving the watcher there would bring back the mode somebody just
         // turned off - silently, and only after a restart.
         final Path state = task(dir, "prompt");
-        Files.writeString(state.resolve("watcher.pid"), "4242\n");
+        // A real process, recorded as a helper records itself: a bare id is no longer enough to
+        // be signalled, because an id on its own names whatever holds it now.
+        final Process watcher = new ProcessBuilder("sleep", "120").start();
+        org.fuin.sokar.wire.HelperPid.record(state.resolve("watcher.pid"), watcher.toHandle());
         new TaskHelpers(java.util.List.of(new TaskHelpers.Helper("watcher",
                 java.util.List.of("sokar", "shield", "watch"), java.util.Map.of(),
                 TaskHelpers.AFTER))).writeTo(state);
@@ -98,7 +101,8 @@ class RunningClearanceTest {
         assertThat(result.outcome()).isEqualTo(RunningClearance.Outcome.CHANGED);
         assertThat(result.was()).isEqualTo("prompt");
         assertThat(runner.invocations()).anySatisfy(command ->
-                assertThat(command.arguments()).containsExactly("kill", "4242"));
+                assertThat(command.arguments())
+                        .containsExactly("kill", String.valueOf(watcher.pid())));
         assertThat(TaskHelpers.readFrom(state).helpers()).isEmpty();
         assertThat(TaskProfile.readFrom(state).clearance()).isEqualTo("off");
     }
@@ -107,7 +111,10 @@ class RunningClearanceTest {
     void aPreviewChangesNothingAtAll(@TempDir Path dir) throws Exception {
 
         final Path state = task(dir, "prompt");
-        Files.writeString(state.resolve("watcher.pid"), "4242\n");
+        // A real process, recorded as a helper records itself: a bare id is no longer enough to
+        // be signalled, because an id on its own names whatever holds it now.
+        final Process watcher = new ProcessBuilder("sleep", "120").start();
+        org.fuin.sokar.wire.HelperPid.record(state.resolve("watcher.pid"), watcher.toHandle());
 
         final RunningClearance.Result result = set(dir, "off", true);
 

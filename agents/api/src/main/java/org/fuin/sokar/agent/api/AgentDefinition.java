@@ -181,6 +181,24 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         tokenEnvironment = Map.copyOf(tokenEnvironment);
         allowedDomains = List.copyOf(allowedDomains);
         refusedDomains = List.copyOf(refusedDomains);
+        // Checked with the same grammar a project's own egress domains are checked with, and for
+        // the same reason: every one of these is written verbatim into a dnsmasq 'server=' or
+        // 'nftset=' line and into the firewall's allow sets. A value carrying a newline, a slash
+        // or a comment character is not a bad host name there - it is additional configuration,
+        // in the file that decides what a container may reach.
+        //
+        // The project side has had this from the beginning; this side had only a check that the
+        // allow and refuse lists did not overlap. An agent's answer arrives from a program, and a
+        // program that can widen its own egress is what the shield exists to make impossible.
+        //
+        // The grammar is repeated rather than shared because this module depends on nothing of
+        // Sokar's but the wire types. Two copies of a small pattern is the cheaper mistake.
+        for (final String domain : allowedDomains) {
+            requireHostName(name, domain);
+        }
+        for (final String domain : refusedDomains) {
+            requireHostName(name, domain);
+        }
         for (final String domain : refusedDomains) {
             if (allowedDomains.contains(domain)) {
                 // Both lists reaching the firewall would make the ruleset depend on which one is
@@ -231,5 +249,24 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
     public String tokenVariable(String credentialType, ProviderDefinition serving) {
         final String own = tokenVariable(credentialType);
         return own != null ? own : serving.tokenVariable(credentialType);
+    }
+
+    /** A host name, and nothing that could be read as configuration around one. */
+    private static final java.util.regex.Pattern HOST_NAME =
+            java.util.regex.Pattern.compile("[a-z0-9]([a-z0-9-]*[a-z0-9])?"
+                    + "(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+");
+
+    /**
+     * Refuses anything that is not plainly a host name.
+     *
+     * @param agent Whose definition it is, for the message.
+     * @param domain The value.
+     */
+    private static void requireHostName(String agent, String domain) {
+        if (domain.length() > 253 || !HOST_NAME.matcher(domain).matches()) {
+            throw new AgentException("Agent '" + agent + "' declares '" + domain
+                    + "', which is not a host name. Only host names reach the resolver and the"
+                    + " firewall, because everything else there is configuration.");
+        }
     }
 }

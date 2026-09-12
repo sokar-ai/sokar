@@ -131,7 +131,12 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
                 exchange(broker, token, credentials), authHeader, authPrefix, requests)) {
 
             writeOwnerOnly(tokenFile, token.value(), err);
-            writeOwnerOnly(pidFile, String.valueOf(ProcessHandle.current().pid()), err);
+            try {
+                org.fuin.sokar.wire.HelperPid.record(pidFile);
+            } catch (java.io.IOException ex) {
+                err.println("sokar: cannot write " + pidFile + ": " + ex.getMessage());
+                err.flush();
+            }
 
             out.println("socket    " + socket);
             out.println("upstream  " + upstream);

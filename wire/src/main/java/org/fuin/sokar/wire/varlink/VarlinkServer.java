@@ -292,15 +292,10 @@ public class VarlinkServer implements AutoCloseable, Runnable {
      * @throws VarlinkException If something is listening there.
      */
     private static void refuseToStealFrom(Path socket) {
-        if (!Files.exists(socket)) {
-            return;
-        }
-        try (java.nio.channels.SocketChannel probe =
-                java.nio.channels.SocketChannel.open(UnixDomainSocketAddress.of(socket))) {
-            throw new VarlinkException("Another server is already listening on " + socket);
+        try {
+            org.fuin.sokar.wire.LiveSocket.refuseToStealFrom(socket, "server");
         } catch (IOException ex) {
-            // Refused, or not a socket at all. Either way nothing is being taken from anybody,
-            // and the caller unlinks it next.
+            throw new VarlinkException(ex.getMessage(), ex);
         }
     }
 

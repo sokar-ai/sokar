@@ -85,15 +85,18 @@ public final class RunningClearance {
             return false;
         }
         try {
-            final String text = Files.readString(pidFile).strip();
+            // Verified first: the record has to still name the watcher. An id alone is reused,
+            // and 'kill' does not ask whether the process it is given is the one that was meant.
+            final java.util.Optional<ProcessHandle> watcher =
+                    org.fuin.sokar.wire.HelperPid.verified(pidFile);
             Files.deleteIfExists(pidFile);
-            if (text.isEmpty()) {
+            if (watcher.isEmpty()) {
                 return false;
             }
             // Through the runner rather than ProcessHandle: the watcher is a child of whatever
             // started the task, which is not this process when the daemon is asked.
             context.runner().run(org.fuin.sokar.core.process.Command.of(
-                    List.of("kill", text)));
+                    List.of("kill", String.valueOf(watcher.get().pid()))));
             return true;
         } catch (java.io.IOException | RuntimeException ex) {
             return false;

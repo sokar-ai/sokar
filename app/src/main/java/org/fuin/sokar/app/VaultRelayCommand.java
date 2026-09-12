@@ -44,7 +44,7 @@ public class VaultRelayCommand implements Callable<Integer> {
                 new java.net.InetSocketAddress("127.0.0.1", listen), socket)) {
 
             if (pidFile != null) {
-                java.nio.file.Files.writeString(pidFile, String.valueOf(ProcessHandle.current().pid()));
+                org.fuin.sokar.wire.HelperPid.record(pidFile);
             }
             out.println("relaying  127.0.0.1:" + listen + " -> " + socket);
             out.flush();

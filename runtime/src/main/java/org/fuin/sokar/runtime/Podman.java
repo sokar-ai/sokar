@@ -799,14 +799,43 @@ public class Podman {
      *
      * @param container Container name.
      * @param path Absolute path inside the container.
-     * @param mode Octal permissions to set.
      * @return Arguments.
      */
-    public List<String> writeFileArguments(String container, String path, String mode) {
-        final String directory = path.substring(0, path.lastIndexOf('/'));
-        return List.of(executable, "exec", "--interactive", container, "sh", "-c",
-                "mkdir -p '" + directory + "' && cat > '" + path + "' && chmod " + mode
-                        + " '" + path + "'");
+    public List<String> writeFileArguments(String container, String path) {
+        // 'tee', so the path is an ARGUMENT rather than text in a script. This was one 'sh -c'
+        // with the path concatenated into single quotes three times over, and a path containing a
+        // quote ended the quoting and turned the rest into commands - executed in the container as
+        // the agent user. The path comes from the agent's own answer, which makes that a command
+        // injection across an API boundary rather than a formatting slip.
+        //
+        // Nothing here needs a shell: the content arrives on standard input and tee writes it,
+        // which is the whole of what the removed script did apart from mkdir and chmod - and those
+        // are their own calls now, for the same reason.
+        return List.of(executable, "exec", "--interactive", container, "tee", path);
+    }
+
+    /**
+     * Returns the arguments that create the directory a file is about to be written into.
+     *
+     * @param container Container name.
+     * @param path Absolute path of the file itself.
+     * @return Arguments.
+     */
+    public List<String> makeParentArguments(String container, String path) {
+        return List.of(executable, "exec", container, "mkdir", "-p",
+                path.substring(0, path.lastIndexOf('/')));
+    }
+
+    /**
+     * Returns the arguments that set a written file's permissions.
+     *
+     * @param container Container name.
+     * @param path Absolute path inside the container.
+     * @param mode Octal permissions.
+     * @return Arguments.
+     */
+    public List<String> setModeArguments(String container, String path, String mode) {
+        return List.of(executable, "exec", container, "chmod", mode, path);
     }
 
     /**

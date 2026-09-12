@@ -83,9 +83,7 @@ public class VaultAgentCommand implements Callable<Integer> {
             }
             if (pidFile != null) {
                 try {
-                    java.nio.file.Files.writeString(pidFile,
-                            String.valueOf(ProcessHandle.current().pid()),
-                            java.nio.charset.StandardCharsets.UTF_8);
+                    org.fuin.sokar.wire.HelperPid.record(pidFile);
                 } catch (java.io.IOException ex) {
                     err.println("sokar: cannot write " + pidFile + ": " + ex.getMessage());
                     err.flush();

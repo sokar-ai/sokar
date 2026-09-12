@@ -77,10 +77,6 @@ public class VaultProxy implements AutoCloseable, Runnable {
      * completion containing {@code \"refresh_token\":} does not match while a real token
      * response does.
      */
-    private static final java.util.regex.Pattern CREDENTIAL_FIELD =
-            java.util.regex.Pattern.compile(
-                    "(?<!\\\\)\"(access_token|refresh_token|id_token)\"\\s*:");
-
     /** How much of an answer is examined before any of it is passed on, in bytes. */
     private static final int PEEK = 8192;
 
@@ -167,6 +163,10 @@ public class VaultProxy implements AutoCloseable, Runnable {
                 .build();
 
         try {
+            // Never over a live one. This socket answers with a credential; replacing it on the
+            // strength of a pathname would orphan whoever was serving and leave two processes
+            // disagreeing about which of them the container is talking to.
+            org.fuin.sokar.wire.LiveSocket.refuseToStealFrom(socket, "credential proxy");
             Files.deleteIfExists(socket);
             Files.createDirectories(socket.getParent());
             // Locked down BEFORE the socket exists, because this is what keeps other host users
@@ -330,13 +330,18 @@ public class VaultProxy implements AutoCloseable, Runnable {
             return HttpHead.readChunked(in, BODY_LIMIT);
         }
         final long length = head.contentLength();
+        if (length == HttpHead.MALFORMED) {
+            // Present and unusable. Treating it as absent forwards a request whose body the
+            // caller declared and this did not send.
+            throw new IOException("The request declares a Content-Length that is not a length");
+        }
         if (length <= 0) {
             return new byte[0];
         }
         if (length > BODY_LIMIT) {
             throw new IOException("Request body exceeds " + BODY_LIMIT + " bytes");
         }
-        return in.readNBytes((int) length);
+        return HttpHead.readExactly(in, (int) length);
     }
 
     private HttpRequest reissue(HttpHead head, byte[] body, String real) {
@@ -409,8 +414,9 @@ public class VaultProxy implements AutoCloseable, Runnable {
             throws IOException {
 
         final InputStream upstreamBody = response.body();
+        final CredentialScan scan = new CredentialScan();
         final byte[] first = peek(upstreamBody);
-        if (CREDENTIAL_FIELD.matcher(new String(first, StandardCharsets.UTF_8)).find()) {
+        if (scan.sees(first, first.length)) {
             // The one exchange whose answer is itself a credential. Measured with a stub
             // provider: the container received access_token and refresh_token verbatim, which
             // is the single thing the phantom token exists to prevent. What the provider did
@@ -454,6 +460,20 @@ public class VaultProxy implements AutoCloseable, Runnable {
             while ((read = body.read(buffer)) != -1) {
                 if (read == 0) {
                     continue;
+                }
+                if (scan.sees(buffer, read)) {
+                    // The headers have already gone, so there is no status left to answer with:
+                    // the only thing that still withholds the credential is to stop writing and
+                    // drop the connection. The agent sees a truncated answer, which is what a
+                    // failure looks like, and the credential does not cross.
+                    //
+                    // Scanning only the first few thousand bytes and streaming the rest unread
+                    // was the earlier shape, and a credential after that point reached the
+                    // container. A partial check on a stream is not a check.
+                    log.accept("answer cut off: it carried a credential after the first bytes");
+                    out.flush();
+                    throw new IOException("The provider's answer carried a credential"
+                            + " partway through; nothing further was passed on");
                 }
                 out.write((Integer.toHexString(read) + "\r\n").getBytes(StandardCharsets.UTF_8));
                 out.write(buffer, 0, read);

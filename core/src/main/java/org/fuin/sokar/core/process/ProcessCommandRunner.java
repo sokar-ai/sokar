@@ -88,6 +88,8 @@ public class ProcessCommandRunner implements CommandRunner {
 
         private final InputStream stream;
 
+        private final java.io.ByteArrayOutputStream collected = new java.io.ByteArrayOutputStream();
+
         private volatile String text = "";
 
         private Drain(InputStream stream) {
@@ -97,11 +99,22 @@ public class ProcessCommandRunner implements CommandRunner {
         @Override
         public void run() {
             try (stream) {
-                text = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+                final byte[] buffer = new byte[8192];
+                int read;
+                while ((read = stream.read(buffer)) != -1) {
+                    collected.write(buffer, 0, read);
+                }
             } catch (IOException ex) {
                 // The process is gone. Whatever was read before that is still the best diagnostic
                 // available, so this is not turned into a failure of its own.
-                text = "";
+                //
+                // It used to say exactly that and then throw the bytes away: 'readAllBytes' either
+                // returns everything or throws, and the catch set the result to the empty string.
+                // So a command that died mid-output was reported with no output at all - the one
+                // case where the output is worth most. Reading incrementally is what makes the
+                // comment above true.
+            } finally {
+                text = collected.toString(StandardCharsets.UTF_8);
             }
         }
 

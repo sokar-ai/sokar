@@ -374,6 +374,15 @@ public class VaultFile {
             }
             Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING,
                     StandardCopyOption.ATOMIC_MOVE);
+            // The rename itself has to reach the disk too. force() above makes the CONTENT
+            // durable; on a filesystem that needs the directory synced, a crash between the move
+            // and the next flush can leave the old name pointing at nothing - which for a vault
+            // is the file that holds every credential. Forcing the directory is what makes
+            // "atomic replacement" true rather than usually true.
+            try (FileChannel parent = FileChannel.open(directory,
+                    java.nio.file.StandardOpenOption.READ)) {
+                parent.force(true);
+            }
         } catch (IOException ex) {
             throw new VaultException("Cannot write " + file, ex);
         }

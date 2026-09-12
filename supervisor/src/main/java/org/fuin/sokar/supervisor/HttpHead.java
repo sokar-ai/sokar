@@ -99,9 +99,16 @@ public record HttpHead(String method, String target, List<String> names, List<St
             return -1;
         }
         try {
-            return Long.parseLong(value.strip());
+            final long length = Long.parseLong(value.strip());
+            if (length < 0) {
+                // A negative length is not "no body": it is a header that says something
+                // impossible, and answering it with an empty body forwards a request the caller
+                // did not make. Refused below, where -2 is told apart from absent.
+                return MALFORMED;
+            }
+            return length;
         } catch (NumberFormatException ex) {
-            return -1;
+            return MALFORMED;
         }
     }
 
@@ -142,6 +149,32 @@ public record HttpHead(String method, String target, List<String> names, List<St
      * @return The body.
      * @throws IOException On a read failure, a malformed chunk, or a body over the limit.
      */
+    /** What {@link #contentLength()} answers for a header that is present and unusable. */
+    public static final long MALFORMED = -2;
+
+    /**
+     * Reads exactly as many bytes as were declared.
+     * <p>
+     * <strong>'As many as arrived' is not the same number.</strong> {@code readNBytes} returns
+     * short at end of stream, and a short body used to be forwarded to the provider as if it were
+     * whole - a truncated request, sent under this task's credential, answered with an error
+     * nobody could explain. A declared length is a promise, and a promise that is not kept is a
+     * refusal rather than a smaller request.
+     *
+     * @param in Where to read.
+     * @param length How many bytes were declared.
+     * @return Exactly that many bytes.
+     * @throws IOException If the stream ends first.
+     */
+    public static byte[] readExactly(InputStream in, int length) throws IOException {
+        final byte[] body = in.readNBytes(length);
+        if (body.length != length) {
+            throw new IOException("The body ended after " + body.length + " of "
+                    + length + " declared bytes");
+        }
+        return body;
+    }
+
     public static byte[] readChunked(InputStream in, int limit) throws IOException {
         final java.io.ByteArrayOutputStream body = new java.io.ByteArrayOutputStream();
         while (true) {
@@ -160,16 +193,29 @@ public record HttpHead(String method, String target, List<String> names, List<St
             if (length == 0) {
                 // Trailers, then the final blank line. Neither is forwarded.
                 String trailer;
-                while ((trailer = line(in)) != null && !trailer.isEmpty()) {
-                    continue;
+                boolean terminated = false;
+                while ((trailer = line(in)) != null) {
+                    if (trailer.isEmpty()) {
+                        terminated = true;
+                        break;
+                    }
+                }
+                if (!terminated) {
+                    throw new IOException("The chunked body ended without its final blank line");
                 }
                 return body.toByteArray();
             }
             if (body.size() + length > limit) {
                 throw new IOException("Chunked body exceeds " + limit + " bytes");
             }
-            body.write(in.readNBytes(length));
-            line(in);
+            body.write(readExactly(in, length));
+            // The CRLF after a chunk is part of the framing, not decoration: without checking it,
+            // a stream that ends mid-chunk or carries the wrong separator was read as a chunk
+            // that simply finished, and whatever came next became the following chunk's size.
+            final String separator = line(in);
+            if (separator == null || !separator.isEmpty()) {
+                throw new IOException("A chunk was not followed by the required blank line");
+            }
         }
     }
 

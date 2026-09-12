@@ -369,9 +369,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
             return;
         }
         try {
-            java.nio.file.Files.writeString(pidFile,
-                    String.valueOf(ProcessHandle.current().pid()),
-                    java.nio.charset.StandardCharsets.UTF_8);
+            org.fuin.sokar.wire.HelperPid.record(pidFile);
         } catch (IOException ex) {
             // Not fatal: it only means poststop cannot reap this process, and the runtime
             // directory is cleared at logout anyway.

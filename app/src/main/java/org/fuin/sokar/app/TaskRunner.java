@@ -1,5 +1,6 @@
 package org.fuin.sokar.app;
 
+import org.jspecify.annotations.Nullable;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
@@ -339,20 +340,44 @@ public class TaskRunner {
                         java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
         try {
             Files.writeString(temporary, file.content(), StandardCharsets.UTF_8);
-            final ProcessBuilder builder = new ProcessBuilder(podman.writeFileArguments(
-                    container, file.path(), file.ownerOnly() ? "600" : "644"));
-            builder.redirectInput(temporary.toFile());
-            builder.redirectErrorStream(true);
-            builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-            final Process process = builder.start();
-            if (process.waitFor() != 0) {
-                throw new IOException("Could not write " + file.path() + " in " + container);
+            // Three calls rather than one shell script. The script concatenated the path into
+            // quoted text three times, so a path containing a quote became commands; these pass
+            // it as an argument, where it can only ever be a path.
+            runOrFail(podman.makeParentArguments(container, file.path()), null,
+                    "Could not create the directory for " + file.path() + " in " + container);
+            runOrFail(podman.writeFileArguments(container, file.path()), temporary,
+                    "Could not write " + file.path() + " in " + container);
+            runOrFail(podman.setModeArguments(container, file.path(),
+                            file.ownerOnly() ? "600" : "644"), null,
+                    "Could not set the permissions of " + file.path() + " in " + container);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    /**
+     * Runs one step of placing a file, failing with what it was trying to do.
+     *
+     * @param arguments The command.
+     * @param stdin A file to feed it, or {@code null}.
+     * @param failure What to say when it does not succeed.
+     * @throws IOException If it fails.
+     */
+    private void runOrFail(List<String> arguments, @Nullable Path stdin, String failure)
+            throws IOException {
+        final ProcessBuilder builder = new ProcessBuilder(arguments);
+        if (stdin != null) {
+            builder.redirectInput(stdin.toFile());
+        }
+        builder.redirectErrorStream(true);
+        builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        try {
+            if (builder.start().waitFor() != 0) {
+                throw new IOException(failure);
             }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted writing " + file.path(), ex);
-        } finally {
-            Files.deleteIfExists(temporary);
+            throw new IOException(failure, ex);
         }
     }
 

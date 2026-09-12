@@ -422,7 +422,9 @@ class TaskRunCommandTest {
         final Path state = dir.resolve("run/sokar").resolve(containerName());
         Files.createDirectories(state);
         final Process helper = new ProcessBuilder("sleep", "120").start();
-        Files.writeString(state.resolve("vault.pid"), String.valueOf(helper.pid()));
+        // Id and start time, as a helper writes them: a bare id is refused, because by the time
+        // anything reads a leftover file that number may belong to something else entirely.
+        org.fuin.sokar.wire.HelperPid.record(state.resolve("vault.pid"), helper.toHandle());
 
         execute(context, "task", "start", "--attach", "shell", "-p", projectFile(dir, MINIMAL).toString(), "--detach");
 

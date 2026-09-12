@@ -44,6 +44,13 @@ public record InstallArtifact(String url, @Nullable String sha256, String target
         if (!target.startsWith("/")) {
             throw new AgentException("Install target must be absolute: " + target);
         }
+        // Both of these are interpolated into the generated build script, so a quote or a newline
+        // in either is not a bad value - it is another line of the script, contributed by whatever
+        // answered the agent protocol. The build already runs an agent's own install fragments, so
+        // this is not a new capability for a trusted agent; it is refusing malformed data at the
+        // boundary instead of discovering it as a build that does something else.
+        requirePlain("Install target", target);
+        requirePlain("Install artifact URL", url);
         if (!mode.matches("0?[0-7]{3}")) {
             throw new AgentException("Install mode must be octal, for example 0755: " + mode);
         }
@@ -73,5 +80,21 @@ public record InstallArtifact(String url, @Nullable String sha256, String target
      */
     public String fileName() {
         return target.substring(target.lastIndexOf('/') + 1);
+    }
+
+    /**
+     * Refuses a value that would not survive being written into a script.
+     *
+     * @param what Which value it is, for the message.
+     * @param value The value.
+     */
+    private static void requirePlain(String what, String value) {
+        for (final char character : value.toCharArray()) {
+            if (character < ' ' || character == '\'' || character == '"' || character == '\\'
+                    || character == '$' || character == '`') {
+                throw new AgentException(what + " may not contain quotes, backslashes, shell"
+                        + " expansion characters or control characters: " + value);
+            }
+        }
     }
 }

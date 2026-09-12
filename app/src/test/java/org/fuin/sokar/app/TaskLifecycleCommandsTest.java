@@ -479,7 +479,9 @@ class TaskLifecycleCommandsTest {
         runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\n");
         final Path state = stateOf("sokar-uc-shell-1");
         final Process helper = new ProcessBuilder("sleep", "120").start();
-        Files.writeString(state.resolve("vault.pid"), String.valueOf(helper.pid()));
+        // Recorded the way a helper records itself - id AND start time. A bare number is refused
+        // now, because an id alone can belong to anything by the time somebody reads the file.
+        org.fuin.sokar.wire.HelperPid.record(state.resolve("vault.pid"), helper.toHandle());
 
         assertThat(execute(context, "task", "stop", "sokar-uc-shell-1")).isZero();
 
