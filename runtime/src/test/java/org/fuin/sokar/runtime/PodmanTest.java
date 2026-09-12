@@ -548,4 +548,23 @@ class PodmanTest {
 
         assertThat(script).doesNotContain("[2J");
     }
+
+    @Test
+    void anUnattendedRunNeverGetsAnInteractiveStdin() {
+
+        // Measured against the shipped agents on 2026-09-12: pi and omp BLOCK at startup when
+        // stdin is an open pipe - omp sat in 'readPipedInput' past 150 s, pi produced nothing for
+        // 180 s - and both run normally with stdin closed. Without '-i' podman attaches nothing to
+        // the container's stdin, so the agent sees it closed.
+        //
+        // This is one flag away from an unattended task that hangs forever, and it would look like
+        // a task that is WORKING: the agent's own "still starting" lines keep the log growing, so
+        // the one signal anything outside can see says it is fine.
+        final List<String> arguments = podman.executeArguments("box",
+                java.util.Map.of("ANTHROPIC_API_KEY", "x"), List.of("claude", "-p", "do it"));
+
+        assertThat(arguments).doesNotContain("--interactive").doesNotContain("-i");
+        assertThat(arguments).doesNotContain("--tty").doesNotContain("-t");
+        assertThat(arguments).startsWith("podman", "exec");
+    }
 }

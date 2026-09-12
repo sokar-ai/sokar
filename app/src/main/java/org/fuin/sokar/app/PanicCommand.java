@@ -14,7 +14,7 @@ import picocli.CommandLine.Spec;
  * <strong>It stops; it never removes.</strong> The reason for reaching for this is that something
  * is going wrong and nobody yet knows what, which is exactly when destroying the evidence is
  * worst: the workspace, the logs and what never reached the gate all survive, and
- * {@code task resume} brings a task back with the work it had. Discarding is a separate decision,
+ * {@code task attach} offers to bring a task back with the work it had. Discarding is a separate decision,
  * made afterwards, by name.
  * <p>
  * No container names, on purpose. Somebody reaching for this is not in a position to list what is
@@ -72,7 +72,7 @@ public class PanicCommand implements Callable<Integer>, SokarFactory.ContextAwar
         // Never removed, and said every time: an operator who believes this cleaned up would go
         // looking for work that is still exactly where it was.
         out.println("kept      every workspace, log and unpushed commit; 'sokar task list' shows"
-                + " them, 'sokar task resume <name>' brings one back");
+                + " them, 'sokar task attach <name>' offers to bring one back");
         out.flush();
 
         if (!surviving.isEmpty()) {

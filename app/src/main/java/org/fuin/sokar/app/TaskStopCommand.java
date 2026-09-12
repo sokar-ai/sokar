@@ -14,7 +14,7 @@ import picocli.CommandLine.Spec;
  * Stops a task and everything it started.
  * <p>
  * <strong>The container is stopped, not removed.</strong> Its filesystem is the task's workspace,
- * so removing it would throw away the agent's work and make {@code sokar task resume} impossible.
+ * so removing it would throw away the agent's work and leave nothing to come back to.
  * Removal is a separate decision, and a separate command: {@code sokar task remove}.
  * <p>
  * Stopping the container is not enough on its own either: the credential proxy, the git gate and

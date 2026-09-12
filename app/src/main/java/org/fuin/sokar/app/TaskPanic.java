@@ -15,7 +15,7 @@ import java.util.Map;
  * differ about what "stop everything" means.
  * <p>
  * <strong>It stops; it never removes.</strong> The workspace, the logs and whatever never reached
- * the gate all survive, and {@code task resume} brings a task back with the work it had.
+ * the gate all survive, and {@code task attach} offers to bring a task back with the work it had.
  */
 public final class TaskPanic {
 

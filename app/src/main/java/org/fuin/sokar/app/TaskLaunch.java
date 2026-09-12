@@ -870,7 +870,7 @@ public final class TaskLaunch {
         return clearanceWiring;
     }
 
-    /** What this run started on the host, written out so 'task resume' can start it again. */
+    /** What this run started on the host, written out so a later start can bring them back. */
     private final java.util.List<TaskHelpers.Helper> startedHelpers = new java.util.ArrayList<>();
 
     /**
@@ -898,8 +898,8 @@ public final class TaskLaunch {
      * --keep} has to be decided before the run, and the run an operator wants to look at is the
      * one that went wrong - which is known only afterwards. So a non-zero exit stops the container
      * rather than removing it: the workspace, the logs and anything that never reached the gate
-     * stay where they are, {@code task resume} brings it back, and discarding it is a separate
-     * decision made by name.
+     * stay where they are, {@code task attach} offers to bring it back, and discarding it is a
+     * separate decision made by name.
      * <p>
      * Stopped through {@link TaskControl}, not by leaving it running: a task nobody is watching
      * that still holds a firewall, a gate and a credential proxy is not "kept", it is abandoned.
@@ -921,15 +921,13 @@ public final class TaskLaunch {
             if (held.work() != null) {
                 out.println("          it holds " + held.work());
             }
-            // Two commands, because resume only starts it again: saying "go back in with
-            // resume" promised something resume does not do.
-            out.println("          look with 'sokar task list', start it again with"
-                    + " 'sokar task resume " + container + "'");
-            out.println("          and go back in with 'sokar task attach " + container + "',");
-            out.println("          discard with 'sokar task stop " + container + " --purge'");
+            out.println("          look with 'sokar task list', go back in with"
+                    + " 'sokar task attach " + container + "'");
+            out.println("          - which offers to start it again -");
+            out.println("          discard with 'sokar task remove " + container + "'");
             out.flush();
         } else if (!request.keep()) {
-            // The same question 'task stop --purge' asks before it removes anything. A workspace
+            // The same question 'task remove' asks before it removes anything. A workspace
             // is in the container's own writable layer, so this remove destroys it - and asking
             // there but not here was the difference between refusing to discard unreviewed work
             // and discarding it because somebody typed 'exit'. Only answerable while the
@@ -947,12 +945,12 @@ public final class TaskLaunch {
                 new TaskControl(context).stop(container);
                 out.println("kept      " + container + " - it holds " + held
                         + " that never reached the gate");
-                out.println("          look with 'sokar task attach " + container + "' after"
-                        + " 'sokar task resume " + container + "',");
-                out.println("          push it with 'sokar task stop " + container + " --rescue'"
+                out.println("          go back in with 'sokar task attach " + container + "',"
+                        + " which offers to start it again,");
+                out.println("          push it with 'sokar task remove " + container + " --rescue'"
                         + " while it runs,");
-                out.println("          or discard it with 'sokar task stop " + container
-                        + " --purge --force'");
+                out.println("          or discard it with 'sokar task remove " + container
+                        + " --force'");
                 out.flush();
             }
         }

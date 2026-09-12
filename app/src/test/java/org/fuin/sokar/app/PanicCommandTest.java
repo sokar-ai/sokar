@@ -83,7 +83,9 @@ class PanicCommandTest {
         assertThat(execute(context, "panic")).isZero();
 
         assertThat(runner.lines()).noneMatch(line -> line.contains("rm --force"));
-        assertThat(out.toString()).contains("kept").contains("task resume");
+        // 'task resume' is gone; what brings a task back is attaching to it, which offers to
+        // start it. The message named a verb the CLI refuses until 2026-09-12.
+        assertThat(out.toString()).contains("kept").contains("task attach");
     }
 
     @Test

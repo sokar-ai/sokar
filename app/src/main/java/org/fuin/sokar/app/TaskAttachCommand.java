@@ -23,8 +23,8 @@ import picocli.CommandLine.Spec;
  * a process on the channel, so closing the window leaves it running and the next attachment finds
  * it as it was, with the last {@value org.fuin.sokar.runtime.Containerfile#SCROLLBACK} lines it
  * printed. That figure is pinned in the image rather than inherited, because what re-entering may
- * claim has to be a number somebody chose. It ends with the container: {@code task stop} takes it, and {@code task resume}
- * brings back an empty one.
+ * claim has to be a number somebody chose. It ends with the container: {@code task stop} takes it, and starting the
+ * task again brings back an empty one.
  * <p>
  * <strong>No refusal by security class.</strong> The class governs egress - what resolves and what
  * leaves - and a person typing in a container is neither. An offline project is precisely the one
@@ -48,7 +48,7 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
     }
 
     /** Name of the session inside the container. One per container, found again on return. */
-    static final String SESSION = "sokar";
+    static final String SESSION = org.fuin.sokar.runtime.Containerfile.SESSION;
 
     @Parameters(index = "0", paramLabel = "TASK",
             description = "Container name, as shown by 'sokar task list'.")
@@ -78,7 +78,7 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
         // session remembers is the answer to "what may re-entering claim", and inheriting it from
         // whatever the image or a user's dotfile happened to say would make that answer unknown
         // to the one process that has to state it.
-        return java.util.List.of("tmux", "-f", "/etc/sokar/tmux.conf",
+        return java.util.List.of("tmux", "-f", org.fuin.sokar.runtime.Containerfile.TMUX_CONF,
                 "new-session", "-A", "-s", SESSION);
     }
 
@@ -143,7 +143,7 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
                 .anyMatch(ContainerSummary::running);
         if (!running) {
             // Named as the two different things it can be. "Not running" sends somebody to
-            // 'task resume'; "no such task" sends them to 'task list'.
+            // starting it again; "no such task" sends them to 'task list'.
             final boolean known = context.podman().sokarTasks().stream()
                     .anyMatch(task -> task.name().equals(container));
             if (!known) {

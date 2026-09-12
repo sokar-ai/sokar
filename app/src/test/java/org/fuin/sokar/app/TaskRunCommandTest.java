@@ -58,6 +58,10 @@ class TaskRunCommandTest {
         // A machine Sokar will run on. Without this the fake answers nothing to 'podman version',
         // which is indistinguishable from a podman too old to support - and every run refuses.
         runner.answering("podman version", "5.8.1");
+        // Nothing in these tests creates a session, so asking whether one is still there has to
+        // answer no. Without this the fake answers every command with success, every run would
+        // read as "somebody detached", and the teardown these tests are about would never run.
+        runner.failing("has-session", 1, "");
         final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
             case "XDG_CONFIG_HOME" -> dir.resolve("config").toString();
             case "XDG_DATA_HOME" -> dir.resolve("data").toString();
@@ -210,10 +214,16 @@ class TaskRunCommandTest {
         execute(context(dir, true), "task", "start", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString(), "--shell", "/bin/sh");
 
+        // Through the task's ONE session, not beside it. A plain exec ran the agent as a child
+        // of this terminal: closing the window took it with it, and attaching from anywhere else
+        // created a second, empty session and showed a bare shell in the workspace.
         assertThat(execCalls).hasSize(1);
         assertThat(execCalls.getFirst()).startsWith("podman", "exec", "--interactive", "--tty",
-                containerName(), "/bin/sh");
-        assertThat(String.join(" ", execCalls.getFirst())).contains("exec /bin/sh -l");
+                containerName(), "tmux", "-f", "/etc/sokar/tmux.conf",
+                "new-session", "-A", "-s", "sokar");
+        // One argument, because tmux joins several into one string with spaces and would take
+        // the script apart at its quoting.
+        assertThat(execCalls.getFirst().getLast()).contains("exec /bin/sh -l");
     }
 
     @Test
@@ -306,16 +316,25 @@ class TaskRunCommandTest {
 
         // --keep has to be decided before the run, and the run worth looking at is the one that
         // went wrong, which is known only afterwards. So a failure is held rather than swept up.
+        // Built BEFORE the broad answers below: the fake takes the first key
+        // that matches, and 'exec' would otherwise swallow the session check
+        // the fixture registers - reading a container with no session as one
+        // somebody had detached from, so nothing would ever be torn down.
+        final SokarContext prepared = context(dir, true);
         runner.answering("container inspect", "c0ffee\n");
         runner.failing("start", 125, "hook failed");
 
-        final int code = execute(context(dir, true), "task", "start", "--rm", "--attach", "shell",
+        final int code = execute(prepared, "task", "start", "--rm", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(code).isEqualTo(70);
         assertThat(runner.lines()).noneMatch(line -> line.contains("rm --force"));
+        // The advice has to name commands the CLI still has. It named 'task resume' and
+        // 'task stop --purge' - both removed at the lifecycle cut - so somebody following a
+        // failure report was sent to two commands that refuse.
         assertThat(out.toString()).contains("kept").contains("it failed, so nothing was removed")
-                .contains("task resume").contains("--purge");
+                .contains("task attach").contains("task remove")
+                .doesNotContain("task resume").doesNotContain("--purge");
         // Held, not abandoned: a task nobody is watching that still holds a firewall, a gate and a
         // credential proxy is not kept.
         assertThat(runner.lines()).anyMatch(line -> line.contains("podman stop"));
@@ -467,12 +486,17 @@ class TaskRunCommandTest {
         // idOf and pidOf both run 'container inspect' and the fake takes the first match in
         // insertion order, so the more specific key goes first - otherwise the pid query answers
         // 'c0ffee', parses as no pid, and the work check never runs.
+        // Built BEFORE the broad answers below: the fake takes the first key
+        // that matches, and 'exec' would otherwise swallow the session check
+        // the fixture registers - reading a container with no session as one
+        // somebody had detached from, so nothing would ever be torn down.
+        final SokarContext prepared = context(dir, true);
         runner.answering("{{.State.Pid}}", "4711\n");
         runner.answering("container inspect", "c0ffee\n");
         // What the container answers when asked: one changed file, two commits nobody pushed.
         runner.answering("exec", "1 2\n");
 
-        execute(context(dir, true), "task", "start", "--rm", "--attach", "shell",
+        execute(prepared, "task", "start", "--rm", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).as("work that exists nowhere else must not be removed")
@@ -487,11 +511,16 @@ class TaskRunCommandTest {
         // The negative case, and the common one: nothing uncommitted and nothing unpushed, so
         // there is nothing to protect and the container goes. Keeping it would bring back the
         // pile of dead containers this is meant to avoid.
+        // Built BEFORE the broad answers below: the fake takes the first key
+        // that matches, and 'exec' would otherwise swallow the session check
+        // the fixture registers - reading a container with no session as one
+        // somebody had detached from, so nothing would ever be torn down.
+        final SokarContext prepared = context(dir, true);
         runner.answering("{{.State.Pid}}", "4711\n");
         runner.answering("container inspect", "c0ffee\n");
         runner.answering("exec", "0 0\n");
 
-        execute(context(dir, true), "task", "start", "--rm", "--attach", "shell",
+        execute(prepared, "task", "start", "--rm", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).anyMatch(line -> line.contains("rm --force"));
@@ -577,5 +606,47 @@ class TaskRunCommandTest {
                 org.fuin.sokar.agent.api.Credential.of("oauth", "a-token"))).isFalse();
         assertThat(CredentialChoice.staleCredential(
                 new org.fuin.sokar.vault.VaultEntry("a-key", "api-key"), null)).isFalse();
+    }
+
+    @Test
+    void detachingLeavesTheTaskRunningAndTearsDownNothing(@TempDir Path dir) throws IOException {
+
+        // The dangerous half of running in a session. Leaving the window ends the command this
+        // terminal was attached to, exactly as finishing does - and until the session could be
+        // asked, both read as "the work is over". Tearing down on a detach would stop the gate,
+        // the credential broker and the clearance watcher under a running agent, which is the
+        // state the contract warns about: a container that is up with no helpers.
+        final SokarContext prepared = context(dir, true);
+        runner.answering("has-session", "");
+
+        execute(prepared, "task", "start", "--rm", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(runner.lines())
+                .as("the container stays, --rm or not: it is still running")
+                .noneMatch(line -> line.contains("rm --force"));
+        assertThat(runner.lines())
+                .as("and nothing stops it either")
+                .noneMatch(line -> line.contains("podman stop"));
+        assertThat(out.toString()).contains("detached").contains("still running")
+                .contains("task attach");
+    }
+
+    @Test
+    void aSessionThatIsGoneIsTheWorkBeingOver(@TempDir Path dir) throws IOException {
+
+        // The other half, and the reason the question is asked at all rather than assumed: when
+        // the last thing in the session exits there is no session, and that is an ending.
+        final SokarContext prepared = context(dir, true);
+        runner.failing("has-session", 1, "");
+        runner.answering("{{.State.Pid}}", "4711\n");
+        runner.answering("container inspect", "c0ffee\n");
+        runner.answering("exec", "0 0\n");
+
+        execute(prepared, "task", "start", "--rm", "--attach", "shell",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(runner.lines()).anyMatch(line -> line.contains("rm --force"));
+        assertThat(out.toString()).doesNotContain("detached");
     }
 }

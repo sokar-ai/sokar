@@ -35,6 +35,25 @@ public final class Containerfile {
     public static final String SCROLLBACK = "10000";
 
     /**
+     * Where the session's configuration is written, and read from explicitly.
+     * <p>
+     * Shared with everything that starts or joins a session, because a second spelling of this
+     * path is a second session with different rules.
+     */
+    public static final String TMUX_CONF = "/etc/sokar/tmux.conf";
+
+    /**
+     * Name of the one session a task has.
+     * <p>
+     * <strong>One, and every entry point uses it.</strong> Starting a task and attaching to it
+     * used to reach the container by different routes - the start ran the agent under a plain
+     * {@code exec} and only {@code attach} used a multiplexer - so attaching to a task that was
+     * already running created a second, empty session beside the agent and showed a bare shell in
+     * the workspace. Reported on 2026-09-12.
+     */
+    public static final String SESSION = "sokar";
+
+    /**
      * Build argument marking where the agent's layers begin.
      * <p>
      * Passing a value podman has not seen invalidates its cache from this line down, so the

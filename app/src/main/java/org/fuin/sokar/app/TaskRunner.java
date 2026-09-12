@@ -402,8 +402,17 @@ public class TaskRunner {
      * @return Command and arguments.
      */
     public List<String> attachCommand(String container, String shell, String command) {
-        return podman.attachArguments(container, shell, command, null,
-                podman.terminalFor(container));
+        return attachCommand(container, shell, command, null);
+    }
+
+    /**
+     * Says whether the task's session is still there after the terminal came back.
+     *
+     * @param container Container name.
+     * @return Whether somebody detached rather than finished.
+     */
+    public boolean sessionAlive(String container) {
+        return podman.sessionAlive(container);
     }
 
     /**
@@ -417,8 +426,11 @@ public class TaskRunner {
      */
     public List<String> attachCommand(String container, String shell,
             @org.jspecify.annotations.Nullable String command, String label) {
-        return podman.attachArguments(container, shell, command, label,
-                podman.terminalFor(container));
+        // Inside the task's one session rather than beside it. A plain exec ran the agent as a
+        // child of this terminal: closing the window took the agent with it, and attaching from
+        // anywhere else created a second, empty session and showed a bare shell in the workspace.
+        return podman.sessionArguments(container,
+                podman.attachScript(shell, command, label), podman.terminalFor(container));
     }
 
     /**

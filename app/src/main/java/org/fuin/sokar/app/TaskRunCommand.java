@@ -300,8 +300,26 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             final java.util.concurrent.atomic.AtomicInteger outcome =
                     new java.util.concurrent.atomic.AtomicInteger(INTERRUPTED);
             int left;
-            try (Teardown teardown =
-                    Teardown.arm(() -> running.cleanUp().applyAsInt(outcome.get()))) {
+            // Leaving the window is not finishing the work, and until 2026-09-12 nothing could
+            // tell them apart: both end the command this terminal is attached to. Now the task
+            // runs in a session, so the question has an answer - if the session is still there,
+            // somebody detached (or their terminal closed) and the task is running without them,
+            // which is what a session is for. Tearing down there would stop the gate, the broker
+            // and the clearance watcher under a running agent, and that is precisely the state
+            // the contract warns about: a container that is up with no helpers.
+            try (Teardown teardown = Teardown.arm(() -> {
+                if (running.runner().sessionAlive(running.container())) {
+                    out.println();
+                    out.println("detached  " + running.container() + " is still running");
+                    out.println("          come back with 'sokar task attach "
+                            + running.container() + "'");
+                    out.println("          stop it with 'sokar task stop " + running.container()
+                            + "'");
+                    out.flush();
+                    return;
+                }
+                running.cleanUp().applyAsInt(outcome.get());
+            })) {
                 left = context.exec().applyAsInt(
                         running.runner().attachCommand(running.container(), shell, startWith,
                                 running.project().name() + "/" + task));

@@ -396,7 +396,7 @@ public class Podman {
      * <p>
      * This is where {@link LoopbackMapping} has to be applied - podman builds the pasta command
      * line here and nowhere else - and it is applied to every start rather than to the one in
-     * {@code task run}, so that a task resumed later comes up with the same networking as one
+     * {@code task start}, so that a task started again later comes up with the same networking as one
      * that never stopped. A gate the container cannot reach only shows up as a push that hangs.
      *
      * @param container Container name or id.
@@ -738,13 +738,37 @@ public class Podman {
      * @return Exit code of the command.
      * @throws ContainerException If the command cannot be started.
      */
-    public int execute(String container, Map<String, String> environment, List<String> command,
-            Path output, Duration timeout) {
-
+    /**
+     * Returns the argument list an unattended run is started with.
+     * <p>
+     * Separate so it can be read without starting anything, which is the only way to assert what
+     * it does NOT contain.
+     *
+     * @param container Container name or id.
+     * @param environment Extra variables for this command only.
+     * @param command Program and arguments.
+     * @return Arguments.
+     */
+    List<String> executeArguments(String container, Map<String, String> environment,
+            List<String> command) {
         final List<String> arguments = new ArrayList<>(List.of(executable, "exec"));
         arguments.addAll(ContainerSpec.passedThrough(environment.keySet()));
         arguments.add(container);
         arguments.addAll(command);
+        return List.copyOf(arguments);
+    }
+
+    public int execute(String container, Map<String, String> environment, List<String> command,
+            Path output, Duration timeout) {
+
+        // NO --interactive, and that is load-bearing rather than an omission. Measured on
+        // 2026-09-12: pi and omp block at startup when stdin is an open pipe - omp sat in
+        // 'readPipedInput' past 150 s, pi produced nothing for 180 s - and both run normally with
+        // stdin closed. Without '-i' podman attaches nothing to the container's stdin, so the
+        // agent sees it closed. Adding the flag here would hang an unattended run forever, and it
+        // would look like a task that is WORKING, because the agent's own "still starting" lines
+        // keep the log growing. A test asserts this flag stays absent.
+        final List<String> arguments = executeArguments(container, environment, command);
 
         try {
             final ProcessBuilder builder = new ProcessBuilder(arguments)
@@ -906,8 +930,72 @@ public class Podman {
      * @param environment Extra arguments for {@code exec}, from {@link #terminalFor(String)}.
      * @return Arguments.
      */
+    /**
+     * Returns the arguments that join a task's session, creating it if it is not there.
+     * <p>
+     * <strong>One session per task, whichever command reaches it.</strong> {@code new-session -A}
+     * attaches when the session exists and creates it when it does not, so starting a task and
+     * attaching to one are the same operation against the same name - which is what makes leaving
+     * a window and coming back find what was left.
+     * <p>
+     * The command goes in as a single argument on purpose: tmux joins several into one string
+     * with spaces, which would take a script apart at its quoting.
+     *
+     * @param container Container name.
+     * @param script What the session's first window runs, or {@code null} to leave tmux's default.
+     * @param environment Extra arguments for {@code exec}, from {@link #terminalFor(String)}.
+     * @return Arguments.
+     */
+    public List<String> sessionArguments(String container, @Nullable String script,
+            List<String> environment) {
+        final List<String> session = new ArrayList<>(List.of("tmux", "-f", Containerfile.TMUX_CONF,
+                "new-session", "-A", "-s", Containerfile.SESSION));
+        if (script != null) {
+            session.add(script);
+        }
+        return attachArguments(container, List.copyOf(session), environment);
+    }
+
+    /**
+     * Says whether a task's session is still there.
+     * <p>
+     * This is how leaving a window is told from finishing the work, and nothing else can tell
+     * them apart: both end the command that was attached. A session that is still there means
+     * somebody detached - or their terminal closed - and the task is running without them, which
+     * is exactly what a session is for. A session that is gone means the last thing in it exited.
+     *
+     * @param container Container name.
+     * @return Whether the session exists.
+     */
+    public boolean sessionAlive(String container) {
+        try {
+            return runner.run(podman("exec", container, "tmux", "-f", Containerfile.TMUX_CONF,
+                    "has-session", "-t", Containerfile.SESSION)).exitCode() == 0;
+        } catch (RuntimeException ex) {
+            // A container that cannot be asked has no session worth keeping either, and the
+            // caller's next step - tearing down - is the safe answer to not knowing.
+            return false;
+        }
+    }
+
     public List<String> attachArguments(String container, String shell,
             @Nullable String command, @Nullable String label, List<String> environment) {
+        return attachArguments(container, List.of(shell, "-lc", attachScript(shell, command, label)),
+                environment);
+    }
+
+    /**
+     * Builds what a task's window runs: the command, the terminal put back, then a shell.
+     * <p>
+     * Separate from the argument list because the same script is run two ways - directly by a
+     * shell, and as a session's first window - and a second copy of it would drift.
+     *
+     * @param shell Shell to leave behind.
+     * @param command Command to run first, or {@code null} to go straight to the shell.
+     * @param label Text for the prompt, or {@code null} to leave the shell's own.
+     * @return The script.
+     */
+    public String attachScript(String shell, @Nullable String command, @Nullable String label) {
 
         final StringBuilder script = new StringBuilder();
         if (command != null) {
@@ -955,6 +1043,6 @@ public class Podman {
             script.append("export PROMPT_COMMAND=\"PS1='sokar[\\$SOKAR_PROMPT] \\w\\$ '\"; ");
         }
         script.append("exec ").append(shell).append(" -l");
-        return attachArguments(container, List.of(shell, "-lc", script.toString()), environment);
+        return script.toString();
     }
 }
