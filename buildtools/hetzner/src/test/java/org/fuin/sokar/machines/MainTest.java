@@ -144,5 +144,10 @@ class MainTest {
         assertThat(Main.runId("12345", "fedora")).isEqualTo("12345-fedora");
         assertThat(Main.runId("12345", null)).isEqualTo("12345");
         assertThat(Main.runId(null, null)).startsWith("local-");
+        // Run by hand, the leg still has to reach the machine's name: several agents share one
+        // Hetzner account, and a server nobody can attribute is one nobody dares delete and
+        // anybody may delete by mistake. A timestamp makes it unique, not attributable.
+        assertThat(Main.runId(null, "acc-smith-claude-code-ubuntu"))
+                .startsWith("local-").endsWith("-acc-smith-claude-code-ubuntu");
     }
 }

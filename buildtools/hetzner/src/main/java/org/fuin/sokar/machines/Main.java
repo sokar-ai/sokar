@@ -426,15 +426,23 @@ public final class Main {
      * The workflow run in CI; a timestamp locally, which is enough to tell two developers apart
      * and does not pretend to be more. Both legs of a matrix share the run, so the leg is what
      * makes a server's label unique - and a sweep deletes by that label.
+     * <p>
+     * <strong>The leg is carried whether or not there is a workflow run.</strong> It used to be
+     * folded in only in CI, so a run started by hand produced {@code local-<millis>}: unique,
+     * which is what the timestamp was written for, but saying nothing about whose it was. Several
+     * agents share one Hetzner account, and a machine nobody can attribute is one nobody dares
+     * delete and one anybody may delete by mistake. Uniqueness answers "is this the same run";
+     * attribution answers "is this yours", and only the second makes a shared account safe.
      *
      * @param run The workflow run, or {@code null} outside CI.
      * @param leg Which leg of the matrix, or {@code null}.
      * @return The run id.
      */
     static String runId(String run, String leg) {
+        final String named = leg == null || leg.isBlank() ? "" : "-" + leg;
         if (run != null && !run.isBlank()) {
-            return leg == null || leg.isBlank() ? run : run + "-" + leg;
+            return run + named;
         }
-        return "local-" + System.currentTimeMillis();
+        return "local-" + System.currentTimeMillis() + named;
     }
 }
