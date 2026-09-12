@@ -975,7 +975,7 @@ facts above this section were all measured here, on the versions this build pins
 ## Rules the four repositories share
 
 Sokar, the interface and the three agent repositories are worked on by different agents, and these
-five hold in all of them. They are written in one wording on purpose: four paraphrases of one rule
+hold in all of them. They are written in one wording on purpose: four paraphrases of one rule
 become four rules.
 
 - **The operator pushes.** Agents commit and stop. Never `git push`.
@@ -999,6 +999,12 @@ become four rules.
   counter-test was run too. The same day, a race condition was asserted here, written into three
   code comments as a measurement, and then measured - five probes, no race. The explanation had
   been invented and the behaviour it "explained" was correct all along.
+- **"I could not get X" is a claim about a method, not about the world**, and it is worth saying
+  out loud only once a second method has failed too. On 2026-09-12 a documentation page was
+  reported here as unreadable and its format as undeterminable; `curl` returns that site's chrome
+  and its article body is loaded afterwards, and a fetch that renders the page answered every
+  question about the format in one call. The first report was true about `curl` and false about
+  the page.
 - **Link to a requirement by number and to its index, never to its file.** A file link breaks
   exactly when that requirement succeeds and is deleted, which is the worst moment for a reader to
   meet a 404.
