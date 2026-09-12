@@ -944,18 +944,30 @@ reads a parameter it does not describe, or throws an error it does not name.
 
 ## The skills this repository expects you to have
 
-Two skills are the house's, not a preference. **Every repository in this product that builds a
-native image or is written in Java uses both** - which is all of them except the interface, where
-the stack is Flutter and Dart and neither applies.
+These are the house's, not a preference. **Every repository that builds a native image or is
+written in Java uses the first two**, which is all of them except the interface; **the interface
+uses the third**, and nobody is without one.
 
 - **GraalVM** — <https://github.com/oracle/skills/tree/main/graal>, Oracle's own.
 - **Java** — <https://github.com/decebals/claude-code-java>.
+- **Dart and Flutter** — <https://github.com/flutter/agent-plugins>, the Flutter team's own.
 
-**Where they come from here: <https://fuinorg.jfrog.io/artifactory/agent-skills/>.** The skills are
-republished into that Artifactory repository rather than pulled from GitHub by each machine, for
-the reason every other dependency in this product is: a tag upstream is a name its owner may
-repoint, and a machine that fetches at install time gets whatever it points at that day. What is in
-`agent-skills` is what was reviewed.
+The interface was briefly treated as the repository with no skills, on the true observation that
+neither Java skill applies to it. That was the wrong conclusion from a right fact: the exemption
+was from *those two*, not from having any, and the vendor ships its own set the same way Oracle
+does.
+
+**Where they come from here**, republished rather than pulled from GitHub by each machine:
+
+- <https://fuinorg.jfrog.io/artifactory/agent-skills/> — one package per skill, installed by name.
+- <https://fuinorg.jfrog.io/artifactory/agent-packages/> — the same skills bundled per upstream,
+  one package each, for installing a whole set at once.
+
+The reason is the one every other dependency in this product has: a tag upstream is a name its
+owner may repoint, and a machine that fetches at install time gets whatever it points at that day.
+What is in those two repositories is what was reviewed. Each package carries its upstream LICENSE
+and records the exact commit it was built from, and its version is that commit's date - so what was
+published can always be compared against what it was built from.
 
 That also makes them the same kind of thing as the packages this build publishes, which is the
 point - an agent's knowledge is a dependency, and a dependency nobody versions is one nobody can
