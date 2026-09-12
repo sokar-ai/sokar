@@ -184,10 +184,26 @@ public final class Leg {
                 "-Dsokar.acceptance.host=" + address,
                 "-Dsokar.acceptance.user=" + USER,
                 // The suite would otherwise look for a key file that CI deliberately does not have.
-                "-Dsokar.acceptance.key=unused-the-material-is-in-the-environment",
-                // Nothing that needs a task image: those are minutes each and a leg already
-                // built one.
-                "-Dcucumber.filter.tags=not @slow")
+                "-Dsokar.acceptance.key=unused-the-material-is-in-the-environment")
+                // EVERY scenario, including @slow. Excluding them was reasonable - each builds a
+                // task image and that is minutes - and its consequence was not: the eleven they
+                // hide ran NOWHERE, in CI or anywhere else, and every green build reported them as
+                // "skipped" rather than as never run.
+                //
+                // What that cost, found on 2026-09-12 when they were run for the first time: one
+                // scenario had been describing pre-cut behaviour since the lifecycle cut (keeping
+                // became the default, so the removal it asserted had nothing to refuse), one file
+                // could not run twice on the same machine, and all eleven silently depended on
+                // exactly one agent being installed - true of a CI leg and of nothing else.
+                // Three faults that no amount of unit testing could see, in scenarios that were
+                // written to catch exactly this and were never allowed to.
+                //
+                // Decided by the operator on 2026-09-12: they run every time. Measured against the
+                // libvirt VM with images already built, the eleven add 56s; a leg builds its
+                // images from nothing, so expect minutes rather than seconds here.
+                //
+                // No filter property at all rather than one that excludes nothing: a tag
+                // expression that is always true is a place for an exclusion to grow back.
                 .directory(repository.toFile()).inheritIO();
         maven.environment().put("SOKAR_ACCEPTANCE_KEY", credential.material());
         final int status;

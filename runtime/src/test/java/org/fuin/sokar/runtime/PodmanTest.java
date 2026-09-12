@@ -567,4 +567,47 @@ class PodmanTest {
         assertThat(arguments).doesNotContain("--tty").doesNotContain("-t");
         assertThat(arguments).startsWith("podman", "exec");
     }
+
+    @Test
+    void theWindowsShellSaysWhenItEndedRatherThanBeingGuessedAt() {
+
+        // Why the shell says so rather than tmux being asked: not a race - measured on the Ubuntu
+        // VM on 2026-09-12, has-session answered "gone" on the first probe every time - but the
+        // direction of failure. A container that cannot be asked has no session either, and that
+        // answer would remove a task.
+        final String script = podman.attachScript("/bin/bash", "agent-cli", "p/t");
+
+        assertThat(script)
+                .as("cleared when the window starts, so it describes THIS session")
+                .startsWith("rm -f " + Containerfile.SESSION_ENDED);
+        assertThat(script)
+                .as("written after the shell returns")
+                .endsWith("/bin/bash -l; : > " + Containerfile.SESSION_ENDED);
+    }
+
+    @Test
+    void theShellIsNotExecdOrNothingCouldRunAfterIt() {
+
+        // 'exec' replaces the process, so the marker could never be written. This is the one line
+        // that makes the mechanism work and the one an optimisation would put back.
+        assertThat(podman.attachScript("/bin/bash", null, null)).doesNotContain("exec /bin/bash");
+    }
+
+    @Test
+    void aContainerThatCannotBeAskedCountsAsNotFinished() {
+
+        // Absence keeps the task. A killed session, a crashed container and a container that
+        // cannot be reached all look the same from here, and all of them must keep work rather
+        // than discard it.
+        runner.failing("test -f", 1, "");
+
+        assertThat(podman.sessionEnded("box")).isFalse();
+    }
+
+    @Test
+    void aMarkerMeansTheWorkIsOver() {
+        runner.answering("test -f", "");
+
+        assertThat(podman.sessionEnded("box")).isTrue();
+    }
 }

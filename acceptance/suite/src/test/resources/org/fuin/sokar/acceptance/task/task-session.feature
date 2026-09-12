@@ -1,5 +1,10 @@
 @slow
 Feature: Leaving a task and coming back to it
+  # --agent is named because this machine may have more than one installed. CI builds and installs
+  # only the stub, so the scenarios passed there without it and could never pass on a machine that
+  # also carries a real agent - which is every machine a person develops on. Which agent is in the
+  # image is irrelevant to everything below; being silent about it was a hidden dependency on the
+  # CI environment's roster.
 
   A task keeps a tmux session, so returning to one and starting one for the first time are the
   same operation - which is what makes coming back reliable rather than a second path that is
@@ -11,7 +16,7 @@ Feature: Leaving a task and coming back to it
   Scenario: work carries on while nobody is attached, and is still there on return
     Given a project called "session" with a file in it
     And a terminal on the machine
-    When I run "cd ~/session && sokar task start --attach shell --detach"
+    When I run "cd ~/session && sokar task start --agent stub --attach shell --detach"
     And I run "sokar task attach $(sokar task list | grep -o 'sokar-session[^ ]*' | head -1)"
     And I wait for the session inside the container
     And I run "echo MARKER-BEFORE-LEAVING"

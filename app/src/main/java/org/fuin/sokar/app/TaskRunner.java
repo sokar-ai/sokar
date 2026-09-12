@@ -406,13 +406,13 @@ public class TaskRunner {
     }
 
     /**
-     * Says whether the task's session is still there after the terminal came back.
+     * Says whether the session's own shell reported that it ended.
      *
      * @param container Container name.
-     * @return Whether somebody detached rather than finished.
+     * @return Whether the work finished, as opposed to somebody detaching.
      */
-    public boolean sessionAlive(String container) {
-        return podman.sessionAlive(container);
+    public boolean sessionEnded(String container) {
+        return podman.sessionEnded(container);
     }
 
     /**

@@ -957,23 +957,27 @@ public class Podman {
     }
 
     /**
-     * Says whether a task's session is still there.
+     * Says whether the session's own shell reported that it ended.
      * <p>
-     * This is how leaving a window is told from finishing the work, and nothing else can tell
-     * them apart: both end the command that was attached. A session that is still there means
-     * somebody detached - or their terminal closed - and the task is running without them, which
-     * is exactly what a session is for. A session that is gone means the last thing in it exited.
+     * This is how leaving a window is told from finishing the work. Nothing observable from
+     * outside distinguishes them - both end the command that was attached - so the shell says so
+     * itself, into {@link Containerfile#SESSION_ENDED} inside the container, and the host reads it.
+     * Asking tmux whether the session survived would answer the same question and fail in the
+     * wrong direction; {@link Containerfile#SESSION_ENDED} says which and why.
+     * <p>
+     * <strong>Absence means "keep", not "remove".</strong> A killed session, a crashed container
+     * or a container that cannot be asked all leave no marker, and all of them keep the task.
      *
      * @param container Container name.
-     * @return Whether the session exists.
+     * @return Whether this session's shell returned.
      */
-    public boolean sessionAlive(String container) {
+    public boolean sessionEnded(String container) {
         try {
-            return runner.run(podman("exec", container, "tmux", "-f", Containerfile.TMUX_CONF,
-                    "has-session", "-t", Containerfile.SESSION)).exitCode() == 0;
+            return runner.run(podman("exec", container, "test", "-f", Containerfile.SESSION_ENDED))
+                    .exitCode() == 0;
         } catch (RuntimeException ex) {
-            // A container that cannot be asked has no session worth keeping either, and the
-            // caller's next step - tearing down - is the safe answer to not knowing.
+            // A container that cannot be asked has not told us it finished, and "not finished"
+            // keeps the task. Never discard work because a question could not be put.
             return false;
         }
     }
@@ -998,6 +1002,9 @@ public class Podman {
     public String attachScript(String shell, @Nullable String command, @Nullable String label) {
 
         final StringBuilder script = new StringBuilder();
+        // Cleared first: a marker left by an earlier session would say this one had already ended
+        // before it began.
+        script.append("rm -f ").append(Containerfile.SESSION_ENDED).append("; ");
         if (command != null) {
             // The agent starts at the top of the terminal, not wherever the launch report left
             // the cursor. Starting a task prints two dozen lines - the token, the gate, every
@@ -1042,7 +1049,11 @@ public class Podman {
             script.append("export SOKAR_PROMPT='").append(label).append("'; ");
             script.append("export PROMPT_COMMAND=\"PS1='sokar[\\$SOKAR_PROMPT] \\w\\$ '\"; ");
         }
-        script.append("exec ").append(shell).append(" -l");
+        // NOT 'exec', and that is the whole mechanism. 'exec' replaces this process with the
+        // shell, so nothing can run after the shell returns - and something has to, because the
+        // shell returning is the only unambiguous evidence that the person finished rather than
+        // detached. As a child it returns here, and the next statement says so.
+        script.append(shell).append(" -l; : > ").append(Containerfile.SESSION_ENDED);
         return script.toString();
     }
 }

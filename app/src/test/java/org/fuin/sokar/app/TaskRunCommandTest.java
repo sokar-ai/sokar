@@ -58,10 +58,11 @@ class TaskRunCommandTest {
         // A machine Sokar will run on. Without this the fake answers nothing to 'podman version',
         // which is indistinguishable from a podman too old to support - and every run refuses.
         runner.answering("podman version", "5.8.1");
-        // Nothing in these tests creates a session, so asking whether one is still there has to
-        // answer no. Without this the fake answers every command with success, every run would
-        // read as "somebody detached", and the teardown these tests are about would never run.
-        runner.failing("has-session", 1, "");
+        // No session here ever writes the marker, so the question "did the shell end" has to
+        // answer yes for the teardown to run at all. Without this the fake answers every command
+        // with success anyway - which happens to be the right answer here, and is pinned rather
+        // than relied on.
+        runner.answering("test -f", "");
         final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
             case "XDG_CONFIG_HOME" -> dir.resolve("config").toString();
             case "XDG_DATA_HOME" -> dir.resolve("data").toString();
@@ -223,7 +224,10 @@ class TaskRunCommandTest {
                 "new-session", "-A", "-s", "sokar");
         // One argument, because tmux joins several into one string with spaces and would take
         // the script apart at its quoting.
-        assertThat(execCalls.getFirst().getLast()).contains("exec /bin/sh -l");
+        // The shell is a child, not an exec: the marker that says the work ended is written
+        // after it returns, and 'exec' would leave nothing to write it.
+        assertThat(execCalls.getFirst().getLast())
+                .contains("/bin/sh -l; : > ").doesNotContain("exec /bin/sh");
     }
 
     @Test
@@ -617,7 +621,8 @@ class TaskRunCommandTest {
         // the credential broker and the clearance watcher under a running agent, which is the
         // state the contract warns about: a container that is up with no helpers.
         final SokarContext prepared = context(dir, true);
-        runner.answering("has-session", "");
+        // No marker: the shell never returned, so nobody finished.
+        runner.failing("test -f", 1, "");
 
         execute(prepared, "task", "start", "--rm", "--attach", "shell",
                 "-p", projectFile(dir, MINIMAL).toString());
@@ -633,12 +638,12 @@ class TaskRunCommandTest {
     }
 
     @Test
-    void aSessionThatIsGoneIsTheWorkBeingOver(@TempDir Path dir) throws IOException {
+    void aMarkerFromTheWindowsShellIsTheWorkBeingOver(@TempDir Path dir) throws IOException {
 
-        // The other half, and the reason the question is asked at all rather than assumed: when
-        // the last thing in the session exits there is no session, and that is an ending.
+        // The other half: the window's shell returned and wrote the marker, which is the only
+        // unambiguous statement that the work is over.
         final SokarContext prepared = context(dir, true);
-        runner.failing("has-session", 1, "");
+        runner.answering("test -f", "");
         runner.answering("{{.State.Pid}}", "4711\n");
         runner.answering("container inspect", "c0ffee\n");
         runner.answering("exec", "0 0\n");

@@ -54,6 +54,28 @@ public final class Containerfile {
     public static final String SESSION = "sokar";
 
     /**
+     * File the session's own shell writes when it ends, inside the container.
+     * <p>
+     * <strong>How finishing is told from detaching.</strong> Both end the command the terminal was
+     * attached to, so something has to be asked afterwards.
+     * <p>
+     * <strong>Why not ask tmux whether the session survived.</strong> Not because it races - that
+     * was claimed here first and then measured on 2026-09-12, and it does not: {@code has-session}
+     * answered "gone" on the first probe after the last window exited, five times out of five. The
+     * reason is the direction it fails in. A container that cannot be asked, one that has just
+     * died, one whose tmux is wedged - all of them make that question fail, and a failed question
+     * there reads as "no session", which reads as "finished", which removes a task. This one fails
+     * the other way: no answer means no marker means not finished, and the task is kept.
+     * <p>
+     * The shell removes it when the window starts and writes it when the window's shell returns,
+     * so its presence is a statement about this session rather than an earlier one. Anything that
+     * kills the session without the shell returning - {@code tmux kill-server}, a crash - leaves no
+     * marker, which reads as "not finished" and keeps the task. That is the safe direction: work
+     * is never discarded on an ambiguous signal.
+     */
+    public static final String SESSION_ENDED = "/tmp/.sokar-session-ended";
+
+    /**
      * Build argument marking where the agent's layers begin.
      * <p>
      * Passing a value podman has not seen invalidates its cache from this line down, so the

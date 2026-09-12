@@ -300,15 +300,20 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             final java.util.concurrent.atomic.AtomicInteger outcome =
                     new java.util.concurrent.atomic.AtomicInteger(INTERRUPTED);
             int left;
-            // Leaving the window is not finishing the work, and until 2026-09-12 nothing could
-            // tell them apart: both end the command this terminal is attached to. Now the task
-            // runs in a session, so the question has an answer - if the session is still there,
-            // somebody detached (or their terminal closed) and the task is running without them,
-            // which is what a session is for. Tearing down there would stop the gate, the broker
-            // and the clearance watcher under a running agent, and that is precisely the state
-            // the contract warns about: a container that is up with no helpers.
+            // Leaving the window is not finishing the work, and both end the command this
+            // terminal is attached to. The session's own shell is what tells them apart: it
+            // writes a marker when it returns, and the absence of one keeps the task.
+            //
+            // Asking tmux whether the session survived was tried first. It does NOT race - that
+            // was assumed and then measured on 2026-09-12, five probes, "gone" every time - but it
+            // fails in the wrong direction: any container that cannot be asked answers "no
+            // session", which reads as "finished", which removes a task.
+            //
+            // Absent a marker the task is KEPT. Tearing down under a running agent would stop the
+            // gate, the broker and the clearance watcher, which is precisely the state the
+            // contract warns about: a container that is up with no helpers.
             try (Teardown teardown = Teardown.arm(() -> {
-                if (running.runner().sessionAlive(running.container())) {
+                if (!running.runner().sessionEnded(running.container())) {
                     out.println();
                     out.println("detached  " + running.container() + " is still running");
                     out.println("          come back with 'sokar task attach "
