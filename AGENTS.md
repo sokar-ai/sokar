@@ -1042,6 +1042,11 @@ become four rules.
   counter-test was run too. The same day, a race condition was asserted here, written into three
   code comments as a measurement, and then measured - five probes, no race. The explanation had
   been invented and the behaviour it "explained" was correct all along.
+- **From "both are valid" it does not follow that both should exist.** Two indexes, two markers,
+  two manifests, the same skills in two repositories - every expensive defect of 2026-09-12 had
+  that shape, and not one of them was a wrong fact. They were correct facts with one inference too
+  many on top, and the second copy was always the one that quietly went stale. When a thing is
+  right in two forms, publish one and say why.
 - **"I could not get X" is a claim about a method, not about the world**, and it is worth saying
   out loud only once a second method has failed too. On 2026-09-12 a documentation page was
   reported here as unreadable and its format as undeterminable; `curl` returns that site's chrome
