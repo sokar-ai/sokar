@@ -83,7 +83,7 @@ either. Both are typed at the node.
 passphrase and to a provider credential together, because they were argued separately and reached
 opposite answers within a day on reasoning that moved under both. The discussion — four options and
 what each is worth — is written up in
-[secrets from elsewhere](../requirements/base/Secrets-From-Elsewhere_design.md). Until it is
+[secrets from elsewhere](../issues/base/Secrets-From-Elsewhere_design.md). Until it is
 decided, what is described below is the rule.
 
 This is not a transport-security claim. The socket is forwarded over ssh, so it is the same
@@ -196,5 +196,5 @@ kernel keyring, so a locked vault makes every flow above answer "not yet" rather
 and those are different sentences, only one of which is somebody's problem to fix.
 
 And an OAuth token expires. An agent that tries to renew one *inside* a container, holding a
-task-scoped phantom token, is [B01](../requirements/base/B01-Refreshable-Task-Tokens.md), which is
+task-scoped phantom token, is [B01](../issues/base/B01-Refreshable-Task-Tokens.md), which is
 open.

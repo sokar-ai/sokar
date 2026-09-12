@@ -266,7 +266,7 @@ See [your tooling](doc/your-tooling.md).
 See [Onboarding a new agent](agents/README.md#onboarding-a-new-agent)
 
 ## What is planned
-See [requirements](requirements/README.md).
+See [requirements](issues/README.md).
 
 ## Building the project
 See [build](doc/build.md).
