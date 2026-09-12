@@ -56,8 +56,8 @@ The rest of this document is that sentence, unpacked.
 | **Image** | The recipe the room is built from: which Linux, which tools, which agent. |
 | **Task** | One run of one agent, in one fresh container, on one project. |
 | **Egress** | Outbound network traffic — the agent reaching out to the internet. |
-| **Firewall (nftables)** | The Linux component that decides which outbound connections are allowed. |
-| **DNS / resolver (dnsmasq)** | The phone book that turns a name like `github.com` into an address. No name, no connection. |
+| **Firewall (nftables)** | The Linux component that decides which outbound connections are allowed. Each task has its own, and [where it sits and who may change it](firewall.md) is worth reading once. |
+| **DNS / resolver (dnsmasq)** | The phone book that turns a name like `github.com` into an address. No name, no connection — and [the refusal happens here first](dns.md), before any traffic is attempted. |
 | **Vault** | Sokar's encrypted store on your machine for your API keys and tokens. |
 | **Gate** | The in-tray on your machine where the agent's finished work waits for your review. |
 | **`project.yml`** | A small text file next to your code that describes what this project's agents are allowed to do. |
@@ -336,5 +336,6 @@ An honest tool tells you where its guarantees stop.
 - [README](../README.md) — the short version, and the list of supported agents and providers
 - [Getting started on Debian and Ubuntu](getting-started-debian.md) · [on Fedora and RHEL](getting-started-fedora.md) — step by step, with what goes wrong when a step is skipped
 - [FAQ](faq.md) — network questions in particular
+- [The firewall](firewall.md) · [DNS and the resolver](dns.md) — how the network half actually works
 - [Adding your tools to a container](your-tooling.md)
 - [Why build this](why.md)

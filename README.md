@@ -230,6 +230,11 @@ when you want to know what else is possible.
 See [the three security classes](doc/security-classes.md) — one picture each for `offline`,
 `guarded` and `online`: who is involved, how work gets in and out, and where somebody reads it.
 
+## Where the network is actually cut off
+See [the firewall](doc/firewall.md) — where a task's packet filter sits, who may change it, and why
+it refuses to start the container when it cannot be loaded — and [DNS and the resolver](doc/dns.md),
+the layer that says no first, before any traffic is attempted.
+
 ## Where credentials live, and what never holds one
 See [authentication](doc/authentication.md) — what a container actually gets instead of your
 credential, the three ways one reaches the vault, and how an API key or an OAuth login works when
