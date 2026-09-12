@@ -56,6 +56,12 @@ and it is why this finding is the same in every repository.
   it landed.
 - The most privileged workflow - the one holding the signing key - is checked by hand after the
   first pinning, because that is the one where being wrong costs the most.
+- **Nothing else is fetched by a name either.** `grep` for a `curl` or a `wget` in any job that
+  also holds a publishing credential, and pin whatever it finds by digest. An action is not the
+  only thing a workflow runs: a release binary downloaded into a publishing job has the same
+  trust and none of the ceremony, and the worst case is the one that writes the packages
+  themselves. Sokar is believed to fetch nothing this way and that has not been proved, which is
+  exactly why it is a criterion rather than a note.
 
 ## To be checked
 
