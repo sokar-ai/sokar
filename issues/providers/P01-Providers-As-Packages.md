@@ -3,7 +3,7 @@
 **Status:** **built and verified on both VMs**, vault re-keying included. Every acceptance
 criterion is met. What follows is the design as built; the trigger and the measurements that
 justified it are further down. The trigger this was waiting for -
-a second agent reaching a provider the first does not - is [A01](../agents/A01-Pi-Forge-Subscription.md),
+a second agent reaching a provider the first does not - is [A01](../base/A01-Pi-Forge-Subscription.md),
 now being built. The extraction should follow it rather than precede it, from two real
 implementations rather than one.
 
@@ -90,7 +90,7 @@ exists, because it makes the eventual boundary obvious rather than arbitrary.
 
 ## The endpoint belongs to the pair, and now there is proof
 
-The table above says redirection is a property of both sides. [A01](../agents/A01-Pi-Forge-Subscription.md)
+The table above says redirection is a property of both sides. [A01](../base/A01-Pi-Forge-Subscription.md)
 shows what that costs in practice: one agent takes a socket path in a variable, the other can
 only address a URL and needs a listener bound inside its container's namespace. The provider
 is the same in both cases. So a provider declaration cannot carry "how to reach it" alone -

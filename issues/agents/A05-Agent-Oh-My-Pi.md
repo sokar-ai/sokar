@@ -42,7 +42,7 @@ and the packaging differs (`omp`, a different npm scope, and installers Pi does 
 ## Why it might be worth building
 
 Not as a third agent for its own sake. It advertises the credential kind
-[A01](A01-Pi-Forge-Subscription.md) was chosen to exercise and Pi may not have: a
+[A01](../base/A01-Pi-Forge-Subscription.md) was chosen to exercise and Pi may not have: a
 subscription reached over a browser sign-in, GitHub Copilot among them. If Pi turns out not
 to reach Copilot, this is the cheaper vehicle for that question than a new agent from
 scratch, because the packaging work is already done in a shape it shares.

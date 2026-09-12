@@ -1,7 +1,18 @@
 # Agent Requirements
 
-One file per agent, plus the two that are about agents as a class rather than about any
-particular one. Each carries its own acceptance criteria so it can be judged done or not done.
+**This set is where an agent lives before it has a repository.** An agent that has one keeps its
+requirements there, in its own set, because that is where the work is and an issue belongs with
+whoever does it. What is left here is therefore candidates - and the set emptying is a measure of
+progress rather than untidiness.
+
+Decided 2026-09-12, when the shipped agents' requirements were handed to the agent that owns those
+repositories. [A01](../base/A01-Pi-Forge-Subscription.md) left in the other direction, to
+`issues/base/`: it reads like an agent requirement and what remains of it is Sokar's - the vault
+being keyed by agent name, a sign-in that has to happen on the host, a short-lived token. **It kept
+its number**, because a number here is a file's identity rather than its address, and changing one
+on a move breaks every reference to it - including the copies another repository has taken.
+
+Each file carries its own acceptance criteria so it can be judged done or not done.
 
 **Status** is what exists today. **Shipped** means packaged, installable and covered by the
 acceptance suite — an open question beside a shipped entry is something still to learn about it,
@@ -20,7 +31,6 @@ Ordered by what to do next, not by number: the number is only the file's identit
 
 | # | Requirement | Status | What it covers | Open question |
 |---|---|---|---|---|
-| A01 | [Pi Forge Subscription](A01-Pi-Forge-Subscription.md) | half built | A provider-agnostic agent against a forge subscription, chosen because it is the awkward case. | yes |
 | A02 | [Automated Agent Updates](A02-Automated-Agent-Updates.md) | open | Following an upstream release must be automatic up to the point where something needs deciding. | yes |
 | A11 | [What An Agent Declares About Waiting](A11-What-An-Agent-Declares-About-Waiting.md) | open | Each agent declares what "waiting for a person" looks like in its own output, and its own repository proves the declaration still matches the version it pins. | yes |
 

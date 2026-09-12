@@ -61,7 +61,7 @@ again.
 | [xAI](providers/P07-Provider-xAI.md) | its own agent, or its public API | subscription or API key | one agent each |
 | [Zhipu](providers/P08-Provider-Zhipu.md) | an endpoint compatible with another vendor's dialect | API key, in a variable of its own | **the broker's upstream cannot be a constant** |
 
-The one chosen to be built next is [A01](agents/A01-Pi-Forge-Subscription.md).
+The one chosen to be built next is [A01](base/A01-Pi-Forge-Subscription.md).
 
 ## What a provider-agnostic agent already models
 

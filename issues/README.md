@@ -8,7 +8,7 @@ one rarely need to rank it against another.
 |---|---|---|
 | [**Base**](base/README.md) | The product below the interface: the CLI, the daemon, and the guarantees they make. | `B01`… |
 | [**Frontend**](https://github.com/sokar-ai/sokar-frontend/blob/main/issues/README.md) | The interface people actually use, described as what must be true for a person using it. **In its own repository.** | `F01`… |
-| [**Agents**](agents/README.md) | Which agents exist, how each authenticates, whether it can be brokered, and how updates follow upstream. | `A01`… |
+| [**Agents**](agents/README.md) | Agents that do not yet have a repository of their own. One that has keeps its requirements there, where the work is. | `A06`… |
 | [**Providers**](providers/README.md) | Which providers exist, and how a task reaches one without ever holding its credential. | `P01`… |
 
 The frontend set lives in [sokar-frontend](https://github.com/sokar-ai/sokar-frontend) so it can

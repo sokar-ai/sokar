@@ -11,7 +11,7 @@ Support GitHub Copilot CLI as a packaged agent.
 **Authentication.** Four ways, and only one of them is awkward: a device code, a browser
 loopback redirect, a token on standard input (`--with-token`), or `COPILOT_GITHUB_TOKEN` /
 `GH_TOKEN` / `GITHUB_TOKEN`, which outrank anything stored. Or none at all in BYOK mode, below.
-Measured in [A01](A01-Pi-Forge-Subscription.md).
+Measured in [A01](../base/A01-Pi-Forge-Subscription.md).
 
 **It updates itself by default.** `COPILOT_AUTO_UPDATE` is on unless set to `0`, so a task image
 that pins a version would silently run a different one and `sokar agents --supply-chain` would

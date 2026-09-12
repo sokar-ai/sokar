@@ -4,8 +4,8 @@
 OpenRouter, answers a real prompt, and the credential never enters the container. The forge
 subscription with its browser sign-in is the remaining half.
 
-The agent is [Pi](A04-Agent-Pi.md) - `earendil-works/pi`, not the separate project called
-Oh My Pi ([A05](A05-Agent-Oh-My-Pi.md)), which these files named by mistake until
+The agent is [Pi](../agents/A04-Agent-Pi.md) - `earendil-works/pi`, not the separate project called
+Oh My Pi ([A05](../agents/A05-Agent-Oh-My-Pi.md)), which these files named by mistake until
 2026-09-05. Nothing built was affected: the module, the package and the definition always
 said `pi` and always installed `@earendil-works/pi-coding-agent`.
 
@@ -18,7 +18,7 @@ browser sign-in, which exercises three things the first agent never touched:
 - **a browser sign-in**, which cannot happen inside a box that has no browser and no
   path to the operator's desktop, so the credential must be obtained on the host and
   imported;
-- **a short-lived token**, which is where [B01](../base/B01-Refreshable-Task-Tokens.md)
+- **a short-lived token**, which is where [B01](B01-Refreshable-Task-Tokens.md)
   stops being theoretical.
 
 Picking the awkward combination on purpose: an agent that is easy to add proves
@@ -163,7 +163,7 @@ somewhere insecure, which is accurate: it is plaintext in a file.
 
 - **The credential is portable**, so obtaining it on the host and importing it is possible.
   This was the open question and the answer is yes.
-- **Nothing here expires**, so [B01](../base/B01-Refreshable-Task-Tokens.md) is **not** a
+- **Nothing here expires**, so [B01](B01-Refreshable-Task-Tokens.md) is **not** a
   prerequisite for this provider, which is the opposite of what was assumed.
 - **The sign-in does not have to happen in a task at all.** `--with-token` on standard input,
   and three environment variables that outrank anything stored - `COPILOT_GITHUB_TOKEN`,
@@ -219,12 +219,12 @@ Settling it needs the request path at `api.github.com`, which a disposable accou
   subscription, which may not use the same dialect.
 - **Whether this agent reaches a forge subscription at all.** The requirement assumed it
   does and never checked. Oh My Pi advertises GitHub Copilot among its providers; Pi's own
-  list does not say so. If it does not, [A05](A05-Agent-Oh-My-Pi.md) is the cheaper
+  list does not say so. If it does not, [A05](../agents/A05-Agent-Oh-My-Pi.md) is the cheaper
   vehicle for this question than a new agent.
 - ~~Whether the sign-in yields something storable at all.~~ **Answered:** a 40-character
   `gho_` token in a file. Storable and portable.
 - ~~How long the token lasts.~~ **Answered:** nothing stored expires, so
-  [B01](../base/B01-Refreshable-Task-Tokens.md) is not a prerequisite.
+  [B01](B01-Refreshable-Task-Tokens.md) is not a prerequisite.
 - **Where the broker sits.** The exchange is at `api.github.com` and the model API takes what
   it returns, so brokering the model API alone is not enough - and brokering the exchange leaves
   a real short-lived token in the container. Needs the request path to confirm.

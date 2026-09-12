@@ -1,7 +1,7 @@
 # A04 — Agent Pi
 
 **Status:** built and verified against [OpenRouter](../providers/P03-Provider-OpenRouter.md); the forge
-subscription it was chosen for is still open, see [A01](A01-Pi-Forge-Subscription.md).
+subscription it was chosen for is still open, see [A01](../base/A01-Pi-Forge-Subscription.md).
 
 Support Pi as a packaged agent.
 
@@ -31,7 +31,7 @@ shape of endpoint it can address.
 
 - Whether redirection holds for a provider that does not speak that dialect. Verified for
   OpenRouter; a forge subscription may differ.
-- **Whether it reaches GitHub Copilot at all.** [A01](A01-Pi-Forge-Subscription.md) assumes it
+- **Whether it reaches GitHub Copilot at all.** [A01](../base/A01-Pi-Forge-Subscription.md) assumes it
   does, and that was never checked. Oh My Pi advertises Copilot explicitly; this one does not.
 - Its sign-in flows refresh automatically, which is
   [B01](../base/B01-Refreshable-Task-Tokens.md).
