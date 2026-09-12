@@ -139,4 +139,63 @@ class ContainerfileTest {
                 .contains("history-limit " + Containerfile.SCROLLBACK)
                 .contains("/etc/sokar/tmux.conf");
     }
+
+    @Test
+    void everyImageCarriesAUtf8Locale() {
+
+        // Measured on the Ubuntu VM, 2026-09-12, and reported by the operator before that: the
+        // base image sets no LANG and 'podman exec' passes none, so LC_CTYPE was POSIX and an
+        // agent's terminal interface arrived with every non-ASCII character replaced - its
+        // banner, its prompt markers and its spinner all underscores. In the same container the
+        // shell echoed typed characters as octal escapes.
+        //
+        // LANG, not LC_ALL: LANG is what every LC_* category falls back to, so this sets a
+        // default without taking away the ability to override one category.
+        final Project project = new Project("uc", "", SecurityClass.GUARDED, "ubuntu:24.04", null);
+
+        assertThat(Containerfile.render(project))
+                .contains("ENV LANG=C.UTF-8")
+                .doesNotContain("ENV LC_ALL");
+    }
+
+    @Test
+    void changingWhatSokarPutsInEveryImageMakesExistingOnesStale() {
+
+        // The defect this pins: the fingerprint covered the project's answers and not Sokar's own
+        // half of the recipe, so a release that changed what every image contains produced no
+        // drift anywhere. Adding a UTF-8 locale fixed nothing on a machine that already had an
+        // image built - the label said the recipe was unchanged, and it was not.
+        //
+        // Asserted through a property rather than a literal digest: a test that named the hash
+        // would have to be edited by whoever broke it, which is the one person it has to survive.
+        final Project project = new Project("uc", "", SecurityClass.GUARDED, "ubuntu:24.04", null);
+        final String rendered = Containerfile.render(project);
+        final String recipe = rendered.lines()
+                .filter(line -> line.startsWith("LABEL org.fuin.sokar.recipe="))
+                .findFirst().orElseThrow();
+
+        assertThat(recipe).contains(Containerfile.fingerprint(project));
+        assertThat(rendered).contains("ENV LANG=C.UTF-8");
+
+        // The body is in the digest: a project whose base image and snippet are identical but
+        // whose rendered recipe differs must not share a fingerprint.
+        final Project other = new Project("uc", "", SecurityClass.GUARDED, "ubuntu:24.04",
+                "RUN echo different");
+        assertThat(Containerfile.fingerprint(other))
+                .as("a different recipe is a different fingerprint")
+                .isNotEqualTo(Containerfile.fingerprint(project));
+    }
+
+    @Test
+    void theAgentsLayersAreStillNotInTheFingerprint() {
+
+        // Unchanged rule, restated as a test because the fingerprint now hashes a rendering and
+        // it would be easy to hash the wrong one: which agent runs is chosen per task, so an
+        // image is not stale because somebody picked a different agent.
+        final Project project = new Project("uc", "", SecurityClass.GUARDED, "ubuntu:24.04", null);
+        final String withoutLayers = Containerfile.fingerprint(project);
+
+        assertThat(Containerfile.render(project, ImageLayers.none()))
+                .contains(withoutLayers);
+    }
 }

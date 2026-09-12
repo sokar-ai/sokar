@@ -68,8 +68,17 @@ public final class Containerfile {
      * @return Sixteen hex characters - enough to tell two recipes apart, short enough to read.
      */
     public static String fingerprint(Project project) {
+        // Sokar's own half of the recipe is in here too, and it was not always: the digest used to
+        // cover the project's answers alone, so a Sokar release that changed what every image
+        // contains produced no drift anywhere and existing images silently kept the old recipe.
+        // Found on 2026-09-12, when adding a UTF-8 locale to the image fixed nothing on a machine
+        // that already had one built - which is the shape of defect this label exists to prevent.
+        //
+        // Rendered without the agent's layers, so the rule above still holds: which agent runs is
+        // chosen per task, and an image is not stale because somebody picked a different one.
         final String recipe = project.baseImage() + "\u0000"
-                + (project.imageSnippet() == null ? "" : project.imageSnippet());
+                + (project.imageSnippet() == null ? "" : project.imageSnippet()) + "\u0000"
+                + body(project, ImageLayers.none());
         try {
             final byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
                     .digest(recipe.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -95,6 +104,34 @@ public final class Containerfile {
      * @return File content, ending in a line separator.
      */
     public static String render(Project project, ImageLayers layers) {
+
+        final List<String> lines = new ArrayList<>(List.of(body(project, layers).split("\n", -1)));
+        // Trailing empty element from the split; the labels follow immediately.
+        lines.removeLast();
+
+        lines.add("");
+        lines.add("LABEL org.fuin.sokar.project=\"" + project.name() + "\"");
+        // What this image was built from, so an image built before the project file changed can
+        // be told from one that is simply absent. Without it "prepared" says only that something
+        // exists, and "this will not be what you expect" is discoverable only by starting work.
+        lines.add("LABEL org.fuin.sokar.recipe=\"" + fingerprint(project) + "\"");
+        lines.add("LABEL org.fuin.sokar.security-class=\""
+                + project.securityClass().name().toLowerCase() + "\"");
+
+        return String.join("\n", lines) + "\n";
+    }
+
+    /**
+     * Renders everything above the labels.
+     * <p>
+     * Separate because {@link #fingerprint(Project)} hashes it and the labels carry the
+     * fingerprint: one method that did both would have to hash its own output.
+     *
+     * @param project The project.
+     * @param layers What the agent and the project contribute.
+     * @return The recipe without its labels, ending in a line separator.
+     */
+    private static String body(Project project, ImageLayers layers) {
 
         // One URIs line, space separated, which is what deb822 takes and what apt walks in order.
         final String sources = String.join(" ", project.effectivePackageSources());
@@ -199,20 +236,24 @@ public final class Containerfile {
         lines.add("# shell - and 'podman exec' is one. Without this the agent is present and");
         lines.add("# not findable, which reads as a broken install rather than a missing PATH.");
         lines.add("ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin");
+        lines.add("");
+        // Measured on the Ubuntu VM, 2026-09-12: without this LANG is unset and LC_CTYPE is
+        // POSIX, because neither the base image nor 'podman exec' sets one. An agent's terminal
+        // interface then loses every character outside ASCII - its banner, its prompt markers and
+        // its spinner all arrive as underscores - and the shell echoes what somebody types as
+        // octal escapes. C.UTF-8 costs nothing: it is built into glibc and musl, so no locale has
+        // to be generated and no package added.
+        //
+        // LANG rather than LC_ALL on purpose. LANG is the fallback every LC_* category uses when
+        // it is not set itself, so this makes UTF-8 the default without taking away the ability
+        // to set a category. LC_ALL would override anything the project or the agent chose.
+        lines.add("# Without a UTF-8 locale an agent's interface arrives as underscores.");
+        lines.add("ENV LANG=C.UTF-8");
 
         if (!layers.asAgent().isEmpty()) {
             lines.add("");
             lines.addAll(layers.asAgent());
         }
-
-        lines.add("");
-        lines.add("LABEL org.fuin.sokar.project=\"" + project.name() + "\"");
-        // What this image was built from, so an image built before the project file changed can
-        // be told from one that is simply absent. Without it "prepared" says only that something
-        // exists, and "this will not be what you expect" is discoverable only by starting work.
-        lines.add("LABEL org.fuin.sokar.recipe=\"" + fingerprint(project) + "\"");
-        lines.add("LABEL org.fuin.sokar.security-class=\""
-                + project.securityClass().name().toLowerCase() + "\"");
 
         return String.join("\n", lines) + "\n";
     }

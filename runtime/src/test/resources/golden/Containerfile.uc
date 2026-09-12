@@ -78,6 +78,9 @@ WORKDIR /workspace
 # not findable, which reads as a broken install rather than a missing PATH.
 ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin
 
+# Without a UTF-8 locale an agent's interface arrives as underscores.
+ENV LANG=C.UTF-8
+
 LABEL org.fuin.sokar.project="uc"
-LABEL org.fuin.sokar.recipe="8f8861f457dfcdd4"
+LABEL org.fuin.sokar.recipe="1d354b8cf9299ce7"
 LABEL org.fuin.sokar.security-class="guarded"
