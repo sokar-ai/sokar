@@ -959,15 +959,53 @@ does.
 
 **Where they come from here**, republished rather than pulled from GitHub by each machine:
 
-- <https://fuinorg.jfrog.io/artifactory/agent-skills/> — one package per skill, installed by name.
+- <https://fuinorg.jfrog.io/artifactory/agent-skills/> — one package per skill, fetched by name.
 - <https://fuinorg.jfrog.io/artifactory/agent-packages/> — the same skills bundled per upstream,
-  one package each, for installing a whole set at once.
+  one package each, for taking a whole set at once.
 
 The reason is the one every other dependency in this product has: a tag upstream is a name its
 owner may repoint, and a machine that fetches at install time gets whatever it points at that day.
 What is in those two repositories is what was reviewed. Each package carries its upstream LICENSE
-and records the exact commit it was built from, and its version is that commit's date - so what was
-published can always be compared against what it was built from.
+and records the exact commit it was built from.
+
+### How to get them
+
+**Both repositories are readable without credentials and without any tool**, because a skill is a
+directory holding `SKILL.md` and installing one is unpacking an archive. Commands, not a verb:
+there is no instruction every agent understands, so this section gives you something to run.
+
+**One skill** — the catalogue and each skill's version list are ordinary files:
+
+    BASE=https://fuinorg.jfrog.io/artifactory/agent-skills
+    curl -fsSL $BASE/.skills/skills.json             # every slug with its latest version
+    curl -fsSL $BASE/.skills/<slug>/versions.json    # the versions of one skill
+    curl -fsSL -o /tmp/s.zip $BASE/<slug>/<version>/<slug>-<version>.zip
+    unzip -q -d <your skills directory>/<slug> /tmp/s.zip
+
+**A whole set** — four bundles: `fuinorg/graal`, `fuinorg/java-agent-skills`, `fuinorg/dart`,
+`fuinorg/flutter`. The skills sit under `.apm/skills/` inside the archive:
+
+    BASE=https://fuinorg.jfrog.io/artifactory/agent-packages
+    curl -fsSL -o /tmp/p.zip $BASE/fuinorg/<name>/<name>-<version>.zip
+    unzip -q -d /tmp/p /tmp/p.zip
+    cp -r /tmp/p/.apm/skills/. <your skills directory>/
+
+**Where `<your skills directory>` is depends on the harness, and only you know yours.** Claude Code
+reads `~/.claude/skills/<slug>/` and a project's `.claude/skills/<slug>/`; another harness has its
+own place, and putting a skill where nothing reads it fails silently. Verify by asking the harness
+what it loaded, not by looking at the directory.
+
+**If the JFrog CLI happens to be installed**, `jf agent skills install <slug> --repo agent-skills`
+and `apm install fuinorg/<name>#<version>` do the same with resolution and an install record. Do
+not install either tool for this - the four commands above are the whole requirement.
+
+**Check what you downloaded.** `curl -fsSL <base>/api/storage/<repo>/<path>` states the artifact's
+SHA-256; an interrupted transfer otherwise installs a truncated skill that reads as a short one.
+
+**The version is `YYYY.MMDD.P`** — the upstream commit's date, then the packaging revision, so a
+newer upstream always sorts higher and a repackaging of the same upstream never reuses a number.
+`2026.911.2` is the eleventh of September, packaged the second time. (Not `2026.09.11`: SemVer
+forbids a leading zero in a numeric identifier, and an APM dependency expression rejects it.)
 
 That also makes them the same kind of thing as the packages this build publishes, which is the
 point - an agent's knowledge is a dependency, and a dependency nobody versions is one nobody can
