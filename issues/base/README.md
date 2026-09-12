@@ -41,6 +41,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | open | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
 | B49 | [What The Build Trusts To Run Beside Its Secrets](B49-What-The-Build-Trusts-To-Run-Beside-Its-Secrets.md) | open | Nothing runs beside this product's credentials that was fetched by a name its owner may repoint. | four, and the first decides whether it lasts | [note](#b49) |
 | B50 | [Whose Business The Files Sokar Leaves Behind Are](B50-Whose-Business-The-Files-Sokar-Leaves-Behind-Are.md) | open | Every file Sokar writes is readable by whoever it concerns, and by nobody else - including on machines that already ran tasks. | four, and the first is whether the umask is fought directly | [note](#b50) |
+| B51 | [The Tests That Run Nowhere](B51-The-Tests-That-Run-Nowhere.md) | open | A test that cannot run anywhere in the pipeline says so, rather than reporting itself as skipped on this run. | two, and the first is whether a leg runs the unit tests on the machine | [note](#b51) |
 | A01 | [Pi Forge Subscription](A01-Pi-Forge-Subscription.md) | in progress | A credential that belongs to a provider rather than an agent is obtained on the host, stored, and used by a task that never sees it. | see the file | [note](#a01) |
 | B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | in progress | What a person does at a terminal is tested by the build, on a real machine, and reported case by case - including the eleven scenarios that today run nowhere. | six, three decided | |
 | B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | open | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file | [note](#b29) |
@@ -200,3 +201,10 @@ doing and it is not urgent.
 than building, and three of its four edges already have an answer here - the value is in comparing
 those answers with what the field settled on, which is worth doing before somebody defends them in
 public and not before that.
+
+<a id="b51"></a>**B51 is in Now although it breaks nothing today.** What it costs is not a bug, it
+is the ability to tell "did not apply" from "could not apply" - and this repository has already
+paid once for not being able to: eleven acceptance scenarios sat green and unexecuted until the day
+they were run and turned up three faults. It is below B50 because nothing is exposed by it, and
+above the rest of Now because every further green build makes the two skipped tests look more
+settled than they are.
