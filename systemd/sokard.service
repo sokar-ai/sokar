@@ -1,0 +1,17 @@
+[Unit]
+Description=Sokar daemon
+Documentation=https://github.com/sokar-ai/sokar
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/sokard
+Restart=on-failure
+RestartSec=2
+
+# Nothing it must never gain. Everything else it needs is what the user already has: it drives
+# podman, git and an ssh agent on that user's behalf, so confining it further would only confine
+# the operator.
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

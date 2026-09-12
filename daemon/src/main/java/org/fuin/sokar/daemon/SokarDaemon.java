@@ -1314,7 +1314,63 @@ public final class SokarDaemon {
      *
      * @param args Ignored; the socket location comes from the environment, like everything else.
      */
+    /** What sokard prints when asked what it is, rather than starting. */
+    static final String USAGE = """
+            Usage: sokard [--help] [--version]
+
+            Serves the Sokar domain over an owner-only unix socket, for an interface on this
+            machine or one reached through an ssh forward. It takes no options: what it serves,
+            and where, comes from the same configuration the CLI reads.
+
+            A remote interface reaches it with 'sokar daemon connect' as an ssh ProxyCommand;
+            the daemon itself never binds a network port.""";
+
+    /**
+     * Answers an argument without starting anything, or says there is nothing to answer.
+     * <p>
+     * <strong>It used to ignore every argument and run.</strong> So {@code sokard --help} started
+     * a daemon - reported by the interface agent on 2026-09-12, after asking a binary what it does
+     * left a second Sokar listening on that account's runtime socket. Anything a person types to
+     * find out what something is must not be the thing that starts it.
+     *
+     * @param args What was passed.
+     * @param out Where an answer goes.
+     * @param err Where a refusal goes.
+     * @return The exit code to use, or {@code null} to start the daemon.
+     */
+    static java.lang.@org.jspecify.annotations.Nullable Integer answer(String[] args,
+            java.io.PrintStream out, java.io.PrintStream err) {
+        if (args.length == 0) {
+            return null;
+        }
+        // Checked before anything is answered, so that order cannot decide the outcome. Acting on
+        // the first recognized option meant '--version --deamon' printed a version and exited 0,
+        // reporting success for a command line that contains a mistake.
+        for (final String argument : args) {
+            if (!java.util.List.of("--help", "-h", "--version", "-V").contains(argument)) {
+                // Refused rather than ignored. An argument somebody meant, spelled wrong, used to
+                // start a daemon that did not do the thing they asked for.
+                err.println("sokard: unknown option '" + argument + "'");
+                err.println(USAGE);
+                err.flush();
+                return 64;
+            }
+        }
+        if (java.util.List.of(args).contains("--help") || java.util.List.of(args).contains("-h")) {
+            out.println(USAGE);
+            out.flush();
+            return 0;
+        }
+        out.println("sokard " + org.fuin.sokar.app.SokarVersion.version());
+        out.flush();
+        return 0;
+    }
+
     public static void main(final String[] args) {
+        final Integer answered = answer(args, System.out, System.err);
+        if (answered != null) {
+            System.exit(answered);
+        }
         final SokarContext context = SokarContext.real();
         final Path socket = context.paths().daemonSocket();
         // Started here and not in serving(): this is the one thing the daemon does that reaches
@@ -1324,6 +1380,13 @@ public final class SokarDaemon {
         try (VarlinkServer server = serving(context, socket);
                 org.fuin.sokar.app.UpstreamWatch upstream =
                         new org.fuin.sokar.app.UpstreamWatch(context, every)) {
+            // try-with-resources does not run for a signal, and a signal is how a daemon normally
+            // ends - systemctl stop, a kill, a terminal closing. Without this the socket file
+            // outlived the process that bound it, and an interface met a name that answers
+            // nothing: it connects, is refused, and cannot tell that from a daemon still starting.
+            // SIGKILL still leaves it, and nothing can change that; the next start unlinks a
+            // socket it has proved nobody is listening on.
+            Runtime.getRuntime().addShutdownHook(new Thread(server::close, "sokard-shutdown"));
             upstream.start();
             System.out.println("sokard listening on " + socket);
             System.out.println(every.isZero() || every.isNegative()

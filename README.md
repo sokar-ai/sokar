@@ -230,6 +230,10 @@ when you want to know what else is possible.
 See [the three security classes](doc/security-classes.md) — one picture each for `offline`,
 `guarded` and `online`: who is involved, how work gets in and out, and where somebody reads it.
 
+## Running the daemon, and reaching it from elsewhere
+See [running the daemon](doc/daemon.md) — what `sokard` is for, what happens to its socket when it
+stops or is killed, and the systemd **user** unit the packages install but do not enable.
+
 ## Where the network is actually cut off
 See [the firewall](doc/firewall.md) — where a task's packet filter sits, who may change it, and why
 it refuses to start the container when it cannot be loaded — and [DNS and the resolver](doc/dns.md),

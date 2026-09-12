@@ -96,6 +96,7 @@ public class VarlinkServer implements AutoCloseable, Runnable {
         this.interfaceName = interfaceName;
         try {
             Files.createDirectories(socket.toAbsolutePath().getParent());
+            refuseToStealFrom(socket);
             Files.deleteIfExists(socket);
             // Labelled as it is created: SELinux checks connectto against the socket, not the file.
             channel = SocketContext.openUnixSocket();
@@ -273,6 +274,34 @@ public class VarlinkServer implements AutoCloseable, Runnable {
         message.put("error", name);
         message.put("parameters", parameters);
         connection.send(message);
+    }
+
+    /**
+     * Refuses to bind over a socket something else is still answering on.
+     * <p>
+     * <strong>Unlinking it unconditionally is worse than it looks.</strong> The file is only a
+     * name: unlinking it does not stop the process holding the bound socket, it makes that process
+     * unreachable. A second start therefore used to leave the first one running, serving nobody,
+     * with nothing anywhere saying so - and the operator's own daemon was the one that disappeared.
+     * <p>
+     * The test is a connection, because nothing else distinguishes the two cases. A socket file
+     * whose process is gone refuses the connection, and that one is stale and ours to remove; one
+     * that accepts belongs to somebody who is still using it.
+     *
+     * @param socket The path about to be bound.
+     * @throws VarlinkException If something is listening there.
+     */
+    private static void refuseToStealFrom(Path socket) {
+        if (!Files.exists(socket)) {
+            return;
+        }
+        try (java.nio.channels.SocketChannel probe =
+                java.nio.channels.SocketChannel.open(UnixDomainSocketAddress.of(socket))) {
+            throw new VarlinkException("Another server is already listening on " + socket);
+        } catch (IOException ex) {
+            // Refused, or not a socket at all. Either way nothing is being taken from anybody,
+            // and the caller unlinks it next.
+        }
     }
 
     @Override

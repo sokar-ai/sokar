@@ -184,6 +184,15 @@ Where SELinux is enforcing, a task container cannot reach sokar's sockets until 
                                     <user>root</user>
                                     <group>root</group>
                                 </entry>
+                                <!-- A user unit, installed and not enabled. Same path on both
+                                     distributions, unlike the zsh completion below. -->
+                                <entry>
+                                    <name>/usr/lib/systemd/user/sokard.service</name>
+                                    <file>${project.basedir}/../systemd/sokard.service</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
                                 <!-- TAB completion. Fedora's zsh reads site-functions and has
                                      no vendor-completions, which is where the deb puts the same
                                      file - the second place the two ecosystems differ on purpose,

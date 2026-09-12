@@ -195,6 +195,10 @@ everything can be resumed.
 Used as an ssh `ProxyCommand` so an interface on another machine can reach this one's daemon
 without the daemon ever binding a network port.
 
+The daemon itself is `sokard`, a separate binary: `sokard --help` says what it is and
+`sokard --version` which build, and neither starts it. [Running the daemon](daemon.md) covers the
+socket's lifetime and the systemd user unit the packages install.
+
 ## completion
 
 ```

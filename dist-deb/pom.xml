@@ -190,6 +190,20 @@
                                                 <group>root</group>
                                             </mapper>
                                         </data>
+                                        <!-- A user unit, installed and not enabled: starting a
+                                             daemon is the operator's decision, and a package that
+                                             started one would start it for every account. -->
+                                        <data>
+                                            <src>${project.basedir}/../systemd/sokard.service</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/lib/systemd/user</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
                                         <!-- TAB completion. The file name IS the command name
                                              for bash, and '_<command>' for zsh, which is why the
                                              two resources are named the way they are rather than
