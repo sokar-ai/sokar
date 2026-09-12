@@ -1029,6 +1029,11 @@ become four rules.
 - **The channel is append-only.** One heading per entry, `## <UTC timestamp> - <agent>`. Questions
   are prefixed and numbered per agent - `QB<n>` from here - and answered as
   `**A:** to <timestamp>`, because the prefix says who is owed an answer.
+- **The file's order is the truth and the headings are a label.** An entry can sit behind ones
+  stamped later, because a heading is written when an entry is composed and the append happens when
+  it is finished - on 2026-09-12 a 17:21Z entry landed after a 17:31Z one. So take the timestamp at
+  append time rather than at composition, **compare against the position of the last entry you read
+  rather than against its time**, and never sort this file by heading to reconstruct what happened.
 - **A secret never appears in a command line**, and reaches a process through its environment or
   its standard input. Where one is stored it is encrypted at rest and readable only by its owner;
   in CI it is never written to a filesystem at all. (Not *"never written to a file"* - the vault
