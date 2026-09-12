@@ -193,10 +193,11 @@ changes what gets built rather than only how:
 
 - Whether a person away from the machine can be reached at all ([B06](B06-Remote-Access.md)).
   The transport itself is settled - the socket survives an ssh forward, measured - so what is left
-  is the half that decides how much of
-  [F20](https://github.com/sokar-ai/sokar-frontend/blob/main/requirements/F20-Access-From-Elsewhere.md)
-  and [F23](https://github.com/sokar-ai/sokar-frontend/blob/main/requirements/F23-Notifications.md)
-  is real, and how long a clearance prompt should wait for somebody who is not there.
+  is the half that decides how much of F20 and F23 is real, and how long a clearance prompt should
+  wait for somebody who is not there. Both are in the
+  [interface's own set](https://github.com/sokar-ai/sokar-frontend/blob/main/issues/README.md) and
+  are named by number rather than linked by file: a requirement that is met is deleted there, so a
+  link to one breaks exactly when it is finished.
 - Whether the guarantees can be re-derived at all on a second platform
   ([B08](B08-McSokar-Apple-Containers.md)). It decides whether that project offers the same
   product or a weaker one wearing the same name, and it constrains what may be added to the

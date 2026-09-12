@@ -70,8 +70,9 @@ smaller than it was - an expired question is recorded, replaced on screen by a n
 destination stays blocked, and can still be answered afterwards through `Decide` - but the answer
 has to reach somebody, and who can be reached is decided here rather than by the prompt.
 
-Notifications are the part this constrains that is not yet settled
-([F23](https://github.com/sokar-ai/sokar-frontend/blob/main/requirements/F23-Notifications.md)):
+Notifications are the part this constrains that is not yet settled - F23 in the
+[interface's own set](https://github.com/sokar-ai/sokar-frontend/blob/main/issues/README.md),
+whose file is gone because a finished requirement there is deleted rather than kept:
 a forwarded socket delivers events to a client that is connected, which is not the same as
 reaching a person whose client is closed.
 
