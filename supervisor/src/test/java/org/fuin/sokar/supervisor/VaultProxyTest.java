@@ -503,6 +503,28 @@ class VaultProxyTest {
     }
 
     @Test
+    void cutsOffACredentialSeparatedFromItsColonByMoreWhitespaceThanIsCarried(@TempDir Path dir)
+            throws IOException {
+
+        // JSON allows any amount of whitespace between a member name and its colon, and the
+        // carried tail is finite. Enough of it and the name is out of the window before the colon
+        // arrives, so neither half ever matches - valid framing, and a provider can produce it
+        // deliberately. The run is longer than one read, so at least one whole read is nothing
+        // but whitespace whatever the network does.
+        final String name = "\"access_token\"";
+        final Path socket = dir.resolve("vault.sock");
+        responseBody.set(filler(VaultProxy.PEEK - name.length()) + name
+                + " ".repeat(VaultProxy.PEEK * 3) + ":\"sk-live-PATIENT\"}");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "POST /v1/messages HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\ncontent-length: 0\r\n\r\n");
+
+            assertNeverArrived(response, "sk-live-PATIENT");
+        }
+    }
+
+    @Test
     void theRealCredentialItselfNeverReachesTheContainer(@TempDir Path dir) throws IOException {
 
         // The other direction of the same boundary: whatever the provider answers, the credential

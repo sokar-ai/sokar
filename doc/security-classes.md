@@ -121,8 +121,14 @@ built. The residual risk is availability: a process left unreachable and running
 disclosure; no credential travels this path.
 
 **The credential scan is lexical, not a parser.** It reads every byte of a provider's answer,
-carries the join between reads, and matches a watched member name whether it is spelled plainly or
-with `\uXXXX` escapes - each of those closed a way past it that had been measured. It remains a
-guard shaped to one format: a provider that invented a new name for a credential, or a transport
-that arrived encoded, would need it extended. It is checked end to end through the proxy, not only
-as a unit, so what is asserted is that the container did not receive the credential.
+matches a watched member name whether it is spelled plainly or with `\uXXXX` escapes, joins a name
+split across two reads, and - because JSON allows unlimited whitespace between a name and its colon
+- keeps waiting for that colon across however many reads the whitespace fills, rather than across a
+fixed window. Each of those closed a way past it that had been measured, the last one after the
+first three were already in place.
+
+What that leaves is the shape of the guard rather than a gap in its coverage: it watches a list of
+names, so a provider that called a credential something else would need it extended, and a
+credential that arrived encoded rather than as a JSON member would not be seen at all. It is
+checked end to end through the proxy, not only as a unit, so what is asserted is that the container
+did not receive the credential.

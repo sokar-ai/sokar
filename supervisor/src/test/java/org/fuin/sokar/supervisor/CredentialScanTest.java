@@ -80,4 +80,42 @@ class CredentialScanTest {
         assertThat(sees("{\"content\":[{\"type\":\"text\",\"text\":\"hello\"}]}")).isFalse();
         assertThat(sees("data: {\"delta\":{\"text\":\"a token of appreciation\"}}\n\n")).isFalse();
     }
+
+    @Test
+    void aNameWaitsForItsColonAcrossAnyAmountOfWhitespace() {
+
+        // JSON puts no limit on the space between a member name and its colon, and the carried
+        // tail is finite - so a long enough run pushes the name out of the window before the colon
+        // arrives and neither half matches. Measured through the proxy before this was fixed: the
+        // credential reached the container. The wait is now a flag, which no length defeats.
+        final CredentialScan scan = new CredentialScan();
+        assertThat(feed(scan, "{\"access_token\"")).isFalse();
+        for (int chunk = 0; chunk < 5; chunk++) {
+            assertThat(feed(scan, " ".repeat(8192))).as("still waiting, chunk " + chunk).isFalse();
+        }
+        assertThat(feed(scan, ":\"real\"}")).isTrue();
+    }
+
+    @Test
+    void aNameThatTurnsOutNotToBeAMemberStopsTheWait() {
+
+        // The wait must end when something other than a colon arrives, or every mention of one of
+        // these words at the end of a chunk would poison the rest of the answer.
+        final CredentialScan scan = new CredentialScan();
+        assertThat(feed(scan, "{\"content\":\"the field is called \"access_token\"")).isFalse();
+        assertThat(feed(scan, "   and you set it yourself\"}")).isFalse();
+        assertThat(feed(scan, " : not a member either")).isFalse();
+    }
+
+    /**
+     * Feeds one chunk to a scan.
+     *
+     * @param scan The scan.
+     * @param text The chunk.
+     * @return What it reported.
+     */
+    private static boolean feed(CredentialScan scan, String text) {
+        final byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        return scan.sees(bytes, bytes.length);
+    }
 }

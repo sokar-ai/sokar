@@ -23,8 +23,20 @@ import java.util.regex.Pattern;
  * about a credential rather than a credential - and decoding escapes far enough to turn that into
  * a match would withhold ordinary answers. The scan is meant to be exact in both directions.
  * <p>
- * Chunk boundaries are covered by keeping the tail of what was scanned: a name split across two
- * reads is still one name.
+ * Chunk boundaries are covered two ways, because one was not enough.
+ * <p>
+ * <strong>A name split across two reads</strong> is joined by keeping the tail of what was scanned.
+ * <p>
+ * <strong>A name separated from its colon by more whitespace than that tail holds</strong> is
+ * carried by a flag instead. JSON allows any amount of space between a member name and its colon,
+ * and a fixed window is finite by definition: with enough of it the name falls out of the window
+ * before the colon arrives, and neither half matches anything. Measured through the proxy - the
+ * credential reached the container. So when a chunk ends with a watched name and nothing but
+ * whitespace after it, the scan stays <em>waiting for a colon</em> across as many chunks as it
+ * takes; it is bounded by a boolean rather than by a buffer, so no length of whitespace defeats it.
+ * <p>
+ * This is still a lexical guard and not a parser. What it now covers is every framing of the names
+ * it watches; what it does not cover is a credential a provider gives a name nobody watches.
  */
 final class CredentialScan {
 
@@ -44,7 +56,17 @@ final class CredentialScan {
             NAMES.stream().map(CredentialScan::escapable)
                     .reduce((first, second) -> first + "|" + second).orElseThrow());
 
+    /** A watched name, followed by whitespace, at the very end of what has been scanned. */
+    private static final Pattern NAME_AT_THE_END = Pattern.compile(
+            "(?:" + NAMES.stream().map(CredentialScan::escapable)
+                    .map(each -> each.substring(0, each.length() - "\\s*:".length()))
+                    .reduce((first, second) -> first + "|" + second).orElseThrow()
+            + ")\\s*$");
+
     private String carried = "";
+
+    /** Set when a watched name has been seen and only whitespace has followed it so far. */
+    private boolean awaitingColon;
 
     /**
      * Builds a pattern matching one member name written plainly or with escaped characters.
@@ -71,8 +93,44 @@ final class CredentialScan {
      * @return Whether this chunk, or its join with the previous one, carries a credential field.
      */
     boolean sees(byte[] chunk, int length) {
-        final String text = carried + new String(chunk, 0, length, StandardCharsets.UTF_8);
+        final String next = new String(chunk, 0, length, StandardCharsets.UTF_8);
+        if (awaitingColon) {
+            final int at = firstMeaning(next);
+            if (at < 0) {
+                // Nothing but whitespace again. Still waiting, however long this goes on.
+                return false;
+            }
+            if (next.charAt(at) == ':') {
+                return true;
+            }
+            // Something else followed the name, so it was not a member name after all.
+            awaitingColon = false;
+        }
+        final String text = carried + next;
+        if (CREDENTIAL_FIELD.matcher(text).find()) {
+            return true;
+        }
+        awaitingColon = NAME_AT_THE_END.matcher(text).find();
         carried = text.length() <= OVERLAP ? text : text.substring(text.length() - OVERLAP);
-        return CREDENTIAL_FIELD.matcher(text).find();
+        return false;
+    }
+
+    /**
+     * Finds the first character that is not whitespace.
+     * <p>
+     * {@link Character#isWhitespace} covers everything the pattern's {@code \s} does and a little
+     * more, which is the safe direction here: treating something as whitespace keeps the scan
+     * waiting, and waiting withholds.
+     *
+     * @param text What to look in.
+     * @return Its index, or -1 when there is none.
+     */
+    private static int firstMeaning(String text) {
+        for (int at = 0; at < text.length(); at++) {
+            if (!Character.isWhitespace(text.charAt(at))) {
+                return at;
+            }
+        }
+        return -1;
     }
 }
