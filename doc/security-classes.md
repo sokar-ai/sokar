@@ -120,15 +120,35 @@ atomic rename - which changes how a task's runtime directory is laid out and was
 built. The residual risk is availability: a process left unreachable and running. It is not
 disclosure; no credential travels this path.
 
-**The credential scan is lexical, not a parser.** It reads every byte of a provider's answer,
+**The credential scan is known-field lexical filtering with an accepted residual risk**, and that
+is the whole of what it claims. It reads every byte of a provider's answer,
 matches a watched member name whether it is spelled plainly or with `\uXXXX` escapes, joins a name
 split across two reads, and - because JSON allows unlimited whitespace between a name and its colon
 - keeps waiting for that colon across however many reads the whitespace fills, rather than across a
 fixed window. Each of those closed a way past it that had been measured, the last one after the
 first three were already in place.
 
-What that leaves is the shape of the guard rather than a gap in its coverage: it watches a list of
-names, so a provider that called a credential something else would need it extended, and a
-credential that arrived encoded rather than as a JSON member would not be seen at all. It is
-checked end to end through the proxy, not only as a unit, so what is asserted is that the container
-did not receive the credential.
+**What it therefore does not promise.** The decision is a list of member names -
+`access_token`, `refresh_token`, `id_token` - so a provider that calls its credential something
+else is not covered. That is a real confidentiality gap and it is accepted rather than closed: the
+alternative is an incremental parser per supported response format, which has to accept every
+framing each provider actually emits, and a parser that mis-frames an ordinary answer breaks every
+task rather than withholding one credential. There is a test asserting the gap, so that anyone who
+believes they have closed it finds out.
+
+**What the scan refuses to guess about, it refuses outright.** An answer it cannot read is not
+streamed on the reasoning that nothing was found in it - not finding something in bytes you cannot
+read is not evidence. Two cases fail closed with `502`:
+
+- a body in any content coding but `identity`, where a member name is not absent but *unreadable*;
+- a media type outside `application/json` and `text/event-stream`, which may frame a credential in
+  a shape the scan does not look for at all.
+
+An answer with no body is not refused, decided on the bytes that arrived rather than on a declared
+length. **This has an availability cost and it is deliberate:** a provider that starts answering in
+a form not listed here breaks tasks visibly, where the alternative fails silently and in the
+direction that loses a credential. Where it is wrong it is wrong loudly, which is the only kind of
+wrong that gets fixed.
+
+All of it is checked end to end through the proxy, not only as a unit, so what is asserted is what
+the container did or did not receive.

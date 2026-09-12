@@ -107,6 +107,34 @@ class CredentialScanTest {
         assertThat(feed(scan, " : not a member either")).isFalse();
     }
 
+    @Test
+    void whitespaceMeansWhatJsonMeansByIt() {
+
+        // The wait and the pattern used two different notions of whitespace - an exact one and
+        // Character.isWhitespace, which is much wider. A character JSON does not call whitespace
+        // would then have kept the scan waiting for ever, withholding an answer no parser would
+        // object to: safe for confidentiality, unsafe for availability.
+        final CredentialScan waiting = new CredentialScan();
+        assertThat(feed(waiting, "{\"access_token\"")).isFalse();
+        assertThat(feed(waiting, "\u00A0 and then some prose")).as("the wait ends").isFalse();
+        assertThat(feed(waiting, ":\"not a member\"")).as("and does not resume").isFalse();
+
+        // And the same bytes in one chunk are judged the same way, which is the point of having
+        // one set rather than two: where the chunk boundary falls must not decide the answer.
+        assertThat(sees("{\"access_token\"\u00A0 and then some prose:\"not a member\"")).isFalse();
+    }
+
+    @Test
+    void aCredentialUnderANameNobodyWatchesPassesThrough() {
+
+        // Not a defect to fix here, a limit to see. The scan decides on a list of member names, so
+        // a provider that calls its credential something else is not covered - and that is the
+        // whole of what this guard claims. Written as a test rather than as prose so that anyone
+        // who believes they have closed it finds out here.
+        assertThat(sees("{\"session_key\":\"sk-live-REAL\"}")).isFalse();
+        assertThat(sees("{\"api_key\":\"sk-live-REAL\"}")).isFalse();
+    }
+
     /**
      * Feeds one chunk to a scan.
      *

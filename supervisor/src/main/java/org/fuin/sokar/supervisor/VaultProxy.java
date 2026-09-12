@@ -53,6 +53,19 @@ import org.fuin.sokar.wire.SocketContext;
  */
 public class VaultProxy implements AutoCloseable, Runnable {
 
+    /**
+     * The media types the credential scan can actually read.
+     * <p>
+     * Everything else is refused rather than streamed. The scan looks for JSON member names in
+     * decoded text, so an answer in a form it cannot read is one it cannot judge - and streaming
+     * what cannot be judged is the same as judging it harmless. This is a fail-closed decision
+     * with an availability cost, taken deliberately: a provider that starts answering in a form
+     * not listed here breaks tasks visibly, where the alternative fails silently and in the
+     * direction that loses a credential.
+     */
+    private static final Set<String> UNDERSTOOD_TYPES =
+            Set.of("application/json", "text/event-stream");
+
     /** Headers carrying a credential, all of which are dropped before forwarding. */
     private static final Set<String> CREDENTIAL_HEADERS =
             Set.of("authorization", "x-api-key", "private-token", "proxy-authorization");
@@ -417,12 +430,58 @@ public class VaultProxy implements AutoCloseable, Runnable {
         return java.util.Arrays.copyOf(buffer, filled);
     }
 
+    /**
+     * Says why an answer cannot be checked for a credential, or {@code null} when it can.
+     * <p>
+     * Two cases, and both are blindness rather than suspicion. A body in any content coding but
+     * {@code identity} reaches the scan as compressed bytes, in which a member name is simply not
+     * present to be found. A media type outside {@link #UNDERSTOOD_TYPES} may frame a credential
+     * in a way the scan does not look for at all.
+     * <p>
+     * An answer with no body is not refused: there is nothing in it to carry a credential, and
+     * refusing one would break every {@code 204} and every redirect. That is decided on the bytes
+     * that actually arrived rather than on a declared length - a chunked answer declares none, and
+     * an empty one would have been refused for saying nothing about a body it does not have.
+     *
+     * @param response The upstream answer.
+     * @param body How many bytes of body were read before judging.
+     * @return What makes it unreadable, or {@code null}.
+     */
+    @org.jspecify.annotations.Nullable
+    private static String whyUnreadable(HttpResponse<InputStream> response, int body) {
+        final String coding = response.headers().firstValue("content-encoding")
+                .map(value -> value.trim().toLowerCase(Locale.ROOT)).orElse("identity");
+        if (!"identity".equals(coding)) {
+            return "content-encoding " + coding;
+        }
+        if (body == 0) {
+            return null;
+        }
+        final String type = response.headers().firstValue("content-type").orElse("");
+        final String media = type.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+        if (media.isEmpty()) {
+            return "no content-type";
+        }
+        return UNDERSTOOD_TYPES.contains(media) ? null : "content-type " + media;
+    }
+
     private void writeResponse(OutputStream out, HttpResponse<InputStream> response)
             throws IOException {
 
         final InputStream upstreamBody = response.body();
         final CredentialScan scan = new CredentialScan();
         final byte[] first = peek(upstreamBody);
+        final String unreadable = whyUnreadable(response, first.length);
+        if (unreadable != null) {
+            upstreamBody.close();
+            log.accept("answer withheld: " + unreadable);
+            out.write(HttpHead.response(502, "Bad Gateway",
+                    "{\"type\":\"error\",\"error\":{\"type\":\"api_error\","
+                    + "\"message\":\"sokar: the provider answered in a form this proxy cannot"
+                    + " check for credentials (" + unreadable + "), so nothing was passed on\"}}"));
+            out.flush();
+            return;
+        }
         if (scan.sees(first, first.length)) {
             // The one exchange whose answer is itself a credential. Measured with a stub
             // provider: the container received access_token and refresh_token verbatim, which

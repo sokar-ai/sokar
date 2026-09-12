@@ -46,10 +46,18 @@ class VaultProxyTest {
     /** Set instead of {@link #responseBody} when the answer must be exact bytes. */
     private AtomicReference<byte[]> rawResponse;
 
+    /** What the fake provider declares its answer to be. A real one always declares something. */
+    private AtomicReference<String> responseType;
+
+    /** A content coding to declare, when a case needs one. */
+    private AtomicReference<String> responseEncoding;
+
     @BeforeEach
     void startUpstream() throws IOException {
         responseBody = new AtomicReference<>("{\"ok\":true}");
         rawResponse = new AtomicReference<>(null);
+        responseType = new AtomicReference<>("application/json");
+        responseEncoding = new AtomicReference<>(null);
         upstream = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         upstream.createContext("/", exchange -> {
             final Map<String, String> headers = new java.util.LinkedHashMap<>();
@@ -63,6 +71,12 @@ class VaultProxyTest {
             final byte[] raw = rawResponse.get();
             final byte[] payload = raw != null
                     ? raw : responseBody.get().getBytes(StandardCharsets.UTF_8);
+            if (responseType.get() != null) {
+                exchange.getResponseHeaders().set("Content-Type", responseType.get());
+            }
+            if (responseEncoding.get() != null) {
+                exchange.getResponseHeaders().set("Content-Encoding", responseEncoding.get());
+            }
             exchange.sendResponseHeaders(200, payload.length);
             try (OutputStream out = exchange.getResponseBody()) {
                 out.write(payload);
@@ -521,6 +535,102 @@ class VaultProxyTest {
                     + "x-api-key: " + PHANTOM + "\r\ncontent-length: 0\r\n\r\n");
 
             assertNeverArrived(response, "sk-live-PATIENT");
+        }
+    }
+
+    @Test
+    void refusesAnAnswerItCannotReadBecauseItIsCompressed(@TempDir Path dir) throws IOException {
+
+        // A gzipped body reaches the scan as compressed bytes: a member name is not absent from
+        // it, it is not *present* to be found. Streaming what cannot be judged is the same as
+        // judging it harmless, so this fails closed - and says which of the two reasons it was.
+        final Path socket = dir.resolve("vault.sock");
+        responseEncoding.set("gzip");
+        responseBody.set("{\"access_token\":\"sk-live-HIDDEN\"}");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "GET /v1/whatever HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n\r\n");
+
+            assertThat(response).startsWith("HTTP/1.1 502");
+            assertThat(response).contains("content-encoding gzip");
+            assertThat(response).doesNotContain("sk-live-HIDDEN");
+        }
+    }
+
+    @Test
+    void refusesAMediaTypeTheScanDoesNotUnderstand(@TempDir Path dir) throws IOException {
+
+        // The scan looks for JSON member names. A body in some other framing may carry a
+        // credential in a shape it does not look for at all, so the type it was told decides
+        // whether it is allowed to judge at all.
+        final Path socket = dir.resolve("vault.sock");
+        responseType.set("application/octet-stream");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "GET /v1/whatever HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n\r\n");
+
+            assertThat(response).startsWith("HTTP/1.1 502");
+            assertThat(response).contains("content-type application/octet-stream");
+        }
+    }
+
+    @Test
+    void readsAStreamOfEventsAndAnswersWithCharsetsDeclared(@TempDir Path dir) throws IOException {
+
+        // The two types a provider actually answers with, one of them carrying a charset. A media
+        // type is matched without its parameters, or every provider that declares one would be
+        // refused for saying more rather than less.
+        final Path socket = dir.resolve("vault.sock");
+        responseType.set("text/event-stream; charset=utf-8");
+        responseBody.set("data: {\"delta\":\"one\"}\n\n");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            assertThat(send(socket, "POST /v1/messages HTTP/1.1\r\n" + "x-api-key: " + PHANTOM
+                    + "\r\ncontent-length: 0\r\n\r\n")).startsWith("HTTP/1.1 200");
+        }
+        responseType.set("application/json; charset=utf-8");
+        final Path second = dir.resolve("vault2.sock");
+        try (VaultProxy proxy = proxy(second, "x-api-key", "", REAL)) {
+
+            assertThat(send(second, "POST /v1/messages HTTP/1.1\r\n" + "x-api-key: " + PHANTOM
+                    + "\r\ncontent-length: 0\r\n\r\n")).startsWith("HTTP/1.1 200");
+        }
+    }
+
+    @Test
+    void anAnswerWithNoBodyIsNotRefusedForHavingNoType(@TempDir Path dir) throws IOException {
+
+        // Nothing in an empty answer can carry a credential, and refusing one would break every
+        // 204 and every redirect - a fail-closed rule that breaks ordinary traffic gets switched
+        // off by whoever it annoys.
+        final Path socket = dir.resolve("vault.sock");
+        responseType.set(null);
+        responseBody.set("");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            assertThat(send(socket, "GET /v1/whatever HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n\r\n")).startsWith("HTTP/1.1 200");
+        }
+    }
+
+    @Test
+    void refusesABodyThatDeclaresNoTypeAtAll(@TempDir Path dir) throws IOException {
+
+        // The other half of the case above: bytes with no declared type are bytes the scan has
+        // been told nothing about.
+        final Path socket = dir.resolve("vault.sock");
+        responseType.set(null);
+        responseBody.set("{\"access_token\":\"sk-live-UNDECLARED\"}");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "GET /v1/whatever HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n\r\n");
+
+            assertThat(response).startsWith("HTTP/1.1 502");
+            assertThat(response).contains("no content-type");
+            assertThat(response).doesNotContain("sk-live-UNDECLARED");
         }
     }
 

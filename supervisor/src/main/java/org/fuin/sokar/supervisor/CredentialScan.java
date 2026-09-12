@@ -40,6 +40,18 @@ import java.util.regex.Pattern;
  */
 final class CredentialScan {
 
+    /**
+     * The whitespace JSON allows, and nothing else.
+     * <p>
+     * Narrower than the pattern's {@code \s}, which also admits a vertical tab and a form feed,
+     * and far narrower than {@link Character#isWhitespace}. The wait below and the pattern use this
+     * one set on purpose: with two different notions of whitespace the same answer would be judged
+     * differently depending on where its chunk boundaries fell, which is the class of defect this
+     * scan has already been bitten by twice. What is let through by narrowing is a byte sequence no
+     * JSON parser reads as a member name either, so it is not a credential field to anybody.
+     */
+    private static final String WHITESPACE = "[ \\t\\n\\r]";
+
     /** The member names whose presence means the answer carries a credential. */
     private static final List<String> NAMES = List.of("access_token", "refresh_token", "id_token");
 
@@ -59,9 +71,9 @@ final class CredentialScan {
     /** A watched name, followed by whitespace, at the very end of what has been scanned. */
     private static final Pattern NAME_AT_THE_END = Pattern.compile(
             "(?:" + NAMES.stream().map(CredentialScan::escapable)
-                    .map(each -> each.substring(0, each.length() - "\\s*:".length()))
+                    .map(each -> each.substring(0, each.length() - (WHITESPACE + "*:").length()))
                     .reduce((first, second) -> first + "|" + second).orElseThrow()
-            + ")\\s*$");
+            + ")" + WHITESPACE + "*$");
 
     private String carried = "";
 
@@ -82,7 +94,7 @@ final class CredentialScan {
                     .append("|\\\\u00").append(String.format("%02X", (int) character))
                     .append(')');
         }
-        return pattern.append("\"\\s*:").toString();
+        return pattern.append("\"" + WHITESPACE + "*:").toString();
     }
 
     /**
@@ -116,18 +128,22 @@ final class CredentialScan {
     }
 
     /**
-     * Finds the first character that is not whitespace.
+     * Finds the first character that is not JSON whitespace.
      * <p>
-     * {@link Character#isWhitespace} covers everything the pattern's {@code \s} does and a little
-     * more, which is the safe direction here: treating something as whitespace keeps the scan
-     * waiting, and waiting withholds.
+     * This used {@link Character#isWhitespace}, on the reasoning that a wider notion is the safe
+     * direction because waiting withholds. It is the safe direction for confidentiality and the
+     * unsafe one for availability: a character JSON does not call whitespace would have kept the
+     * scan waiting, and a wait that never ends withholds an answer no parser would object to.
+     * The exact grammar is better on both counts, because what it stops waiting for is a sequence
+     * no parser reads as a member name.
      *
      * @param text What to look in.
      * @return Its index, or -1 when there is none.
      */
     private static int firstMeaning(String text) {
         for (int at = 0; at < text.length(); at++) {
-            if (!Character.isWhitespace(text.charAt(at))) {
+            final char character = text.charAt(at);
+            if (character != ' ' && character != '\t' && character != '\n' && character != '\r') {
                 return at;
             }
         }
