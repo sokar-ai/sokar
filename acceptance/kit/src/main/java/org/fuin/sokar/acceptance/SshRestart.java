@@ -1,6 +1,7 @@
 package org.fuin.sokar.acceptance;
 
 import java.io.IOException;
+import org.fuin.sokar.machines.Ssh;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -36,16 +37,50 @@ final class SshRestart implements Restart {
 
     @Override
     public void restart() throws IOException {
+        String asked = "the command produced nothing before the connection went";
         try {
             // Detached and delayed, so sshd is not killed before the request is acknowledged -
             // otherwise the reboot races the reply and it is unclear whether it was asked for.
-            machine.run("sudo systemd-run --on-active=1s /sbin/reboot || sudo reboot &");
+            final Ssh.Output output = machine.run(
+                    "sudo systemd-run --on-active=1s /sbin/reboot || sudo reboot &");
+            asked = "exit " + output.status() + "; " + output.all().strip();
         } catch (IOException | RuntimeException ex) {
-            // The connection dying IS the reboot starting. A failure here says nothing.
+            // The connection dying IS the reboot starting, so this is not an error by itself -
+            // but it is the only account of what happened, and it used to be discarded. When the
+            // machine then did not go down, the failure said "reboot over ssh" and nothing about
+            // why: CI on 2026-09-12, where the reboot never landed on either leg.
+            asked = ex.getClass().getSimpleName() + ": " + ex.getMessage();
         }
         machine.disconnect();
-        awaitGone();
-        awaitBack();
+        try {
+            awaitGone();
+            awaitBack();
+        } catch (IOException ex) {
+            // Reconnect before giving up. Without this one failed restart left the connection
+            // down and EVERY scenario after it failed with "Not connected" - 28 errors for one
+            // cause, in a report where the one that mattered was indistinguishable from the
+            // wreckage. A scenario may fail; it may not take the rest of the run with it.
+            reconnectQuietly();
+            throw new IOException(ex.getMessage() + ". What the reboot request answered: " + asked,
+                    ex);
+        }
+    }
+
+    /**
+     * Restores the connection after a restart that did not happen, so the next scenario runs.
+     */
+    private void reconnectQuietly() {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                if (machine.reachable()) {
+                    machine.reconnect();
+                    return;
+                }
+            } catch (IOException | RuntimeException ex) {
+                // Nothing to add: the caller is already throwing the reason this was needed.
+            }
+            sleep(Duration.ofSeconds(2));
+        }
     }
 
     private void awaitGone() throws IOException {

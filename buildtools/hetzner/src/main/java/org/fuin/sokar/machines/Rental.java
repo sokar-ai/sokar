@@ -100,6 +100,15 @@ public final class Rental {
                 + " && install -m 0600 -o " + USER + " -g " + USER
                 + " /root/.ssh/authorized_keys /home/" + USER + "/.ssh/authorized_keys");
 
+        // The same grant a leg gets, for the same reason: a machine somebody leases by hand is
+        // the one they reproduce a CI failure on, and one that cannot restart cannot reproduce
+        // the restart scenarios. Three programs, on a machine that exists for one purpose.
+        System.out.println("\n-- letting " + USER + " restart the machine --");
+        run(lease, "printf '%s ALL=(root) NOPASSWD: /usr/bin/systemd-run, /usr/bin/systemctl,"
+                + " /sbin/reboot\\n' " + USER + " > /etc/sudoers.d/90-sokar-acceptance-reboot"
+                + " && chmod 0440 /etc/sudoers.d/90-sokar-acceptance-reboot"
+                + " && visudo -c -f /etc/sudoers.d/90-sokar-acceptance-reboot");
+
         System.out.println("\n-- starting the daemon as " + USER + " --");
         // Asked rather than assumed. useradd picks the uid, so nothing here knows it in advance.
         final String uid = lease.ssh().run("id -u " + USER).out().strip();

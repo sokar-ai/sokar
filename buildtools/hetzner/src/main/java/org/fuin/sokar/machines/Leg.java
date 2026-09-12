@@ -106,6 +106,27 @@ public final class Leg {
                     + " /home/" + USER + "/.ssh && install -m 0600 -o " + USER + " -g " + USER
                     + " /root/.ssh/authorized_keys /home/" + USER + "/.ssh/authorized_keys");
 
+            // Restarting is part of what the suite tests, and until 2026-09-12 it could not:
+            // the acceptance user is created with 'useradd' and nothing else, so it had no sudo
+            // at all. 'sudo systemd-run --on-active=1s /sbin/reboot' answered "I'm sorry build.
+            // I'm afraid I can't do that", the restart step swallowed that, and sixty seconds
+            // later the run failed with "The machine never went down" - on both legs, taking 24
+            // unrelated scenarios with it because the connection was already closed.
+            //
+            // Measured on a rented ubuntu machine the same day: with this file in place the
+            // command returns 0, the machine is unreachable within six seconds and answers again
+            // after about forty.
+            //
+            // Three programs and nothing else. This is a machine that exists for one run and is
+            // deleted after it, but the grant is still written narrowly: a suite that can reboot
+            // its machine is not a suite that can do anything else as root.
+            step("letting the acceptance user restart the machine");
+            run(lease.ssh(), "printf '%s ALL=(root) NOPASSWD: /usr/bin/systemd-run,"
+                    + " /usr/bin/systemctl, /sbin/reboot\\n' " + USER
+                    + " > /etc/sudoers.d/90-sokar-acceptance-reboot"
+                    + " && chmod 0440 /etc/sudoers.d/90-sokar-acceptance-reboot"
+                    + " && visudo -c -f /etc/sudoers.d/90-sokar-acceptance-reboot");
+
             try (Ssh build = Ssh.to(lease.address(), USER, credential)) {
             step("sending the working tree");
             build.upload(archive, "/tmp/tree.tar");
