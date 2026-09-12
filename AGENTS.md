@@ -726,6 +726,69 @@ See [build.md](doc/build.md). Three things that will bite:
   15.7s to 8.5s. It never showed locally, because a hop to a VM on the same host is fast and
   forgiving in a way a rented server is not.
 
+## What the finished requirements measured
+
+Rescued from the requirement index on 2026-09-12, when the rule arrived that a finished issue is
+deleted whole. Each of these was a line in a *"what was here and is finished"* section that claimed
+its lesson already lived here - and for most of them it did not. Deleting the section first would
+have lost every one.
+
+- **An environment is not an argument list.** Every variable a container gets is named on podman's
+  command line without its value, and podman copies the value from Sokar's own environment: an
+  argument list is world-readable and an environment is not. The pair that must not drift - the
+  names in the arguments, the values in the environment - is guarded by tests at *both* places that
+  build them, because **podman drops a name it cannot resolve rather than failing**. A typo there
+  is a container quietly missing a credential, not an error.
+
+- **A grant and a withdrawal are not mirror images.** An nftables set holds **addresses**, and a
+  project declares **names**. So widening by name resolves to addresses and adds them; narrowing by
+  the same name cannot simply remove them, because the name may now resolve elsewhere and the
+  addresses may be shared. Two operations, not one with a sign.
+
+- **The resolver cannot be told anything without being restarted** - which is why a live widening
+  goes through the servers file it re-reads on `SIGHUP` and not through its configuration.
+
+- **Nothing applied to a running task survives a restart unless it was written down.** Turning
+  enforcement off therefore also removes the watcher from what a later start would restore;
+  otherwise the setting comes back silently, and only after a restart.
+
+- **A vault entry that looks like a placeholder is questioned rather than stored.** A value goes in
+  through standard input and comes back only as a name, a kind and a length.
+
+- **A backup nobody recorded is not a backup you can list.** `gate backup <file>` writes a bundle
+  wherever an operator names it and forgets it, so the missing part was never the listing - it was
+  the record. And a restore refuses with `HOLDS_WORK` naming the refs, because unreviewed pushes
+  exist only in the mirror and overwriting one destroys the only copy.
+
+- **A listing must not reach the network.** A triggered fetch is its own method rather than a flag
+  on a read, or the queue costs what a listing must not.
+
+- **varlink cannot carry a session at all.** It is one call in and many replies out, with no way
+  for a client to keep sending into an open call. So an interactive session is carried by ssh with
+  a pty, running Sokar's own verb rather than the runtime's - which adds no privilege, because
+  whoever can forward the daemon socket can already run commands there. The session is a terminal
+  **in the container** rather than on the node, because `sokar` is not installed in a task image.
+
+- **A clearance answer must survive a restart.** It is never asked twice for a task - across a
+  restart, which is where it used to leak - and is written to a record that outlives the task. A
+  question nobody answered is replaced on screen by one saying so, and reaches a client as a
+  verdict rather than as silence.
+
+- **A defect recorded from one environment is a measurement, not a fact about the product.** One
+  was written up with a stack trace and three reproductions - `Console.readPassword()` throwing in
+  the native image - and did not survive contact with the same binary a day later: at a pty, over
+  `ssh -tt`, and through the acceptance kit, all working, with `git log` over the code empty in
+  between. What that report lacked is what would have made it checkable: the exact command, the
+  terminal it ran under, and **whether the process was sandboxed** - which was the one difference
+  nobody had written down. Ask for those three before believing a defect only one machine has seen.
+
+  Two things from it are still live rather than historical. **A minimal native image built on
+  GraalVM 25.3.4 reads a passphrase correctly, and the product pins 25.0.2** - if that fault was
+  ever real it lives in that gap, and it is the one hypothesis worth keeping. And should it return,
+  driving `tcgetattr`/`tcsetattr` through FFM reads a line with echo off in both runtimes, proven
+  at a pty; it is the same mechanism `KernelKeyring` already uses, so it is in idiom rather than a
+  new one.
+
 ## The agent repositories consume what this one publishes
 
 **Push this repository first, and wait for it to publish.** The three agent repositories resolve
