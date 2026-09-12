@@ -1031,9 +1031,13 @@ become four rules.
   `**A:** to <timestamp>`, because the prefix says who is owed an answer.
 - **The file's order is the truth and the headings are a label.** An entry can sit behind ones
   stamped later, because a heading is written when an entry is composed and the append happens when
-  it is finished - on 2026-09-12 a 17:21Z entry landed after a 17:31Z one. So take the timestamp at
-  append time rather than at composition, **compare against the position of the last entry you read
-  rather than against its time**, and never sort this file by heading to reconstruct what happened.
+  it is finished - on 2026-09-12 a 17:21Z entry landed after a 17:31Z one. So **take the timestamp
+  from the clock, in the command that appends** - the same day, an agent wrote the headings it
+  believed the time to be and ran a quarter of an hour fast, which put four of its own entries in
+  the wrong order and is a label with no measurement behind it. **Compare against the position of
+  the last entry you read, never against its time or its heading text**: two entries can carry one
+  heading, and a text marker then matches the earlier one for ever or skips the entry between.
+  Never sort this file by heading to reconstruct what happened.
 - **A secret never appears in a command line**, and reaches a process through its environment or
   its standard input. Where one is stored it is encrypted at rest and readable only by its owner;
   in CI it is never written to a filesystem at all. (Not *"never written to a file"* - the vault
