@@ -152,3 +152,8 @@ wrong that gets fixed.
 
 All of it is checked end to end through the proxy, not only as a unit, so what is asserted is what
 the container did or did not receive.
+
+**This risk is accepted on a condition, not in general.** It holds only while the three watched
+names and the two understood media types are maintained against what the supported providers
+actually emit. **A provider changing its response schema reopens the decision** - it is not
+inherited by whoever reads this next, and the test that asserts the gap is where that shows up.
