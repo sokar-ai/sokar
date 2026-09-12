@@ -244,17 +244,31 @@ public final class TaskLaunch {
                 return 69;
             }
 
-            if (request.mode() == org.fuin.sokar.wire.TaskMode.UNATTENDED) {
+            // Both modes that asked for the agent itself. UNATTENDED because nobody is watching,
+            // so a warning is written into an empty room and the failure is found later by
+            // somebody who did not start it. AGENT because the person asked for the agent's
+            // session: landing them in an agent that cannot authenticate is the refusal below
+            // - "the person who asked for an agent finds a bare prompt with nothing explaining
+            // why" - one step later, after an image and a container have been built for it.
+            //
+            // SHELL is deliberately left warning. Working inside the container by hand is exactly
+            // what it is for, and whether the agent could authenticate may not matter at all to
+            // somebody who is only going to open a terminal.
+            //
+            // Refused here, before the gate, the image and the container: a refusal that left a
+            // workspace and a held container behind would be the warning again with a different
+            // exit code.
+            if (refusesWithoutCredential(request.mode())) {
                 final String unavailable = wiring().unavailableFor(select(agents));
                 if (unavailable != null) {
-                    // Refused rather than warned, and refused here: nobody is watching an
-                    // unattended run, so a warning is written into an empty room and the failure
-                    // is found later by somebody who did not start it. Before the gate, the image
-                    // and the container on purpose - a refusal that left a workspace and a held
-                    // container behind would be the warning again with a different exit code.
                     err.println("sokar: " + unavailable);
-                    err.println("sokar: nothing was created; an unattended run cannot ask anybody,"
-                            + " so it is refused rather than started to fail");
+                    err.println("sokar: nothing was created; "
+                            + (request.mode() == org.fuin.sokar.wire.TaskMode.UNATTENDED
+                                    ? "an unattended run cannot ask anybody, so it is refused"
+                                            + " rather than started to fail"
+                                    : "the agent would start without a credential and fail on its"
+                                            + " first request. '--attach shell' starts the task"
+                                            + " without one."));
                     err.flush();
                     return 69;
                 }
@@ -532,6 +546,25 @@ public final class TaskLaunch {
     @Nullable
     private InstalledAgent select(InstalledAgents agents) {
         return select(agents, request.agentName());
+    }
+
+    /**
+     * Whether a mode is refused outright when the agent's credential cannot be had.
+     * <p>
+     * The two that asked for the agent itself. {@code SHELL} is not one of them: working inside
+     * the container by hand is what it is for, and whether the agent could authenticate may not
+     * matter to it at all - so it warns and starts, which is what every mode used to do.
+     * <p>
+     * Named rather than inlined because it is a decision, taken by the operator on 2026-09-12
+     * after a locked vault let an {@code AGENT} task build an image and a container and then land
+     * somebody in an agent that could not authenticate.
+     *
+     * @param mode The mode asked for.
+     * @return Whether a credential that cannot be had refuses the start.
+     */
+    static boolean refusesWithoutCredential(org.fuin.sokar.wire.TaskMode mode) {
+        return mode == org.fuin.sokar.wire.TaskMode.UNATTENDED
+                || mode == org.fuin.sokar.wire.TaskMode.AGENT;
     }
 
     /**

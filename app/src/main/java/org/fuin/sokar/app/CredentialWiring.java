@@ -182,13 +182,20 @@ final class CredentialWiring {
     }
 
     /**
-     * Says why an unattended run could not authenticate, or {@code null} when it could.
+     * Says why a run that asked for the agent could not authenticate, or {@code null} when it
+     * could.
      * <p>
-     * Only for a run nobody is watching. An unattended task that cannot authenticate is certain to
-     * be wasted, and the person who finds the wreckage is not the one who started it - so this is
-     * what lets the launcher refuse before anything is created rather than warn into an empty
-     * room. The interactive modes keep the warning: somebody is right there and may be starting a
-     * shell without caring whether the agent can authenticate at all.
+     * For the two modes that asked for the agent itself, and this is what lets the launcher refuse
+     * before anything is created. An <em>unattended</em> task that cannot authenticate is certain
+     * to be wasted, and the person who finds the wreckage is not the one who started it. An
+     * <em>agent</em> task is the same waste with somebody watching it happen: they asked for the
+     * agent's session and would get an agent that fails on its first request, after an image and a
+     * container were built for it.
+     * <p>
+     * <strong>A shell task keeps the warning</strong>, because working inside the container by
+     * hand is exactly what it is for and the agent's credential may not matter to it at all. That
+     * reasoning once covered both interactive modes and was wrong for one of them: it argues about
+     * somebody opening a terminal, and says nothing about somebody who asked for the agent.
      * <p>
      * An agent that takes no brokered credential answers {@code null}: there is nothing that could
      * be missing, and refusing it would stop a task that was never going to authenticate anyway.

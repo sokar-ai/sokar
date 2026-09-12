@@ -58,4 +58,28 @@ class CredentialWiringTest {
                 .contains("holds no credential")
                 .doesNotContain("locked");
     }
+
+    @Test
+    void askingForTheAgentsSessionIsRefusedWhenItsCredentialCannotBeHad() {
+
+        // The defect this pins: only UNATTENDED refused, so 'sokar task start' - whose --attach
+        // defaults to 'agent' - warned "the vault is locked" and then built an image, a container
+        // and a workspace, landing somebody in an agent that fails on its first request. The
+        // refusal for a missing agent two checks later already argues this exact case: a person
+        // who asked for an agent must not be handed something that is not one.
+        assertThat(TaskLaunch.refusesWithoutCredential(org.fuin.sokar.wire.TaskMode.AGENT))
+                .as("--attach agent asked for the agent itself").isTrue();
+        assertThat(TaskLaunch.refusesWithoutCredential(org.fuin.sokar.wire.TaskMode.UNATTENDED))
+                .as("nobody is watching an unattended run").isTrue();
+    }
+
+    @Test
+    void aShellTaskStartsWithoutOneBecauseThatIsWhatItIsFor() {
+
+        // Not symmetry for its own sake. Working inside the container by hand is exactly what a
+        // shell task is for, and it is the fallback the agent refusal points people at - so
+        // refusing it too would close the door the message holds open.
+        assertThat(TaskLaunch.refusesWithoutCredential(org.fuin.sokar.wire.TaskMode.SHELL))
+                .isFalse();
+    }
 }
