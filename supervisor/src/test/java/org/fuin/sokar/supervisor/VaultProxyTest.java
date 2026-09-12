@@ -43,9 +43,13 @@ class VaultProxyTest {
 
     private AtomicReference<String> responseBody;
 
+    /** Set instead of {@link #responseBody} when the answer must be exact bytes. */
+    private AtomicReference<byte[]> rawResponse;
+
     @BeforeEach
     void startUpstream() throws IOException {
         responseBody = new AtomicReference<>("{\"ok\":true}");
+        rawResponse = new AtomicReference<>(null);
         upstream = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         upstream.createContext("/", exchange -> {
             final Map<String, String> headers = new java.util.LinkedHashMap<>();
@@ -56,7 +60,9 @@ class VaultProxyTest {
             received.add(headers);
             body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
 
-            final byte[] payload = responseBody.get().getBytes(StandardCharsets.UTF_8);
+            final byte[] raw = rawResponse.get();
+            final byte[] payload = raw != null
+                    ? raw : responseBody.get().getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, payload.length);
             try (OutputStream out = exchange.getResponseBody()) {
                 out.write(payload);
@@ -375,6 +381,141 @@ class VaultProxyTest {
                     + "x-api-key: " + PHANTOM + "\r\ncontent-length: 0\r\n\r\n");
 
             assertThat(second).startsWith("HTTP/1.1 200");
+        }
+    }
+
+    /**
+     * Harmless answer bytes, exactly {@code length} of them, carrying no watched member name.
+     *
+     * @param length How many bytes.
+     * @return The filler.
+     */
+    private static String filler(int length) {
+        final StringBuilder text = new StringBuilder("{\"content\":\"");
+        while (text.length() < length) {
+            text.append("the answer continues and says nothing in particular. ");
+        }
+        return text.substring(0, length);
+    }
+
+    /**
+     * Asserts that a credential in a provider's answer did not reach the container.
+     *
+     * @param response Everything the container received.
+     * @param secret The credential the provider sent.
+     */
+    private static void assertNeverArrived(String response, String secret) {
+        assertThat(response).as("the credential did not cross").doesNotContain(secret);
+        assertThat(response).as("an answer that cannot be classified safely is terminated,"
+                + " so the agent sees a truncated stream rather than a complete one")
+                .doesNotEndWith("0\r\n\r\n");
+    }
+
+    @Test
+    void withholdsACredentialFieldSpelledWithEscapes(@TempDir Path dir) throws IOException {
+
+        // "\u0061ccess_token" is the same member as "access_token" to every JSON parser and was
+        // not the same string to a literal match. Asserted here rather than only on the scanner,
+        // because what matters is what leaves the proxy.
+        final Path socket = dir.resolve("vault.sock");
+        // Every watched name in this answer is escaped. An earlier version of this test also
+        // carried a plain "refresh_token", which made it pass against a literal matcher too -
+        // it was asserting the scan worked while testing nothing about escapes.
+        responseBody.set("{\"\\u0061ccess_token\":\"sk-live-ESCAPED\","
+                + "\"\\u0072efresh_token\":\"rt-esc\"}");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "GET /v1/whatever HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n\r\n");
+
+            assertThat(response).startsWith("HTTP/1.1 403");
+            assertThat(response).doesNotContain("sk-live-ESCAPED").doesNotContain("rt-esc");
+        }
+    }
+
+    @Test
+    void cutsOffACredentialThatArrivesAfterTheStreamedPrefix(@TempDir Path dir)
+            throws IOException {
+
+        // The earlier shape scanned a bounded prefix and streamed the rest unread, and a
+        // credential past that point reached the container. The headers are already gone by
+        // then, so there is no status left to answer with: the only thing that still withholds
+        // it is to stop writing.
+        final Path socket = dir.resolve("vault.sock");
+        responseBody.set(filler(VaultProxy.PEEK * 3)
+                + "\",\"access_token\":\"sk-live-LATE\"}");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "POST /v1/messages HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\ncontent-length: 0\r\n\r\n");
+
+            assertThat(response).as("the harmless prefix was already streaming")
+                    .contains("Transfer-Encoding: chunked");
+            assertNeverArrived(response, "sk-live-LATE");
+        }
+    }
+
+    @Test
+    void cutsOffACredentialWhoseNameStraddlesTwoReads(@TempDir Path dir) throws IOException {
+
+        // Deterministic rather than timing-dependent: the first read is exactly PEEK bytes, so
+        // placing the member name to end four bytes past it splits "access_token" across the two
+        // scans whatever the network does. This is the case the carried overlap exists for, and
+        // without it each half matches nothing.
+        final String name = "\"access_token\":";
+        final Path socket = dir.resolve("vault.sock");
+        responseBody.set(filler(VaultProxy.PEEK - name.length() + 4)
+                + name + "\"sk-live-SPLIT\"}");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "POST /v1/messages HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\ncontent-length: 0\r\n\r\n");
+
+            assertNeverArrived(response, "sk-live-SPLIT");
+        }
+    }
+
+    @Test
+    void cutsOffACredentialThatFollowsMalformedUtf8(@TempDir Path dir) throws IOException {
+
+        // A provider that answers with bytes that are not valid UTF-8 must not be a way past the
+        // scan. Decoding replaces them rather than throwing, so the ASCII member name after them
+        // is still a member name - asserted rather than assumed, because "it cannot happen" was
+        // the reasoning that produced the bounded prefix.
+        final Path socket = dir.resolve("vault.sock");
+        final byte[] head = filler(VaultProxy.PEEK * 2).getBytes(StandardCharsets.UTF_8);
+        final byte[] malformed = {(byte) 0xC3, (byte) 0x28, (byte) 0xFF, (byte) 0xFE,
+                (byte) 0xE2, (byte) 0x82};
+        final byte[] tail = ",\"access_token\":\"sk-live-AFTERBADBYTES\"}"
+                .getBytes(StandardCharsets.UTF_8);
+        final byte[] answer = new byte[head.length + malformed.length + tail.length];
+        System.arraycopy(head, 0, answer, 0, head.length);
+        System.arraycopy(malformed, 0, answer, head.length, malformed.length);
+        System.arraycopy(tail, 0, answer, head.length + malformed.length, tail.length);
+        rawResponse.set(answer);
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "POST /v1/messages HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\ncontent-length: 0\r\n\r\n");
+
+            assertNeverArrived(response, "sk-live-AFTERBADBYTES");
+        }
+    }
+
+    @Test
+    void theRealCredentialItselfNeverReachesTheContainer(@TempDir Path dir) throws IOException {
+
+        // The other direction of the same boundary: whatever the provider answers, the credential
+        // the proxy attached on the way out is not in what comes back.
+        final Path socket = dir.resolve("vault.sock");
+        responseBody.set("{\"ok\":true}");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "POST /v1/messages HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\ncontent-length: 0\r\n\r\n");
+
+            assertThat(response).startsWith("HTTP/1.1 200").doesNotContain(REAL);
+            assertThat(received.get(0)).containsEntry("x-api-key", REAL);
         }
     }
 }

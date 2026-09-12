@@ -20,6 +20,21 @@ import java.nio.file.Path;
  * <p>
  * Here rather than in one server, because the sockets this matters most for are not the daemon's:
  * one carries credentials to a container and one signs with the operator's key.
+ * <p>
+ * <strong>This is not race-free, and the window is accepted rather than closed.</strong> The check
+ * and the unlink are two operations: another process of the same user may bind the path in between,
+ * after which the caller unlinks a live endpoint - exactly what the check exists to prevent, on a
+ * different schedule. What the check buys is that a socket somebody is <em>already</em> answering on
+ * is not taken, which is the case that happens by accident; what it does not buy is an ownership
+ * guarantee.
+ * <p>
+ * Closing it takes an ownership protocol in which binding and replacing are one operation - a
+ * per-run directory with an atomic rename, so no name is ever probed and then removed. That changes
+ * how a task's runtime directory is laid out, which several other things depend on, and it was
+ * deliberately not built. The residual risk is availability - a process left unreachable and
+ * running - and not disclosure: nothing about this path hands a credential to anybody.
+ * <p>
+ * So do not describe the sequence below as safe. It is a refusal that covers the ordinary case.
  */
 public final class LiveSocket {
 
@@ -29,6 +44,9 @@ public final class LiveSocket {
 
     /**
      * Throws when something is listening on a path about to be bound.
+     * <p>
+     * A caller that unlinks after this returns is unlinking a path this method last saw a moment
+     * ago, not one it holds - see the class comment for the window that leaves open.
      *
      * @param socket The path.
      * @param what What the caller is, for the message.

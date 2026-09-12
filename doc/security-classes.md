@@ -67,3 +67,25 @@ it.
 Every arrow above is the same firewall underneath: declared names resolve, everything else is
 NXDOMAIN, and only ports 80 and 443 are open to the addresses those names answer with. The gate's
 own endpoint is the exception, and it binds loopback.
+
+## What is accepted rather than solved
+
+These are open on purpose, with the reason and with what would close them. A risk that is only
+written down in a review answer is one the next reader never meets.
+
+**A unix socket can be taken from a live process, in a window.** Before binding, Sokar connects to
+the path and refuses to continue if something answers - so a socket another process is *already*
+serving is not removed, which is the case that happens by accident. The check and the unlink are
+still two operations, and another process of the same user can bind in between. **The sequence is
+therefore not race-free**, and nothing in the code or these documents should say it is. Closing it
+takes an ownership protocol where binding and replacing are one step - a per-run directory and an
+atomic rename - which changes how a task's runtime directory is laid out and was deliberately not
+built. The residual risk is availability: a process left unreachable and running. It is not
+disclosure; no credential travels this path.
+
+**The credential scan is lexical, not a parser.** It reads every byte of a provider's answer,
+carries the join between reads, and matches a watched member name whether it is spelled plainly or
+with `\uXXXX` escapes - each of those closed a way past it that had been measured. It remains a
+guard shaped to one format: a provider that invented a new name for a credential, or a transport
+that arrived encoded, would need it extended. It is checked end to end through the proxy, not only
+as a unit, so what is asserted is that the container did not receive the credential.

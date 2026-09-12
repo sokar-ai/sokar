@@ -78,7 +78,14 @@ public class VaultProxy implements AutoCloseable, Runnable {
      * response does.
      */
     /** How much of an answer is examined before any of it is passed on, in bytes. */
-    private static final int PEEK = 8192;
+    /**
+     * How much of an answer is read before any of it is handed over.
+     * <p>
+     * Package-private because the adversarial tests place a credential field exactly across this
+     * boundary, and a copy of the number in the test would be a second statement of one fact - the
+     * test would keep passing against a changed bound while testing nothing.
+     */
+    static final int PEEK = 8192;
 
     /**
      * Marks a request as asking the provider to mint or renew a credential.
