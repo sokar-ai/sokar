@@ -1,0 +1,22 @@
+#compdef sokar
+# zsh completion for sokar.
+#
+# Same shape as the bash half: the names are alive, so the script asks the program instead of
+# carrying a list. 'sokar __complete' takes the words typed so far, the last one being the partial
+# word, and answers one candidate per line. It only ever reads.
+
+_sokar() {
+    local -a candidates
+    # Both expansions are quoted, and that is not style. The partial word is EMPTY whenever the
+    # cursor sits after a space - which is most of the times anybody presses TAB - and zsh drops
+    # an unquoted empty word from the argument list entirely. Unquoted, 'sokar task <TAB>' reached
+    # the program as "sokar task" with no partial word at all, so the last real word was taken as
+    # the word being completed and the answer was 'task'. Measured on zsh 5.9.
+    candidates=(${(f)"$(${words[1]} __complete -- "${(@)words[1,CURRENT-1]}" "${words[CURRENT]}" 2>/dev/null)"})
+    if (( ${#candidates} )); then
+        compadd -- $candidates
+    fi
+    return 0
+}
+
+_sokar "$@"

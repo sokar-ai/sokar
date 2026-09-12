@@ -1,6 +1,7 @@
 package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
+import java.util.List;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -17,7 +18,7 @@ import picocli.CommandLine.Spec;
 @Command(name = "clearance",
         mixinStandardHelpOptions = true,
         description = "Changes what a running task does about a blocked connection.")
-public class TaskClearanceCommand implements Callable<Integer>, SokarFactory.ContextAware {
+public class TaskClearanceCommand implements Callable<Integer>, SokarFactory.ContextAware, Suggests {
 
     @Parameters(index = "0", paramLabel = "<task>", description = "Container name.")
     private String task;
@@ -37,6 +38,18 @@ public class TaskClearanceCommand implements Callable<Integer>, SokarFactory.Con
     @Override
     public void setContext(SokarContext context) {
         this.context = context;
+    }
+
+    @Override
+    public List<String> candidates() {
+        // Only the ones that are up. This changes enforcement on a RUNNING task, so a
+        // stopped one offered here is a name that cannot be used.
+        return TaskCandidates.running(context);
+    }
+
+    @Override
+    public String candidateLabel() {
+        return "running tasks";
     }
 
     @Override

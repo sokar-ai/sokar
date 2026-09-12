@@ -184,6 +184,24 @@ Where SELinux is enforcing, a task container cannot reach sokar's sockets until 
                                     <user>root</user>
                                     <group>root</group>
                                 </entry>
+                                <!-- TAB completion. Fedora's zsh reads site-functions and has
+                                     no vendor-completions, which is where the deb puts the same
+                                     file - the second place the two ecosystems differ on purpose,
+                                     after the license. -->
+                                <entry>
+                                    <name>/usr/share/bash-completion/completions/sokar</name>
+                                    <file>${project.basedir}/../app/src/main/resources/completion/sokar</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>/usr/share/zsh/site-functions/_sokar</name>
+                                    <file>${project.basedir}/../app/src/main/resources/completion/_sokar</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
                                 <!-- 'license' marks it %license, so 'rpm -qL' answers. -->
                                 <entry>
                                     <name>/usr/share/licenses/${package.name}/LICENSE</name>

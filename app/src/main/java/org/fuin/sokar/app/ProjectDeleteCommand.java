@@ -1,6 +1,7 @@
 package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
+import java.util.List;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -23,7 +24,8 @@ import picocli.CommandLine.Spec;
 @Command(name = "delete",
         mixinStandardHelpOptions = true,
         description = "Removes what Sokar built for a project, keeping the project file.")
-public class ProjectDeleteCommand implements Callable<Integer>, SokarFactory.ContextAware {
+public class ProjectDeleteCommand implements Callable<Integer>, SokarFactory.ContextAware,
+        Suggests {
 
     @Parameters(index = "0", paramLabel = "PROJECT",
             description = "Project name, as shown by 'sokar project list'.")
@@ -45,6 +47,17 @@ public class ProjectDeleteCommand implements Callable<Integer>, SokarFactory.Con
     @Override
     public void setContext(SokarContext context) {
         this.context = context;
+    }
+
+    @Override
+    public List<String> candidates() {
+        return new ProjectInventory(context).projects().stream()
+                .map(ProjectInventory.Summary::name).sorted().toList();
+    }
+
+    @Override
+    public String candidateLabel() {
+        return "projects";
     }
 
     @Override

@@ -3,11 +3,11 @@
 Every command, in the shape the CLI actually has. `sokar <command> --help` is always the
 authority — this page exists so you can find the name without guessing it.
 
-The [cheat sheet](cheat-sheet.md) is the other way round: it starts from what you are trying to Every key a project file can carry is in
+The [cheat sheet](cheat-sheet.md) is the other way round: it starts from what you are trying to
+do rather than from the command tree. Every key a project file can carry is in
 [the project file](project-file.md).
-do rather than from the command tree.
 
-## The ten groups
+## The eleven groups
 
 | | |
 |---|---|
@@ -21,6 +21,7 @@ do rather than from the command tree.
 | [`doctor`](#doctor) | Reports paths and process hardening state. |
 | [`panic`](#panic) | Stops every running task and every helper, without removing anything. |
 | [`daemon`](#daemon) | Reaches the daemon on this machine. |
+| [`completion`](#completion) | Prints the TAB completion script for a shell. |
 
 ---
 
@@ -193,3 +194,33 @@ everything can be resumed.
 
 Used as an ssh `ProxyCommand` so an interface on another machine can reach this one's daemon
 without the daemon ever binding a network port.
+
+## completion
+
+```
+sokar completion bash
+sokar completion zsh
+```
+
+Prints the script that turns TAB into a question for Sokar. **The deb and the rpm install both
+already** — `/usr/share/bash-completion/completions/sokar`, and the zsh one where that
+distribution's zsh looks — so on a packaged install there is nothing to do but open a new shell.
+This command is for the cases the package cannot reach: a binary somebody copied, or a shell whose
+completion directory is not the system one.
+
+    sokar completion bash > ~/.local/share/bash-completion/completions/sokar
+    sokar completion zsh  > ~/.zfunc/_sokar     # with ~/.zfunc in $fpath before compinit
+
+**What it completes is read live, not baked in.** Subcommands and options come from the command
+tree, and names come from the machine — each command offering the names *it* can use, which is the
+point: `task attach`, `task logs`, `task status` and `task clearance` offer the tasks that are up,
+`task stop`, `task remove` and `task label` every task, and `project delete` the projects. It is
+the same list the command prints when you get the name wrong, so the two cannot disagree.
+
+`task start` is the exception, and deliberately: its argument is a task name *within a project* —
+`shell`, not `sokar-utils4j-shell` — so the container names the other verbs offer would be the
+wrong list there. It completes its options and nothing else.
+
+Completion only ever reads. Nothing is started, stopped or changed by pressing TAB, and when
+something cannot be answered the answer is no candidates rather than an error in the middle of
+your command line.

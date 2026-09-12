@@ -1,6 +1,7 @@
 package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
+import java.util.List;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -20,7 +21,7 @@ import picocli.CommandLine.Spec;
 @Command(name = "label",
         mixinStandardHelpOptions = true,
         description = "Gives a task a caption to read it by. Not a rename.")
-public class TaskLabelCommand implements Callable<Integer>, SokarFactory.ContextAware {
+public class TaskLabelCommand implements Callable<Integer>, SokarFactory.ContextAware, Suggests {
 
     @Parameters(index = "0", paramLabel = "TASK",
             description = "Container name, as shown by 'sokar task list'.")
@@ -38,6 +39,18 @@ public class TaskLabelCommand implements Callable<Integer>, SokarFactory.Context
     @Override
     public void setContext(SokarContext context) {
         this.context = context;
+    }
+
+    @Override
+    public List<String> candidates() {
+        // Every task: a caption is worth as much on a stopped one, which is where a list
+        // of forty is hardest to read.
+        return TaskCandidates.all(context);
+    }
+
+    @Override
+    public String candidateLabel() {
+        return "tasks";
     }
 
     @Override

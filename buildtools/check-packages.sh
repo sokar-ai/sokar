@@ -87,11 +87,23 @@ DEB_ALL="$(dpkg-deb -c "$DEB" | awk '$1 !~ /^d/ {print substr($6, 2)}' | sort)"
 RPM_ALL="$(podman run --rm -v "$(dirname "$RPM")":/pkg:ro,Z fedora:41 \
     rpm -qlp "/pkg/$(basename "$RPM")" 2>/dev/null | sort)"
 
-# The license is the one file the two ecosystems put in different places on purpose - Debian
-# Policy 12.5 wants /usr/share/doc/<pkg>/copyright, rpm wants %license under
-# /usr/share/licenses/<pkg>. Each is checked on its own below; everything else must match.
-DEB_FILES="$(echo "$DEB_ALL" | grep -v '^/usr/share/doc/' || true)"
-RPM_FILES="$(echo "$RPM_ALL" | grep -v '^/usr/share/licenses/' || true)"
+# Two files the two ecosystems put in different places on purpose, and each is checked on its
+# own below; everything else must match.
+#
+#   the license           Debian Policy 12.5 wants /usr/share/doc/<pkg>/copyright, rpm wants
+#                         %license under /usr/share/licenses/<pkg>.
+#   the zsh completion    Debian's zsh reads /usr/share/zsh/vendor-completions and has no
+#                         site-functions in its fpath; Fedora's is the other way round. Measured
+#                         on both, because guessing this wrong ships a file into a directory
+#                         nothing reads and the completion simply never appears.
+#
+# The zsh one is NORMALIZED rather than excluded, so the comparison still fails when one package
+# ships it and the other does not. Excluding it would make a forgotten file look like agreement.
+zsh_normalized() {
+    sed 's#^/usr/share/zsh/\(vendor-completions\|site-functions\)/#/usr/share/zsh/<completions>/#'
+}
+DEB_FILES="$(echo "$DEB_ALL" | grep -v '^/usr/share/doc/' | zsh_normalized || true)"
+RPM_FILES="$(echo "$RPM_ALL" | grep -v '^/usr/share/licenses/' | zsh_normalized || true)"
 
 if [ "$DEB_FILES" = "$RPM_FILES" ]; then
     pass "both packages install the same $(echo "$DEB_FILES" | wc -l) payload file(s)"
@@ -111,6 +123,28 @@ if echo "$RPM_ALL" | grep -q '^/usr/share/licenses/.*/LICENSE$'; then
 else
     fail "the rpm ships no /usr/share/licenses/<package>/LICENSE"
 fi
+
+# Each in the directory ITS OWN zsh actually reads. The parity check above only says both ship
+# one; it cannot say either is where the shell will look.
+if echo "$DEB_ALL" | grep -q '^/usr/share/zsh/vendor-completions/_sokar$'; then
+    pass "the deb puts the zsh completion where Debian's zsh looks"
+else
+    fail "the deb ships no /usr/share/zsh/vendor-completions/_sokar"
+fi
+
+if echo "$RPM_ALL" | grep -q '^/usr/share/zsh/site-functions/_sokar$'; then
+    pass "the rpm puts the zsh completion where Fedora's zsh looks"
+else
+    fail "the rpm ships no /usr/share/zsh/site-functions/_sokar"
+fi
+
+for pkg_files in "deb:$DEB_ALL" "rpm:$RPM_ALL"; do
+    if echo "${pkg_files#*:}" | grep -q '^/usr/share/bash-completion/completions/sokar$'; then
+        pass "the ${pkg_files%%:*} ships the bash completion"
+    else
+        fail "the ${pkg_files%%:*} ships no bash completion"
+    fi
+done
 
 # ------------------------------------------------------------------ the bill
 #

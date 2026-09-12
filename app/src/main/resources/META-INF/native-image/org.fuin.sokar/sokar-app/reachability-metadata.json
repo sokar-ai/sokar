@@ -2,6 +2,12 @@
   "resources": [
     {
       "glob": "sokar-version.properties"
+    },
+    {
+      "glob": "completion/sokar"
+    },
+    {
+      "glob": "completion/_sokar"
     }
   ]
 }
