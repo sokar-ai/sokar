@@ -5,7 +5,7 @@ machine through the [kit](../kit/README.md).
 
 ```
 ./mvnw -pl acceptance/suite verify \
-    -Dsokar.acceptance.host=192.168.122.174 \
+    -Dsokar.acceptance.host=user@host \
     -Dsokar.acceptance.key=$HOME/.ssh/your_key
 ```
 
