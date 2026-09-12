@@ -879,6 +879,37 @@ reads a parameter it does not describe, or throws an error it does not name.
   its own `key` because a client rebuilding it from the other fields is one separator away from
   answering a prompt that does not exist, while the task stays blocked.
 
+## Rules the four repositories share
+
+Sokar, the interface and the three agent repositories are worked on by different agents, and these
+five hold in all of them. They are written in one wording on purpose: four paraphrases of one rule
+become four rules.
+
+- **The operator pushes.** Agents commit and stop. Never `git push`.
+- **Everyone writes only in their own repository** - ruled by the operator on 2026-09-12, with no
+  exception in any of them. **What you want changed elsewhere, you raise as a requirement in that
+  repository's own set**, which its agent schedules and owns. That is slower than editing a file
+  and it leaves the decision with whoever has to live with it.
+- **The channel is append-only.** One heading per entry, `## <UTC timestamp> - <agent>`. Questions
+  are prefixed and numbered per agent - `QB<n>` from here - and answered as
+  `**A:** to <timestamp>`, because the prefix says who is owed an answer.
+- **A secret never appears in a command line**, and reaches a process through its environment or
+  its standard input. Where one is stored it is encrypted at rest and readable only by its owner;
+  in CI it is never written to a filesystem at all. (Not *"never written to a file"* - the vault
+  is a file, and a rule this repository visibly breaks is a rule that gets ignored whole.)
+- **The test machine is shared.** Change nothing that was not asked for, name what you remove
+  rather than sweeping what you do not recognise, and say in the channel before restarting it -
+  **saying what a run does, not what you believe it does.** On 2026-09-12 this repository's agent
+  told the channel its acceptance suite rebooted nothing while three of its scenarios existed to
+  reboot the machine, and took a colleague's test run down with it.
+- **Measure before you claim.** *"It works"* means it was run. *"It is not the cause"* means the
+  counter-test was run too. The same day, a race condition was asserted here, written into three
+  code comments as a measurement, and then measured - five probes, no race. The explanation had
+  been invented and the behaviour it "explained" was correct all along.
+- **Link to a requirement by number and to its index, never to its file.** A file link breaks
+  exactly when that requirement succeeds and is deleted, which is the worst moment for a reader to
+  meet a 404.
+
 ## Security rules that are not negotiable
 
 - **Never put a secret in a command line.** A process list is world-readable.
