@@ -25,7 +25,7 @@ Where the position is not obvious, the last section says why.
 | B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | one, and one dialog is refused rather than solved | [note](#b24) |
 | B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
 | B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
-| B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case. | five, three decided | |
+| B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | What a person does at a terminal is tested by the build, on a real machine, and reported case by case - including the eleven scenarios that today run nowhere. | six, three decided | |
 | B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file | [note](#b29) |
 | B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one | |
 
