@@ -4,6 +4,10 @@
 it should offer to stop a daemon as well as start one. Related to B43 - a restarted machine leaves
 tasks `Exited (143)` too, from a different cause - and to B44, which brings a stopped task back.
 
+**What it blocks.** `sokar-frontend` F33, offering to stop a daemon from the interface. Until
+this is met, such a button would stop running tasks it cannot even name - nothing tells a client which
+tasks the daemon started - so the interface waits rather than put that cost behind a dialog.
+
 ## What happens, measured
 
 On the `ubuntu26.04` test machine, as its user: a project of class `guarded`, one task started with
