@@ -63,6 +63,10 @@ lines**. About 3,700 lines are Python and about 2,600 are shell.
    changelog check, the bill comparison, adding to and merging bills (through CycloneDX's Java
    library), the upstream version lookup and the version move. **What differs between agents is
    configuration or a strategy, never a copy.**
+   It also carries the check of a pinned digest against what the vendor publishes, **callable on
+   every push**: in `sokar-claude-code` and `sokar-omp` that check runs on every push today, because it
+   is what catches a hand-made version bump that forgot the digest - a build that tests and packages
+   green and fails only at an image build - and it needs the network, so it cannot be a unit test.
 2. **Sokar's own scripts:**
    - `check-ffm-metadata.sh` - candidate: the tracing-agent mode and metadata copy of the native
      Maven plugin, if it reproduces what the script checks;
@@ -102,6 +106,7 @@ that remains says why it cannot be Java.**
 - Every shell file that remains is listed in `AGENTS.md` with the reason it stays.
 - The shared tool is one implementation. An agent's difference is configuration or a strategy, and
   each agent's case is covered by a test.
+- The pinned-digest check runs on every push wherever it runs today, not only in the update job.
 - **Every replaced check is proven against the failure it exists for**: that failure is reproduced
   and the new check fails on it. A rewrite that passes everything proves nothing.
 - The workflows call Maven or the published tool, never a script this requirement replaced.
@@ -124,8 +129,11 @@ measurement behind them.
 
 **A correction to what the pin check becomes**, measured from the scripts: only part of it is a unit
 test. Where it compares the pinned digest with what the vendor publishes it needs the network, and
-that half moves into the update pipeline. In `sokar-pi` it also checks the Node runtime the built
-tree reports, which is a check after the tree is built, in the same Maven run.
+that half stays where it runs today - on every push - and moves into the shared tool, not only into
+the update pipeline. In `sokar-pi` it also checks the Node runtime the built
+tree reports, which is a check after the tree is built, in the same Maven run. **Built the same day:** the offline half is a unit test in all
+three repositories, counter-tested by switching each check off in turn, and `sokar-pi` no longer has
+the script at all.
 
 ## Open questions
 
