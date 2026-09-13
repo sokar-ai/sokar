@@ -5,7 +5,7 @@
 cover: both bring the *container* back, neither brings the *conversation* back. It covers a task
 somebody drives at a terminal as well as an unattended run, decided on 2026-09-11.
 
-**Where the other half lives.** Where the session id is - a field in the first event of a headless run, the session files of an attached one - is declared by each agent package, and that work was handed to the agent repositories on 2026-09-13. It is **blocked by this file**: there is no manifest field to declare it in until this one builds it.
+**Where the other half lives.** Where the session id is - a field in the first event of a headless run, the session files of an attached one - is declared by each agent package, and that work was handed to the agent repositories on 2026-09-13 as sokar-claude-code 010, sokar-pi 008 and sokar-omp 008. It is **blocked by this file**: there is no manifest field to declare it in until this one builds it.
 
 ## What happens today
 
