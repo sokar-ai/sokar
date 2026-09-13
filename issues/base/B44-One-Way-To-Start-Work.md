@@ -4,7 +4,7 @@
 Written after an operator used the obvious command on an existing task and Sokar silently did
 something else.
 
-**Where the other half lives.** Points 5 and 6 of *What must be true* are the interface's to render - the action named by its effect, a refusal shown as unavailable with its reason - handed to sokar-frontend on 2026-09-13. **Not blocked by this file**: Sokar's half is on the wire, `startAction` on the listing and `action` on the final reply.
+**Where the other half lives.** Points 5 and 6 of *What must be true* are the interface's to render - the action named by its effect, a refusal shown as unavailable with its reason, the reply by its named outcome. **Built on both sides**: Sokar's half is on the wire (`startAction` on the listing, `action` on the final reply), and sokar-frontend confirmed on 2026-09-13 that its half has been built since the lifecycle cut, so no issue exists for it.
 
 Built and landed: points 1, 3, 4 (the rule; the files have not all moved yet), 5, 6's refusal
 half, and 8. Outstanding: point 2 (the gate token into the vault, so a task survives a restart),
