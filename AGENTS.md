@@ -1036,10 +1036,11 @@ hold in all of them. They are written in one wording on purpose: four paraphrase
 become four rules.
 
 - **The operator pushes.** Agents commit and stop. Never `git push`.
-- **Everyone writes only in their own repository** - ruled by the operator on 2026-09-12, with no
-  exception in any of them. **What you want changed elsewhere, you raise as a requirement in that
-  repository's own set**, which its agent schedules and owns. That is slower than editing a file
-  and it leaves the decision with whoever has to live with it.
+- **Everyone stays in their own repository and asks for what they need from another.** Ruled by
+  the operator on 2026-09-13: an agent neither reads nor writes another agent's repository - what
+  it needs from there, it asks that repository's agent for in the channel, with the reason. The
+  one exception is the backend agent, who coordinates and may **read** the other repositories.
+  **Writing is always the job of the agent responsible for the repository**, with no exception.
 - **The channel is append-only.** One heading per entry, `## <UTC timestamp> - <agent>`. Questions
   are prefixed and numbered per agent - `QB<n>` from here - and answered as
   `**A:** to <timestamp>`, because the prefix says who is owed an answer.
