@@ -1,0 +1,2 @@
+title: "The changelog is kept with logchange: each change is one entry under changelog/unreleased, and CHANGELOG.md is generated from them."
+type: added

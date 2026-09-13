@@ -1131,6 +1131,16 @@ correction that is also estimated is the same fault twice, and the second one is
 One brief line. The reasoning behind a change is a finding, and a finding goes in
 `.sokar.md` or in this file, where it can be found later without `git log`.
 
+**The changelog is part of the change**, written by hand in the same commit: an entry for anything
+that changes what ships or builds, none for issues or notes. Nothing enforces it for now: the check
+was removed on 2026-09-13 by the operator's decision, and requiring an entry returns with B55.
+
+In this repository an entry is **one YAML file under `changelog/unreleased/`**, with at least a
+`title` - one sentence - and a `type`: `added`, `changed`, `deprecated`, `removed`, `fixed`,
+`security`, `dependency_update` or `other`. `CHANGELOG.md` is generated from those files by
+`./mvnw -N logchange:generate` and is **never edited by hand**, because the next generate overwrites
+it. `logchange:lint` runs in `validate`, so a malformed entry fails the build.
+
 ## Documentation
 
 **Run the unit suite before committing.** The acceptance suite is CI's job, on `main`, on two

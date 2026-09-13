@@ -10,4 +10,8 @@
 [unreleased]
 ------------
 
+### Added (1 change)
+
+- The changelog is kept with logchange: each change is one entry under changelog/unreleased, and CHANGELOG.md is generated from them. 
+
 
