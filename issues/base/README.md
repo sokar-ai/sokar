@@ -38,6 +38,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
+| B53 | [The Build In One Language](B53-The-Build-In-One-Language.md) | open | the agent half, in all three agent repositories - numbers pending | The Java repositories build, check, update and test in Java and Maven, and every non-Java file that remains says why it cannot be Java. | four, and the first is where the shared tool lives | [note](#b53) |
 | B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | sokar-claude-code 009, sokar-pi 007, sokar-omp 007 | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | three, and the first is what an agent declares as "reached work" | [note](#b52) |
 | B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | in progress | - | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
 | B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | open | - | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
@@ -147,8 +148,14 @@ changes what gets built rather than only how:
 Only the placements that are not obvious from the files themselves. Ranking is a property of the
 set, so it lives here and nowhere else.
 
-<a id="b52"></a>**B52 leads because three agent repositories are waiting on it and nobody else can
-build it.** First-run consent moved to the agent repositories on 2026-09-13, and each of them now
+<a id="b53"></a>**B53 leads, by the operator's decision of 2026-09-13.** The Java repositories carry
+about 6,300 lines of Python and shell, and most of the Python is the same tools copied into three
+repositories - two still byte-identical, three already drifted apart, and none of it tested. The
+shared tool has to exist in Sokar before an agent repository can drop its copies, which is why
+the agent half waits on this one.
+
+<a id="b52"></a>**B52 is second, under B53, because three agent repositories are waiting on it and
+nobody else can build it.** First-run consent moved to the agent repositories on 2026-09-13, and each of them now
 has a task that fails its acceptance when a release adds a dialog. That needs one step all their
 scenarios share, and it lives in the kit because the kit is the only glue those scenarios have:
 written three times it would be three dialects of one check.
