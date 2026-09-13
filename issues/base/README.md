@@ -85,6 +85,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | B38 | [How Far Something That Got Through Can Get](B38-How-Far-Something-That-Got-Through-Can-Get.md) | open | sokar-frontend F32 | How far a convinced agent can get is bounded where it can be, named where it cannot, and the reviewer sees what matters before what is merely large. | six, and one may have no answer | [note](#b38) |
 | B42 | [Where The Agent Protocols Touch This](B42-Where-The-Agent-Protocols-Touch-This.md) | open | - | Each of A2A, MCP, ACP and AG-UI is adopted, answered otherwise, or refused - with the reason. | five, and the first decides whether ACP is interesting at all | [note](#b42) |
 | B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | open | - | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | two | [note](#b08) |
+| B56 | [Programs Sokar Runs That Could Be Calls](B56-Programs-Sokar-Runs-That-Could-Be-Calls.md) | open | - | Every external program Sokar starts either has a reason to stay a program or is replaced by a call proven on a JVM and in the native image. Nice to have, re-checked with Java and GraalVM releases rather than scheduled. | four, and all are re-checks | |
 
 
 ### Two things that dissolved rather than becoming requirements
