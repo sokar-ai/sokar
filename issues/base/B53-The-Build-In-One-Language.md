@@ -81,7 +81,17 @@ shared tool below does not carry it.
    - `e2e-tier1.sh` - folded into the Java acceptance suite scenario by scenario, which B27 is
      already doing;
    - `compare-bills.py` - deleted, once it is confirmed that nothing outside the tracked files runs
-     it.
+     it;
+   - **logic built as shell inside `Leg` and `AgentLeg`** - the command still runs over ssh, but
+     what it decides moves into the driver. First case: the leg's check of rootless podman under the
+     daemon unit's own properties before anything has run podman. Today one shell line reads the
+     `[Service]` properties with `sed | grep | grep | sed`, tests for a pause process with a shell
+     `if`, and runs `systemd-run … podman unshare true`. In Java: `cat` the unit and parse its
+     properties in a method with a unit test (Service section only, comments skipped, `ExecStart`,
+     `Type`, `Restart` and `RestartSec` left out); `cat` the pause pid file, validate it as a number
+     and send `kill -0 <pid>`; send one `systemd-run` whose arguments are quoted by `AgentLeg.quote`.
+     Re-proven by the leg with `NoNewPrivileges=yes` put back into the unit, which has to fail at
+     that step with `newuidmap: write to uid_map failed`, and by one leg that passes.
 3. **Acceptance-kit steps for what `acceptance.sh` and `broker-check.sh` check**, so that an agent
    repository's last stage is scenarios rather than a script. B52 is the first of those steps.
 
