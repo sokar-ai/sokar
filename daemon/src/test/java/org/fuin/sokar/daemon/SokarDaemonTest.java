@@ -159,6 +159,44 @@ class SokarDaemonTest {
     }
 
     @Test
+    void refusesABadTaskNameBeforeAnythingIsBuiltOrWritten(@TempDir Path dir) throws Exception {
+
+        // Reported from the interface: 'Foo Bar' built an image and wrote a policy, a resolver
+        // and a sidecar before podman refused the container name, and all three stayed behind.
+        final SokarContext context = hooked(dir);
+        final Path project = projectFile(dir);
+        runner.answering("podman version", "5.8.1");
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                for (final boolean dryRun : new boolean[] { false, true }) {
+                    final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Start",
+                            Map.of("project", project.toString(), "task", "Foo Bar",
+                                    "dryRun", dryRun));
+
+                    assertThat(((Number) reply.get("exitCode")).intValue()).as("dryRun " + dryRun)
+                            .isEqualTo(64);
+                    @SuppressWarnings("unchecked")
+                    final List<String> output = (List<String>) reply.get("output");
+                    assertThat(String.join("\n", output)).contains("not a task name")
+                            .contains("'foo-bar' would do");
+                }
+
+                final Map<String, Object> check = client.call(SokarDaemon.INTERFACE + ".CanStart",
+                        Map.of("project", project.toString(), "task", "Foo Bar"));
+                assertThat(check).containsEntry("outcome", "BAD_TASK_NAME")
+                        .containsEntry("ready", false);
+                assertThat(client.call(SokarDaemon.INTERFACE + ".CanStart",
+                        Map.of("project", project.toString(), "task", "shell")))
+                        .doesNotContainEntry("outcome", "BAD_TASK_NAME");
+            }
+        });
+        assertThat(context.paths().containerState("sokar-uc-Foo Bar")).doesNotExist();
+        assertThat(runner.lines()).as("nothing is built or created for a name that cannot be used")
+                .noneMatch(line -> line.startsWith("podman build") || line.startsWith("podman create"));
+    }
+
+    @Test
     void logsAStartByNameAndOutcomeOnly() {
         assertThat(SokarDaemon.startLine("shell", "sokar-uc-shell", 0))
                 .isEqualTo("start sokar-uc-shell: exit 0");

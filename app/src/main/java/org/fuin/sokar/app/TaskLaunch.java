@@ -251,6 +251,17 @@ public final class TaskLaunch {
             return 2;
         }
 
+        final java.util.Optional<String> badName =
+                org.fuin.sokar.runtime.ContainerName.refusal(project.name(), request.task());
+        if (badName.isPresent()) {
+            // Before the plan, the dry run and anything written. podman refuses such a name only
+            // when the container is created, after the image is built and the policy, resolver
+            // and sidecar are on disk - and those stayed behind, named for a task that never was.
+            err.println("sokar: " + badName.get());
+            err.flush();
+            return 64;
+        }
+
         out.println("task           " + request.task());
         out.println("project        " + project.name());
         out.println("security class " + project.securityClass().name().toLowerCase());

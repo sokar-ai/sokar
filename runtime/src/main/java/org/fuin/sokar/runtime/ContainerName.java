@@ -41,6 +41,56 @@ public final class ContainerName {
     }
 
     /**
+     * The longest container name whose sockets still fit a unix socket path, for any uid.
+     * <p>
+     * A path holds 107 bytes, and a task's longest is
+     * {@code /run/user/<uid>/sokar/<container>/ssh-agent.sock}: 10 + up to 10 + 7 + 65 + 15.
+     */
+    public static final int MAX_LENGTH = 65;
+
+    /** A task name: the project names' alphabet, starting and ending with a letter or digit. */
+    private static final java.util.regex.Pattern TASK =
+            java.util.regex.Pattern.compile("[a-z0-9]([a-z0-9-]*[a-z0-9])?");
+
+    /**
+     * Returns why a task name cannot be used, or empty when it can.
+     * <p>
+     * Asked before anything is built or written. podman refuses a container name outside
+     * {@code [a-zA-Z0-9][a-zA-Z0-9_.-]*}, but only when the container is created - after the image
+     * was built and the policy, resolver and sidecar were written under a directory named for a
+     * task that never came to exist. The task is also a git ref, and a loose ref is a file, so
+     * upper case would make {@code Foo} and {@code foo} one ref on a case-insensitive filesystem.
+     * A name of only digits is refused because that is the shape that tells a login container
+     * apart.
+     *
+     * @param project The project's name, or {@code ""} when it is not known: the length then goes
+     *        unchecked.
+     * @param task Task name.
+     * @return A sentence saying what is wrong, or empty.
+     */
+    public static java.util.Optional<String> refusal(String project, String task) {
+        if (!TASK.matcher(task).matches()) {
+            final String suggested = task.toLowerCase(java.util.Locale.ROOT)
+                    .replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
+            return java.util.Optional.of("'" + task + "' is not a task name: use lowercase"
+                    + " letters, digits and hyphens, starting and ending with a letter or digit"
+                    + (TASK.matcher(suggested).matches() ? " - '" + suggested + "' would do" : ""));
+        }
+        if (task.chars().allMatch(Character::isDigit)) {
+            return java.util.Optional.of("'" + task + "' is not a task name: it needs a letter,"
+                    + " because a name of only digits is what marks a login container");
+        }
+        final String container = PREFIX + project + "-" + task;
+        if (!project.isEmpty() && container.length() > MAX_LENGTH) {
+            return java.util.Optional.of("'" + task + "' is too long for project '" + project
+                    + "': '" + container + "' has " + container.length() + " characters, and a"
+                    + " container name may have " + MAX_LENGTH + " so that its sockets fit a unix"
+                    + " socket path");
+        }
+        return java.util.Optional.empty();
+    }
+
+    /**
      * Returns the task name inside a container name, when it holds one.
      * <p>
      * The interface is given this rather than deriving it: the rule relating the two belongs to

@@ -808,6 +808,9 @@ type StartOutcome (
   READY,
   # The project file is not there, or cannot be read.
   NO_PROJECT_FILE,
+  # The task name is one Start would refuse: lowercase letters, digits and inner hyphens, not
+  # only digits, and 'sokar-<project>-<task>' at most 65 characters. 'detail' says which.
+  BAD_TASK_NAME,
   # Nothing is installed to run. A task with no agent can still be started as a plain shell, so
   # this is not "the machine is broken".
   NO_AGENT,
@@ -845,6 +848,9 @@ type StartOutcome (
 method CanStart(
   # Path to the project file, as Start takes it. Omitted, no project file is checked.
   project: ?string,
+  # The task name Start would be given. Omitted, no name is checked. The length rule needs the
+  # project, so without one only the characters are.
+  task: ?string,
   # Agent to run. Omitted, the only one installed.
   agent: ?string,
   # Provider to route through. Omitted, the agent's own declared default.

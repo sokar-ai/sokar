@@ -667,7 +667,7 @@ public final class SokarDaemon {
             // the rule needs four inputs and a client has one of them.
             final String project = text(parameters, "project");
             replies.last(org.fuin.sokar.app.StartCheck.check(context,
-                    project.isEmpty() ? null : Path.of(project),
+                    project.isEmpty() ? null : Path.of(project), empty(parameters, "task"),
                     empty(parameters, "agent"), empty(parameters, "provider"),
                     empty(parameters, "credentialType")).asMap());
         });

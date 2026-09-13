@@ -48,6 +48,37 @@ class ContainerNameTest {
     }
 
     @Test
+    void refusesATaskNamePodmanOrGitWouldRefuseLater() {
+
+        // Reported from the interface: 'Foo Bar' was accepted, the image was built, and podman
+        // refused the container name only then - leaving policy, resolver and sidecar behind.
+        assertThat(ContainerName.refusal("utils4j", "Foo Bar")).get().asString()
+                .contains("not a task name").contains("'foo-bar' would do");
+        for (final String bad : new String[] { "Foo", "foo_bar", "foo.bar", "foo..bar", "foo/bar",
+                "-foo", "foo-", "" }) {
+            assertThat(ContainerName.refusal("utils4j", bad)).as(bad).isPresent();
+        }
+        // Only digits is the shape that marks a login container.
+        assertThat(ContainerName.refusal("login", "123")).get().asString().contains("needs a letter");
+
+        for (final String good : new String[] { "shell", "a", "build-2", "2nd-try", "foo-bar" }) {
+            assertThat(ContainerName.refusal("utils4j", good)).as(good).isEmpty();
+        }
+    }
+
+    @Test
+    void refusesATaskNameWhoseContainerNameWouldNotFitASocketPath() {
+
+        // 'sokar-' + 'utils4j' + '-' is 14 characters, so 51 more make exactly 65.
+        final String fits = "a".repeat(51);
+        assertThat(ContainerName.refusal("utils4j", fits)).isEmpty();
+        assertThat(ContainerName.refusal("utils4j", fits + "a")).get().asString()
+                .contains("66 characters").contains("65");
+        // Without a project the length cannot be known, and is left to the start that has one.
+        assertThat(ContainerName.refusal("", fits + "a")).isEmpty();
+    }
+
+    @Test
     void handsBackTheTaskInsideAContainerName() {
 
         // Carried to an interface rather than derived by it: the rule relating the two belongs

@@ -225,6 +225,10 @@ the same list the command prints when you get the name wrong, so the two cannot 
 `shell`, not `sokar-utils4j-shell` — so the container names the other verbs offer would be the
 wrong list there. It completes its options and nothing else.
 
+**A task name** is lowercase letters, digits and hyphens, starting and ending with a letter or
+digit, and not only digits; `sokar-<project>-<task>` may have at most 65 characters. Anything else
+is refused before an image is built, with a name that would do: `Foo Bar` becomes `foo-bar`.
+
 Completion only ever reads. Nothing is started, stopped or changed by pressing TAB, and when
 something cannot be answered the answer is no candidates rather than an error in the middle of
 your command line.

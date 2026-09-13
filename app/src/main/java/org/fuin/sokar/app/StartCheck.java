@@ -43,6 +43,9 @@ public final class StartCheck {
         /** The project file is not there, or cannot be read. */
         NO_PROJECT_FILE,
 
+        /** The task name is one Start would refuse. {@code detail} says why. */
+        BAD_TASK_NAME,
+
         /** Nothing is installed to run. A task with no agent can still be started as a shell. */
         NO_AGENT,
 
@@ -132,9 +135,44 @@ public final class StartCheck {
     public static Result check(SokarContext context, @Nullable Path projectFile,
             @Nullable String agentName, @Nullable String providerName,
             @Nullable String credentialType) {
+        return check(context, projectFile, null, agentName, providerName, credentialType);
+    }
+
+    /**
+     * Answers whether a run with these choices, under this task name, could start.
+     *
+     * @param context Where the agents, providers and vault come from.
+     * @param projectFile The project file, or {@code null} not to check one.
+     * @param taskName The task name Start would be given, or {@code null} not to check one.
+     * @param agentName Agent to run, or {@code null} for the only one installed.
+     * @param providerName Provider to route through, or {@code null} for the agent's own default.
+     * @param credentialType Overrides the stored credential kind, or {@code null}.
+     * @return What was found.
+     */
+    public static Result check(SokarContext context, @Nullable Path projectFile,
+            @Nullable String taskName, @Nullable String agentName, @Nullable String providerName,
+            @Nullable String credentialType) {
 
         if (projectFile != null && !Files.isRegularFile(projectFile)) {
             return refused(Outcome.NO_PROJECT_FILE, "no project file at " + projectFile);
+        }
+
+        if (taskName != null) {
+            // The rule Start refuses by, from the same method. The project's name is only needed
+            // for the length; a file that cannot be read is Start's to report, not this check's.
+            String projectName = "";
+            if (projectFile != null) {
+                try {
+                    projectName = org.fuin.sokar.core.project.ProjectReader.read(projectFile).name();
+                } catch (RuntimeException ex) {
+                    projectName = "";
+                }
+            }
+            final java.util.Optional<String> badName =
+                    org.fuin.sokar.runtime.ContainerName.refusal(projectName, taskName);
+            if (badName.isPresent()) {
+                return refused(Outcome.BAD_TASK_NAME, badName.get());
+            }
         }
 
         try (InstalledAgents agents = context.agents()) {
