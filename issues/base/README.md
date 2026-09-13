@@ -39,6 +39,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
 | B53 | [The Build In One Language](B53-The-Build-In-One-Language.md) | open | sokar-claude-code 012, 013, 014; sokar-pi 010, 011, 012; sokar-omp 010, 011, 012 | The Java repositories build, check, update and test in Java and Maven, and every non-Java file that remains says why it cannot be Java. | two, and the first is the order | [note](#b53) |
+| B54 | [Stopping The Daemon Stops The Tasks It Started](B54-Stopping-The-Daemon-Stops-The-Tasks-It-Started.md) | open | - | Stopping, restarting or losing the daemon does not stop a task; a task ends when something asks that task to end. | three, and the first is where a task's processes should live | [note](#b54) |
 | B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | sokar-claude-code 009, sokar-pi 007, sokar-omp 007 | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | three, and the first is what an agent declares as "reached work" | [note](#b52) |
 | B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | in progress | - | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
 | B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | open | - | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
@@ -154,8 +155,14 @@ repositories - two still byte-identical, three already drifted apart, and none o
 shared tool has to exist in Sokar before an agent repository can drop its copies, which is why
 the agent half waits on this one.
 
-<a id="b52"></a>**B52 is second, under B53, because three agent repositories are waiting on it and
-nobody else can build it.** First-run consent moved to the agent repositories on 2026-09-13, and each of them now
+<a id="b54"></a>**B54 is second, above B52, because it ends work that is running.** Measured on
+2026-09-13: stopping the daemon stopped the task it had started, container included - and a daemon
+that crashes goes through the same stop before systemd restarts it. B52 holds up work in other
+repositories; this one ends a person's. Ranked here by Agent Sokar the day it was found; the
+operator re-ranks.
+
+<a id="b52"></a>**B52 is third, under B53 and B54, because three agent repositories are waiting on
+it and nobody else can build it.** First-run consent moved to the agent repositories on 2026-09-13, and each of them now
 has a task that fails its acceptance when a release adds a dialog. That needs one step all their
 scenarios share, and it lives in the kit because the kit is the only glue those scenarios have:
 written three times it would be three dialects of one check.
