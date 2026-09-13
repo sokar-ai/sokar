@@ -6,9 +6,12 @@ where there is a reason that cannot be. The interface is exempt: it is Flutter a
 Java to begin with.
 
 **Where the other half lives.** Replacing the scripts in `sokar-claude-code`, `sokar-pi` and
-`sokar-omp` is each of those repositories' own work, handed to the agent repositories on
-2026-09-13. Most of it is **blocked by this file**: an agent repository cannot drop its copy of a
-tool until the shared one exists here.
+`sokar-omp` is each of those repositories' own work, handed over on 2026-09-13 and cut into four
+issues per repository. Three of the four are **blocked by this file** - the build-time tools
+and the update pipeline moving onto the shared tool, and the acceptance stage moving onto kit
+scenarios: `sokar-claude-code` 012, 013, 014; `sokar-pi` 010, 011, 012; `sokar-omp` 010, 011,
+012. The fourth, the pin check (`sokar-claude-code` 011, `sokar-pi` 009, `sokar-omp` 009), is
+not blocked and starts first.
 
 ## What is there, measured on 2026-09-13
 
@@ -103,14 +106,30 @@ that remains says why it cannot be Java.**
   and the new check fails on it. A rewrite that passes everything proves nothing.
 - The workflows call Maven or the published tool, never a script this requirement replaced.
 
+## Decided with the agent repositories, 2026-09-13
+
+Both were put to the agent that would live with the result, and both answers came with the
+measurement behind them.
+
+- **Commands, not a Maven plugin.** The update job is not a lifecycle phase - it runs on a schedule,
+  writes files and opens a pull request - and the changelog check takes its base and head from the
+  workflow event rather than from the build. The two tools that do run inside a build today are
+  already called through `exec-maven-plugin`, which calls a Java command class just as well. One
+  command shape serves both callers; a plugin would add a descriptor and a plugin test harness for no
+  case a command cannot cover.
+- **A separate artifact, not inside `sokar-machines`.** Measured on an agent repository's tool
+  classpath: `sokar-machines` brings an SSH stack - `sshj` and BouncyCastle. The build-time tools run
+  in every package build, offline ones included, and folding them in would put an SSH client on the
+  classpath of a changelog check and tie the release tooling's version to the machine tooling's.
+
+**A correction to what the pin check becomes**, measured from the scripts: only part of it is a unit
+test. Where it compares the pinned digest with what the vendor publishes it needs the network, and
+that half moves into the update pipeline. In `sokar-pi` it also checks the Node runtime the built
+tree reports, which is a check after the tree is built, in the same Maven run.
+
 ## Open questions
 
-1. **Where the shared tool lives** - inside `sokar-machines`, or as its own artifact. It decides
-   what an agent repository pulls in and how the tool is versioned.
-2. **Maven plugin or command.** The version move and the checks could be goals in an agent's own
-   `pom.xml`, or commands like `Main leg`. Goals are more standard; commands are what the
-   workflows already call.
-3. **The order.** The two byte-identical tools first is the obvious start, because they need no
+1. **The order.** The two byte-identical tools first is the obvious start, because they need no
    strategy and prove the publishing path.
-4. **Whether `e2e-tier1.sh` belongs here or to B27**, which is already moving what a person does
+2. **Whether `e2e-tier1.sh` belongs here or to B27**, which is already moving what a person does
    into the Java suite.
