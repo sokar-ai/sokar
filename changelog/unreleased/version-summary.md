@@ -14,4 +14,8 @@
 
 - The changelog is kept with logchange: each change is one entry under changelog/unreleased, and CHANGELOG.md is generated from them. 
 
+### Fixed (1 change)
+
+- sokar doctor names podman's exit code and the error it wrote when podman fails, instead of saying that podman does not answer. 
+
 

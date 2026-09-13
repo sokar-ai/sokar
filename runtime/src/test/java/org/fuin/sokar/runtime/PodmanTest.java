@@ -105,6 +105,26 @@ class PodmanTest {
     }
 
     @Test
+    void saysWhyPodmanFailedRatherThanThatItDoesNotAnswer() {
+
+        // podman ran and exited non-zero, and the one sentence that says why is what it wrote to
+        // standard error. Reporting "does not answer" for every failure alike dropped exactly that.
+        final FakeCommandRunner failing = new FakeCommandRunner();
+        failing.failing("version", 125, "Error: cannot set up namespace\nsecond line\n");
+        assertThat(new Podman(failing).unsupportedVersion()).get().asString()
+                .contains("exit 125")
+                .contains("cannot set up namespace")
+                .doesNotContain("second line")
+                .doesNotContain("does not answer");
+
+        // Nothing on standard error is said too, rather than left as a dangling colon.
+        final FakeCommandRunner mute = new FakeCommandRunner();
+        mute.failing("version", 1, "");
+        assertThat(new Podman(mute).unsupportedVersion()).get().asString()
+                .contains("exit 1").contains("nothing on standard error");
+    }
+
+    @Test
     void readsTheVersionInAnExplicitFormat() {
 
         runner.answering("version", "5.7.0");

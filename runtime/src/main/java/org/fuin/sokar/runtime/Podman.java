@@ -168,6 +168,24 @@ public class Podman {
         return Command.of(all);
     }
 
+    /**
+     * Says how a podman call failed: its exit code and the first line it wrote to standard error.
+     * <p>
+     * That line is the one an operator can act on; a report that says only "failed" drops it.
+     *
+     * @param result The failed call.
+     * @return For example {@code exit 125: Error: cannot set up namespace}.
+     */
+    private static String failure(CommandResult result) {
+        final String first = result.standardError().lines().map(String::strip)
+                .filter(line -> !line.isEmpty()).findFirst().orElse("");
+        if (first.isEmpty()) {
+            return "exit " + result.exitCode() + ", nothing on standard error";
+        }
+        return "exit " + result.exitCode() + ": "
+                + (first.length() > 200 ? first.substring(0, 200) + "..." : first);
+    }
+
     /** Oldest podman Sokar runs on. */
     public static final int MINIMUM_MAJOR = 5;
 
@@ -196,8 +214,8 @@ public class Podman {
         final CommandResult result =
                 runner.run(podman("version", "--format", "{{.Client.Version}}"));
         if (!result.successful()) {
-            return Optional.of("podman does not answer 'podman version'; Sokar needs podman "
-                    + MINIMUM_MAJOR + " or newer");
+            return Optional.of("podman fails 'podman version' (" + failure(result)
+                    + "); Sokar needs podman " + MINIMUM_MAJOR + " or newer");
         }
         final String reported = result.trimmedOutput();
         final int dot = reported.indexOf('.');

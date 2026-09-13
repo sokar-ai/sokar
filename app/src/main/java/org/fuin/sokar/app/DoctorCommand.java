@@ -237,7 +237,9 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         final String name = "podman";
         final java.util.Optional<String> tooOld = context.podman().unsupportedVersion();
         return tooOld.isPresent()
-                ? Probe.missing(name, tooOld.get(), "install podman 5 or newer")
+                ? Probe.missing(name, tooOld.get(),
+                        "run 'podman version' as this user and fix what it reports; Sokar needs podman 5"
+                                + " or newer")
                 : Probe.ok(name, context.podman().version());
     }
 

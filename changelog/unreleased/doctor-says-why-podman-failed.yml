@@ -1,0 +1,2 @@
+title: "sokar doctor names podman's exit code and the error it wrote when podman fails, instead of saying that podman does not answer."
+type: fixed
