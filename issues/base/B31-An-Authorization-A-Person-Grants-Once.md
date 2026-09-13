@@ -123,9 +123,7 @@ is making the vault able to hold anyway.
 
 - **Whether the broker can carry an MCP session at all.** It bounds the start of a response and then
   streams, which server-sent events tolerate; a long-lived session with a server that expects to keep
-  one open is unmeasured. [B14](B14-Talking-Between-Tasks.md) asks the neighboring question — MCP over
-  a unix socket from inside a rootless container — and has not answered it either.
-- **How the wait ends when the person is elsewhere.** The grant completes in a browser, and nothing
+  one open is unmeasured.- **How the wait ends when the person is elsewhere.** The grant completes in a browser, and nothing
   in an interface observes it. Either the daemon raises a second event when the authorization lands,
   or a client polls — and polling a consent flow is the shape that produces two grants for one
   question. The interface's owner named the first as the one to build; it is the daemon's to build.

@@ -4,7 +4,8 @@ How [B15](B15-Handing-Artifacts-Between-Tasks.md) would be built. **Nothing here
 class, path, method and file below is a proposal, and none of it has been measured. Facts about the
 running system are quoted from the code and marked where it matters.
 
-It shares its policy and its record with [B14](B14-Talking-Between-Tasks.md)'s design, deliberately.
+It shares its policy with [B14](B14-Talking-Between-Tasks.md)'s design, deliberately. Its record is its
+own: B14 records in a git repository.
 Where that is so, this document points there rather than restating it — two versions of one decision
 is the failure `TaskInventory` and `TaskControl` exist to prevent.
 
@@ -77,8 +78,8 @@ sentence without qualification.
 
 ## Why a drop directory rather than a protocol
 
-B14 needs the agent to speak something, because receiving a message mid-run is a concept no shipped
-agent has. **Producing a file is not.** Every agent can write a file, so the mechanism can be a
+B14 needs the agent to take part in a second repository and to read what arrives there mid-run, which
+is a convention it has to be told about. **Producing a file is less than that.** Every agent can write a file, so the mechanism can be a
 convention instead of a capability:
 
 - **`/run/sokar/out/`** — writable, bind-mounted from `SokarPaths.containerState(container)
@@ -173,8 +174,8 @@ file carried.
 
 ## The record
 
-**`~/.local/state/sokar/artifacts/<project>.jsonl`**, `0600`, one JSON object per line, chained
-exactly as B14's journal is: `prev` is the previous line's `hash`, the first line's `prev` is 64
+**`~/.local/state/sokar/artifacts/<project>.jsonl`**, `0600`, one JSON object per line, chained:
+`prev` is the previous line's `hash`, the first line's `prev` is 64
 zeros, `hash` is SHA-256 over the line's canonical `Json.write` serialization with `hash` removed.
 `sokar store verify <project>` walks it and names the first line that does not verify.
 
@@ -194,9 +195,9 @@ means the record can be read by tooling nobody here wrote.
 ```
 
 **The statement is not wrapped in a signed DSSE envelope**, which is how in-toto is usually carried.
-The chain is the integrity mechanism here and no key goes near a container — the same answer B14
-gives about signing. An envelope becomes worth adding under exactly the condition B14 names: a
-record that leaves the machine which produced it.
+The chain is the integrity mechanism here and no key goes near a container. An envelope becomes
+worth adding under exactly the condition B14 names: a record that leaves the machine which produced
+it — which is why B14, whose record does, signs on the host.
 
 `event` is `put`, `hand`, `receive`, `withdraw` or `refused`. **A refusal is recorded too**: a
 policy that only writes down what it allowed cannot answer the question anybody actually asks after
@@ -386,9 +387,9 @@ requirement, and no store answers them.
   the operator's act on something approved, not as a task's.
 - **Scanning artifacts.** Sokar has no scanner and should not grow one. The guarantees are
   provenance, non-execution, declaration and a record.
-- **Signing.** Same answer as B14's: the digest is an integrity property and says nothing about
-  authorship, authorship comes from the transport, and a key an agent can reach is a key it can
-  copy.
+- **Signing.** The digest is an integrity property and says nothing about authorship, authorship
+  comes from the transport, and a key an agent can reach is a key it can copy. B14 signs on the host
+  only because its record leaves the machine; this one does not.
 - **Cross-machine.** The daemon binds no network interface in any configuration.
 - **Expiry.**
 

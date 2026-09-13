@@ -79,7 +79,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 |---|---|---|---|---|---|---|
 | B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | open | - | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have | |
 | B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | open | - | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | three, and one is a one-line fix | |
-| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | open | - | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | eight, including whether to build it | [note](#b14) |
+| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | open | - | Tasks in a group can talk through a git repository served by the gate, every message a strictly narrowed A2A message signed on the host and checked before anybody can fetch it - by the forge's hook or a self-hosted filter in front of it - declared by every project in the group, refused across security classes, and holdable while it runs - widening nothing a container may reach. | four, and whether to build it at all | [note](#b14) |
 | B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | open | - | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 | |
 | B37 | [The Build That Runs Somewhere Else](B37-The-Build-That-Runs-Somewhere-Else.md) | open | - | A task learns the verdict and the reason for the build its own work triggered, without reaching the forge and without holding a forge credential. | seven, and the first may end it | [note](#b37) |
 | B38 | [How Far Something That Got Through Can Get](B38-How-Far-Something-That-Got-Through-Can-Get.md) | open | sokar-frontend F32 | How far a convinced agent can get is bounded where it can be, named where it cannot, and the reviewer sees what matters before what is merely large. | six, and one may have no answer | [note](#b38) |
@@ -122,7 +122,7 @@ above.
 |---|---|---|---|---|---|
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | built | - | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | one, and `doctor` is on the wire |
 | B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | built | - | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | two, and it is built |
-| B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | in progress | - | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | three, and the guard is built |
+| B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | in progress | - | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | two, and the guard is built |
 | B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | built | - | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one - which agent an image was built for |
 | B20 | [Creating A Project](B20-Creating-A-Project.md) | built | - | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one - whether creating also prepares |
 | B36 | [A Snapshot Small Enough To Have A Choice](B36-A-Snapshot-Small-Enough-To-Have-A-Choice.md) | built | - | The images a leg boots fit on a cheap machine, so a sold-out server type costs a fallback rather than the run. | two - how fast cx43 builds, and what stops a later rebuild raising the floor again |
@@ -180,8 +180,8 @@ cheapest of the three new ones, and the gap is total - there is no way to hand a
 task today except pasting into a terminal. B37 is its first consumer rather than its reason.
 
 <a id="b14"></a>**B14 carries B15 with it.** They are the same question twice, and B15 reuses
-B14's policy and record wholesale, so settling B14 settles most of both. B14's first open question
-is whether to build it at all.
+B14's policy, so settling B14 settles most of both. B14's first open question is whether to build it
+at all.
 
 <a id="b37"></a>**B37 is in Later because its first question may end it.** In `guarded` the forge
 does not build a task's push until a person approves it, so what looks like watching a build may

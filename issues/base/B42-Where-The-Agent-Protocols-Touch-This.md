@@ -22,7 +22,7 @@ reached without the protocol, and worth comparing against it rather than replace
 ## What is already decided here, so this does not get argued twice
 
 - **A2A is already chosen as a format, and not as a server.**
-  [B14](B14-Talking-Between-Tasks.md)'s design says `Talk1`'s payload should be an A2A message
+  [B14](B14-Talking-Between-Tasks.md)'s design says a message file should be an A2A message
   *"rather than a shape invented here, so that an agent already speaking A2A needs no adapter
   later. It is a format, it costs nothing at runtime, and it commits to no server."* That is
   settled and this file does not reopen it.

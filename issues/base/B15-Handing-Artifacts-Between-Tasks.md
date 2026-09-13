@@ -157,11 +157,12 @@ the record is hash-chained and written before the other side can see anything.
 
 ## Notes
 
-**The relationship to [B14](B14-Talking-Between-Tasks.md).** Same policy shape, same record shape,
-same refusals, same class rules. If B14 is built, this is largely its `TalkPolicy` and its journal
-reused with a different payload, and the two should share those rather than growing two versions of
-one decision. If B14 is not built, this still needs both halves, which is worth knowing before
-either is scheduled: they are one piece of machinery with two payloads.
+**The relationship to [B14](B14-Talking-Between-Tasks.md).** Same policy shape, same refusals, same
+class rules. If B14 is built, this is largely its `TalkPolicy` reused with a different payload, and
+the two should share it rather than growing two versions of one decision. The record is not
+shared: B14 records in a git repository served by the gate, and this journal stands on its own
+unless this requirement moves to the same construction, which is worth deciding before either is
+scheduled.
 
 **This is the more useful of the two and the more dangerous.** Handing a built binary between tasks
 is a thing people will want immediately; it is also the one that turns two isolated containers into

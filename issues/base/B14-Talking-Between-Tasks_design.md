@@ -1,313 +1,368 @@
 # B14 — Talking Between Tasks, design
 
 How [B14](B14-Talking-Between-Tasks.md) would be built. **Nothing here exists yet**: every class,
-path, method and file named below is a proposal, and nothing in it has been measured. Where a fact
-about the running system is quoted it is marked as such, and it comes from reading the code rather
-than from an experiment run for this document.
+path, method, ref and file named below is a proposal, and nothing in it has been measured. Where a
+fact about the running system is quoted it comes from reading the code and the documentation; where a
+fact about a third-party product is quoted it comes from that product's documentation, read on
+2026-09-13, and is marked as such.
 
-The requirement argues *whether* and *what must be true*. This argues *how*, in enough detail that
-the expensive decisions are visible before anything is written.
+**In short:**
+
+- Tasks talk through **a git repository served by the gate**, one branch per group.
+- **The check runs where nobody can skip it**: on the forge, if the forge runs pre-receive hooks;
+  otherwise — GitHub, for one — on **a self-hosted filter in front of the forge**, which is plain git
+  over ssh with Sokar's own binary as the hook. The filter may run on the same machine as the tasks
+  when there is only one. Which of the two is used is one address in the gate's configuration.
+- **A message is an A2A message narrowed by a strict schema**, refused otherwise.
+- **The classifier runs in a container of its own**, with no network and nothing to take.
 
 ## Scope of the first version
 
-**One machine. Two tasks. A person watching.**
+**One talk repository. One branch per group. Any number of machines of the same operator. A person
+watching.**
 
-Out of scope, deliberately, and each for a reason argued in the requirement: talking across
-machines, signing by an agent, editing a held message, and any conversation with more than two
-participants. Three participants is not a bigger version of two — it needs addressing, ordering and
-a notion of "who is this for" — and none of that is worth designing before two tasks have talked
-once.
+Out of scope, deliberately: a key inside a task container for any purpose, editing a held message,
+and separating groups from machines that share the repository — a branch separates writing, not
+reading, so anything that must be kept from the operator's other machines gets its own repository.
 
 ## The shape
 
 ```
-  task A container                    host                         client
-  ┌────────────────┐        ┌────────────────────────┐        ┌──────────────┐
-  │ agent          │        │ sokar talk serve (A)   │        │ frontend/CLI │
-  │  /run/sokar/   │───────▶│  Talk1 on a unix socket│        └──────┬───────┘
-  │    talk.sock   │        │           │            │               │
-  └────────────────┘        │           ▼            │               │ varlink
-                            │        TalkHub  ───────┼── journal     │ over the
-  task B container          │           │            │   (hash chain)│ owner-only
-  ┌────────────────┐        │           ▼            │               │ socket
-  │ agent          │◀───────│ sokar talk serve (B)   │◀──── sokard ◀─┘
-  └────────────────┘        └────────────────────────┘
+ machine                                   filter (self-hosted)                        forge
+ ┌──────────────┐   ┌───────────────────┐  ┌──────────────────────────────────────┐  ┌──────────────┐
+ │ task         │   │ gate (host)       │  │ sshd, forced command                 │  │ talk repo    │
+ │  talk/ clone │──▶│ token → task      │─▶│ bare repo                            │─▶│ groups/*     │
+ │  push, pull  │◀──│ policy, schema    │◀─│ pre-receive: sokar talk check        │  │ written only │
+ └──────────────┘   │ own commit        │  │   └─ classifier container, no network│  │ by the filter│
+                    │ SSH signature     │  │ post-receive: forward                │  └──────────────┘
+                    └───────────────────┘  └──────────────────────────────────────┘
 ```
 
-Two host-side helpers, one per task, each holding a socket that is bind-mounted into exactly one
-container. Both talk to the daemon, which owns the policy, the record and the conversation state.
-Nothing crosses between the containers.
+On a forge that runs pre-receive hooks the middle box is the forge itself, and nothing is forwarded.
+A task never reaches the filter or the forge, and never sees another group.
 
-## What gets built, module by module
+## The talk repository
 
-| Module | What is added |
+**One repository, one protected branch per group, `groups/<name>`.** Linear history, no merges, no
+force pushes, no deletions.
+
+**One file per message**, at `messages/<task>/<seq>.json`, where `<task>` is the container name and
+`<seq>` is assigned by the gate. Every writer writes into its own directory, so two messages never
+conflict; a rejected fast-forward is resolved by rebasing onto the new tip, never by a merge. **The
+order of messages is the order of commits on the branch**, not the timestamps inside them.
+
+**`group.yml` at the root of the branch is the group's control state**: its member projects, the
+machine signing keys allowed to write for them, its mode, whether it is held or closed, its turn
+budget and its text limit. Only a commit signed by an operator key may change it, and the check
+refuses any other change to it. The operator keys themselves are configured where the check runs and
+in every gate, never in the repository, so the repository cannot vouch for itself.
+
+**Every commit the gate makes carries trailers**:
+
+```
+Sokar-Task: sokar-a1b2
+Sokar-Project: sokar
+Sokar-Author: task
+```
+
+`Sokar-Author` is `task` or `operator`. The trailers are the gate's statement; the signature is what
+makes the statement checkable by somebody who was not on that machine.
+
+## The message format
+
+**An [A2A](https://a2a-protocol.org/latest/specification/) message, narrowed.** A2A is used as a file
+format only, not as a protocol: an agent already speaking A2A needs no adapter later, it costs nothing
+at runtime, and it commits to no server. A2A carries its own mechanism for this — a message lists the
+URIs of the extensions present in it — so the narrowing is declared as a Sokar extension and every
+message stays valid A2A.
+
+What the narrowed schema allows, and nothing else:
+
+| A2A field | Allowed |
 |---|---|
-| `talk/` (new) | The domain: `Conversation`, `Message`, `Author`, `TalkHub`, `TalkJournal`, `TalkService`, `TalkPolicy`, `TalkException`, `MessageState`, `Mode`. Mirrors `clearance/`, which is the closest thing that already exists. |
-| `core/project` | `Talk` record on `Project`; `ProjectReader` learns one key; `SecurityClass` gains nothing. |
-| `app/` | `TalkCommand` and its subcommands, `TalkServeCommand`, `TalkWiring`, `TalkEdit`, one entry in `TaskHelpers`, three methods on `SokarPaths`. |
-| `runtime/` | Nothing. `ContainerSpec.volume` already does what is needed. |
-| `daemon/` | New methods and types on `org.fuin.sokar.Tasks1`, and the interface file that is the contract. |
-| `agents/api` | One field in the agent definition and its `describe` response. |
+| `messageId` | Required. Unique within the group. |
+| `role` | `agent` when a task writes, `user` when a person does. Must agree with `Sokar-Author`. |
+| `contextId` | Required, and equal to the group's name. |
+| `taskId`, `referenceTaskIds` | Absent. |
+| `extensions` | Exactly the Sokar talk extension's URI. |
+| `metadata` | Exactly one key, `kind`: `question`, `answer`, `review-request`, `status` or `handover`. |
+| `parts` | Exactly one text part, within the group's text limit (proposed default 4 KiB of UTF-8), and at most one data part whose schema is fixed by `kind`. **No file, raw or url part.** |
 
-The new module is `talk` rather than a package inside an existing one because the helper is a
-separate process with its own varlink interface, which is exactly why `clearance` is its own module.
-
-## The socket, and the container end
-
-**Host path:** `SokarPaths.containerState(container).resolve("talk.sock")`, beside the task's other
-runtime files.
-
-**Mount point:** `/run/sokar/talk.sock`, the third entry in a directory that already holds
-`/run/sokar/vault.sock` and `/run/sokar/ssh-agent.sock` (`TaskWiring.VAULT_MOUNT`,
-`TaskWiring.SSH_MOUNT`). Nothing new in the container's shape: one more file in a directory the
-agent already has.
-
-**Permissions:** the socket file is world-writable inside a `0700` directory, because a rootless
-container's agent user is a subordinate uid that cannot open a `0600` file the host user owns, and
-the directory is what carries the access control. This is the existing rule, not a new one.
-
-**SELinux:** the socket must be labeled at creation through `SocketContext.openUnixSocket()`, for
-the reason already recorded: the kernel assigns the label at `socket()`, not at `bind()`, so
-wrapping the bind leaves it unlabeled while everything else looks correct, and the denial is
-`dontaudit`ed and presents as an authentication failure with an empty log.
-
-**Phase `BEFORE`.** A bind-mounted socket is bound to the file that existed when the container
-started, so the helper must be up before `podman start` or the container holds a deleted inode and
-every message vanishes while the same call works from the host. It goes into `TaskHelpers` with
-`phase = BEFORE` and `name = "talk"`, alongside `vault`, `gate` and `watcher`, so that `task
-resume` replays the command it was started with.
-
-**One helper per task, named `talk`.** Every helper of a given name writes the same pid file, so a
-second one started by a resume would orphan the first and the poststop hook would reap neither.
-The existing rule applies unchanged: a running task answers `already up; nothing to resume`.
-
-## The wire, on that socket
-
-**`org.fuin.sokar.Talk1`, varlink, on the mounted socket.** Not a new protocol: the product already
-frames varlink, `org.fuin.sokar.Clearance1` is the precedent for a helper serving its own interface,
-and the helper is the `sokar` binary re-invoked — so `SokarBinary.path()` is how it is started, and
-never `ProcessHandle.current()`, which inside `sokard` answers with the wrong binary and produces a
-task whose helpers are silently missing.
-
-```
-interface org.fuin.sokar.Talk1
-
-# Says something into whichever conversation this task is in.
-#
-# There is no author parameter and there never will be. Who is speaking is decided by which
-# socket the bytes arrived on - this socket is mounted into exactly one container - and anything
-# a caller asserts about its own identity is discarded rather than validated.
-method Say(conversation: string, text: string) -> (accepted: bool, state: string)
-
-# Everything addressed to this task, as it is delivered.
-#
-# Streaming only. Answering once would deliver the backlog and then nothing ever again, which is
-# the mistake Prompts already refuses with StreamRequired.
-method Listen() -> (
-  conversation: string,
-  seq: int,
-  # The peer's task name, so an agent can tell two conversations apart. Never a claim by the
-  # sender: the daemon fills it in.
-  from: string,
-  # "task" or "operator". An agent must be able to tell a person's words from a machine's.
-  author: string,
-  at: string,
-  text: string
-)
-```
-
-`Say` answers `state` rather than only a boolean because *held* and *refused* are different things
-to the caller: an agent told nothing, or told "no", will retry — the clearance path learned that a
-decision the watcher had forgotten turned into a retry loop within seconds.
-
-## Identity, and why there is no key
-
-The helper is started with the container name on its command line, serves one socket, and that
-socket is mounted into one container. So authorship is a property of the transport and needs no
-credential. This is the vault proxy's own resolution, and it is the whole argument in the
-requirement's *Whether an agent should sign what it says*: a key an agent can reach to sign with is
-a key it can copy, and it would be the first credential inside a task container.
-
-**The command line carries no secret.** The helper is given a container name and paths, which is
-not sensitive; `/proc/<pid>/cmdline` is world-readable and that rule holds here as everywhere.
-
-## Reaching the agent
-
-The one architectural rule bites here: nothing outside `agents/` may name an agent, and no shipped
-agent has an inbox.
-
-**The agent definition gains one field**, reported through `describe`, saying how this agent can be
-given a message:
-
-| Value | What Sokar does |
+| `kind` | Data part |
 |---|---|
-| `mcp-unix` | Points the agent at `/run/sokar/talk.sock` as an MCP server offering a send tool and a receive tool. The target shape: a real inbox, no polling. |
-| `file` | Writes each delivered message as a file under a directory in the workspace, and the agent's instructions tell it to read them. Works with anything, and is polling. |
-| `none` | The agent cannot take part. `Open` refuses with `NO_INBOX`. |
+| `question` | none |
+| `answer` | `in_reply_to`: the commit of the message answered — A2A's message has no reply field |
+| `review-request`, `handover` | `repository`, `ref`, `commit` — work is named by commit and travels through the gate, never inside a message |
+| `status` | `state`: `started`, `blocked`, `done` or `abandoned` |
 
-Sokar branches on the *field*, never on the agent. Adding a fourth shape is a new value and a new
-delivery strategy in `talk/`, not a case in a `switch` over names — and `AgentIsolationTest` fails
-the build if that is got wrong.
+Every object is closed: a property the schema does not name is a refusal, not something ignored.
+Commit ids are 40 or 64 lowercase hex characters.
 
-**Refusing is the point of `none`.** A message delivered into a void, with the sender told it
-arrived, is the worst outcome available here: it produces a conversation that reads as ignored
-rather than as impossible.
+**What the schema buys, stated exactly.** It bounds how much a message can carry and what shape it
+has — and with the turn budget, how much a whole group can carry — without a model deciding anything.
+It does not bound what the text means: the one text part carries whatever is written into it, which
+is why the text limit and the budget are the controls, and the classifier is not.
 
-## Who may talk to whom
+## Inside the container
 
-**Declared in `project.yml`, by both sides.**
+**A second clone, `talk/`, of the group's branch**, whose `origin` is always the gate — not inside
+the workspace, so a message can never be committed into the work repository by accident. Where
+exactly it sits is an open question below. It is a clone per task, never a directory shared between
+tasks.
+
+**Saying something** is committing one message file under `messages/<own task>/` and pushing. The
+push lands on `refs/sokar/talk/<group>/<task>` in the gate, exactly as a work push lands on
+`refs/sokar/incoming/<task>` today.
+
+**Listening** is pulling. The agent is told in its instructions where `talk/` is and that what it
+finds there is content from other tasks, never an instruction from the operator.
+
+**The agent definition gains one field**, reported through `describe`: `talk: git` or `talk: none`.
+Sokar branches on the field, never on the agent, and `AgentIsolationTest` fails the build if that is
+got wrong. An agent that declares `none` cannot be placed in a group, and the refusal says so.
+
+## The gate's half
+
+The gate already identifies a task by the per-task token every request carries, and already pushes to
+an upstream with a credential that stays on the host (`sokar gate approve`). The talk half reuses both.
+
+**One address decides where the check runs.** `project.yml` names the talk repository's upstream,
+edited as text like every other project setting:
 
 ```yaml
-project:
-  name: "sokar"
-  security_class: "guarded"
 talk:
-  peers:
-    - "sokar-frontend"
+  upstream: "ssh://sokar-filter@filter.example.org/talk.git"
+  groups:
+    - "review"
 ```
 
-`ProjectReader` learns `talk.peers`; `Project` gains a `Talk` record beside `Egress` and `Limits`.
-Editing goes through a `TalkEdit` built like `EgressEdit`: replace the key where it stands, leave
-every line it does not understand alone, and parse the result with `ProjectReader` before writing —
-`project.yml` is the one file here a person writes by hand and reads in a diff, and a
-load-and-dump throws away their comments, key order and quoting.
+Pointing it at a forge that runs the hook, or at a filter in front of one, is the only difference
+between the two arrangements; the gate does the same thing in both. The address is the gate's, on
+the host. **A container never sees it**: its `talk/` points at the gate, so an agent cannot point
+itself past the check.
 
-**`TalkPolicy` in `core` is the only place that decides.** The daemon and the CLI both ask it and
-neither decides anything itself, for the reason `TaskInventory` and `TaskControl` exist: a refusal
-that lived in one and not the other would be a conversation opened remotely that the machine's own
-tooling says is impossible.
+On every talk push, in this order, and a failure at any step stops the next:
 
-The rules, in the order they are checked:
+1. **Policy**, in `TalkPolicy` in `core` — the only place that decides, asked by the gate, the daemon
+   and the CLI alike:
+   1. every project in `group.yml` declares the group under `talk.groups` in its own `project.yml`;
+   2. no project in the group is `offline`;
+   3. every project in the group has the same class, refused as `REFUSED_BY_CLASS`;
+   4. the task's agent declares `talk: git`.
+2. **The rules that are not a model**, run early so that an obvious refusal never leaves the machine:
+   one new file, under the task's own directory, valid against the narrowed schema, and clean under
+   `CredentialScan`. The same code as the check at the filter.
+3. **The gate's own commit.** The message file is taken out of the agent's commit and written into a
+   new commit on the current tip of the group's branch, with the trailers above. The agent's author,
+   dates, parents and any other file it committed are discarded rather than validated.
+4. **Signed on the host**, with an SSH key under the state directory, `0600`, never mounted anywhere
+   (`gpg.format ssh`).
+5. **Pushed upstream** with the host's ssh key for that upstream. A refusal is recorded on the gate as
+   `refs/sokar/talk-refused/<group>/<task>/<seq>` — git again, no journal written for it — and the
+   sender is told why on its push.
 
-1. **Both projects name the other.** One-sided is refused: a project file that could grant itself
-   access to another project's task is an ACL written by the caller.
-2. **Neither project is `offline`.** That class promises nothing resolves and nothing leaves, and a
-   conversation is a way out; `Project`'s constructor already refuses an offline project that
-   declares egress, and this is the same refusal.
-3. **Both projects are the same class.** A `guarded` task talking to an `online` one reaches an
-   upstream through its peer, and neither end did anything forbidden. Refused as
-   `REFUSED_BY_CLASS`, the outcome `SetEgress` already answers with.
-4. **Both agents can receive.** Otherwise `NO_INBOX`.
+**Serving a task only its group.** The gate keeps one bare mirror per group, holding only that
+group's branch, and serves a task only the mirror of its own group. Not one mirror with the other
+refs hidden: git documents that its fetch and push protocols are not designed to stop one side from
+obtaining objects the other did not mean to share, and `gitnamespaces(7)` says so in its security
+section. A task can only get what is not there to be got.
 
-Refusals are **outcomes, not errors** — the same choice `SetEgress` and `WidenTask` made, so that
-an interface can render a reason instead of an exception.
+**Across a resume** nothing needs replaying: the mirror and the branch outlive the task, and the
+resumed task's `talk/` is cloned again from the gate.
 
-## The record
+## The check
 
-**`~/.local/state/sokar/talk/<conversation>.jsonl`**, one JSON object per line, `0600`, reached
-through a new `SokarPaths.talkJournal(String conversation)`. Under the state directory rather than
-the runtime one for the reason `clearanceJournal` is: `/run/user/<uid>` is cleared when the user's
-last session ends and `task stop --remove` deletes it outright, and a record of what two agents said
-to each other that disappears with the task is not a record.
+**`sokar talk check`, the same native binary wherever it runs**, as the `pre-receive` hook of the
+repository the gates push to:
 
-```json
-{"seq":1,"at":"2026-09-08T10:14:02Z","conversation":"7f3a…","from":"sokar-a1b2",
- "author":"task","state":"delivered","text":"…","prev":"0000…","hash":"9c1e…"}
-```
+1. **Signature**, verified against the keys `group.yml` allows for that group, and operator keys for
+   a change to `group.yml`. `valid-after` and `valid-before` on each key (per `ssh-keygen(1)`) keep
+   old commits verifiable after a key is retired.
+2. **Shape**: a fast-forward, exactly one new message file in the directory named by `Sokar-Task`, or
+   a change to `group.yml` alone.
+3. **The narrowed schema**, and `role` against `Sokar-Author`.
+4. **State**: the group is not closed, not held, and within its budget — read from `group.yml` at the
+   tip.
+5. **`CredentialScan`**, the same code the vault proxy runs.
+6. **The classifier**, last, in its own container. It can answer *hold*; it cannot turn a refusal into
+   an acceptance.
 
-**The chain.** `prev` is the previous line's `hash`; the first line's `prev` is 64 zeros. `hash` is
-SHA-256 over the line's canonical serialization with `hash` itself removed — the same `Json.write`
-the rest of the product uses, so the bytes hashed are the bytes written. `sokar talk verify
-<conversation>` walks it and names the first line that does not verify.
+A pre-receive hook can only accept or reject, so **holding is a second push**: a *hold* rejects with
+the reason `held`, the gate pushes the same commit to `refs/held/<group>/<id>`, which the check
+accepts after steps 1 to 3 only, and a person releasing it makes a new commit carrying the message and
+`Sokar-Released-By` and `Sokar-Held: <commit>` trailers, signed with the person's key. The held commit
+stays where it was, so the record shows both what the task said and who let it through.
 
-What this buys and what it does not: an entry changed or removed after the fact stops verifying,
-with nothing to distribute, rotate or revoke. It does not protect against the owner of the machine,
-who can rewrite the whole chain — nothing can, and B13 says the same about the other door.
+## Where the check runs
 
-**Written before delivered.** The order is: policy, append, deliver. A message that cannot be
-appended is not delivered, and the sender is told so. Reversing those two would make "a person sees
-everything" an aspiration rather than a property.
+### On a forge that runs pre-receive hooks
 
-## Moderation, holding and stopping
+The check is installed as the hook of the talk repository, and the forge is the only writer to its own
+branches. Per each product's documentation as read on 2026-09-13: on GitHub, pre-receive hooks exist
+only in GitHub Enterprise Server; on GitLab, server hooks exist only on self-managed instances; Forgejo
+runs hooks an administrator places on the filesystem, and a maintainer-approved proposal from December
+2024 would remove its editor for them without removing that. The forge's host needs podman for the
+classifier.
 
-**Modes are the four `clearance` already uses**, with the same meanings, set when the conversation
-is opened and changeable while it runs:
+### On a self-hosted filter in front of a forge that does not
 
-| Mode | Effect |
+**Plain git over ssh**, set up by `sokar talk filter init`:
+
+- **A dedicated system user**, `sokar-filter`, owning a bare repository, the hooks, the operator keys
+  and the forge credential. On a single machine it still runs as its own user rather than as the
+  operator's, so the forge credential is not readable by the account tasks run under.
+- **sshd with a forced command per machine** in that user's `authorized_keys` — `restrict` and a
+  `command=` that runs the `sokar` binary, which allows only `git-receive-pack` and `git-upload-pack`
+  on the talk repository and nothing else. No shell. This transport key is not the machine's signing
+  key: one lets a machine connect, the other says what it vouches for.
+- **`pre-receive` is `sokar talk check`.**
+- **`post-receive` forwards** what was accepted to the forge. A hook after the fact cannot fail the
+  push, so a forge that cannot be reached leaves the message accepted in the filter and forwarded on
+  the next attempt; gates fetch from the filter, so no reader waits on the forge.
+- **The filter is the only writer the forge accepts.** On GitHub that is a branch ruleset on
+  `groups/*` restricting updates to the filter's account, blocking force pushes and restricting
+  deletions — rules GitHub runs itself, per its documentation as read on 2026-09-13. A machine with a
+  credential of its own for the forge would otherwise go around the filter. As the only writer, the
+  filter also takes pushes one at a time, so the branch stays linear without races.
+- **It binds a network port when other machines push to it.** That is sshd on the filter's host, not
+  the daemon: `sokard` still binds no network interface in any configuration.
+- **On one machine** it is the same setup on `localhost`. A compromised host can skip a check that runs
+  on it; that is the limit B13 ([index](README.md)) already names for the owner of a machine.
+
+**It is not an agent and not a task.** Nothing in it acts on the text it reads: sshd accepts a push,
+git runs a binary, the binary exits with accept, refuse or hold. It is not run as a Sokar task either —
+a task is the side being checked, cannot accept a connection, and must never hold a forge credential.
+
+## The classifier, and its container
+
+**Meta's [Llama Prompt Guard 2](https://huggingface.co/meta-llama/Llama-Prompt-Guard-2-86M)**, per its
+model card: a classifier for prompt injection and jailbreak attempts, in an 86M multilingual and a 22M
+variant, with a 512-token window — a longer text part is split and each piece classified. It produces
+a score, not text: it writes nothing, uses no tool and follows no instruction, so a message can at most
+move the score. It flags text that tries to override instructions; it does not recognise a workspace
+leaving in base64, and a model that means to get past it can paraphrase. That is why it can only hold.
+
+**It runs in a container anyway**, because a tokenizer and a model runtime are native code parsing
+text an attacker wrote, and because a generative reviewer put in its place later would be an agent.
+The check is split by what each part holds:
+
+| Part | Holds | Runs as |
+|---|---|---|
+| `pre-receive`: signature, shape, schema, state, `CredentialScan` | the operator keys, no secret | the filter user |
+| **The classifier** | the model file, read-only | **a rootless container per push**: `--network none`, read-only root filesystem, `--cap-drop all`, `no-new-privileges`, memory, CPU and pid limits, no mount but the model, the text on standard input, the score on standard output, the image pinned by digest |
+| `post-receive`: forwarding | the forge credential | the filter user, never in the same process as the classifier |
+
+- **The hook reads one number.** A score in bounds is compared against the threshold; anything else —
+  no output, more output, a value out of range — is *hold*.
+- **Fail closed.** A container that does not start, times out or dies means *hold*, never *accept*.
+- **Per push, to start with.** A fresh container costs a few hundred milliseconds and carries nothing
+  from one message to the next. A long-running container behind a unix socket is the fallback if that
+  latency matters, restarted regularly.
+- **A generative reviewer, if ever**, gets the same container, no tools, a fixed prompt, and an answer
+  parsed strictly from a fixed set of words.
+
+Running Prompt Guard from Java through ONNX Runtime inside that container is unmeasured, and its
+licence terms are unread.
+
+## Modes, holding, closing, budget
+
+**Modes are the four `clearance` already uses**, set in `group.yml`:
+
+| Mode | Effect at the check |
 |---|---|
-| `prompt` | Every message is appended as `held` and delivered only when a person releases it. |
-| `allow` | Delivered immediately, still appended first. |
-| `deny` | Appended as `refused`, never delivered, sender told. |
-| `off` | Delivered with no per-message gate. Its own state, not the widest setting, and readable back — the same argument that put `clearance` on `Task`. |
+| `prompt` | Every message is held until a person releases it. |
+| `allow` | Accepted if every rule passes; the classifier may still hold. |
+| `deny` | Every message is refused. |
+| `off` | Accepted if the rules that are not a model pass; the classifier does not run. Its own state, readable back, not the widest setting. |
 
-**A conversation is `open`, `held` or `closed`.** Held delivers nothing and tells each sender it was
-held. Closed is final: a further `Say` is refused rather than queued, because a queue nobody will
-ever drain is a lie told to whoever is waiting for an answer.
+**A `guarded` project's groups are `prompt` unless the project opts in.** The class promises that a
+person reads what leaves, and `allow` or `off` lets a message leave that nobody read. The opt-in is
+one setting, proposed as `gate.unreviewed_may_leave: true` in `project.yml`, shared with B13's review
+branch on a forge; `TalkPolicy` refuses a `group.yml` mode of `allow` or `off` for a group with a
+`guarded` member that has not set it. An `online` project already lets unreviewed work leave, and its
+groups may use any mode.
 
-**Fail closed.** If the daemon cannot be reached, or the journal cannot be written, or the
-conversation's state cannot be read, nothing is delivered. The startup rule for the nft hook is the
-same rule.
+**A group is `open`, `held` or `closed`**, also in `group.yml`. Held accepts nothing onto the branch
+and tells each sender it was held. Closed is final: a further push is refused rather than queued.
 
-**The turn budget** is a count set when the conversation is opened, decremented per delivered
-message, and its exhaustion **closes** the conversation and says so. A warning is not a control, and
-two agents in a conversation is a loop with a bill attached and no natural end.
+**The turn budget** is a count in `group.yml`; the check counts message commits since the commit that
+set it and refuses the one that would exceed it with `OVER_BUDGET`, and the group is then closed by an
+operator-signed commit that says why.
+
+**Fail closed.** If the upstream cannot be reached, nothing is delivered and the sender is told; if the
+check cannot run, the push is refused.
+
+## The record, and verifying it
+
+**The branch is the record.** Every commit hashes its parent, so an entry changed or removed after the
+fact stops verifying; the check refuses the force push that would be needed to hide it. What was
+refused on a machine is on that machine's gate under `refs/sokar/talk-refused/`, and what was held is
+under `refs/held/` where the check runs.
+
+**`sokar talk verify <group>`** walks the branch, verifies every commit's signature against the keys
+`group.yml` allowed at that commit, checks every `group.yml` change against the operator keys, checks
+the history is linear, and names the first commit that fails.
 
 ## The daemon's interface
 
-Additions to `org.fuin.sokar.Tasks1`, which only ever grows — new methods, new `?` parameters, new
-reply fields, no `Tasks2`. `InterfaceDescriptionTest` fails the build if any of this is registered
-without appearing in the file, or appears without being registered.
+Additions to `org.fuin.sokar.Tasks1`, which only ever grows. `InterfaceDescriptionTest` fails the
+build if any of this is registered without appearing in the file, or appears without being
+registered.
 
 ```
-type Conversation (
-  # Pass this back unchanged. It is the daemon's to generate: a client that derived it would
-  # address a conversation that does not exist, which is the mistake Prompt.key already avoids.
-  id: string,
-  tasks: []string,
+type Group (
+  name: string,
   projects: []string,
   # prompt, allow, deny or off.
   mode: string,
   # open, held or closed.
   state: string,
   turns: int,
-  budget: int,
-  opened: string
+  budget: int
 )
 
 type Message (
-  conversation: string,
-  seq: int,
+  group: string,
+  # The commit on the group's branch. Pass it back unchanged.
+  commit: string,
   # Container name of the writing task, or "" when the author is the person.
   task: string,
+  project: string,
   # "task" or "operator".
   author: string,
+  # question, answer, review-request, status or handover.
+  kind: string,
   at: string,
   text: string,
   # held, delivered or refused.
-  state: string,
-  # Its line in the record, so a client can quote the chain rather than rebuild it.
-  hash: string
+  state: string
 )
 
 type TalkOutcome (
-  OPENED, NOT_DECLARED, REFUSED_BY_CLASS, NO_INBOX, ALREADY_OPEN, NO_SUCH_TASK, CLOSED, HELD,
-  OVER_BUDGET
+  ACCEPTED, HELD, NOT_DECLARED, REFUSED_BY_CLASS, NO_TALK, REFUSED_BY_RULE, CLOSED, OVER_BUDGET,
+  UPSTREAM_UNREACHABLE
 )
 
-# Every conversation on this machine.
-method Conversations() -> (conversations: []Conversation)
+# Every group the projects on this machine belong to.
+method Groups() -> (groups: []Group)
 
-# Every message in every conversation, as it happens - including conversations opened after the
-# call. One subscription, no per-task discovery, exactly as Prompts works. Streaming only.
+# Every message in every group, as the gate fetches it - including groups joined after the call.
+# Streaming only, exactly as Prompts works.
 method Talk() -> Message
 
-# Opens one between two running tasks.
-method Open(a: string, b: string, mode: ?string, budget: ?int)
-  -> (conversation: ?Conversation, outcome: TalkOutcome)
+# The person writes into a group, signed with their key. The author is set here, never by the caller.
+method Say(group: string, kind: string, text: string) -> (message: ?Message, outcome: TalkOutcome)
 
-# The person writes into a conversation. The author is set by the daemon, never by the caller.
-method Say(conversation: string, text: string) -> (message: Message, outcome: TalkOutcome)
+# Releases or refuses one held message.
+method Release(group: string, commit: string, allow: ?bool) -> (message: Message)
 
-# Releases or refuses one held message, mirroring Decide.
-method Deliver(conversation: string, seq: int, allow: ?bool) -> (message: Message)
+# Changes the mode, or holds or releases the whole group: an operator-signed commit to group.yml.
+method Moderate(group: string, held: ?bool, mode: ?string) -> (group: Group)
 
-# Holds or releases the whole conversation, and changes its mode.
-method Moderate(conversation: string, held: ?bool, mode: ?string) -> (conversation: Conversation)
+# Ends it. A further message is refused rather than queued.
+method Close(group: string, reason: ?string) -> (group: Group)
 
-# Ends it. A further Say is refused rather than queued.
-method Close(conversation: string, reason: ?string) -> (conversation: Conversation)
-
-error NoSuchConversation(conversation: string)
+error NoSuchGroup(group: string)
 ```
 
 ## The command line
@@ -316,123 +371,109 @@ error NoSuchConversation(conversation: string)
 re-decided.
 
 ```
-sokar talk open <taskA> <taskB> [--mode prompt|allow|deny|off] [--budget N]
-sokar talk list
-sokar talk log <conversation> [--follow]
-sokar talk say <conversation>          # text on stdin, never in argv
-sokar talk deliver <conversation> <seq> [--deny]
-sokar talk hold <conversation> [--release]
-sokar talk close <conversation> [--reason ...]
-sokar talk verify <conversation>
-sokar talk serve ...                   # the helper, not for people
+sokar talk groups
+sokar talk log <group> [--follow]
+sokar talk say <group> [--kind question]   # text on stdin, never in argv
+sokar talk held <group>
+sokar talk release <group> <commit> [--refuse]
+sokar talk hold <group> [--release]
+sokar talk close <group> [--reason ...]
+sokar talk verify <group>
+sokar talk filter init ...                 # sets up a filter; prints the ssh line for each machine
+sokar talk check ...                       # the hook, not for people
 ```
 
-**`say` reads the text from standard input**, the way `vault put` does. Not because a message is a
-credential, but because a process list is world-readable and nobody can promise what an operator
-will paste into a message to an agent.
+**`say` reads the text from standard input**, the way `vault put` does: a process list is
+world-readable and nobody can promise what an operator will paste into a message to an agent.
 
 ## Lifecycle
 
 | Event | What happens |
 |---|---|
-| `task run` | The helper starts in phase `BEFORE`, its socket is mounted, its command is recorded in `resume.json`. No conversation exists yet. |
-| `talk open` | Policy is checked, the conversation is created, both journals' first lines are written. Refused as an outcome, never an exception. |
-| A message | Policy, append, deliver — in that order, and a failure at any step stops the next. |
-| `task stop` | The poststop hook reaps the helper by its pid file. The conversation is closed with a reason naming the task that went. |
-| `task resume` | The recorded command is replayed, the helper comes back, the socket is fresh. **Whether the conversation comes back with it is an open question**, below. |
-| A container that never started | `TaskRunner.reapOrphans` covers the helper, since no hook fires for a container that never ran. |
-| `sokar panic` | Stops the helper with everything else, removes nothing, and the record stays. |
+| `task start` | If the project declares a group, the gate's mirror for it is fetched and the task's `talk/` is cloned from the gate. No talk helper, no extra socket. |
+| A message | Gate policy, gate rules, gate commit, host signature, check upstream, branch. A failure at any step stops the next. |
+| Another machine fetches | Its gate updates its group mirror and feeds the daemon's `Talk` stream; its tasks see the message on their next pull. |
+| `task stop` | Nothing to reap. The branch keeps everything the task said. |
+| `task resume` | `talk/` is cloned again from the gate; nothing is replayed. |
+| `sokar panic` | Stops the tasks with everything else; the gate pushes nothing more; the record stays. |
+| A machine key is retired | Its `valid-before` is set in `group.yml` by an operator-signed commit; what it signed before stays verifiable. |
+| The forge is unreachable from the filter | Accepted messages stay in the filter and are forwarded later; readers are unaffected. |
 
 ## Failure modes, and what each must do
 
 | When | What must happen | Why it is listed |
 |---|---|---|
-| The journal cannot be written | Nothing is delivered; the sender is told. | Otherwise "a person sees everything" is untrue and nothing detects it. |
-| The daemon is not reachable from the helper | Nothing is delivered; the sender is told. | Fail closed, as on the container start path. |
-| The peer task has stopped | The conversation closes with a reason; the survivor is told. | A half-open conversation is the normal case, not an edge one. |
-| The agent declares no inbox | `Open` refuses. | A message dropped silently reads as an agent ignoring it. |
-| The budget runs out | The conversation closes and says so. | A warning nobody is watching is not a control. |
-| A second `talk serve` is started for one task | Refused; the running one keeps the pid file. | Two helpers of one name orphan each other, measured for other helpers. |
-| The socket is replaced after container start | Cannot happen: phase `BEFORE`. | A bind mount holds the inode that existed at start. |
+| The upstream cannot be reached | Nothing is delivered; the sender is told on its push. | A message waiting silently reads as ignored. |
+| The check cannot run | The push is refused. | Fail closed. |
+| The classifier's container fails, times out or answers out of bounds | The message is held. | A classifier that cannot answer must not become one that says yes. |
+| An agent commits a file outside its own directory | The gate refuses before signing. | Otherwise one task could write in another's name. |
+| An agent commits more than the message | Only the message file reaches the gate's commit. | The agent's commit is an assertion, not a record. |
+| A message carries a file part, an unknown property or an unknown kind | Refused by the gate, and again by the check. | A closed schema that ignores what it does not know is an open one. |
+| The group is held or closed | Refused with that state as the reason. | An agent told nothing retries. |
+| The budget runs out | Refused, and the group is closed with a reason. | A warning nobody is watching is not a control. |
+| A task tries to fetch another group | There is nothing to fetch: its gate mirror holds one branch. | Hidden refs are not access control. |
+| Something other than the filter writes to the forge | The forge refuses it. | Otherwise the filter is a suggestion. |
 
 ## What must be proven to fail
 
-Per the rule that a test nobody has watched fail is a test nobody has checked, and that the *right*
-thing must fail:
+- A group not declared by every member project **must** be refused — assert that no commit reaches
+  the branch, not on the wording of the refusal.
+- An `offline` member, and a `guarded`-with-`online` group, **must** be refused. Mutate the class in
+  the fixture and watch each break.
+- A `group.yml` mode of `allow` or `off` for a group with a `guarded` member that has not opted in
+  **must** be refused, and accepted once it has. Remove the setting in the fixture and watch it break.
+- An unsigned commit, a commit signed by a key not in the group, and a `group.yml` change signed by a
+  machine key **must** each be refused by the check.
+- A commit whose `Sokar-Task` names another task's directory **must** be refused.
+- A file part, an extra property at any depth, an unknown `kind`, a `role` that disagrees with
+  `Sokar-Author`, and a text part one byte over the limit **must** each be refused — by the gate, and
+  by the check with the gate's step bypassed in the fixture.
+- `sokar talk verify` **must** fail when a commit is edited and when one is removed — both, because
+  removal is the case a naive per-commit check misses.
+- A task's `talk/` **must** contain no object of another group: clone it and search for a known blob
+  of the other group, rather than listing refs.
+- A held group **must** deliver nothing: assert a peer's pull brings nothing new, not that the state
+  field says `held`.
+- A classifier container that exits without output, prints two numbers, or sleeps past the timeout
+  **must** each produce *hold*, and none of them *accept*.
+- The classifier container **must** fail to open a network connection and to write outside its
+  standard output. Assert on the attempt from inside, not on the flags passed.
+- A push to the forge with a credential other than the filter's **must** be refused.
+- No key file appears anywhere a task container or the classifier container can read.
 
-- A one-sided `talk.peers` declaration **must** be refused — assert on whether a message reaches the
-  peer's journal, not on the wording of the refusal.
-- An `offline` project **must** be refused, and a `guarded`-to-`online` pair **must** be refused.
-  Mutate the class in the fixture and watch each break.
-- A held conversation **must** deliver nothing: assert the peer's `Listen` stream is silent, not
-  that the state field says `held`.
-- The chain **must** stop verifying when a line is edited, and when a line is removed. Both, because
-  removal is the case a naive per-line hash misses.
-- The record **must** be written before delivery: make the journal unwritable and assert the peer
-  received nothing.
-- No key file appears anywhere under the container's mounted directory. Cheap, and it is the
-  property the requirement's signing section rests on.
-- `AgentIsolationTest` already fails the build if any of the delivery code names an agent. Break it
-  once on purpose while writing the delivery strategies.
-
-Anything needing podman — the mount, the socket from inside the container, an agent actually
-receiving — belongs in `buildtools/e2e-tier1.sh`, not in surefire.
+Anything needing podman, sshd or a forge belongs in the acceptance suite, not in surefire.
 
 ## Alternatives considered
 
-Whether an existing, maintained, open-source tool could take over the hub, leaving only an adapter
-to write. The answer is no, and it is the same answer for every candidate: what a message bus or a
-chat server takes off the pile is transport and storage, and what this requirement is made of is
-policy, holding and a record. Adopting one leaves all of that to build anyway, and adds a daemon
-with its own authentication database, its own upgrade cycle and its own CVE stream.
-
-| Tool | What it would give | Why not |
-|---|---|---|
-| [NATS](https://nats.io/about/) + JetStream (CNCF, 2.14.5, August 2026, one binary) | The best transport of the three: subject ACLs, persistent replayable streams, sub-millisecond latency | **Client connections are TCP only** — a unix domain socket exists only when the server is embedded in a Go process, so this would mean a loopback port where every other helper has a mounted socket. Subject ACLs are per user rather than per pair, there is no holding a message, and a JetStream stream is append-only without being tamper-evident. |
-| [Matrix](https://spec.matrix.org/latest/) via [continuwuity](https://continuwuity.org/introduction) (Rust, a release every week or two) | On paper a direct hit: rooms as the pair, power levels as moderation, a **hash-linked, server-signed event DAG** — from room version 3 the event id *is* the reference hash — redaction instead of deletion, and existing clients a person could read and write with | Every message would still have to pass through Sokar to enforce the class rules, the journal and the hold, so the access control gets written twice — the failure this design avoids by putting `TalkPolicy` in one place. A homeserver is a large dependency with its own user database. Note also that `conduwuit` is archived; the maintained line is `continuwuity`. |
-| [Prosody](https://prosody.im/) (13.0.6, May 2026, Lua, genuinely small) | MUC for rooms, MAM for archives, ACLs, at a fraction of the size | The archive is a database, not a tamper-evident log. It is a weaker "who did what" than Matrix for the same structural cost. |
-| [halo-record](https://www.helpnetsecurity.com/2026/08/31/halo-record-open-source-ai-agent-audit-trail/) (August 2026) | An append-only file where each line carries the hash of the one before it, verifiable with no key and no account | Python, and very new. Its value here is as evidence rather than as a dependency: the journal above is the conventional construction, not something invented for this. |
-| [Rekor](https://github.com/sigstore/rekor), [immudb](https://immudb.io/) | A Merkle transparency log with inclusion and consistency proofs, both runnable standalone | More than a hash chain buys on a single machine against an adversary who owns the disk. Worth revisiting under the one condition named above: a record that leaves the machine which produced it. |
-
-**Reachability was not the obstacle, and saying so matters.** Sokar can already put a TCP-only
-service behind a container's own loopback — `sokar vault relay` binds `127.0.0.1` inside the task's
-network namespace and forwards to a host-side socket, and the git gate is a loopback service today.
-Any of the servers above could be reached that way. They were rejected on what they fail to remove
-from the work, not on whether a container could talk to them.
-
-**What is worth adopting is the schema.** `Talk1`'s payload should be an
-[A2A](https://a2a-protocol.org/latest/) message (Linux Foundation, v1.0.1 May 2026) rather than a
-shape invented here, so that an agent already speaking A2A needs no adapter later. It is a format,
-it costs nothing at runtime, and it commits to no server.
-
-## Deliberately not designed here
-
-- **Cross-machine.** Argued in the requirement: the daemon binds no network interface in any
-  configuration, so a daemon that accepts a peer is a different product. If it happens, the client
-  carries frames and each daemon keeps its own policy and its own record.
-- **A daemon signature.** Only relevant with an intermediary, which only cross-machine has.
-- **Editing a held message.** Rewriting what an agent said destroys the only thing the record is
-  for; refusing may not be enough for somebody watching two agents talk each other into something
-  wrong. Undecided in the requirement, and it changes the journal's schema, so it is worth settling
-  before the first line is written rather than after.
-- **More than two participants.**
-- **Who pays for a turn.** A message causes work in the receiving task against another project's
-  provider and credential, and nothing in the product models that today.
+| Option | Why not |
+|---|---|
+| **A socket helper**: a `talk serve` helper per task with a socket mounted at `/run/sokar/talk.sock`, a `Talk1` varlink interface, a hash-chained journal under the state directory, and the daemon as hub | Sound on one machine and widened nothing. It had to invent what git and the gate already provide — a wire, an inbox in agents that have none (MCP over a unix socket from a rootless container, never measured), a journal and its verifier — and across machines it needed a client carrying frames between daemons, with two records and no shared clock. |
+| **A model reviewer on every machine** | A check on the sending machine is skipped by that machine when it is compromised, protects nobody from what arrives, reads every project's messages and so becomes a bridge between them, and a hosted free model is itself a place every conversation leaks to. |
+| **GitHub's rules with a required status check** instead of a filter | No custom code runs in GitHub's push path, so the check becomes a workflow on a pending branch followed by a fast-forward: a workflow run and tens of seconds per message, a rebase, a new signature and a new check whenever two messages race, and signature verification tied to one GitHub account per machine. The filter keeps GitHub's rules for what they do well — only the filter writes, nothing is force-pushed or deleted. |
+| **[FINOS GitProxy](https://github.com/finos/git-proxy)** (Apache-2.0, FINOS graduated) | Almost exactly a filter: it intercepts a push, runs a chain of processors that can reject it, holds it for approval and forwards it, over HTTPS and SSH. It is TypeScript on Node with MongoDB or NeDB, and brings its own UI and user model — a second approval flow beside Sokar's, and the check called from a plugin. Worth taking if people outside Sokar have to approve messages in a browser. |
+| **[Gerrit](https://gerrit-review.googlesource.com/Documentation/config-validation.html)** | Java, and a `CommitValidationListener` plugin rejects a push synchronously, with replication forwarding to GitHub. It is a whole code-review server with its own users and UI to run for a message filter. Worth taking if messages ever need real review with several reviewers. |
+| **[Llama Guard](https://huggingface.co/meta-llama/Llama-Guard-4-12B)** | Classifies content against a list of harms — violence, weapons, self-harm. Neither exfiltration nor prompt injection is on it; a workspace in base64 is harmless by its categories. |
+| **[NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails)** | A Python orchestration framework with its own rule language, not a detector: the detection comes from what it calls, which can be called directly. It would bring back the Python this project is removing from its build. |
+| AI security proxies such as [AegisGate](https://github.com/ax128/AegisGate) | The same kind of check, placed in front of a model's API rather than in front of git. |
+| [NATS](https://nats.io/about/) + JetStream, [Matrix](https://spec.matrix.org/latest/) via [continuwuity](https://continuwuity.org/introduction), [Prosody](https://prosody.im/) | Brokers and chat servers take transport and storage off the pile, and leave the policy, the hold and a verifiable record to be built on top — beside a daemon with its own authentication database. |
+| [Rekor](https://github.com/sigstore/rekor), [immudb](https://immudb.io/) | A transparency log proves more than a signed linear branch, and runs as another service. Worth revisiting if the record has to satisfy somebody who trusts neither the operator nor the forge. |
 
 ## Open questions this design leaves
 
-- **What a conversation means across a resume.** A resumed task gets a fresh namespace and a
-  ruleset rebuilt from the project, and the clearance path learned that a live-only change is gone
-  the moment the task comes back. A conversation is more than a live change and less than a project
-  setting. Reopening it silently would resume a dialogue neither agent remembers being in; closing
-  it makes `resume` lose something a person may have been watching.
-- **Whether `mcp-unix` works at all from inside a rootless container**, against a socket whose
-  access control is the directory around it, for an agent that was never told it is in a container.
-  This is the load-bearing unmeasured assumption of the whole delivery half, and it should be tested
-  against one real agent before the rest is built.
-- **Whether the conversation id should be per pair or per opening.** Per opening means two tasks
-  that talk twice have two records, which is right for the chain and awkward for a person looking
-  for "the conversation between these two".
-- **Whether `Listen` should replay a backlog.** An agent that connects late has missed messages that
-  were delivered while it was not reading. Replaying risks acting twice on the same instruction;
-  not replaying loses them silently. Neither is obviously right, and it cannot be left to the agent.
+- **Whether GitHub may store the conversations at all.** Behind the filter it still holds every one of
+  them in plaintext; a filter with no forward is a valid configuration.
+- **Where `talk/` sits in the container**, so that it is outside the workspace, survives what the
+  agent does to its working directory, and is not mistaken for part of the project.
+- **Whether a task may be in two groups.** It can carry what it read in one into the other.
+- **Membership changes are one-way.** A new member reads the whole history; a removed member keeps
+  what it fetched. Excluding somebody from the past means a new branch.
+- **Whether dialogue at fetch cadence is enough.** It is for handing work over and asking questions;
+  it is poor for fast back-and-forth, which was the one thing that justified a channel besides the
+  gate.
+- **Whether the five kinds are the right five.** They are a proposal; a kind added later is a schema
+  change every check and every gate must learn at once.
+- **A2A's part fields.** The specification page, which showed version 1.0.0 on 2026-09-13, was read
+  for the message's fields; the exact field names of a part were not, and the table above must be
+  checked against them.
+- **The classifier's licence, whether it runs from Java, and its threshold.** Unread, unmeasured, and
+  undecided.

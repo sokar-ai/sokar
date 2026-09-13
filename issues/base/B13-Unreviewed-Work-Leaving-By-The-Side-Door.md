@@ -1,6 +1,6 @@
 # B13 — Unreviewed Work Leaving By The Side Door
 
-**Status:** open, and asked for after a question nobody had asked: what happens when a person opens
+**Status:** in progress, and asked for after a question nobody had asked: what happens when a person opens
 the work in their own editor.
 
 The gate is built for the agent. Inside the container there is no credential for any forge, the
@@ -232,10 +232,11 @@ would make the queue cost what a listing must not.
   could not fail; a mutation adding the upstream as a remote sailed past it. Rewritten against a
   gate that has one, it fails as it should. That is the third fixture today that could not
   reproduce the thing it was asserting.
-- **Or review on a forge, which is a different trade.** Pushing the incoming ref to a review branch
-  on the upstream would give a person the diff view they already know - and it gives up the
-  property that unreviewed work never leaves the machine. Worth naming as an option rather than
-  dismissing, because for some teams the review tooling is worth more than that property.
+- ~~Or review on a forge~~ **Not by default, and possible by opting in.** Pushing the incoming ref to
+  a review branch on the upstream gives a person the diff view they already know, and gives up the
+  property that unreviewed work never leaves the machine. A `guarded` project does not do it unless
+  its `project.yml` opts in with the one setting that says unread work may leave - the same setting
+  that lets B14's messages leave unread ([index](README.md)).
 - **Whether attaching an editor to the container should be made to work anyway.** It is possible
   and it is currently blocked by the egress rules, and the workaround - declaring an editor
   vendor's hosts - widens the agent's reach for a person's benefit, which is backwards. `podman cp`
