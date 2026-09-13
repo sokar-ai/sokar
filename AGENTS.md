@@ -789,6 +789,20 @@ have lost every one.
   at a pty; it is the same mechanism `KernelKeyring` already uses, so it is in idiom rather than a
   new one.
 
+- **An agent's first-run dialogs are that agent's business, and answering them inside a task is not
+  a choice.** Rescued from B24 on 2026-09-13, when first-run consent moved to the agent
+  repositories. What stays here is the seam: `TaskLaunch.placeAgentFiles` places the files an agent
+  declares - the agent decides what is in them, Sokar writes the bytes, and nothing in Sokar
+  branches on an agent's name. A task with **no credential** gets an *empty token* rather than no
+  files at all, because two of Claude Code's three files have nothing to do with a credential:
+  returning early walked a task started without one into every dialog, by a route nobody had
+  looked at. Measured 2026-09-10: `prepared 2 file(s)`, and the CLI reached its prompt with no
+  dialog in between.
+
+  **A stub that cannot ask questions cannot notice an agent that does.** Two first-run dialogs
+  shipped past a green suite because the only agent that suite ever ran had none. Which dialogs
+  each agent shows, and what answers them, is recorded in that agent's own repository.
+
 ## The agent repositories consume what this one publishes
 
 **Push this repository first, and wait for it to publish.** The three agent repositories resolve

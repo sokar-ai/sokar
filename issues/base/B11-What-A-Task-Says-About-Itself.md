@@ -122,14 +122,14 @@ covers `Outcome`.
   from the wrapper that observes the process.
 
 - **~~Is work waiting on a clearance decision distinguishable from work waiting on its own
-  prompt?~~ Mostly answered by [B24](B24-First-Run-Consent-Inside-The-Box.md), 2026-09-11.** Inside
-  a task the agent's own prompts are turned off - the container is the answer - and B24's measured
-  outcome is a CLI reaching its prompt with no dialog at all. So the second kind is not a state to
-  display here; **an agent stopping to ask is a defect in B24's shape rather than something an
-  interface should learn to show**. What remains is the clearance decision, which this machine
+  prompt?~~ Mostly answered by the first-run consent work, 2026-09-11.** Inside a task the agent's
+  own prompts are turned off - the container is the answer - and the measured outcome was a CLI
+  reaching its prompt with no dialog at all. So the second kind is not a state to display here;
+  **an agent stopping to ask is a defect in that agent's first-run handling rather than something
+  an interface should learn to show**. What remains is the clearance decision, which this machine
   *knows* rather than infers: the resolver raised it, `Prompts` streams it, and it carries a
-  deadline. The residue worth keeping is narrow - an agent that ships a new dialog, which B24's
-  last acceptance criterion already watches for.
+  deadline. The residue worth keeping is narrow - an agent that ships a new dialog - and each agent
+  repository's acceptance watches for that, through B52 in `issues/base/README.md`.
 - **Does the mode survive a restart?** `Resume` brings a container back; whether it comes back as
   the same kind of thing decides whether the field is recorded once or re-derived, and an
   interface that showed a resumed task as a different mode from the one it was started as would

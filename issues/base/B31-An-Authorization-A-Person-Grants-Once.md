@@ -24,8 +24,8 @@ and that difference is the whole requirement.
 ## Three collisions with the box
 
 **There is no browser.** A container has none, and an unattended run has nobody to use one.
-[B24](B24-First-Run-Consent-Inside-The-Box.md) is about dialogs the box has already answered; this
-is a question the box genuinely cannot answer alone.
+First-run consent - the dialogs the box has already answered - is each agent repository's own
+business since 2026-09-13; this is a question the box genuinely cannot answer alone.
 
 **There is no way back in.** An authorization code is delivered to a redirect URI, conventionally
 `http://localhost:<port>`. The container has no inbound path, and when the person is not at this

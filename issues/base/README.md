@@ -36,7 +36,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | What must be true | Open question | Why here |
 |---|---|---|---|---|---|
-| B24 | [First-Run Consent Inside The Box](B24-First-Run-Consent-Inside-The-Box.md) | in progress | A task starts its agent and the agent works; nothing between asks a person a question the box already answered. | one, and one dialog is refused rather than solved | [note](#b24) |
+| B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | three, and the first is what an agent declares as "reached work" | [note](#b52) |
 | B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | in progress | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
 | B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | open | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
 | B49 | [What The Build Trusts To Run Beside Its Secrets](B49-What-The-Build-Trusts-To-Run-Beside-Its-Secrets.md) | open | Nothing runs beside this product's credentials that was fetched by a name its owner may repoint. | four, and the first decides whether it lasts | [note](#b49) |
@@ -145,8 +145,11 @@ changes what gets built rather than only how:
 Only the placements that are not obvious from the files themselves. Ranking is a property of the
 set, so it lives here and nowhere else.
 
-<a id="b24"></a>**B24 leads** because it is not a failure in the middle of long work; it is the
-first thing a new operator meets, and it stops a task before it starts.
+<a id="b52"></a>**B52 leads because three agent repositories are waiting on it and nobody else can
+build it.** First-run consent moved to the agent repositories on 2026-09-13, and each of them now
+has a task that fails its acceptance when a release adds a dialog. That needs one step all their
+scenarios share, and it lives in the kit because the kit is the only glue those scenarios have:
+written three times it would be three dialects of one check.
 
 <a id="b29"></a>**B29 sits above B28, the foundation it depends on.** A set that begins with its
 own foundation tends to sit unstarted. Building the smallest kind first makes the foundation's
@@ -179,7 +182,7 @@ decision. What it closes is a second lock on a door whose first lock is the uid:
 guards against is already running as the operator and can already read the vault file. It is worth
 doing and it is not urgent.
 
-<a id="b44"></a>**B44 is in Now although nothing is broken by it.** Everything it touches works; what fails is the operator. Asking to run an existing task accepted the name, built something else beside it, and removed that again on exit - three wrong turns, none of them reported, on the command a person reaches for first. It is above B27 because B27 is how it would have been caught, and below B24 because B24 stops work rather than confusing it.
+<a id="b44"></a>**B44 is in Now although nothing is broken by it.** Everything it touches works; what fails is the operator. Asking to run an existing task accepted the name, built something else beside it, and removed that again on exit - three wrong turns, none of them reported, on the command a person reaches for first. It is above B27 because B27 is how it would have been caught.
 
 <a id="b45"></a>**B45 is in Now although no code depends on it.** The documentation is what a person meets before any of it, and it currently answers a simple question - what can a project file hold - only by reading the reader's source. A third of it is one text maintained twice by hand. It is above B27 because B27 makes the product testable by a person and this makes it usable by one, and the second is what somebody hits first.
 
