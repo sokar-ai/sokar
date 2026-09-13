@@ -1,0 +1,2 @@
+title: "The publish job's index check reads the Debian index as an installer does, following Artifactory's redirect, and looks for the package it just published rather than any version of it."
+type: fixed
