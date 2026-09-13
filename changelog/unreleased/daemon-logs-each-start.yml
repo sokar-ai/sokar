@@ -1,0 +1,2 @@
+title: "sokard writes one log line for every Start, naming the task and its exit code, so a failed start leaves a trace on the machine."
+type: added

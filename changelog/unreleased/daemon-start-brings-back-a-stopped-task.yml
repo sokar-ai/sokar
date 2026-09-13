@@ -1,0 +1,2 @@
+title: "Start through the daemon brings back a stopped task, or says why it cannot, as 'sokar task start' does; it no longer treats the task as new and asks which agent to install."
+type: fixed

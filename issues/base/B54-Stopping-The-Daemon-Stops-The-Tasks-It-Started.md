@@ -24,7 +24,7 @@ task**:
     sokar gate serve           the git gate
     sokar shield watch         the clearance watcher
 
-**After it**, every one of those was gone, the container included, and the unit ended **`failed`**.
+**After it**, every one of those was gone, the container included.
 
 **After `start`**, the daemon listed the task as `Exited (143)`, `activity: DEAD`, `helpers: 0`,
 `startAction: RESUME`. Nothing on disk was lost - removing the task afterwards still discarded 29
@@ -53,14 +53,10 @@ every task it started on the way to recovering.
 CLI is not a child of the daemon and would not be in its control group. The same task, started from
 the interface, dies with the daemon.
 
-**A smaller defect beside it:** a stop somebody asked for leaves the unit `failed`. The symptom is
-measured; the likely cause is that the daemon ends a `SIGTERM` with the status `143` and the unit
-sets no `SuccessExitStatus=`.
-
 ## What must be true
 
 **Stopping, restarting or losing the daemon does not stop a task. A task ends when something asks
-for that task to end.** A requested stop of the daemon is reported as a stop, not as a failure.
+for that task to end.**
 
 ## Acceptance
 
@@ -70,7 +66,6 @@ for that task to end.** A requested stop of the daemon is reported as a stop, no
 - The same across a daemon that crashes and is restarted by systemd.
 - A task started through the daemon and one started from the CLI live in the same place, so how a
   task was started does not decide how long it lives.
-- `systemctl --user stop sokard` leaves the unit `inactive`, not `failed`.
 - A test fails if a task's process is ever found in the daemon's own control group again.
 
 ## Open questions

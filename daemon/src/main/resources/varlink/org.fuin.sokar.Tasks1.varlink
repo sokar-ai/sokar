@@ -128,6 +128,11 @@ type StartAction (
   # Its name carries a run id from before one container per task, so nothing maps it to a task and
   # nothing starts it. Remove is what applies. 'startDetail' names the task it belonged to.
   SUPERSEDED_NAME,
+  # It was started before this machine restarted. Its sockets were under the runtime directory,
+  # which the system clears on restart, and the container is bound to one of them, so Start
+  # refuses. The workspace is still inside the container: 'startDetail' says how to copy it out
+  # before Remove.
+  PREDATES_RESTART,
   # Something not specific to this task is in the way - project file, agent, provider or
   # credential. 'startDetail' carries the StartOutcome value naming which.
   NOT_READY

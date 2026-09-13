@@ -7,6 +7,8 @@ Type=simple
 ExecStart=/usr/bin/sokard
 Restart=on-failure
 RestartSec=2
+# A stop somebody asked for ends the daemon with SIGTERM, which it reports as 143. Not a failure.
+SuccessExitStatus=143
 
 # No NoNewPrivileges: the first rootless podman after a boot needs the setuid newuidmap and
 # newgidmap. Everything else it uses is what the user already has - it drives podman, git and an

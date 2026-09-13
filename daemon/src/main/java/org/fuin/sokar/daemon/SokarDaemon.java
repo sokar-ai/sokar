@@ -778,7 +778,15 @@ public final class SokarDaemon {
             final java.util.concurrent.atomic.AtomicReference<String> started =
                     new java.util.concurrent.atomic.AtomicReference<>("");
             final TaskLaunch launch = new TaskLaunch(context, request(parameters));
-            final int code = launch.launch(sink, sink, running -> {
+            // A task that already exists is brought back, not created again - the same call the
+            // CLI makes first, so a stopped task answers the same over the socket as at a terminal.
+            final TaskLaunch.Existing existing = launch.startExisting(sink, sink);
+            final int code;
+            if (existing != null) {
+                started.set(existing.container());
+                code = existing.code();
+            } else {
+                code = launch.launch(sink, sink, running -> {
                         started.set(running.container());
                         // With a prompt this is an unattended run and has to actually run: a task
                         // started over the socket is as unattended as one started at a terminal,
@@ -791,7 +799,10 @@ public final class SokarDaemon {
                         return launch.runAgent(running.runner(), running.selected(),
                                 running.container(), running.environment(), sink, sink);
                     });
+            }
             sink.flush();
+            // The one trace a start leaves on the machine: what was output went to the caller only.
+            System.out.println(startLine(text(parameters, "task"), started.get(), code));
             replies.last(Map.of("container", started.get(), "exitCode", code,
                     "output", replies.streaming() ? List.of()
                             : List.of(collected.toString().split("\n", -1))));
@@ -1169,6 +1180,21 @@ public final class SokarDaemon {
         row.put("unverified", artifact.unverified());
         row.put("reason", artifact.reason() == null ? "" : artifact.reason());
         return row;
+    }
+
+    /**
+     * Returns the log line one Start leaves behind.
+     * <p>
+     * Names and the outcome only: a request can carry a prompt, and a log is not where that goes.
+     *
+     * @param task The task name asked for, or empty for the default.
+     * @param container The container it produced or found, or empty when there is none.
+     * @param code The exit code the caller was given.
+     * @return One line.
+     */
+    static String startLine(String task, String container, int code) {
+        final String name = !container.isEmpty() ? container : task.isEmpty() ? "shell" : task;
+        return "start " + name + ": exit " + code;
     }
 
     private static TaskLaunch.Request request(Map<String, Object> parameters) {

@@ -44,12 +44,17 @@ public final class TaskInventory {
      * @param clearance What it does with a blocked connection, or {@code null} when nothing
      *        recorded it. {@code off} means nothing asks and nothing is refused, which is the one
      *        state that has to be visible wherever the task is listed.
+     * @param label A caption somebody gave it, or {@code null}.
+     * @param waiting 1 when its own work is waiting at the gate, 0 otherwise.
+     * @param startAction What Start would do to it: RUNNING, RESUME or PREDATES_RESTART.
+     * @param startDetail Why, when startAction is a refusal; empty otherwise.
      */
     public record Task(String name, @Nullable String project, @Nullable String securityClass,
             String state, boolean running, long helpers, @Nullable String agent,
             @Nullable String mode, @Nullable String prompt, @Nullable String branch,
             String since, Activity activity, @Nullable String waitingFor,
-            @Nullable String clearance, @Nullable String label, int waiting) {
+            @Nullable String clearance, @Nullable String label, int waiting,
+            String startAction, String startDetail) {
 
         /**
          * Returns this task as plain values, for a caller that has to put it on a wire.
@@ -90,7 +95,8 @@ public final class TaskInventory {
             map.put("task", within);
 
             // What Start would do to this task, answered before anybody presses it. A listed task
-            // exists by definition, so CREATE cannot appear here.
+            // exists by definition, so CREATE cannot appear here. Worked out where the state
+            // directory is at hand; PREDATES_RESTART comes from there.
             //
             // Two values this does NOT yet produce, and both are absences rather than oversights:
             //
@@ -102,8 +108,8 @@ public final class TaskInventory {
             //
             // A client renders a value it does not know rather than failing on it, so both can
             // start appearing without breaking anything.
-            map.put("startAction", running ? "RUNNING" : "RESUME");
-            map.put("startDetail", "");
+            map.put("startAction", startAction);
+            map.put("startDetail", startDetail);
 
             // Nothing records a phase yet. "" is the honest answer for a task that is in none,
             // and it is what every task answers until a detached Start has something to report.
@@ -240,7 +246,17 @@ public final class TaskInventory {
                         ? 0
                         : waitingIn(waitingCache, sidecar == null ? null : sidecar.project())
                                 .contains(profile.branch().substring(
-                                        org.fuin.sokar.gate.GitGate.INCOMING.length())) ? 1 : 0);
+                                        org.fuin.sokar.gate.GitGate.INCOMING.length())) ? 1 : 0,
+                // The same test resume makes, and a directory check rather than a runtime call:
+                // a stopped task with no state directory was started before this machine
+                // restarted, and Start would refuse it. Said here so nobody learns it by pressing.
+                !summary.running() && !Files.isDirectory(state) ? "PREDATES_RESTART"
+                        : summary.running() ? "RUNNING" : "RESUME",
+                !summary.running() && !Files.isDirectory(state)
+                        ? "started before this machine restarted; copy the workspace out with"
+                                + " 'podman cp " + summary.name() + ":/workspace ./recovered',"
+                                + " then 'sokar task remove " + summary.name() + " --force'"
+                        : "");
     }
 
     /**

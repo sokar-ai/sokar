@@ -33,11 +33,12 @@ if [ "${1:-}" != "--skip-build" ]; then
 fi
 
 DEB="$(ls -t "$ROOT"/dist-deb/target/sokar_*.deb | head -1)"
-AGENT_DEB="$(ls -t "$ROOT"/agents/stub/target/sokar-agent-stub_*.deb 2>/dev/null | head -1 || true)"
+AGENT_STUB="$ROOT/agents/stub/target/sokar-agent-stub"
+[ -x "$AGENT_STUB" ] || AGENT_STUB=""
 [ -n "$DEB" ] || { echo "no sokar deb in dist-deb/target"; exit 1; }
 say "installing $(basename "$DEB")"
 
-scp "${SSH_OPTS[@]}" -q "$DEB" ${AGENT_DEB:+"$AGENT_DEB"} "$VM:/tmp/"
+scp "${SSH_OPTS[@]}" -q "$DEB" ${AGENT_STUB:+"$AGENT_STUB"} "$VM:/tmp/"
 
 # --force-downgrade because a machine may carry a version that outranks this one. That used to be
 # routine: before the '+local' marker a local build had to claim a higher run number to install at
@@ -46,7 +47,11 @@ scp "${SSH_OPTS[@]}" -q "$DEB" ${AGENT_DEB:+"$AGENT_DEB"} "$VM:/tmp/"
 ssh "${SSH_OPTS[@]}" "$VM" "
     set -eu
     sudo dpkg -i --force-downgrade /tmp/$(basename "$DEB")
-    ${AGENT_DEB:+sudo dpkg -i --force-downgrade /tmp/$(basename "$AGENT_DEB")}
+    # The acceptance suite runs '--agent stub', so it goes in - for this user only. As a package it
+    # was an agent every account could pick, on a machine people also use, and a second agent there
+    # turned the operator's own Start into 'Several agents are installed'.
+    if dpkg -s sokar-agent-stub >/dev/null 2>&1; then sudo dpkg -r sokar-agent-stub; fi
+    ${AGENT_STUB:+install -D -m 0755 /tmp/sokar-agent-stub \$HOME/.local/share/sokar/agents/sokar-agent-stub}
     echo
     echo 'installed: '\$(dpkg-query -W -f='\${Version}' sokar)
     echo 'binary says: '\$(sokar --version)

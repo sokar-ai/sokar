@@ -1,0 +1,2 @@
+title: "Stopping sokard through systemd leaves its unit inactive rather than failed, and an agent that cannot be chosen is reported as a sentence rather than as an exception."
+type: fixed

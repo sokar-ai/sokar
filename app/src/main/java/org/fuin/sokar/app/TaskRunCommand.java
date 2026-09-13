@@ -155,70 +155,6 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 : org.fuin.sokar.wire.TaskMode.AGENT;
     }
 
-    /**
-     * Brings back the task's container when it already has one.
-     * <p>
-     * The question this answers is the one the caller cannot: a task name maps to exactly one
-     * container now, so it either exists or it does not. Running is refused rather than started
-     * twice - a second container for one task would share the project's mirror and its gate with
-     * the first.
-     *
-     * @param out Where to report.
-     * @param err Where to refuse.
-     * @return An exit code when this handled it, or {@code null} when there is nothing to bring
-     *         back and the task has to be created.
-     */
-    private @org.jspecify.annotations.Nullable Integer startExisting(PrintWriter out,
-            PrintWriter err) {
-
-        if (dryRun) {
-            // A dry run must touch nothing, and asking the runtime what exists is touching it.
-            // The launch says what it would do; whether a container is already there does not
-            // change that answer, only which half of this command would produce it.
-            return null;
-        }
-        if (context.hooks().registration()
-                != org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE) {
-            // Refused by the launch below, and it must be refused before anything is asked of the
-            // runtime: a machine whose hooks are missing cannot start a task either way, and the
-            // first thing somebody sees should be the reason rather than a podman call.
-            return null;
-        }
-
-        final org.fuin.sokar.core.project.Project project;
-        try {
-            project = org.fuin.sokar.core.project.ProjectReader.read(projectFile);
-        } catch (RuntimeException ex) {
-            // Not this method's refusal to make: the launch below reads the same file and says
-            // what is wrong with it far better than a guess here would.
-            return null;
-        }
-
-        final String container = context.tasks().containerName(project, task);
-        final java.util.Optional<org.fuin.sokar.runtime.ContainerSummary> summary =
-                context.podman().sokarTasks().stream()
-                        .filter(found -> found.name().equals(container)).findFirst();
-        if (summary.isEmpty()) {
-            return null;
-        }
-        if (summary.get().running()) {
-            err.println("sokar: " + container + " is already running");
-            err.println("       go into it with 'sokar task attach " + container + "'.");
-            err.flush();
-            return 65;
-        }
-
-        // Its workspace, its branch and its uncommitted changes are all in that container. What
-        // has to be started again is everything that lives on the host, which is what resume does.
-        final int resumed = TaskResumeCommand.resume(context, container, out, err, null);
-        if (resumed != 0 || detach) {
-            return resumed;
-        }
-        return context.exec().applyAsInt(
-                context.tasks().attachCommand(container, shell, null,
-                        project.name() + "/" + task));
-    }
-
     @Override
     public Integer call() {
 
@@ -234,16 +170,20 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return 64;
         }
 
-        final Integer existing = startExisting(out, err);
-        if (existing != null) {
-            return existing;
-        }
-
         // Starting the task is the domain's job; what this class adds is the terminal. The
         // daemon builds the same request and gets the same behavior without running a CLI.
         final TaskLaunch launch = new TaskLaunch(context, new TaskLaunch.Request(task, projectFile,
                 agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
                 clearance, !rm, mode(), prompt, model, maxTurns, minutes));
+
+        final TaskLaunch.Existing existing = launch.startExisting(out, err);
+        if (existing != null) {
+            if (existing.code() != 0 || detach) {
+                return existing.code();
+            }
+            return context.exec().applyAsInt(context.tasks().attachCommand(existing.container(),
+                    shell, null, existing.project() + "/" + task));
+        }
 
         return launch.launch(out, err, running -> {
 

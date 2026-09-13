@@ -78,6 +78,95 @@ class SokarDaemonTest {
         void accept(Path socket) throws Exception;
     }
 
+    /** A context whose hooks are installed, which Start insists on before it looks at a task. */
+    private SokarContext hooked(Path dir) throws IOException {
+        final SokarContext context = context(dir);
+        Files.createDirectories(dir.resolve("bin"));
+        for (final String name : List.of("sokar-hook-nft", "sokar-hook-supervisor",
+                "sokar-hook-reader")) {
+            final Path binary = dir.resolve("bin").resolve(name);
+            Files.writeString(binary, "#!/bin/sh\n");
+            binary.toFile().setExecutable(true);
+        }
+        new org.fuin.sokar.runtime.HookInstaller(context.paths().hooksDirectory(),
+                context.paths().binaryDirectory()).install();
+        return context;
+    }
+
+    private Path projectFile(Path dir) throws IOException {
+        final Path file = dir.resolve("project.yml");
+        Files.writeString(file, """
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                """);
+        return file;
+    }
+
+    @Test
+    void startBringsBackAStoppedTaskRatherThanCreatingIt(@TempDir Path dir) throws Exception {
+
+        // Reported from the interface: Start on a stopped task went down the path that creates a
+        // task, asked which agent to install and answered with an exception's class name, while
+        // 'sokar task start' on the same task said why it could not come back. This one has no
+        // state directory, so it was started before the machine restarted.
+        final SokarContext context = hooked(dir);
+        final Path project = projectFile(dir);
+        runner.answering("container inspect", "c0ffee\n");
+        runner.answering("ps",
+                "sokar-uc-shell\tExited (143) 1 day ago\t1700000000\t1700000100\tuc\tguarded\n");
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Start",
+                        Map.of("project", project.toString(), "task", "shell"));
+
+                assertThat(((Number) reply.get("exitCode")).intValue()).isEqualTo(69);
+                assertThat(reply).containsEntry("container", "sokar-uc-shell");
+                @SuppressWarnings("unchecked")
+                final List<String> output = (List<String>) reply.get("output");
+                assertThat(String.join("\n", output))
+                        .contains("before this machine restarted")
+                        .contains("podman cp sokar-uc-shell:/workspace")
+                        .doesNotContain("--agent is required")
+                        .doesNotContain("Exception");
+            }
+        });
+        assertThat(runner.lines()).as("nothing is built for a task that already exists")
+                .noneMatch(line -> line.startsWith("podman build"));
+    }
+
+    @Test
+    void startRefusesATaskThatIsAlreadyRunning(@TempDir Path dir) throws Exception {
+
+        final SokarContext context = hooked(dir);
+        final Path project = projectFile(dir);
+        runner.answering("ps", "sokar-uc-shell\tUp 4 minutes\t1700000000\t0\tuc\tguarded\n");
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Start",
+                        Map.of("project", project.toString(), "task", "shell"));
+
+                assertThat(((Number) reply.get("exitCode")).intValue()).isEqualTo(65);
+                @SuppressWarnings("unchecked")
+                final List<String> output = (List<String>) reply.get("output");
+                assertThat(String.join("\n", output)).contains("is already running");
+            }
+        });
+    }
+
+    @Test
+    void logsAStartByNameAndOutcomeOnly() {
+        assertThat(SokarDaemon.startLine("shell", "sokar-uc-shell", 0))
+                .isEqualTo("start sokar-uc-shell: exit 0");
+        // A start that failed before a container existed still names what was asked for.
+        assertThat(SokarDaemon.startLine("build", "", 70)).isEqualTo("start build: exit 70");
+        assertThat(SokarDaemon.startLine("", "", 69)).isEqualTo("start shell: exit 69");
+    }
+
     @Test
     void saysWhatStartingEachTaskWouldDo(@TempDir Path dir) throws Exception {
 
@@ -86,9 +175,14 @@ class SokarDaemonTest {
         // A listed task exists by definition, so CREATE cannot appear here.
         runner.answering("ps",
                 "sokar-uc-shell\tUp 4 minutes\t1700000000\t0\tuc\tguarded\n"
-                + "sokar-uc-build\tExited (0) 2 minutes ago\t1700000000\t1700000100\tuc\tguarded\n");
+                + "sokar-uc-build\tExited (0) 2 minutes ago\t1700000000\t1700000100\tuc\tguarded\n"
+                + "sokar-uc-old\tExited (143) 1 day ago\t1700000000\t1700000100\tuc\tguarded\n");
+        final SokarContext context = context(dir);
+        // A stopped task that still has its state directory comes back. One without it was started
+        // before the machine restarted, which is what an emptied runtime directory leaves.
+        Files.createDirectories(context.paths().containerState("sokar-uc-build"));
 
-        serving(dir, socket -> {
+        servingContext(context, dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
                 final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".List",
                         Map.of());
@@ -106,7 +200,15 @@ class SokarDaemonTest {
 
                 // Stopped: starting it brings it back with the workspace it has.
                 assertThat(tasks.get(1)).containsEntry("startAction", "RESUME")
-                        .containsEntry("task", "build");
+                        .containsEntry("task", "build")
+                        .containsEntry("startDetail", "");
+
+                // Stopped before the machine restarted: refused before anybody presses Start,
+                // with the way to keep the work.
+                assertThat(tasks.get(2)).containsEntry("startAction", "PREDATES_RESTART")
+                        .containsEntry("task", "old");
+                assertThat((String) tasks.get(2).get("startDetail"))
+                        .contains("podman cp sokar-uc-old:/workspace");
             }
         });
     }

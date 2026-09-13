@@ -137,6 +137,75 @@ public final class TaskLaunch {
     }
 
     /**
+     * A task that was already there, and what bringing it back came to.
+     *
+     * @param container Container name.
+     * @param project Name of the project it belongs to.
+     * @param code Exit code: 0 when it is up again, a refusal otherwise.
+     */
+    public record Existing(String container, String project, int code) {
+    }
+
+    /**
+     * Brings back the task's container when it already has one.
+     * <p>
+     * Here rather than in the command, because the daemon starts tasks too: while this lived in
+     * {@code TaskRunCommand}, Start over the socket treated a stopped task as a new one, asked
+     * which agent to install and never reached the reason it could not come back.
+     * <p>
+     * A task name maps to exactly one container, so it either exists or it does not. Running is
+     * refused rather than started twice - a second container for one task would share the
+     * project's mirror and its gate with the first.
+     *
+     * @param out Where to report.
+     * @param err Where to refuse.
+     * @return What happened, or {@code null} when there is nothing to bring back and the task has
+     *         to be created.
+     */
+    public @Nullable Existing startExisting(PrintWriter out, PrintWriter err) {
+
+        if (request.dryRun()) {
+            // A dry run must touch nothing, and asking the runtime what exists is touching it.
+            // The launch says what it would do; the listing's startAction says which case applies.
+            return null;
+        }
+        if (context.hooks().registration()
+                != org.fuin.sokar.runtime.HookInstaller.Registration.ACTIVE) {
+            // Refused by the launch, and before anything is asked of the runtime: a machine whose
+            // hooks are missing cannot start a task either way.
+            return null;
+        }
+
+        final Project project;
+        try {
+            project = ProjectReader.read(request.projectFile());
+        } catch (RuntimeException ex) {
+            // Not this method's refusal to make: the launch reads the same file and says what is
+            // wrong with it far better than a guess here would.
+            return null;
+        }
+
+        final String container = context.tasks().containerName(project, request.task());
+        final java.util.Optional<org.fuin.sokar.runtime.ContainerSummary> summary =
+                context.podman().sokarTasks().stream()
+                        .filter(found -> found.name().equals(container)).findFirst();
+        if (summary.isEmpty()) {
+            return null;
+        }
+        if (summary.get().running()) {
+            err.println("sokar: " + container + " is already running");
+            err.println("       go into it with 'sokar task attach " + container + "'.");
+            err.flush();
+            return new Existing(container, project.name(), 65);
+        }
+
+        // Its workspace, its branch and its uncommitted changes are all in that container. What
+        // has to be started again is everything that lives on the host, which is what resume does.
+        return new Existing(container, project.name(),
+                TaskResumeCommand.resume(context, container, out, err, null));
+    }
+
+    /**
      * Starts a task and hands the running thing back to the caller.
      *
      * @param out Where progress is reported.
@@ -416,6 +485,12 @@ public final class TaskLaunch {
             err.println("sokar: " + ex.getMessage());
             err.flush();
             return cleanUp(runner, container, 70, out);
+        } catch (org.fuin.sokar.agent.api.AgentException ex) {
+            // "Several agents are installed" is a sentence for a person. Printed as an object it
+            // reached an interface as a Java class name, which says nothing about what to do.
+            err.println("sokar: " + ex.getMessage());
+            err.flush();
+            return cleanUp(runner, container, 69, out);
         } catch (Exception ex) {
             err.println("sokar: " + ex);
             err.flush();
