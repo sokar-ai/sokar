@@ -133,6 +133,23 @@ public final class Leg {
             run(build, "rm -rf " + REPO + " && mkdir -p " + REPO
                     + " && tar -x -C " + REPO + " -f /tmp/tree.tar && rm -f /tmp/tree.tar");
 
+            // Before anything here runs podman, because that is the only moment the fault shows.
+            // With NoNewPrivileges=yes the unit could not set up rootless podman's user namespace
+            // after a boot, and every daemon started any other way - by hand here, by tier 1, or
+            // after somebody had run podman at a terminal - sailed past it. The unit's own
+            // [Service] properties are applied to one podman call that has to make that namespace,
+            // and a pause process that already exists would prove nothing, so it is refused.
+            step("rootless podman under the daemon unit's own properties, first after boot");
+            run(build, "pause=\"$XDG_RUNTIME_DIR/libpod/tmp/pause.pid\";"
+                    + " if [ -f \"$pause\" ] && kill -0 \"$(cat \"$pause\")\" 2>/dev/null; then"
+                    + " echo 'a pause process already exists, so this would prove nothing'; exit 1; fi;"
+                    + " set -- $(sed -n '/^\\[Service\\]/,/^\\[/p' " + REPO + "/systemd/sokard.service"
+                    + " | grep -E '^[A-Za-z]+=' | grep -v -E '^(Type|ExecStart|Restart|RestartSec)='"
+                    + " | sed 's/^/-p /');"
+                    + " echo \"unit properties: ${*:-none}\";"
+                    + " systemd-run --user --wait --pipe --collect --quiet \"$@\" podman unshare true"
+                    + " && echo 'rootless podman set up its namespace under the unit'");
+
             step("building");
             run(build, build(System.getenv("GITHUB_RUN_ID"),
                     System.getenv("GITHUB_RUN_NUMBER")));

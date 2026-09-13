@@ -1,0 +1,2 @@
+title: "sokard started through its systemd unit can use rootless podman after a boot; the unit no longer sets NoNewPrivileges, which kept podman from setting up its user namespace."
+type: fixed

@@ -52,7 +52,15 @@ everything belonging to the user at logout:
 This matters exactly for the case the unit exists for — an interface on another machine reaching
 this one through an ssh forward, when nobody is logged in at it.
 
-## Two things deliberately not here
+## Three things deliberately not here
+
+**No `NoNewPrivileges=yes`.** It reads as free hardening, and it breaks the daemon after every boot.
+The first rootless podman call sets up the user namespace through the setuid `newuidmap` and
+`newgidmap` and starts podman's pause process; no-new-privileges forbids exactly that. Under it the
+daemon works only while something outside the unit has already run podman, so it passes on a machine
+somebody has been using and reports podman missing on a fresh boot. Measured on 2026-09-13: with it,
+`newuidmap: write to uid_map failed: Operation not permitted`; without it, rootless networking
+through `pasta`.
 
 **No `RuntimeDirectory=sokar`.** It would be the obvious line, and it is a trap: the same runtime
 directory holds each task's state, and systemd removes what it creates when the unit stops. The
