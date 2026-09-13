@@ -32,54 +32,56 @@ There is deliberately no value for *met*. **A requirement that is finished is de
 its row, in the same change that finishes it - and whatever it measured that outlives it is written
 into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is still to do.
 
+**Blocks** names the issues in other repositories that cannot be worked on until that row lands. The agent repositories and the interface mark the same relation from their side as *blocked by*, so a dependency is visible from both ends and neither side has to remember the other's. A row that blocks something elsewhere costs more to leave waiting than its position here suggests: the waiting happens in another repository's queue.
+
 ### Now
 
-| # | Requirement | Status | What must be true | Open question | Why here |
-|---|---|---|---|---|---|
-| B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | three, and the first is what an agent declares as "reached work" | [note](#b52) |
-| B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | in progress | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
-| B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | open | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
-| B49 | [What The Build Trusts To Run Beside Its Secrets](B49-What-The-Build-Trusts-To-Run-Beside-Its-Secrets.md) | open | Nothing runs beside this product's credentials that was fetched by a name its owner may repoint. | four, and the first decides whether it lasts | [note](#b49) |
-| B50 | [Whose Business The Files Sokar Leaves Behind Are](B50-Whose-Business-The-Files-Sokar-Leaves-Behind-Are.md) | open | Every file Sokar writes is readable by whoever it concerns, and by nobody else - including on machines that already ran tasks. | four, and the first is whether the umask is fought directly | [note](#b50) |
-| B51 | [The Tests That Run Nowhere](B51-The-Tests-That-Run-Nowhere.md) | open | A test that cannot run anywhere in the pipeline says so, rather than reporting itself as skipped on this run. | two, and the first is whether a leg runs the unit tests on the machine | [note](#b51) |
-| A01 | [Pi Forge Subscription](A01-Pi-Forge-Subscription.md) | in progress | A credential that belongs to a provider rather than an agent is obtained on the host, stored, and used by a task that never sees it. | see the file | [note](#a01) |
-| B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | in progress | What a person does at a terminal is tested by the build, on a real machine, and reported case by case - including the eleven scenarios that today run nowhere. | six, three decided | |
-| B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | open | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file | [note](#b29) |
-| B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | decided | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one | |
+| # | Requirement | Status | Blocks | What must be true | Open question | Why here |
+|---|---|---|---|---|---|---|
+| B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | sokar-claude-code 009, sokar-pi 007, sokar-omp 007 | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | three, and the first is what an agent declares as "reached work" | [note](#b52) |
+| B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | in progress | - | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
+| B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | open | - | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
+| B49 | [What The Build Trusts To Run Beside Its Secrets](B49-What-The-Build-Trusts-To-Run-Beside-Its-Secrets.md) | open | - | Nothing runs beside this product's credentials that was fetched by a name its owner may repoint. | four, and the first decides whether it lasts | [note](#b49) |
+| B50 | [Whose Business The Files Sokar Leaves Behind Are](B50-Whose-Business-The-Files-Sokar-Leaves-Behind-Are.md) | open | - | Every file Sokar writes is readable by whoever it concerns, and by nobody else - including on machines that already ran tasks. | four, and the first is whether the umask is fought directly | [note](#b50) |
+| B51 | [The Tests That Run Nowhere](B51-The-Tests-That-Run-Nowhere.md) | open | - | A test that cannot run anywhere in the pipeline says so, rather than reporting itself as skipped on this run. | two, and the first is whether a leg runs the unit tests on the machine | [note](#b51) |
+| A01 | [Pi Forge Subscription](A01-Pi-Forge-Subscription.md) | in progress | - | A credential that belongs to a provider rather than an agent is obtained on the host, stored, and used by a task that never sees it. | see the file | [note](#a01) |
+| B27 | [Testing What A Person Actually Does](B27-Testing-What-A-Person-Actually-Does.md) | in progress | - | What a person does at a terminal is tested by the build, on a real machine, and reported case by case - including the eleven scenarios that today run nowhere. | six, three decided | |
+| B29 | [Keys Presented As They Are Stored](B29-Keys-Presented-As-They-Are-Stored.md) | open | - | A stored key reaches its destination as it is stored, in the header or the URL that destination asks for. | see the file | [note](#b29) |
+| B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | decided | - | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one | |
 
 ### Soon
 
-| # | Requirement | Status | What must be true | Open question | Why here |
-|---|---|---|---|---|---|
-| B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | open | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file | |
-| B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | open | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file | |
-| B31 | [An Authorization A Person Grants Once](B31-An-Authorization-A-Person-Grants-Once.md) | open | A person grants an authorization once, out of band, while the work waits. | see the file | |
-| B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | in progress | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | two | |
-| B25 | [Names The Operator Should Not Have To Find](B25-Names-The-Operator-Should-Not-Have-To-Find.md) | in progress | A command that needs a name Sokar already knows never makes the operator go and find it. | three, and two of three parts are built | |
-| B33 | [A Task's Own Fetches](B33-A-Tasks-Own-Fetches.md) | open | A task can fetch from the forges its work depends on, and a failure to do so is never reported as a credential problem. | three, and the first is whether it reproduces | |
-| B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | open | A machine can say what it has done, for longer than the tasks themselves existed. | three, and four are decided | [note](#b26) |
-| B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | open | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | six, and four are decided | [note](#b39) |
-| B43 | [Tasks After The Machine Restarts](B43-Tasks-After-The-Machine-Restarts.md) | open | A restart is visibly why tasks are down, and getting them back needs no list of names. | four, and B44 took its cause | [note](#b43) |
-| B46 | [The Conversation A Restart Loses](B46-The-Conversation-A-Restart-Loses.md) | open | A task that comes back continues the conversation it was having, where its agent can name one, and says plainly when it cannot. | four, and the scope is decided | [note](#b46) |
-| B47 | [What The Agent Is Doing, Read From Outside](B47-What-The-Agent-Is-Doing-Read-From-Outside.md) | open | A task waiting on a person says so, derived from output the host already has, declared by the agent that wrote it, and marked as derived. The daemon's half; what each agent declares is tracked in that agent's own repository. | four, and the engine one is answered by a recommendation | [note](#b47) |
-| B48 | [The Overview That Stays Open](B48-The-Overview-That-Stays-Open.md) | open | A person at a terminal watches their tasks change, from the same answer the interface reads, without a loop they wrote themselves. | four, and the first two decide its shape | [note](#b48) |
-| B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | open | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it | |
-| B06 | [Remote Access](B06-Remote-Access.md) | open | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | four | |
-| B40 | [The Domain That May Bind The Socket](B40-The-Domain-That-May-Bind-The-Socket.md) | open | Only Sokar may bind a socket carrying Sokar's label, so a task that connects to one reaches Sokar. | four, and the first decides the shape | [note](#b40) |
-| B41 | [What a Packaged Agent Installs](B41-What-A-Packaged-Agent-Installs.md) | open | `--supply-chain` says what a packaged agent's package ships, read from the bill that package installed. | two, and the first is whose job the reading is | |
+| # | Requirement | Status | Blocks | What must be true | Open question | Why here |
+|---|---|---|---|---|---|---|
+| B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | open | - | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file | |
+| B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | open | - | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file | |
+| B31 | [An Authorization A Person Grants Once](B31-An-Authorization-A-Person-Grants-Once.md) | open | the interface half, in sokar-frontend - number pending | A person grants an authorization once, out of band, while the work waits. | see the file | |
+| B01 | [Refreshable Task Tokens](B01-Refreshable-Task-Tokens.md) | in progress | - | An agent that renews an expiring credential must not be broken by holding a task-scoped one. | two | |
+| B25 | [Names The Operator Should Not Have To Find](B25-Names-The-Operator-Should-Not-Have-To-Find.md) | in progress | - | A command that needs a name Sokar already knows never makes the operator go and find it. | three, and two of three parts are built | |
+| B33 | [A Task's Own Fetches](B33-A-Tasks-Own-Fetches.md) | open | - | A task can fetch from the forges its work depends on, and a failure to do so is never reported as a credential problem. | three, and the first is whether it reproduces | |
+| B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | open | - | A machine can say what it has done, for longer than the tasks themselves existed. | three, and four are decided | [note](#b26) |
+| B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | open | - | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | six, and four are decided | [note](#b39) |
+| B43 | [Tasks After The Machine Restarts](B43-Tasks-After-The-Machine-Restarts.md) | open | - | A restart is visibly why tasks are down, and getting them back needs no list of names. | four, and B44 took its cause | [note](#b43) |
+| B46 | [The Conversation A Restart Loses](B46-The-Conversation-A-Restart-Loses.md) | open | the agent half, in all three agent repositories - numbers pending | A task that comes back continues the conversation it was having, where its agent can name one, and says plainly when it cannot. | four, and the scope is decided | [note](#b46) |
+| B47 | [What The Agent Is Doing, Read From Outside](B47-What-The-Agent-Is-Doing-Read-From-Outside.md) | open | sokar-claude-code 005, sokar-pi 005, sokar-omp 005 | A task waiting on a person says so, derived from output the host already has, declared by the agent that wrote it, and marked as derived. The daemon's half; what each agent declares is tracked in that agent's own repository. | four, and the engine one is answered by a recommendation | [note](#b47) |
+| B48 | [The Overview That Stays Open](B48-The-Overview-That-Stays-Open.md) | open | - | A person at a terminal watches their tasks change, from the same answer the interface reads, without a loop they wrote themselves. | four, and the first two decide its shape | [note](#b48) |
+| B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | open | - | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it | |
+| B06 | [Remote Access](B06-Remote-Access.md) | open | - | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | four | |
+| B40 | [The Domain That May Bind The Socket](B40-The-Domain-That-May-Bind-The-Socket.md) | open | - | Only Sokar may bind a socket carrying Sokar's label, so a task that connects to one reaches Sokar. | four, and the first decides the shape | [note](#b40) |
+| B41 | [What a Packaged Agent Installs](B41-What-A-Packaged-Agent-Installs.md) | open | - | `--supply-chain` says what a packaged agent's package ships, read from the bill that package installed. | two, and the first is whose job the reading is | |
 
 ### Later
 
-| # | Requirement | Status | What must be true | Open question | Why here |
-|---|---|---|---|---|---|
-| B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | open | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have | |
-| B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | open | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | three, and one is a one-line fix | |
-| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | open | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | eight, including whether to build it | [note](#b14) |
-| B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | open | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 | |
-| B37 | [The Build That Runs Somewhere Else](B37-The-Build-That-Runs-Somewhere-Else.md) | open | A task learns the verdict and the reason for the build its own work triggered, without reaching the forge and without holding a forge credential. | seven, and the first may end it | [note](#b37) |
-| B38 | [How Far Something That Got Through Can Get](B38-How-Far-Something-That-Got-Through-Can-Get.md) | open | How far a convinced agent can get is bounded where it can be, named where it cannot, and the reviewer sees what matters before what is merely large. | six, and one may have no answer | [note](#b38) |
-| B42 | [Where The Agent Protocols Touch This](B42-Where-The-Agent-Protocols-Touch-This.md) | open | Each of A2A, MCP, ACP and AG-UI is adopted, answered otherwise, or refused - with the reason. | five, and the first decides whether ACP is interesting at all | [note](#b42) |
-| B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | open | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | two | [note](#b08) |
+| # | Requirement | Status | Blocks | What must be true | Open question | Why here |
+|---|---|---|---|---|---|---|
+| B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | open | - | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have | |
+| B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | open | - | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | three, and one is a one-line fix | |
+| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | open | - | Two tasks can hold a conversation that is recorded before it is delivered, attributed by the socket it arrived on, declared by both projects, refused across security classes, and stoppable while it runs - widening nothing a container may reach. | eight, including whether to build it | [note](#b14) |
+| B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | open | - | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 | |
+| B37 | [The Build That Runs Somewhere Else](B37-The-Build-That-Runs-Somewhere-Else.md) | open | - | A task learns the verdict and the reason for the build its own work triggered, without reaching the forge and without holding a forge credential. | seven, and the first may end it | [note](#b37) |
+| B38 | [How Far Something That Got Through Can Get](B38-How-Far-Something-That-Got-Through-Can-Get.md) | open | the interface half, in sokar-frontend - number pending | How far a convinced agent can get is bounded where it can be, named where it cannot, and the reviewer sees what matters before what is merely large. | six, and one may have no answer | [note](#b38) |
+| B42 | [Where The Agent Protocols Touch This](B42-Where-The-Agent-Protocols-Touch-This.md) | open | - | Each of A2A, MCP, ACP and AG-UI is adopted, answered otherwise, or refused - with the reason. | five, and the first decides whether ACP is interesting at all | [note](#b42) |
+| B08 | [McSokar Apple Containers](B08-McSokar-Apple-Containers.md) | open | - | A sibling project offering the same behavior on Apple Containers, with one client that connects to either host. | two | [note](#b08) |
 
 
 ### Two things that dissolved rather than becoming requirements
@@ -113,15 +115,15 @@ use. What each still carries is a question whose answer could change what the re
 says - which is why they are not retired, and why they are not at the top of the list
 above.
 
-| # | Requirement | Status | What must be true | Open question |
-|---|---|---|---|---|
-| B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | built | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | one, and `doctor` is on the wire |
-| B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | built | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | two, and it is built |
-| B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | in progress | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | three, and the guard is built |
-| B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | built | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one - which agent an image was built for |
-| B20 | [Creating A Project](B20-Creating-A-Project.md) | built | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one - whether creating also prepares |
-| B36 | [A Snapshot Small Enough To Have A Choice](B36-A-Snapshot-Small-Enough-To-Have-A-Choice.md) | built | The images a leg boots fit on a cheap machine, so a sold-out server type costs a fallback rather than the run. | two - how fast cx43 builds, and what stops a later rebuild raising the floor again |
-| B32 | [A Cached Passphrase That Says What It Is](B32-A-Cached-Passphrase-That-Says-What-It-Is.md) | built | Sokar never reports a cached passphrase gone unless it is gone. | two - a chain of caches, and a keyring that is not the operator's |
+| # | Requirement | Status | Blocks | What must be true | Open question |
+|---|---|---|---|---|---|
+| B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | built | - | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | one, and `doctor` is on the wire |
+| B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | built | - | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | two, and it is built |
+| B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | in progress | - | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | three, and the guard is built |
+| B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | built | - | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one - which agent an image was built for |
+| B20 | [Creating A Project](B20-Creating-A-Project.md) | built | - | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one - whether creating also prepares |
+| B36 | [A Snapshot Small Enough To Have A Choice](B36-A-Snapshot-Small-Enough-To-Have-A-Choice.md) | built | - | The images a leg boots fit on a cheap machine, so a sold-out server type costs a fallback rather than the run. | two - how fast cx43 builds, and what stops a later rebuild raising the floor again |
+| B32 | [A Cached Passphrase That Says What It Is](B32-A-Cached-Passphrase-That-Says-What-It-Is.md) | built | - | Sokar never reports a cached passphrase gone unless it is gone. | two - a chain of caches, and a keyring that is not the operator's |
 
 ## To be checked
 

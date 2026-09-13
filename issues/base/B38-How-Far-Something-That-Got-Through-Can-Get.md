@@ -15,6 +15,8 @@ deliver more such text, and it owns the half of
 [B13](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) that is about what a reviewer can actually
 see. The record it depends on is [B26](B26-What-This-Machine-Has-Been-Doing.md).
 
+**Where the other half lives.** The ranked review as a screen is the interface's work, handed to sokar-frontend on 2026-09-13. It is **blocked by this file's buildable half**: the ranking has to exist before anything can show it.
+
 ## Two questions, and they are the same question
 
 **What a person at the gate can actually see in a long, boring diff**, and **how far something

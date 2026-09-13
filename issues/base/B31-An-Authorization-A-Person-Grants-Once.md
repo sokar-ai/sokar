@@ -6,6 +6,8 @@ agent is expected to inherit a person's permissions rather than a service accoun
 [B30](B30-Credentials-The-Broker-Has-To-Fetch.md). Compared with the other kinds in
 [Credential Types Compared](Credential-Types-Compared.md).
 
+**Where the other half lives.** Rendering the consent link whole, opening it, and showing a wait that ends outside the interface is the interface's work, handed to sokar-frontend on 2026-09-13. It is **blocked by this file**, which itself waits on B28 and B30.
+
 ## The kind
 
 OAuth 2.1 authorization code with PKCE, or a device code. A person authenticates, reviews the scopes

@@ -2,6 +2,8 @@
 
 **Status:** open
 
+**Where the other half lives.** The client's decisions - which of the two tunnel shapes, whether the client manages the tunnel itself, what it does when a stream is cut - are the interface's, handed to sokar-frontend on 2026-09-13. They are **not blocked by this file**; if anything the reconnection criteria here wait on the interface's choice.
+
 Remote access is a tunnelling problem. The daemon keeps its private socket; the
 client reaches it through an existing encrypted channel. No new listener, no
 certificates, no tokens.
