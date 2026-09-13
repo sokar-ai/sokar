@@ -55,6 +55,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
+| B55 | [The Changelog Entry A Change Has To Bring](B55-The-Changelog-Entry-A-Change-Has-To-Bring.md) | open | - | A change to what ships or builds brings a changelog entry, or says on purpose that it does not, and the build checks it. | three, and the first is what logchange's maintainers want | [note](#b55) |
 | B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | open | - | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file | |
 | B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | open | - | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file | |
 | B31 | [An Authorization A Person Grants Once](B31-An-Authorization-A-Person-Grants-Once.md) | open | sokar-frontend F31 | A person grants an authorization once, out of band, while the work waits. | see the file | |
@@ -227,3 +228,8 @@ paid once for not being able to: eleven acceptance scenarios sat green and unexe
 they were run and turned up three faults. It is below B50 because nothing is exposed by it, and
 above the rest of Now because every further green build makes the two skipped tests look more
 settled than they are.
+
+<a id="b55"></a>**B55 is at the top of Soon rather than in Now because its gap is deliberate.** On
+2026-09-13 logchange was adopted and the old changelog check removed from the three agent
+repositories, so for now nothing forces an entry. The first step is a proposal to logchange, not code
+here, and nothing is blocked by it.

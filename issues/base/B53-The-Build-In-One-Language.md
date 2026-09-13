@@ -34,7 +34,7 @@ lines**. About 3,700 lines are Python and about 2,600 are shell.
 
 | File | Lines | Copies | What it does |
 |---|---|---|---|
-| `check-changelog.py` | 308 | **byte-identical** in all three | fails a change to code that does not touch `CHANGELOG.md` |
+| `check-changelog.py` | 308 | **byte-identical** in all three | fails a change to code that does not touch `CHANGELOG.md`; **removed on 2026-09-13**, see B55 |
 | `compare-bills.py` | 190 | **byte-identical** in all three | decides whether an update may publish without a person, from the bill's dependencies and licences |
 | `update.py` | ~240 | diverged | moves the pinned agent CLI to a new version |
 | `upstream-version.py` | ~170 | diverged | asks the vendor or registry whether a newer version exists |
@@ -58,9 +58,13 @@ lines**. About 3,700 lines are Python and about 2,600 are shell.
 
 ## Sokar's half
 
+**The changelog check left this requirement on 2026-09-13.** logchange was adopted through the fuinorg
+parent POM, the old check is removed from the agent repositories, and requiring an entry is B55. The
+shared tool below does not carry it.
+
 1. **One shared tool, published the way `sokar-machines` and `sokar-acceptance-kit` are**, as a
-   snapshot on Central that the agent repositories already know how to resolve. It covers the
-   changelog check, the bill comparison, adding to and merging bills (through CycloneDX's Java
+   snapshot on Central that the agent repositories already know how to resolve. It covers the bill
+   comparison, adding to and merging bills (through CycloneDX's Java
    library), the upstream version lookup and the version move. **What differs between agents is
    configuration or a strategy, never a copy.**
    It also carries the check of a pinned digest against what the vendor publishes, **callable on
