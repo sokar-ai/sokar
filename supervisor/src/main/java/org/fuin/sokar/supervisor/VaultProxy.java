@@ -376,11 +376,15 @@ public class VaultProxy implements AutoCloseable, Runnable {
         for (int i = 0; i < head.names().size(); i++) {
             final String name = head.names().get(i).toLowerCase(Locale.ROOT);
             if (CREDENTIAL_HEADERS.contains(name) || HOP_BY_HOP.contains(name)
-                    || name.equals(authHeader.toLowerCase(Locale.ROOT))) {
+                    || name.equals(authHeader.toLowerCase(Locale.ROOT))
+                    || name.equals("accept-encoding")) {
                 continue;
             }
             request.header(head.names().get(i), head.values().get(i));
         }
+        // The scan reads text, so the answer is asked for uncompressed. An agent's own
+        // 'gzip, deflate, br' got every answer compressed, and every one was withheld as unreadable.
+        request.header("Accept-Encoding", "identity");
         request.header(authHeader, authPrefix + real);
         return request.build();
     }

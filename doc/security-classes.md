@@ -150,6 +150,11 @@ read is not evidence. Two cases fail closed with `502`:
 - a media type outside `application/json` and `text/event-stream`, which may frame a credential in
   a shape the scan does not look for at all.
 
+**So the proxy asks for `identity` itself**, replacing whatever `Accept-Encoding` the agent sent.
+Claude Code asks for `gzip, deflate, br`, and the provider compresses exactly when asked - measured
+on 2026-09-14, `br` with that header and uncompressed with `identity` or with none. Until the proxy
+asked, every answer to a task running Claude Code was withheld and the agent reported an API error.
+
 An answer with no body is not refused, decided on the bytes that arrived rather than on a declared
 length. **This has an availability cost and it is deliberate:** a provider that starts answering in
 a form not listed here breaks tasks visibly, where the alternative fails silently and in the

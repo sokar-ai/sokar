@@ -1,0 +1,2 @@
+title: "The vault proxy asks the provider for uncompressed answers, so a task running Claude Code gets its replies instead of an API error; before, every compressed answer was withheld as unreadable."
+type: fixed

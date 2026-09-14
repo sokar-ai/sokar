@@ -246,6 +246,25 @@ class VaultProxyTest {
     }
 
     @Test
+    void asksTheProviderForAnAnswerTheScanCanRead(@TempDir Path dir) throws IOException {
+
+        // Reported from the VM: Claude Code sends 'accept-encoding: gzip, deflate, br', the
+        // provider answered every request compressed, and the proxy withheld each answer as one it
+        // could not read - so the agent saw an API error on a request that had succeeded.
+        final Path socket = dir.resolve("vault.sock");
+        try (VaultProxy proxy = proxy(socket, "x-api-key", "", REAL)) {
+
+            final String response = send(socket, "POST /v1/messages HTTP/1.1\r\n"
+                    + "x-api-key: " + PHANTOM + "\r\n"
+                    + "accept-encoding: gzip, deflate, br\r\n"
+                    + "content-length: 2\r\n\r\n{}");
+
+            assertThat(response).startsWith("HTTP/1.1 200");
+            assertThat(received.get(0).get("accept-encoding")).isEqualTo("identity");
+        }
+    }
+
+    @Test
     void usesABearerPrefixWhenTheRouteAsksForOne(@TempDir Path dir) throws IOException {
 
         final Path socket = dir.resolve("vault.sock");
