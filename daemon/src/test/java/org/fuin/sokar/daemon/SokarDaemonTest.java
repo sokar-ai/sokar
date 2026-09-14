@@ -139,6 +139,37 @@ class SokarDaemonTest {
     }
 
     @Test
+    void startTakesAContainerNameAsTheTaskItNames(@TempDir Path dir) throws Exception {
+
+        // Reported on the VM: 'start sokar-utils4j-shell' for a stopped task created a second
+        // task, sokar-utils4j-sokar-utils4j-shell, with an empty workspace, while the stopped one
+        // kept the work. The container name has to reach the task it names.
+        final SokarContext context = hooked(dir);
+        final Path project = projectFile(dir);
+        runner.answering("container inspect", "c0ffee\n");
+        runner.answering("ps",
+                "sokar-uc-shell\tExited (143) 1 day ago\t1700000000\t1700000100\tuc\tguarded\n");
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Start",
+                        Map.of("project", project.toString(), "task", "sokar-uc-shell"));
+
+                // The existing task was reached - here it predates a restart, so it is refused
+                // with that reason - and no second one was begun beside it.
+                assertThat(reply).containsEntry("container", "sokar-uc-shell");
+                @SuppressWarnings("unchecked")
+                final List<String> output = (List<String>) reply.get("output");
+                assertThat(String.join("\n", output))
+                        .contains("'sokar-uc-shell' is the container of task 'shell'")
+                        .contains("before this machine restarted")
+                        .doesNotContain("sokar-uc-sokar-uc-shell");
+            }
+        });
+        assertThat(context.paths().containerState("sokar-uc-sokar-uc-shell")).doesNotExist();
+    }
+
+    @Test
     void startRefusesATaskThatIsAlreadyRunning(@TempDir Path dir) throws Exception {
 
         final SokarContext context = hooked(dir);

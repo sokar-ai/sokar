@@ -1,0 +1,2 @@
+title: "Start takes a container name as the task it names: 'sokar task start sokar-utils4j-shell' brings back 'shell' and says so, where it used to create a second task 'sokar-utils4j-sokar-utils4j-shell' with an empty workspace."
+type: fixed

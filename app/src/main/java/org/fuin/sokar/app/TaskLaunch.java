@@ -74,6 +74,18 @@ public final class TaskLaunch {
                     noGate, dryRun, clearance, keep, org.fuin.sokar.wire.TaskMode.SHELL, null,
                     null, null, DEFAULT_MINUTES);
         }
+
+        /**
+         * Returns this request for another task name.
+         *
+         * @param name The task name.
+         * @return The request.
+         */
+        public Request withTask(String name) {
+            return new Request(name, projectFile, agentName, providerName, credentialType,
+                    tokenHours, upstream, noGate, dryRun, clearance, keep, mode, prompt, model,
+                    maxTurns, minutes);
+        }
     }
 
     /**
@@ -123,7 +135,8 @@ public final class TaskLaunch {
 
     private final SokarContext context;
 
-    private final Request request;
+    /** What to start. Replaced once, when a container name given as the task is taken apart. */
+    private Request request;
 
     /**
      * Constructor.
@@ -134,6 +147,26 @@ public final class TaskLaunch {
     public TaskLaunch(SokarContext context, Request request) {
         this.context = context;
         this.request = request;
+    }
+
+    /**
+     * Takes a container name given where a task name belongs as the task it names, and says so.
+     * <p>
+     * Asked by both halves - bringing a task back and creating one - so whichever runs first
+     * settles it and the other finds it settled.
+     *
+     * @param project The project read from the request's file.
+     * @param out Where the note is written.
+     */
+    private void adopt(Project project, PrintWriter out) {
+        final String task =
+                org.fuin.sokar.runtime.ContainerName.taskFrom(project.name(), request.task());
+        if (!task.equals(request.task())) {
+            out.println("task      '" + request.task() + "' is the container of task '" + task
+                    + "'; starting that");
+            out.flush();
+            request = request.withTask(task);
+        }
     }
 
     /**
@@ -185,6 +218,7 @@ public final class TaskLaunch {
             return null;
         }
 
+        adopt(project, out);
         final String container = context.tasks().containerName(project, request.task());
         final java.util.Optional<org.fuin.sokar.runtime.ContainerSummary> summary =
                 context.podman().sokarTasks().stream()
@@ -251,6 +285,7 @@ public final class TaskLaunch {
             return 2;
         }
 
+        adopt(project, out);
         final java.util.Optional<String> badName =
                 org.fuin.sokar.runtime.ContainerName.refusal(project.name(), request.task());
         if (badName.isPresent()) {

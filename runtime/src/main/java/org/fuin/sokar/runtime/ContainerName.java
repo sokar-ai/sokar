@@ -91,6 +91,24 @@ public final class ContainerName {
     }
 
     /**
+     * Returns the task a name given for one means, taking a container name as the task it names.
+     * <p>
+     * {@code task list} shows container names and every other task verb takes one, so
+     * {@code sokar-utils4j-shell} is what somebody types to start {@code shell} again - and it
+     * used to become a second task, {@code sokar-utils4j-sokar-utils4j-shell}, with an empty
+     * workspace, while the stopped one kept the work.
+     *
+     * @param project The project's name.
+     * @param given What was given as the task.
+     * @return The task name: the part after {@code sokar-<project>-}, or what was given.
+     */
+    public static String taskFrom(String project, String given) {
+        final String prefix = PREFIX + project + "-";
+        return given.startsWith(prefix) && given.length() > prefix.length()
+                ? given.substring(prefix.length()) : given;
+    }
+
+    /**
      * Returns the task name inside a container name, when it holds one.
      * <p>
      * The interface is given this rather than deriving it: the rule relating the two belongs to

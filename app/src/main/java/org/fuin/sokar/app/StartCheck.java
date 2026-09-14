@@ -168,8 +168,11 @@ public final class StartCheck {
                     projectName = "";
                 }
             }
+            // A container name is taken as the task it names, as Start takes it.
+            final String task = projectName.isEmpty() ? taskName
+                    : org.fuin.sokar.runtime.ContainerName.taskFrom(projectName, taskName);
             final java.util.Optional<String> badName =
-                    org.fuin.sokar.runtime.ContainerName.refusal(projectName, taskName);
+                    org.fuin.sokar.runtime.ContainerName.refusal(projectName, task);
             if (badName.isPresent()) {
                 return refused(Outcome.BAD_TASK_NAME, badName.get());
             }

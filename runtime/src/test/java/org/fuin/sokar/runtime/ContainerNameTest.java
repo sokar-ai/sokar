@@ -79,6 +79,20 @@ class ContainerNameTest {
     }
 
     @Test
+    void takesAContainerNameGivenAsATaskAsTheTaskItNames() {
+
+        // Reported on the VM: 'start sokar-utils4j-shell' for a stopped task created a second one,
+        // sokar-utils4j-sokar-utils4j-shell, with an empty workspace.
+        assertThat(ContainerName.taskFrom("utils4j", "sokar-utils4j-shell")).isEqualTo("shell");
+        assertThat(ContainerName.taskFrom("utils4j", "shell")).isEqualTo("shell");
+        // Another project's container is not this project's task.
+        assertThat(ContainerName.taskFrom("utils4j", "sokar-other-shell"))
+                .isEqualTo("sokar-other-shell");
+        // The prefix alone names no task.
+        assertThat(ContainerName.taskFrom("utils4j", "sokar-utils4j-")).isEqualTo("sokar-utils4j-");
+    }
+
+    @Test
     void handsBackTheTaskInsideAContainerName() {
 
         // Carried to an interface rather than derived by it: the rule relating the two belongs

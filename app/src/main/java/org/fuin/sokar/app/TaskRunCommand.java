@@ -182,7 +182,8 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 return existing.code();
             }
             return context.exec().applyAsInt(context.tasks().attachCommand(existing.container(),
-                    shell, null, existing.project() + "/" + task));
+                    shell, null, existing.project() + "/" + org.fuin.sokar.runtime.ContainerName
+                            .taskIn(existing.project(), existing.container())));
         }
 
         return launch.launch(out, err, running -> {
