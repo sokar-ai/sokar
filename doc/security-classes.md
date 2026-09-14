@@ -21,8 +21,14 @@ no route to the upstream — not for the agent, and not for a person inside the 
 ### Where the history comes from, and where the work goes
 
 *"Nothing leaves"* is about the container, and the mirror is not in it. The mirror is a bare
-repository on the host, under the data directory as `mirrors/<project>.git`, and it is both ends of
-the journey: the agent clones from it and pushes back into it. So the two questions this raises -
+repository on the host, at
+
+```
+$XDG_DATA_HOME/sokar/mirrors/<project>.git     # ~/.local/share/sokar/mirrors/<project>.git by default
+```
+
+where `<project>` is the `name` from `project.yml`. There is one per project and per OS user, and it
+is both ends of the journey: the agent clones from it and pushes back into it. So the two questions this raises -
 how the history got in, and how changed work gets out - are both answered on the host, by a person,
 deliberately.
 
@@ -47,7 +53,7 @@ there:
 - `sokar gate backup <file>` writes the whole mirror, pending pushes included, as **one bundle** -
   a single file to carry to a machine that does have a route;
 - or fetch from the mirror into your own checkout, since it is an ordinary git repository on your
-  own disk.
+  own disk: `git fetch ~/.local/share/sokar/mirrors/<project>.git`.
 
 **What the class is therefore for.** A project whose upstream must not be reachable from a task -
 because the code is sensitive, or the agent is not trusted with a route, or the machine genuinely

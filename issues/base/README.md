@@ -56,6 +56,8 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
 | B55 | [The Changelog Entry A Change Has To Bring](B55-The-Changelog-Entry-A-Change-Has-To-Bring.md) | open | - | A change to what ships or builds brings a changelog entry, or says on purpose that it does not, and the build checks it. | three, and the first is what logchange's maintainers want | [note](#b55) |
+| B57 | [Names Asked Past The Resolver](B57-Names-Asked-Past-The-Resolver.md) | open | - | Port 53 out of a task is open to Sokar's resolver and nothing else in the task, so an undeclared name gets no answer from anywhere. | three, and the first is measuring it | [note](#b57) |
+| B58 | [The Upstream The Checkout Already Names](B58-The-Upstream-The-Checkout-Already-Names.md) | open | - | Starting in a checkout that already names its upstream never makes a person type that URL again, and never copies a credential out of it. | three, and the first is where the seed comes from | [note](#b58) |
 | B28 | [More Than One Credential In A Task](B28-More-Than-One-Credential-In-A-Task.md) | open | - | A task can be given the credentials its work needs, each confined to its own destination, without any of them entering the container. | see the file | |
 | B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | open | - | A credential the broker obtains rather than holds, including the machinery B01 parked. | see the file | |
 | B31 | [An Authorization A Person Grants Once](B31-An-Authorization-A-Person-Grants-Once.md) | open | sokar-frontend F31 | A person grants an authorization once, out of band, while the work waits. | see the file | |
@@ -234,3 +236,15 @@ settled than they are.
 2026-09-13 logchange was adopted and the old changelog check removed from the three agent
 repositories, so for now nothing forces an entry. The first step is a proposal to logchange, not code
 here, and nothing is blocked by it.
+
+<a id="b57"></a>**B57 is in Soon rather than Now because connections stay refused.** An address
+the agent learns past the resolver is still dropped and still prompts. What is open is data leaving
+through query names, which the documentation claimed was closed and now says is not. It is below B55
+because nothing reads from it, and above the rest of Soon because the likely fix is small and it
+touches a stated guarantee. Placed here by Agent Discuss on 2026-09-14; the operator re-ranks.
+
+<a id="b58"></a>**B58 is in Soon, under B57, because it is met on the first day and breaks nothing.**
+Everyone who presses Enter through the wizard in a cloned repository ends up with a project whose
+approve refuses at the moment the work is ready. That is a first impression, not a fault, and a
+flag works around it. It is below B57 because B57 concerns a guarantee and this concerns
+convenience. Placed here by Agent Discuss on 2026-09-14; the operator re-ranks.

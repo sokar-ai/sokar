@@ -48,6 +48,17 @@ far more than either meant: notably git over ssh, which would let an agent push 
 gate. So ports 80 and 443 are matched explicitly. The gate's own endpoint is the exception, and it
 binds loopback.
 
+**An allowed address is allowed for every name it serves.** The filter matches addresses, not
+names. If a declared host sits behind a shared CDN address, every other site at that address is
+reachable on 80 and 443 as well.
+
+**DNS is open to the upstream resolvers, for every process in the task.** The resolver runs in the
+namespace and has to reach its upstreams on port 53. The rule that allows this matches only the
+destination, so it cannot tell the resolver from the agent. The comment in the generated ruleset,
+*"DNS goes to the resolver Sokar runs, and nowhere else"*, claims more than the rule enforces.
+**TODO**, B57 ([index](../issues/base/README.md)). What it costs is in
+[DNS](dns.md#a-resolver-of-the-agents-own).
+
 **Drops are logged, not silent.** Every dropped packet is recorded through NFLOG with Sokar's own
 prefix, which is what turns a block into an audit trail and into the clearance question an operator
 can answer.

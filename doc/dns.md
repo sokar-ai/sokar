@@ -24,9 +24,10 @@ wire, and why this one is allowed to fail where [the firewall](firewall.md) is n
 **The default answer is NXDOMAIN**, for every name. A name resolves only if the project allows it,
 which makes DNS the same shape as the packet filter: deny by default, widen deliberately.
 
-That also closes **DNS exfiltration** — the trick of encoding data into names nobody ever asked to
-be resolvable. A resolver that forwarded every query would carry that data out no matter what the
-packet filter did afterwards.
+It is also meant to close **DNS exfiltration**, the trick of encoding data into names nobody ever
+asked to be resolvable. A resolver that forwarded every query would carry that data out no matter
+what the packet filter did afterwards. **TODO: it does not close it yet**, because a program can
+ask past this resolver. See [a resolver of the agent's own](#a-resolver-of-the-agents-own).
 
 For an `offline` project nothing resolves at all: there is no name to look up.
 
@@ -34,8 +35,8 @@ For an `offline` project nothing resolves at all: there is no name to look up.
 
 A resolver that answered every name and let the firewall drop the traffic afterwards would do two
 harmful things. It would **confirm to the agent that a host exists**, and it would turn every stray
-lookup into a **question for the operator**. Blocking at the name means an undeclared site never
-gets an address and no connection is ever attempted. Inside the container it simply looks like:
+lookup into a **question for the operator**. Blocking at the name means an undeclared site gets no
+address from this resolver, and no connection is attempted. Inside the container it simply looks like:
 
 ```
 Could not resolve host: repo.maven.apache.org
@@ -73,6 +74,27 @@ A dnsmasq built without it **fails silently**: the configuration is accepted, na
 and every declared host is then dropped by the firewall — which looks like a network fault, or like
 a clearance prompt that will not stop coming. `sokar doctor` probes for the capability and reports
 it, rather than leaving an operator to discover it.
+
+## A resolver of the agent's own
+
+**An address learned any other way opens nothing.** Only two things fill the allow sets: this
+resolver's answers and the operator's approvals. A program can skip the resolver: it can ask a
+public resolver directly, use DNS over HTTPS, or have the address written into it. Its connection is
+still dropped, logged and raised as a clearance prompt for a bare address.
+
+**TODO: asking still works, and that is a gap.** The resolver runs inside the container's
+namespace, so its own upstream queries pass the same firewall, and the ruleset opens port 53 to the
+upstream resolvers for that purpose. The rule matches the destination, not the process, so the agent
+can use it too. The upstreams are the host's `nameserver` lines, leaving out loopback addresses. A
+host running systemd-resolved has only a loopback address there, so its upstream is the fallback,
+`8.8.8.8`. Until B57 ([index](../issues/base/README.md)) closes the gap:
+
+- A query sent straight to that upstream is answered, for any name.
+- **Data can leave in the names asked**, with no clearance prompt and no log line. Accepted packets
+  are not logged, and this resolver never sees the query.
+- An agent can confirm that an undeclared host exists.
+
+A connection to the address it learns is still refused.
 
 ## Widening a running task by name
 

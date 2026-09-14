@@ -119,8 +119,8 @@ declared. Two details make this stronger than it sounds:
   There is no path where the agent runs and the firewall does not.
 - **The block happens one layer earlier than you would expect — at the phone book.**
   The container's DNS resolver is configured to answer "no such host" for *every* name
-  except the ones you declared. So an undeclared site does not even get an address,
-  and no connection is ever attempted. Inside the container it simply looks like:
+  except the ones you declared. So an undeclared site gets no address from it, and no
+  connection is attempted. Inside the container it simply looks like:
 
   ```
   Could not resolve host: repo.maven.apache.org
@@ -129,6 +129,13 @@ declared. Two details make this stronger than it sounds:
   This is deliberate. A resolver that answered every name and let the firewall drop the
   traffic afterwards would confirm to the agent that a host exists, and would turn every
   stray lookup into a question for you.
+
+- **An address found some other way opens nothing.** A program can skip the phone book
+  and ask one on the internet. It gets an address, but it still cannot connect: the
+  firewall lets through only addresses that Sokar's own phone book handed out, or that
+  you approved. That the question gets an answer at all is a
+  [known gap](dns.md#a-resolver-of-the-agents-own), because the question itself can
+  carry data out.
 
 - **Declared names open web ports only** — 80 and 443, the ordinary ports of the web —
   not the whole machine at the other end. So allowing a code-hosting site does not

@@ -44,8 +44,10 @@ than the honest *"this system does not do that"*.
 Each of these exists and is enforced; none of them has ever been written down together as *the*
 answer to this question, which is why it keeps getting argued from scratch in individual files.
 
-- **An undeclared name does not resolve**, and a declared one opens ports 80 and 443 only. An
-  empty `egress` section is deny, not a default that widens with a release.
+- **An undeclared name does not resolve** through the task's resolver, and a declared one opens
+  ports 80 and 443 only. An empty `egress` section is deny, not a default that widens with a
+  release. A query sent past the resolver still gets an answer, though the connection does not,
+  which is B57 ([index](README.md)).
 - **The real credential is never in the container.** The vault holds it; the container gets a
   phantom token that is worthless anywhere else and dies with the task. The ssh signing key is not
   in there either - the task gets an agent socket.
