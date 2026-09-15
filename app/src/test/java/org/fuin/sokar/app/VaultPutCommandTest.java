@@ -29,6 +29,51 @@ class VaultPutCommandTest {
     }
 
     @Test
+    void leavesStandardInputOpenForThePassphrasePromptThatFollows() throws IOException {
+
+        // Reported on the VM: reading the value closed standard input, the vault file then took
+        // descriptor 0, and the passphrase prompt switched echo off on a regular file - failing
+        // with "Inappropriate ioctl for device" whenever the vault was locked.
+        final boolean[] closed = { false };
+        final java.io.InputStream in = new java.io.ByteArrayInputStream(
+                "sk-piped\n".getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            @Override
+            public void close() throws IOException {
+                closed[0] = true;
+                super.close();
+            }
+        };
+
+        assertThat(VaultPutCommand.valueFrom("anthropic", null, in)).isEqualTo("sk-piped");
+        assertThat(closed[0]).as("standard input was closed").isFalse();
+    }
+
+    @Test
+    void saysSoWhenTheNameIsAnAgentsRatherThanAProviders() {
+
+        // Stored under 'claude', a key is still found by a task running claude - but only as a
+        // fallback, and the old warning said nothing would find it, which was not true either.
+        final String said = VaultPutCommand.unknownName("claude",
+                java.util.Set.of("openrouter", "anthropic"), java.util.Set.of("claude"));
+
+        assertThat(said).contains("'claude' is an agent's name")
+                .contains("declared: anthropic, openrouter")
+                .contains("sokar providers")
+                .contains("sokar vault remove claude");
+    }
+
+    @Test
+    void namesTheDeclaredProvidersWhenTheNameIsNobodys() {
+
+        final String said = VaultPutCommand.unknownName("antropic", java.util.Set.of("anthropic"),
+                java.util.Set.of("claude"));
+
+        assertThat(said).contains("no provider 'antropic' is declared")
+                .contains("declared: anthropic")
+                .doesNotContain("agent's name");
+    }
+
+    @Test
     void aTypedSecretIsNeverReadFromTheEchoingStream() throws IOException {
 
         // The bug this method exists for. A terminal echoes what is typed on standard input, so

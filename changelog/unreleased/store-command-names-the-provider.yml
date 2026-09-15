@@ -1,0 +1,2 @@
+title: "The store command the daemon offers for a provider always names the provider, never the agent whose name an older vault still holds the credential under."
+type: fixed

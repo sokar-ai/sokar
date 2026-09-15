@@ -1,0 +1,2 @@
+title: "sokar vault put asks for the passphrase at the terminal after reading the value, and a piped value with a locked vault says no passphrase is available; both failed with 'Inappropriate ioctl for device' instead."
+type: fixed

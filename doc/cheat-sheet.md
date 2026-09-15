@@ -24,6 +24,7 @@ Three routes, and they are not interchangeable.
 ```
 sokar vault login claude         # run the agent's own login in a throwaway container
 sokar vault import claude        # copy what an already-signed-in install holds
+sokar providers                  # the names a credential goes under, and what the vault holds
 sokar vault put anthropic        # store a value you already have, read from stdin
 sokar vault list                 # the names it holds, never the values
 ```

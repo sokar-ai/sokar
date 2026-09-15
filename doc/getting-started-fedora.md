@@ -248,14 +248,15 @@ scripts:
 printf '%s' 'sk-ant-...' | sokar vault put anthropic --type api-key
 ```
 
-The order is not a style preference. When the credential is piped in, `vault put`
-has nothing left to read a passphrase from — do it the other way round and you get:
+The order matters when the credential is piped in: `vault put` then has no terminal
+to read a passphrase from — do it the other way round and you get:
 
 ```
 sokar: No passphrase available, tried: kernel-keyring, prompt
 ```
 
-which does not obviously mean "run unlock first".
+which does not obviously mean "run unlock first". Typed at the prompt, `vault put`
+asks for the passphrase itself when the vault is locked.
 
 Some details worth knowing:
 
@@ -277,8 +278,10 @@ Some details worth knowing:
   more than one kind puts them in different headers, so the kind is recorded once
   here and every task uses it without being told. `sokar task start
   --credential-type` overrides it; nothing else needs to.
-- The **name must be the agent's name** — `sokar agents` lists what is installed.
-  Sokar looks the credential up by that name and by nothing else.
+- The **name is the provider's**, not the agent's — `sokar providers` lists them,
+  which agents drive each, and what the vault holds. A credential an older Sokar
+  stored under the agent's name is still found, and `sokar providers` shows where
+  it belongs.
 - Use `printf`, not `echo`: `echo` appends a newline, and the newline becomes part
   of your key.
 - Never pass a credential as a command-line argument to anything. A command line
@@ -291,7 +294,7 @@ Start again:
 sokar vault lock
 mv ~/.local/share/sokar/vault.bin ~/.local/share/sokar/vault.bin.old
 sokar vault unlock
-printf '%s' 'sk-ant-your-real-key' | sokar vault put anthropic
+printf '%s' 'sk-ant-your-real-key' | sokar vault put anthropic --type api-key
 ```
 
 Lock first, or a cached passphrase keeps being used ahead of anything you

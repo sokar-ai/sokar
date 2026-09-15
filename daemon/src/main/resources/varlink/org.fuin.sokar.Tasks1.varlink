@@ -1441,7 +1441,9 @@ type Provider (
   # missing credential for precisely the vault that has one, since the fallback key is invisible
   # from outside.
   credentialName: string,
-  # The exact line to run at the machine to store one, ready to render verbatim. A subscription
+  # The exact line to run at the machine to store one, ready to render verbatim. Always with the
+  # provider's name, even when 'credentialName' is still an agent's: that is where it belongs, and
+  # a task finds it there first. A subscription
   # token rather than an API key needs '--type oauth' on the end - they go in different headers,
   # and sending one as the other fails as an authentication error that looks like a wrong key.
   storeCommand: string

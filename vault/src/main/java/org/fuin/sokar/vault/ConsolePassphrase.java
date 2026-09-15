@@ -26,7 +26,10 @@ public class ConsolePassphrase implements PassphraseSource {
     @Override
     public Optional<char[]> passphrase() {
         final Console console = System.console();
-        if (console == null) {
+        // isTerminal() as well: since Java 22 a Console exists when standard input is a pipe, and
+        // switching echo off on a pipe fails with "Inappropriate ioctl for device" instead of
+        // answering that there is nobody to ask.
+        if (console == null || !console.isTerminal()) {
             return Optional.empty();
         }
         final char[] typed = console.readPassword("%s", promptText);

@@ -494,42 +494,9 @@ public final class SokarDaemon {
                     "now", result.now(), "detail", result.detail()));
         });
 
-        server.method("Providers", (parameters, replies) -> {
-            final Map<String, org.fuin.sokar.agent.api.ProviderDefinition> declared =
-                    context.providers();
-            final java.util.Optional<Map<String, org.fuin.sokar.vault.VaultEntry>> readable =
-                    context.readableCredentials();
-            final Map<String, org.fuin.sokar.vault.VaultEntry> stored =
-                    readable.orElseGet(Map::of);
-
-            // A stored name that is not a provider's is the only thing that can make the key
-            // below an agent's name. When there is none - a vault written by a current Sokar -
-            // the agents are never started, so this stays a cheap read.
-            final java.util.Set<String> unexplained = stored.keySet().stream()
-                    .filter(name -> !declared.containsKey(name))
-                    .collect(java.util.stream.Collectors.toSet());
-            final Map<String, String> legacyAgentByProvider = new LinkedHashMap<>();
-            if (!unexplained.isEmpty()) {
-                try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
-                    for (final var agent : agents.all()) {
-                        final var provider = agent.definition().provider();
-                        if (provider != null && unexplained.contains(agent.name())) {
-                            legacyAgentByProvider.putIfAbsent(provider.defaultProvider(),
-                                    agent.name());
-                        }
-                    }
-                } catch (RuntimeException ex) {
-                    // A machine whose agents cannot be asked still has providers worth listing.
-                    // The key falls back to the provider's own name, which is where a new
-                    // credential belongs anyway.
-                }
-            }
-
-            replies.last(Map.of("providers", declared.values().stream()
-                    .map(provider -> provider(provider, stored,
-                            legacyAgentByProvider.get(provider.name()))).toList(),
-                    "readable", readable.isPresent()));
-        });
+        // The same rows 'sokar providers' prints, from the same class.
+        server.method("Providers", (parameters, replies) ->
+                replies.last(org.fuin.sokar.app.ProviderInventory.list(context).asMap()));
 
         server.method("Doctor", (parameters, replies) -> {
             // The same probes the CLI prints, through the same object, so a machine cannot be
@@ -1156,19 +1123,7 @@ public final class SokarDaemon {
     static Map<String, Object> provider(org.fuin.sokar.agent.api.ProviderDefinition provider,
             Map<String, org.fuin.sokar.vault.VaultEntry> stored,
             @org.jspecify.annotations.Nullable String legacyAgent) {
-        final String key = org.fuin.sokar.app.SelectedProvider.credentialKey(stored.keySet(),
-                legacyAgent == null ? provider.name() : legacyAgent, provider.name());
-        final org.fuin.sokar.vault.VaultEntry entry = stored.get(key);
-        final Map<String, Object> row = new LinkedHashMap<>();
-        row.put("name", provider.name());
-        row.put("label", provider.label());
-        row.put("upstream", provider.upstream());
-        row.put("dialects", List.copyOf(provider.dialects().keySet()));
-        row.put("authenticated", entry != null);
-        row.put("credentialType", entry == null || entry.type() == null ? "" : entry.type());
-        row.put("credentialName", key);
-        row.put("storeCommand", "sokar vault put " + key);
-        return row;
+        return org.fuin.sokar.app.ProviderInventory.row(provider, stored, legacyAgent);
     }
 
     static Map<String, Object> artifact(

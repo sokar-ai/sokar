@@ -96,7 +96,8 @@ Credentials, and the broker that lets a task use one without ever holding it.
 |---|---|
 | `sokar vault login AGENT` | Runs an agent's own login and stores the credential it produces. |
 | `sokar vault import AGENT` | Copies a credential the agent already holds on this host into the vault. |
-| `sokar vault put NAME` | Stores a credential, read from standard input. |
+| `sokar vault put NAME` | Stores a credential, read from standard input, under the name of the provider it is for. |
+| `sokar providers` | Lists the model providers declared here, the agents that drive each, and what the vault holds for them. |
 | `sokar vault list` | Lists the names the vault holds. Never the values. |
 | `sokar vault remove NAME` | Removes a credential from the vault. |
 | `sokar vault unlock` | Caches the vault passphrase in the kernel keyring for this session. |

@@ -1,0 +1,2 @@
+title: "sokar vault put says so when the name given is an agent's rather than a provider's, lists the declared providers, and names the command to store it where it belongs."
+type: changed

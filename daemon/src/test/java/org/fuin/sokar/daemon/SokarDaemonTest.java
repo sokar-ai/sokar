@@ -1234,7 +1234,9 @@ class SokarDaemonTest {
         assertThat(row).containsEntry("credentialName", "claude")
                 .containsEntry("authenticated", true)
                 .containsEntry("credentialType", "oauth")
-                .containsEntry("storeCommand", "sokar vault put claude");
+                // Where it belongs, not where it was found: offering the agent's name here is how
+                // an interface taught somebody to store a new key under 'claude' again.
+                .containsEntry("storeCommand", "sokar vault put anthropic");
     }
 
     @Test
