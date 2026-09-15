@@ -1,0 +1,2 @@
+title: "A task started in a new project takes keystrokes again: the project wizard closed standard input, so the session attached afterwards read nothing, '/exit' did nothing, and the terminal's replies to its queries appeared at the shell prompt after leaving."
+type: fixed

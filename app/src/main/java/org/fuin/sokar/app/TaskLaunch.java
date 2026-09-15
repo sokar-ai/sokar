@@ -170,6 +170,30 @@ public final class TaskLaunch {
     }
 
     /**
+     * Asks for a project file and writes it, reading the answers without closing standard input.
+     * <p>
+     * <strong>Never closed.</strong> The session this start attaches afterwards reads the same
+     * standard input. Closing a reader over it closed descriptor 0, the attached session was left
+     * reading {@code /dev/null}, and nothing typed reached it - while the terminal's answers to its
+     * queries surfaced at the shell prompt once it was left.
+     *
+     * @param stdin Standard input.
+     * @param out Where the questions are asked.
+     * @return 0 when a project file was written, 2 otherwise.
+     */
+    int runWizard(java.io.InputStream stdin, PrintWriter out) {
+        final java.io.BufferedReader in = new java.io.BufferedReader(
+                new java.io.InputStreamReader(stdin, java.nio.charset.StandardCharsets.UTF_8));
+        if (!ProjectWizard.create(context, request.projectFile(), in, out)) {
+            out.flush();
+            return 2;
+        }
+        out.println();
+        out.flush();
+        return 0;
+    }
+
+    /**
      * A task that was already there, and what bringing it back came to.
      *
      * @param container Container name.
@@ -254,18 +278,9 @@ public final class TaskLaunch {
         // there to answer - a script that lands here with no project file is more likely in the
         // wrong directory than wanting one written, and the message below says what to do.
         if (!java.nio.file.Files.exists(request.projectFile()) && System.console() != null) {
-            try (java.io.BufferedReader in = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(System.in, java.nio.charset.StandardCharsets.UTF_8))) {
-                if (!ProjectWizard.create(context, request.projectFile(), in, out)) {
-                    out.flush();
-                    return 2;
-                }
-                out.println();
-                out.flush();
-            } catch (java.io.IOException ex) {
-                err.println("sokar: " + ex.getMessage());
-                err.flush();
-                return 2;
+            final int wizard = runWizard(System.in, out);
+            if (wizard != 0) {
+                return wizard;
             }
         }
 
