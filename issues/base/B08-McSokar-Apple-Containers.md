@@ -37,6 +37,11 @@ other is the normal case, not an edge case.
 
 ## To be checked
 
+- **Measure it on Linux first.** B59 ([index](README.md)) asks the same questions about a task whose
+  kernel is its own - where the ruleset lives, whether a host socket still reaches the workload,
+  what happens to the gate's loopback, what replaces the terminal - on a machine where the
+  acceptance suite already runs. What survives there is what can be re-derived here; what does not
+  is a guarantee this project would have to state it cannot meet.
 - **Which isolation primitives actually exist there**, and whether per-container
   egress filtering that fails closed is among them. If it is not, this project can
   offer convenience but not the guarantee, and that has to be said out loud rather
