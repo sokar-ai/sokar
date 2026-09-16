@@ -143,6 +143,10 @@ The three compose in that order of reliability, and only the last two are worth 
   it did when it fires.
 - Nothing here weakens the case where it already works: an IDE attached to the container stays as
   constrained as the agent.
+- **Work can be reviewed on the machine, without a forge.** Sending it to a review branch on an
+  upstream instead is possible only where the project opts in with the one setting that says unread
+  work may leave - the same setting B14 ([index](README.md)) asks before a message leaves unread. A
+  `guarded` project does not do it otherwise.
 
 ## Notes
 
@@ -187,6 +191,12 @@ the case the requirement describes. It is not a control, and four documented pat
 Anything that presented it as prevention rather than as a loud accident-catcher would be the lie
 this requirement's own notes warn against.
 
+**A rebase preserves the author**, measured through an ordinary rebase, an interactive one and an
+`--amend`: only the committer changes. So author identity is both the cheapest signal the guard
+could test and the durable one, and a trailer written at approval time to survive rewriting would
+buy nothing. It remains spoofable, which is the accepted trade - this catches an accident, not the
+owner of the machine.
+
 ## Built, 2026-09-08: the gate stops saying something untrue
 
 The second half of what a hand push breaks is fixed, and it needed no new machinery: the timer that
@@ -211,32 +221,9 @@ would make the queue cost what a listing must not.
 
 ## To be checked
 
-- ~~Whether the guard is worth building~~ **Built, and the answer to "worse than nothing" is that
-  it has to say so.** See below.
-- ~~What the guard tests~~ **Author identity, and the reason for the doubt was wrong.**
-  Measured: `git rebase` **preserves** the author and changes only the committer - through an
-  ordinary rebase, an interactive one and an `--amend`. So the cheap signal is also the durable
-  one, and the trailer that would have justified rewriting commits at approval time buys nothing.
-  It remains spoofable, which is the accepted trade: this catches an accident, not the owner of
-  the machine.
 - **Whether the mirror should be harder to fetch from.** Making it unreadable would break `gate
   review`, which is how anybody looks at the work at all. Probably nothing to do here, but it is
   the other end of the same path.
-- ~~A working copy on the host~~ **Built: `sokar gate checkout <name>`.** It materialises the
-  incoming ref into a new directory, with the mirror as its only remote, `core.hooksPath` pointed
-  at an empty directory of its own, and a detached HEAD so nothing looks like work to carry on. Not
-  a warning somebody can click past: there is no address that reaches the upstream, so a push from
-  there cannot arrive by mistake.
-
-  The test for that last property was written against a gate with **no** upstream and therefore
-  could not fail; a mutation adding the upstream as a remote sailed past it. Rewritten against a
-  gate that has one, it fails as it should. That is the third fixture today that could not
-  reproduce the thing it was asserting.
-- ~~Or review on a forge~~ **Not by default, and possible by opting in.** Pushing the incoming ref to
-  a review branch on the upstream gives a person the diff view they already know, and gives up the
-  property that unreviewed work never leaves the machine. A `guarded` project does not do it unless
-  its `project.yml` opts in with the one setting that says unread work may leave - the same setting
-  that lets B14's messages leave unread ([index](README.md)).
 - **Whether attaching an editor to the container should be made to work anyway.** It is possible
   and it is currently blocked by the egress rules, and the workaround - declaring an editor
   vendor's hosts - widens the agent's reach for a person's benefit, which is backwards. `podman cp`
@@ -263,6 +250,14 @@ neither of which any assertion on arguments would have caught.
 
 Both are in the tests as regressions, with the wrong form asserted beside the right one so the
 reason stays visible rather than becoming a line nobody dares change.
+
+**`sokar gate checkout <name>` is how the work is looked at on the machine.** It materialises the
+incoming ref into a new directory, with the mirror as its only remote, `core.hooksPath` pointed at
+an empty directory of its own, and a detached HEAD so nothing looks like work to carry on. Not a
+warning somebody can click past: there is no address that reaches the upstream, so a push from there
+cannot arrive by mistake. Its first test was written against a gate with **no** upstream and
+therefore could not fail - a mutation adding the upstream as a remote sailed past it - and was
+rewritten against a gate that has one.
 
 **What `protect` refuses to do.** It checks `core.hooksPath` after writing and says, in as many
 words, that this repository is **not protected** while that setting stands - the failure the

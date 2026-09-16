@@ -1163,6 +1163,11 @@ to read a security tool's reasoning are not all German speakers.
 is worth keeping has moved into this file. They describe work to do, not work that was
 done; git history is where finished work lives.
 
+**An answered question is deleted the same way**, out of the requirement's own *To be checked*
+section, once what its answer decided has moved into the acceptance criteria, into the design, or
+into this file. A question kept with its answer beside it reads as open work to everyone who
+scans the section, and becomes a second account of a decision that is already written elsewhere.
+
 **Requirements are not referenced from code.** No class, comment, commit message or
 test may cite a requirement number. Requirements move, merge and are dropped; code
 that names one goes stale silently and starts to look like a contract. A comment

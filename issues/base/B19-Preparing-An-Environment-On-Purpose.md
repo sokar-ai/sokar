@@ -41,14 +41,6 @@ fields, compared on read — which turns one bool into three honest states.
 The streaming half is not new machinery: `Start` already streams a build with `more`, one reply per
 line, for exactly this reason.
 
-## To be checked
-
-- ~~Whether "replace the agent tooling only" is a real boundary~~ **Answered by building it: it
-  is.** The layers are base, then the packages every task needs, then the agent's, so invalidating
-  from the seam between them keeps the packages. It needs an `ARG` at that seam rather than a
-  podman flag, because there is none for "rebuild from here" - a mechanism, not a switch, and
-  worth having checked before three choices were promised.
-
 ## Built, 2026-09-08: `sokar task prepare` and `Prepare`
 
 **Three depths, and the middle one is real.** The image's layers are base, then the packages every

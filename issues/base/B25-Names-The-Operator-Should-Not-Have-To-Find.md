@@ -90,6 +90,10 @@ not.
 - Completion never changes anything: it reads, and a machine mid-TAB is not a machine being
   operated on.
 - A script that omits a required argument still fails rather than waiting for somebody to answer.
+- **Where a command offers to do the thing itself, it offers only on a terminal.** `task attach` on
+  a stopped task asks `[Y/n]` and resumes through the same rendering `task resume` uses, so the two
+  cannot disagree about what a resumed task did; without a terminal the refusal stands unchanged,
+  because end of input is not consent.
 
 ## Notes
 
@@ -108,18 +112,6 @@ it should exist at all.
 - **Whether the picker should exist at all.** Sokar is a CLI that a daemon also drives; making a
   command interactive when it has a terminal is a change in character, not a convenience, and it
   is the one of the three that could make a script hang.
-- ~~**Whether `task attach` on a stopped task should offer to start it.**~~ **Built 2026-09-09.**
-  It asks `[Y/n]` on a terminal and resumes through the same rendering `task resume` uses, so the
-  two cannot disagree about what a resumed task did. Without a terminal the old refusal stands
-  unchanged - `task attach` is also how a script gets in, and one that finds a task stopped must
-  fail rather than wait for an answer nobody will type. End of input is not consent. Originally
-  asked as:
-  somebody who typed `attach` has said what they want, and being told to run `resume` and then
-  `attach` is being told to say it twice. It is the same character question as the picker, with
-  one extra edge - resuming is not free: it starts the gate, the credential broker and the
-  clearance watcher, and re-applies an egress ruleset. The codebase already argues for the
-  opposite of a refusal one level down: `tmux new-session -A` is attach-or-create precisely so
-  that "coming back" is not a second code path exercised less often.
 - **What a TAB costs on a loaded machine.** A tenth of a second is a guess from `podman ps` on an
   idle test VM, not a measurement on a machine running several tasks.
 - **Whether the daemon should answer instead of podman.** Completion runs where the operator types,

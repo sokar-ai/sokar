@@ -92,14 +92,6 @@ and is discarded, several times a session.
 
 ## To be checked
 
-- **~~Does a task a person drives by hand get this too?~~ Yes, decided by the operator on
-  2026-09-11.** The question was whether to promise it for unattended runs only, and the answer is
-  both modes. What that costs is now design rather than doubt: headless mode emits stream-json and
-  the id is read from an event, an attached shell emits a terminal and there is no event to read.
-  The id still exists there - the agent keeps its own session files in the config directory Sokar
-  already writes into the container - so the second route is a file the host can look at rather
-  than a stream it can parse, and a definition that declares only one of the two is incomplete
-  rather than merely limited. Whether it is one declaration covering both or two is open below.
 - **What happens to a recorded id when the agent is updated under it?** A02 moves an agent's CLI
   version without asking. Whether a session written by the old version is continuable by the new
   one is the agent's business and not ours, but the failure mode is ours: a continuation that

@@ -2,7 +2,7 @@
 
 **Status:** built. Every field is on the contract - agent, mode, prompt, branch, since,
 activity and what it is waiting for - and arrives through `Watch` on the same terms as the
-rest. The three questions below are about how well *waiting* can be detected, not about
+rest. One question is left, and it is about what a resumed task reports rather than about
 whether a task says anything.
 
 A `Task` says what it is called, whose project it belongs to, what class it runs under, whether
@@ -78,58 +78,53 @@ the top of the IDL, and it is why this is worth asking for now rather than after
 exist. An unrecognized activity value renders rather than throwing, by the same rule that already
 covers `Outcome`.
 
+## Measured, 2026-09-11: how much of *waiting* is visible from outside
+
+The question was whether "waiting for a person" can be detected per agent at all, and the answer is
+that the two honest options are both needed rather than one.
+
+*What the outside route covers, and it needs nothing new.* The agent's own output already reaches
+the host: `TaskLaunch` hands `runAgent` a `task.log` in the container's state directory, and
+`podman` writes it there as the agent runs. Sampled every three seconds against a real omp turn on
+the ubuntu VM, the file grew on **every** sample - 0, 670, 35314, 63905 bytes in twelve seconds,
+never older than two. So **quiet is not "working silently"**: for this agent, in this mode, output
+arrives continuously while it works. That gives *working* against *not producing output* for any
+agent at all, with no per-agent knowledge and no new way out of the container - the host reads a
+file it already owns.
+
+*What the outside route does not cover.* Quiet is quiet. It cannot tell **waiting for a person**
+from finished, stuck, or rate-limited, and this file's own warning stands: a quiet task is not a
+waiting one, and guessing is wrong in the direction that costs.
+
+*So the per-agent flag is needed after all, but only for one value.* The agent-repositories agent
+measured the shipped artifacts on 2026-09-11: `claude` and `pi` each carry an event for it - Claude
+Code's `Notification` and Pi's `ui_prompt_start`/`_end`, the latter documented for exactly this -
+and `omp` 18.1.13 has none. So the honest shape is **`working` and `idle` observed from outside for
+everybody, and `waiting` declared per agent** - absent where the agent cannot say it, shown as
+*"this agent cannot tell us"* rather than as a guess.
+
+*One thing that has to cross, and does not.* Every per-agent signal fires **inside** the container.
+Giving one a path to the host would be a fourth way out beside the vault socket, the ssh-agent
+socket and the gate, and it would invert the direction this design rests on - a channel the agent
+writes into. A status value does not justify that. Whether `waiting` can be had at all therefore
+depends on something the host can ask for rather than be told, which is what
+[B47](B47-What-The-Agent-Is-Doing-Read-From-Outside.md) took up on 2026-09-11: the output the host
+already writes, read against patterns the agent's own package declares.
+
+**Nothing agent-independent delivers this, including the tool it was learnt from.** AI Beacon
+reports *awaiting permission* from a plugin that knows Claude Code, not from the wrapper that
+observes the process.
+
+**An agent stopping to ask is a defect in that agent's first-run handling**, not a state an
+interface should learn to show. Inside a task the agent's own prompts are turned off - the container
+is the answer - and the measured outcome was a CLI reaching its prompt with no dialog at all. What
+remains is the clearance decision, which this machine *knows* rather than infers: the resolver
+raised it, `Prompts` streams it, and it carries a deadline. The residue worth watching is an agent
+that ships a new dialog, and each agent repository's acceptance covers that through B52
+([index](README.md)).
+
 ## To be checked
 
-- **Can "waiting for a person" actually be detected per agent?** This assumes every agent exposes
-  a signal for it. If some do not, the honest answers are a per-agent capability flag, so an
-  interface can say *"this agent cannot tell us"* rather than showing a wrong state, or narrowing
-  the value to what is observable from outside the agent. Settle it before anything depends on it:
-  a state that is right for one agent and silently wrong for another is worse than one that is
-  missing.
-
-  **Measured on 2026-09-11, and the answer is both options rather than one.**
-
-  *What the outside route covers, and it needs nothing new.* The agent's own output already reaches
-  the host: `TaskLaunch` hands `runAgent` a `task.log` in the container's state directory, and
-  `podman` writes it there as the agent runs. Sampled every three seconds against a real omp turn
-  on the ubuntu VM, the file grew on **every** sample - 0, 670, 35314, 63905 bytes in twelve
-  seconds, never older than two. So **quiet is not "working silently"**: for this agent, in this
-  mode, output arrives continuously while it works. That gives *working* against *not producing
-  output* for any agent at all, with no per-agent knowledge and no new way out of the container -
-  the host reads a file it already owns.
-
-  *What the outside route does not cover.* Quiet is quiet. It cannot tell **waiting for a person**
-  from finished, stuck, or rate-limited, and this file's own warning stands: a quiet task is not a
-  waiting one, and guessing is wrong in the direction that costs.
-
-  *So the per-agent flag is needed after all, but only for one value.* The agent-repositories agent
-  measured the shipped artifacts on 2026-09-11: `claude` and `pi` each carry an event for it -
-  Claude Code's `Notification` and Pi's `ui_prompt_start`/`_end`, the latter documented for exactly
-  this - and `omp` 18.1.13 has none. So the honest shape is **`working` and `idle` observed from
-  outside for everybody, and `waiting` declared per agent** - absent where the agent cannot say it,
-  shown as *"this agent cannot tell us"* rather than as a guess.
-
-  *One thing that has to cross, and does not.* Every per-agent signal fires **inside** the
-  container. Giving one a path to the host would be a fourth way out beside the vault socket, the
-  ssh-agent socket and the gate, and it would invert the direction this design rests on - a channel
-  the agent writes into. A status value does not justify that. Whether `waiting` can be had at all
-  therefore depends on something the host can ask for rather than be told, and that is unsolved. **Taken up on 2026-09-11 by
-  [B47](B47-What-The-Agent-Is-Doing-Read-From-Outside.md)**, which asks for exactly that: the
-  output the host already writes, read against patterns the agent's own package declares.
-
-  **Also worth recording: nothing agent-independent delivers this, including the tool it was
-  learnt from.** AI Beacon reports *awaiting permission* from a plugin that knows Claude Code, not
-  from the wrapper that observes the process.
-
-- **~~Is work waiting on a clearance decision distinguishable from work waiting on its own
-  prompt?~~ Mostly answered by the first-run consent work, 2026-09-11.** Inside a task the agent's
-  own prompts are turned off - the container is the answer - and the measured outcome was a CLI
-  reaching its prompt with no dialog at all. So the second kind is not a state to display here;
-  **an agent stopping to ask is a defect in that agent's first-run handling rather than something
-  an interface should learn to show**. What remains is the clearance decision, which this machine
-  *knows* rather than infers: the resolver raised it, `Prompts` streams it, and it carries a
-  deadline. The residue worth keeping is narrow - an agent that ships a new dialog - and each agent
-  repository's acceptance watches for that, through B52 in `issues/base/README.md`.
 - **Does the mode survive a restart?** `Resume` brings a container back; whether it comes back as
   the same kind of thing decides whether the field is recorded once or re-derived, and an
   interface that showed a resumed task as a different mode from the one it was started as would

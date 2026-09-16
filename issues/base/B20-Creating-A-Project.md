@@ -71,15 +71,12 @@ this is the one operation that would replace it with nothing to restore from.
 and cannot have one - the difference is visible only to a process that dies between the write and
 the rename - and it is recorded as untested in the code rather than left to look covered.
 
-## Still open here
-
-- ~~Two things now write a project file~~ **Fixed: the wizard supplies answers to this and writes
-  nothing itself.** One renderer, one set of checks. Its guess at egress sets stayed on its own
-  side, as a suggested answer rather than something the renderer adds - otherwise every project
-  created over the contract would carry sets nobody asked for, in a file shown for review.
-
-  **And the merge immediately found a bug.** The wizard suggested sets by *name* without checking
-  the machine has them. That used to be invisible - the file was written and the name failed at
-  the first task start - and under the new validation it would have refused to create anything at
-  all on a machine missing the shipped sets. An absent set now drops out of the offer.
+**One renderer, one set of checks.** The wizard supplies answers here and writes nothing itself. Its
+guess at egress sets stays on its own side, as a suggested answer rather than something the renderer
+adds - otherwise every project created over the contract would carry sets nobody asked for, in a
+file shown for review. Merging the two immediately found a bug: the wizard suggested sets by *name*
+without checking the machine has them, which used to be invisible because the file was written and
+the name failed at the first task start, and which under this validation would have refused to
+create anything at all on a machine missing the shipped sets. An absent set now drops out of the
+offer.
 

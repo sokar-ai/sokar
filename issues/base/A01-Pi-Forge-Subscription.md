@@ -214,17 +214,13 @@ Settling it needs the request path at `api.github.com`, which a disposable accou
 
 ## To be checked
 
-- ~~Whether this agent's endpoint can be redirected for this provider.~~ **Answered for
-  OpenRouter:** yes, by an extension rather than a variable. Still open for a forge
-  subscription, which may not use the same dialect.
+- **Whether this agent's endpoint can be redirected for a forge subscription.** It can be for
+  OpenRouter, by an extension rather than a variable; a forge subscription may not use the same
+  dialect.
 - **Whether this agent reaches a forge subscription at all.** The requirement assumed it
   does and never checked. Oh My Pi advertises GitHub Copilot among its providers; Pi's own
   list does not say so. If it does not, Oh My Pi is the cheaper
   vehicle for this question than a new agent.
-- ~~Whether the sign-in yields something storable at all.~~ **Answered:** a 40-character
-  `gho_` token in a file. Storable and portable.
-- ~~How long the token lasts.~~ **Answered:** nothing stored expires, so
-  [B01](B01-Refreshable-Task-Tokens.md) is not a prerequisite.
 - **Where the broker sits.** The exchange is at `api.github.com` and the model API takes what
   it returns, so brokering the model API alone is not enough - and brokering the exchange leaves
   a real short-lived token in the container. Needs the request path to confirm.

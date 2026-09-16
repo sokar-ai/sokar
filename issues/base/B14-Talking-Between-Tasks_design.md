@@ -24,9 +24,10 @@ fact about a third-party product is quoted it comes from that product's document
 operator. A person watching.**
 
 Out of scope, deliberately: a key inside a task container for any purpose, editing a held message,
-a classifier or any other model in the deciding path, checking on the way in what the sending machine
-already checked, and separating groups from machines that share the repository — a branch separates writing, not reading, so anything that must be kept
-from the operator's other machines gets its own repository.
+a classifier or any other model in the deciding path, checking on the way in what the sending
+machine already checked, and separating groups from machines that share the repository — a branch
+separates writing, not reading, so anything that must be kept from the operator's other machines
+gets its own repository.
 
 ## The shape
 
@@ -495,25 +496,3 @@ Anything needing podman, ssh or a remote belongs in the acceptance suite, not in
 | **[NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails)** | A Python orchestration framework with its own rule language, not a detector: the detection comes from what it calls, which can be called directly. It would bring back the Python this project is removing from its build. |
 | [NATS](https://nats.io/about/) + JetStream, [Matrix](https://spec.matrix.org/latest/) via [continuwuity](https://continuwuity.org/introduction), [Prosody](https://prosody.im/) | Brokers and chat servers take transport and storage off the pile, and leave the policy, the hold and a verifiable record to be built on top — beside a daemon with its own authentication database. They would also put a service where a bare repository is enough. |
 | [Rekor](https://github.com/sigstore/rekor), [immudb](https://immudb.io/) | A transparency log proves more than a signed linear branch, and runs as another service. Worth revisiting if the record has to satisfy somebody who trusts neither the operator nor the forge. |
-
-## Questions this design carried, and their answers
-
-Struck through rather than deleted: what was asked is worth as much as what was decided.
-
-- ~~**What the correlation across messages can see.**~~ The group's whole branch, which the gate
-  fetches anyway — `approved/` is that clone. Two gaps remain and are accepted: a sender can beat the
-  corpus by less than one fetch interval, and a piece refused or held elsewhere never reached the
-  branch to be counted.
-- ~~**Whether dialogue at poll cadence is enough.**~~ On one machine there is no cadence — the gate
-  watches the local repository and sees a push as it lands. Against a remote the timer stands, and
-  talk is for handover and questions rather than fast exchange.
-- ~~**Where `talk/` sits in the container.**~~ `/run/sokar/talk`, beside the sockets, outside the
-  workspace, untouched by an agent that wipes its working directory.
-- ~~**Membership changes are one-way.**~~ Accepted and stated in the requirement: joining reads the
-  whole history, removal is not retroactive, and excluding somebody from the past means a new group.
-- ~~**Whether the five kinds are the right five.**~~ They stay. Adding one later is a coordinated
-  change on every machine, which is exactly why the set is small.
-- ~~**A2A's part fields.**~~ Verified against the proto at `v1.0.1` on 2026-09-16 — see the message
-  format above.
-- ~~**The classifier's licence, whether it runs from Java, and its threshold.**~~ Not in the first
-  version, so none of the three is in the critical path.

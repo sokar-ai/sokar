@@ -200,12 +200,15 @@ This is the part with new machinery, and most of its questions have answers.
    redraw rewrites a line that was already matched. Something has to reduce the writes to the text
    that is actually on the screen first - the last few non-empty lines of the physical buffer,
    rather than whatever the person has scrolled to.
-2. **Sokar may not need an emulator.** The attached session already runs under tmux, and tmux has
-   rendered that screen for its own reasons. `tmux capture-pane -p` returns the text as it stands.
-   The alternative is `pipe-pane` plus writing that reduction here, which means owning a terminal
-   emulator. **Measure both before choosing**: what capture-pane costs per call, and
-   whether it can be issued for a session the person is attached to without disturbing them. If
-   capture-pane holds, stage 2 costs a scheduled call and no new subsystem.
+2. **Sokar needs no emulator, measured 2026-09-12.** The attached session already runs under tmux,
+   and `tmux capture-pane -p` returns the rendered text as it stands. The capture costs 2.3-2.8 ms
+   and the whole call about 131 ms - that is the `podman exec` around it, not the capture - and
+   with a real client attached, 400 captures wrote **0 bytes** to that client, because the capture
+   is server-side and invisible to the person. So stage 2 is a scheduled call rather than a
+   subsystem, and `pipe-pane` plus a terminal emulator of our own is not needed. One thing came
+   with that answer: **the pane's geometry follows whoever is attached** - it went 120x40 to 80x23
+   the moment a client attached - so a declared *"last N lines"* region is measured against a
+   window the person resizes, and the declaration rules have to say what that means.
 3. **Regions, not whole screens.** A declaration should name a region before it names text - the
    prompt box body, the last N non-empty lines, the window title. That is what keeps a pattern
    from firing on an agent quoting its own prompt back, and it is most of what keeps a rule short
@@ -326,27 +329,14 @@ waiting"* from an agent that was never able to say is a lie with a timestamp on 
 
 ## To be checked
 
-- **~~Can `tmux capture-pane -p` be issued against a session somebody is attached to, cheaply and
-  without disturbing them?~~ Yes, measured 2026-09-12.** The capture itself costs 2.3-2.8 ms and
-  the whole call ~131 ms, which is the `podman exec` around it rather than the capture. With a
-  real client attached, 400 captures wrote **0 bytes** to that client: it is server-side and
-  invisible to the person. So stage 2 is a scheduled call, not a subsystem, and no terminal
-  emulator is needed.
-
-  Two things came with that answer. **The pane's geometry follows whoever is attached** - it went
-  120x40 to 80x23 the moment a client attached - so a declared *"last N lines"* region is measured
-  against a window the person resizes, and the declaration rules have to say what that means.
-  And the numbers were taken against a session created by `task attach`; the launch path now runs
-  in the same session (`4a0cdae`), so **re-measure against a task started the new way** before
-  anything depends on the figure.
+- **Re-measure the capture against a task started the new way.** The figures above were taken
+  against a session created by `task attach`, and the launch path now runs in the same session
+  (`4a0cdae`), so nothing should depend on them until they have been taken again.
 - **Which engine** - the ruling above is a recommendation, not a decision, and it belongs to
   whoever builds the matcher.
 - **How long may a task be `waiting` before something else happens?** This requirement only makes
   the state visible. Whether an unattended run that has waited for hours should be reported
   somewhere a person is actually looking belongs where attention is already collected - B48.
-- **~~Does the unattended JSON stream actually carry a waiting record for any shipped agent?~~ No,
-  for none of the three, measured 2026-09-12** - and that is what rewrote stage 1. See *What the
-  measurement found* above.
 - **Does a run that ended with a question need a way to be answered, or only to be seen?** Stage 1
   makes it visible and clears itself when the task is started again with the answer, which needs
   no new channel. Whether somebody should be able to reply to an ended run *in place* is a bigger

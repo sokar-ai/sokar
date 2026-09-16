@@ -6,8 +6,7 @@ not done.
 
 **Open question** counts the unresolved items in the file's own *To be checked* or *Still open*
 section - something whose answer could change what the requirement says, or whether it survives at
-all. Answered ones are struck through in place rather than deleted, so a question that turned out
-to have an answer stays readable beside it.
+all. A question that has been answered is not listed, because it is no longer in the file.
 
 The count is what is left, not what was ever asked. Several built requirements still carry
 questions; that is the ordinary state of a requirement here rather than a sign it is unfinished.
@@ -68,7 +67,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | open | - | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | six, and four are decided | [note](#b39) |
 | B43 | [Tasks After The Machine Restarts](B43-Tasks-After-The-Machine-Restarts.md) | open | - | A restart is visibly why tasks are down, and getting them back needs no list of names. | four, and B44 took its cause | [note](#b43) |
 | B46 | [The Conversation A Restart Loses](B46-The-Conversation-A-Restart-Loses.md) | open | sokar-claude-code 010, sokar-pi 008, sokar-omp 008 | A task that comes back continues the conversation it was having, where its agent can name one, and says plainly when it cannot. | four, and the scope is decided | [note](#b46) |
-| B47 | [What The Agent Is Doing, Read From Outside](B47-What-The-Agent-Is-Doing-Read-From-Outside.md) | open | sokar-claude-code 005, sokar-pi 005, sokar-omp 005 | A task waiting on a person says so, derived from output the host already has, declared by the agent that wrote it, and marked as derived. The daemon's half; what each agent declares is tracked in that agent's own repository. | four, and the engine one is answered by a recommendation | [note](#b47) |
+| B47 | [What The Agent Is Doing, Read From Outside](B47-What-The-Agent-Is-Doing-Read-From-Outside.md) | open | sokar-claude-code 005, sokar-pi 005, sokar-omp 005 | A task waiting on a person says so, derived from output the host already has, declared by the agent that wrote it, and marked as derived. The daemon's half; what each agent declares is tracked in that agent's own repository. | five, and the engine one is answered by a recommendation | [note](#b47) |
 | B48 | [The Overview That Stays Open](B48-The-Overview-That-Stays-Open.md) | open | - | A person at a terminal watches their tasks change, from the same answer the interface reads, without a loop they wrote themselves. | four, and the first two decide its shape | [note](#b48) |
 | B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | open | - | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it | |
 | B06 | [Remote Access](B06-Remote-Access.md) | open | - | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | four | |
@@ -125,7 +124,7 @@ above.
 | # | Requirement | Status | Blocks | What must be true | Open question |
 |---|---|---|---|---|---|
 | B05 | [Health And Diagnostics](B05-Health-And-Diagnostics.md) | built | - | The machine reports whether it can actually run a task, naming anything missing or misconfigured. | one, and `doctor` is on the wire |
-| B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | built | - | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | two, and it is built |
+| B11 | [What A Task Says About Itself](B11-What-A-Task-Says-About-Itself.md) | built | - | A task says which agent, which mode, which branch, since when, and whether it is working, idle, waiting or dead. | one, and it is built |
 | B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | in progress | - | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | two, and the guard is built |
 | B19 | [Preparing An Environment On Purpose](B19-Preparing-An-Environment-On-Purpose.md) | built | - | An environment can be prepared without starting a task, at a depth chosen explicitly, and 'prepared' tells absent from stale. | one - which agent an image was built for |
 | B20 | [Creating A Project](B20-Creating-A-Project.md) | built | - | A project is validated against the machine before it is created, and nothing half-created survives somebody walking away. | one - whether creating also prepares |
