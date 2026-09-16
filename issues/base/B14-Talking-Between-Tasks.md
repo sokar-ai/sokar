@@ -1,6 +1,6 @@
 # B14 — Talking Between Tasks
 
-**Status:** decided. Nothing waits on it.
+**Status:** decided, and every question it carried has an answer. Nothing waits on it.
 
 **How it would be built** is [B14-Talking-Between-Tasks_design.md](B14-Talking-Between-Tasks_design.md).
 
@@ -34,17 +34,21 @@ cut.
 - **What a message may contain is decided by the message sluice**, a tool of its own that carries no
   model: the narrowed schema, encoded payloads, credentials, personal data, and a payload spread over
   several messages of the same group.
+- **No model decides anything in the first version.** The rules accept or refuse; a person holds. A
+  classifier may be added later, and even then it may only hold a message, never release one.
 - **Authorship: stated and signed by the gate, on the host.** The gate knows which task pushed and
   writes the message into a commit of its own. The agent never signs: a key it can reach is a key it
   can copy, and it would be the first credential inside a task container.
-- **Format: an A2A message narrowed to a closed schema.** A fixed set of kinds, one text part within
-  a size limit, structured data fixed by the kind, no files, and work named by commit rather than
-  carried. It bounds how much a message and a group can carry without a model deciding anything; it
-  does not bound what the text means.
-- **A message arrives by polling.** The daemon binds no network interface, so nothing can be pushed
-  to it: one timer per machine fetches every group's branch.
-- **Nothing is re-checked on the way in.** A machine vouches for what it wrote. What a fetching gate
-  still decides is whether a message can be attributed at all.
+- **Format: an A2A message narrowed to a closed schema.** Five kinds, one text part within a size
+  limit, structured data fixed by the kind, no files, and work named by commit rather than carried. It
+  bounds how much a message and a group can carry without a model deciding anything; it does not bound
+  what the text means.
+- **A message arrives by polling**, because the daemon binds no network interface and nothing can be
+  pushed to it. Where the distributing repository is on this machine, the gate notices a push at once
+  instead of waiting.
+- **Nothing is re-checked on the way in.** A machine vouches for the content of what it wrote. What a
+  fetching gate still decides is whether a message can be attributed, and whether it was allowed to
+  exist at all.
 - **A branch separates writing, not reading.** A task reads only its own group because the gate's
   copy for it holds nothing else. Every machine that fetches the repository can read every group, so
   anything that must be kept from the operator's other machines needs a repository of its own.
@@ -58,6 +62,9 @@ cut.
 - An `offline` project takes part in nothing, and a group spanning two security classes is refused.
 - **A task belongs to exactly one group.** A project that needs two conversations runs two tasks, and
   what passes between them passes through a person.
+- **Membership moves forward only**: a project that joins reads everything said before it joined, and
+  a project that is removed keeps what it already fetched. Keeping somebody out of the past means a
+  new group, and nothing pretends otherwise.
 - An agent that cannot take part says so, and nothing is left for it unread.
 
 **What leaves a machine**
@@ -72,31 +79,36 @@ cut.
 - **Nothing reaches the branch that the message sluice did not accept.** It runs on the writing
   machine, before the gate signs anything, and a sluice that cannot start, cannot be configured or
   cannot run means nothing leaves.
+- The sluice correlates a message against **the group's whole branch as this machine last fetched it**
+  — every member's messages, not only this machine's — so a payload split across machines is refused
+  by whichever machine sends the piece that crosses the threshold.
 - A refusal reaches the sending task as the sluice wrote it — the rule, the part, the offset — with
   nothing a rule matched in clear text.
-- Only the rules that are not a model can accept a message. A classifier can hold one, and a
-  classifier that fails, times out or answers out of bounds holds.
 - A gate never force-pushes a group branch and never deletes one; where the distributing repository
   can refuse both itself, it is configured to.
 
 **What arrives**
 
 - One timer per machine fetches every group's branch, at a configurable interval defaulting to a
-  minute, whether or not a task is running.
+  minute, whether or not a task is running. **Where the repository is a path on this machine, a
+  message is available as soon as it is pushed**, without waiting for the tick.
 - A fetched message is **not** checked for what it contains: the machine that wrote it did that.
 - A fetched message that is unsigned, signed by a key the group does not list, or not a valid message
-  **is not delivered to any task**, and is reported to the operator with the reason. It stays on the
-  branch, so nothing is hidden by not delivering it.
+  **is not delivered to any task**, and is reported to the operator with the reason.
+- **A gate checks, as it fetches, that each new message was allowed to exist**: the group was open and
+  within budget in `group.yml` as it stood at the commit that message builds on. One that was not is
+  not delivered either, and is reported as a machine that broke the rule.
+- Nothing that is refused delivery is removed: it stays on the branch, so refusing to deliver is never
+  a way to hide something.
 - A message reaches the agent as content from another task, never through the channel that carries
   the operator's instruction.
 - A task can fetch its own group's branch and nothing else: the gate's copy for that task contains no
-  object of any other group.
+  object of any other group, and the clone sits outside the workspace.
 
 **What a person controls**
 
 - A group can be held, released and closed while it runs; a held message reaches no reader, and the
-  sender is told it was held. Each machine enforces this for its own tasks, from the group's control
-  state at the branch tip.
+  sender is told it was held.
 - A held message is **released or refused, never edited**. What the record shows a task said is what
   the task said.
 - The moderation modes are `clearance`'s four — `prompt`, `allow`, `deny`, `off` — with the same
@@ -127,13 +139,28 @@ cut.
 
 ## To be checked
 
-- **What the correlation across messages can see.** The sluice catches a payload spread over several
-  messages by reading what that machine already let through. A sender spreading its pieces across two
-  machines is seen by neither.
-- **Whether dialogue at poll cadence is enough.** It is for handing work over and asking questions; it
-  is poor for fast back-and-forth, which was the one thing that justified a channel beside the gate.
-- **How a machine that ignores the group's control state is noticed.** Held, closed and over budget
-  are kept by each machine for its own tasks, so the record is where a breach shows up, and only
-  afterwards.
-- **The classifier: whether it runs at all, under what licence, and at what threshold.** It can only
-  hold a message, it runs on the writing machine before the push, and none of the three is settled.
+Every question this requirement carried has an answer. They stay here, struck through, because what
+was asked is worth as much as what was decided.
+
+- ~~**What the correlation across messages can see.**~~ The sluice reads the group's whole branch,
+  which the gate fetches anyway, so it sees every member's messages as of the last fetch. A sender can
+  still beat it by less than one fetch interval, and a piece that was refused or held on another
+  machine is not in the corpus at all.
+- ~~**Whether dialogue at poll cadence is enough.**~~ On one machine there is no cadence: the gate
+  notices a push at once. Against a remote it stays a timer, and talk is for handover and questions
+  rather than fast back-and-forth.
+- ~~**How a machine that ignores the group's control state is noticed.**~~ Every gate checks the
+  state each new message claims to have been written under, as it fetches, and refuses to deliver one
+  that should not exist. Prevention still belongs to the writing machine; detection no longer waits
+  for somebody to look.
+- ~~**The classifier: whether it runs at all, under what licence, and at what threshold.**~~ Not in
+  the first version. Nothing in it depends on a model, an unread licence or an unmeasured threshold,
+  and a classifier that can only hold a message may be added later as its own requirement.
+- ~~**Whether the five kinds are the right five.**~~ They stay: `question`, `answer`,
+  `review-request`, `status`, `handover`. Adding one later is a coordinated change on every machine,
+  which is the reason the set is small.
+- ~~**A2A's part fields.**~~ Verified against `specification/a2a.proto` at tag `v1.0.1` on 2026-09-16:
+  a part carries exactly one of `text`, `raw`, `url` or `data`, plus `metadata`, `filename` and
+  `media_type`; a message carries `message_id`, `context_id`, `task_id`, `role`, `parts`, `metadata`,
+  `extensions` and `reference_task_ids`; the roles are `ROLE_UNSPECIFIED`, `ROLE_USER`, `ROLE_AGENT`,
+  and a rejected task is `TASK_STATE_REJECTED`. There is no `kind` discriminator.

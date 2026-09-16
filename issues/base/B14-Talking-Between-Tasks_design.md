@@ -24,8 +24,8 @@ fact about a third-party product is quoted it comes from that product's document
 operator. A person watching.**
 
 Out of scope, deliberately: a key inside a task container for any purpose, editing a held message,
-checking on the way in what the sending machine already checked, and separating groups from machines
-that share the repository — a branch separates writing, not reading, so anything that must be kept
+a classifier or any other model in the deciding path, checking on the way in what the sending machine
+already checked, and separating groups from machines that share the repository — a branch separates writing, not reading, so anything that must be kept
 from the operator's other machines gets its own repository.
 
 ## The shape
@@ -37,9 +37,9 @@ from the operator's other machines gets its own repository.
  │  talk/ clone ──▶ token → task              │       │ groups/<name>         │
  │  push, pull  ◀── policy                    │──push▶│                       │
  │                  message sluice  ─ refuse ─┤       │ local path when every │
- │                  classifier      ─ hold ───┤       │ agent is on one       │
- │                  own commit, SSH signature │◀fetch─│ machine; ssh remote    │
- │                  timer: fetch every 60 s   │       │ or forge when not     │
+ │                  own commit, SSH signature │       │ agent is on one       │
+ │                  watch, or timer every 60s │◀fetch─│ machine; ssh remote   │
+ │                                            │       │ or forge when not     │
  └────────────────────────────────────────────┘       └───────────────────────┘
                                                               ▲   │
                                                         push  │   │  fetch
@@ -110,16 +110,26 @@ What the narrowed schema allows, and nothing else:
 Every object is closed: a property the schema does not name is a refusal, not something ignored.
 Commit ids are 40 or 64 lowercase hex characters.
 
+**The field names are verified**, against `specification/a2a.proto` at tag `v1.0.1`, read 2026-09-16:
+a part carries exactly one of `text`, `raw`, `url` or `data` in a `oneof`, plus `metadata`, `filename`
+and `media_type`; a message carries `message_id`, `context_id`, `task_id`, `role`, `parts`,
+`metadata`, `extensions` and `reference_task_ids`; the roles are `ROLE_UNSPECIFIED`, `ROLE_USER` and
+`ROLE_AGENT`. There is no `kind` discriminator anywhere — it was removed in 1.0 — so a file carrying
+one is from 0.3.x and is refused rather than converted. ProtoJSON is the JSON mapping, so the wire
+names are `mediaType`, `messageId`, `contextId` and so on.
+
 **What the schema buys, stated exactly.** It bounds how much a message can carry and what shape it
 has — and with the turn budget, how much a whole group can carry — without a model deciding anything.
 It does not bound what the text means: the one text part carries whatever is written into it, which
-is why the text limit and the budget are the controls, and the classifier is not.
+is why the text limit, the budget and a person's hold are the controls.
 
 ## Inside the container
 
-**A second clone, `talk/`, of the group's branch**, whose `origin` is always the gate — not inside
-the workspace, so a message can never be committed into the work repository by accident. Where
-exactly it sits is an open question below. It is a clone per task, never a directory shared between
+**A second clone of the group's branch at `/run/sokar/talk`**, whose `origin` is always the gate.
+It sits beside the sockets the container already has under `/run/sokar`, so everything Sokar puts in
+a container is in one place an agent learns once: never inside the workspace, so a message cannot be
+committed into the work repository by accident, invisible to `git status` there, and untouched by an
+agent that wipes its working directory. It is a clone per task, never a directory shared between
 tasks.
 
 **Saying something** is committing one message file under `messages/<own task>/` and pushing. The
@@ -168,14 +178,12 @@ On every talk push, in this order, and a failure at any step stops the next:
 3. **Shape**: one new file, under the task's own directory, and nothing else in the agent's commit.
 4. **The message sluice** — the narrowed schema, encoded payloads, credentials, personal data, and
    what earlier messages of this group already carried. Its refusal is what the task is shown.
-5. **The classifier**, last of the checks, in a container of its own. It can answer *hold*; it can
-   never turn a refusal into an acceptance.
-6. **The gate's own commit.** The message file is taken out of the agent's commit and written into a
+5. **The gate's own commit.** The message file is taken out of the agent's commit and written into a
    new commit on the current tip of the group's branch, with the trailers above. The agent's author,
    dates, parents and any other file it committed are discarded rather than validated.
-7. **Signed on the host**, with an SSH key under the state directory, `0600`, never mounted anywhere
+6. **Signed on the host**, with an SSH key under the state directory, `0600`, never mounted anywhere
    (`gpg.format ssh`).
-8. **Pushed to the distributing repository** with the host's credential for it. A refusal is recorded
+7. **Pushed to the distributing repository** with the host's credential for it. A refusal is recorded
    on the gate as `refs/sokar/talk-refused/<group>/<task>/<seq>` — git again, no journal written for
    it — and the sender is told why on its push.
 
@@ -214,38 +222,35 @@ against everything this machine already let through for that group.
 | `feedback/` | the answer: a receipt, or a refusal naming every reason with nothing a rule matched in clear text. The gate returns it to the task on its push |
 | `rejected/`, `error/` | the originals, which hold the secret in clear text. They stay on the host, are never pushed, and **must lie outside the clone's work tree** — the sluice refuses to start otherwise |
 
-**It runs on the writing machine only.** Nothing re-checks a message on the way in, so the corpus a
-machine correlates against is what that machine has sent — see the open questions.
+**It runs on the writing machine only**, and its corpus is **the group's whole branch**: the
+`approved/` directory *is* the gate's clone, so after a poll it holds every member's messages, not
+only this machine's. A payload split across machines is then refused by whichever machine sends the
+piece that crosses the threshold. Two gaps stay, and are not closed by anything here: a sender can
+beat the corpus by less than one fetch interval, and a piece refused or held on another machine was
+never on the branch to count.
 
 **What it does not catch**, stated here rather than discovered later: a secret described in words
-instead of written out, steganography in word choice, and anything that is not English prose. The
-classifier does not catch those either — which is why a group's mode, its text limit and its turn
+instead of written out, steganography in word choice, and anything that is not English prose. No
+model would catch them reliably either — which is why a group's mode, its text limit and its turn
 budget are the controls that bound what a conversation can carry.
 
-## The classifier, and its container
+## No classifier in the first version
 
-**Meta's [Llama Prompt Guard 2](https://huggingface.co/meta-llama/Llama-Prompt-Guard-2-86M)**, per its
-model card: a classifier for prompt injection and jailbreak attempts, in an 86M multilingual and a 22M
-variant, with a 512-token window — a longer text part is split and each piece classified. It produces
-a score, not text: it writes nothing, uses no tool and follows no instruction, so a message can at most
-move the score. It flags text that tries to override instructions; it does not recognise a workspace
-leaving in base64, and a model that means to get past it can paraphrase. That is why it can only hold.
+A prompt-injection classifier — a small model scoring the text before the push — was designed in and
+is **not built**. It could only ever hold a message, never release one, so nothing it would catch is
+left unguarded by leaving it out: the sluice's rules decide, the group's mode, text limit and turn
+budget bound what a conversation can carry, and a person holds what a `guarded` project sends.
 
-**It runs in a container anyway**, because a tokenizer and a model runtime are native code parsing
-text an attacker wrote, and because a generative reviewer put in its place later would be an agent:
-a rootless container per push, `--network none`, read-only root filesystem, `--cap-drop all`,
-`no-new-privileges`, memory, CPU and pid limits, no mount but the model, the text on standard input,
-the score on standard output, the image pinned by digest.
+What it would have cost is the reason: a container per push, a model runtime parsing attacker text,
+an unread licence, an unmeasured threshold and an unproven path from Java — four unknowns in the
+critical path of a feature that works without them.
 
-- **The gate reads one number.** A score in bounds is compared against the threshold; anything else —
-  no output, more output, a value out of range — is *hold*.
-- **Fail closed.** A container that does not start, times out or dies means *hold*, never *accept*.
-- **Per push, to start with.** A fresh container costs a few hundred milliseconds and carries nothing
-  from one message to the next. A long-running container behind a unix socket is the fallback if that
-  latency matters, restarted regularly.
-
-Running Prompt Guard from Java through ONNX Runtime inside that container is unmeasured, and its
-licence terms are unread.
+**If it returns**, it returns as its own requirement, with the same shape this design gave it: a
+rootless container per push, `--network none`, read-only root filesystem, `--cap-drop all`,
+`no-new-privileges`, resource limits, no mount but the model, the text on standard input and one
+number on standard output — and *hold* for anything that is not a score in bounds, including a
+container that does not start, times out or dies. A generative reviewer in its place would be an
+agent, and would need the same container and a stricter answer format.
 
 ## Polling, and what a fetching gate decides
 
@@ -255,6 +260,10 @@ pushed to it. A message arrives because the gate goes and looks.
 - **One timer per machine**, `talk.poll_interval` in the daemon's configuration, default 60 s. One
   fetch updates every group mirror on the machine, whether or not a task is running, so a message is
   waiting when a task starts rather than arriving only because one did.
+- **On one machine there is no interval.** Where the distributing repository is a path on this host —
+  the default arrangement — the gate watches its refs and updates the mirrors as a push lands, so a
+  reply costs what git costs rather than a tick. The timer stays as the fallback for a remote, which
+  cannot be watched over ssh.
 - **A fetch never runs the content checks.** The machine that wrote a message checked it; running the
   catalogue again here would double the cost and still not protect against a machine that skipped it.
 - **What it does decide is whether a message can be attributed**: the signature verifies against a key
@@ -262,6 +271,11 @@ pushed to it. A message arrives because the gate goes and looks.
   file is a valid narrowed message. A message failing any of those is **not delivered to any task**,
   is recorded as `UNATTRIBUTED` with the reason, and shows up in `sokar talk` and in the stream for
   the operator. It stays on the branch: not delivering is not hiding.
+- **And whether it was allowed to exist.** The gate reads `group.yml` as it stood at the commit each
+  new message builds on and asks whether the group was open, not held and within budget then. One
+  that should not have been written is not delivered either, and is reported as `RULE_BROKEN` naming
+  the machine whose key signed it. Prevention stays with the writing machine; this is how the others
+  find out without waiting for somebody to run `verify`.
 - **Delivery to a task is its own pull.** The task's `talk/` fetches from the gate's mirror, so a
   task sees what the gate accepted and nothing else.
 
@@ -272,14 +286,16 @@ pushed to it. A message arrives because the gate goes and looks.
 | Mode | Effect on the writing machine |
 |---|---|
 | `prompt` | Every message is held until a person releases it. |
-| `allow` | Pushed if every rule passes; the classifier may still hold. |
+| `allow` | Pushed if every rule passes. |
 | `deny` | Every message is refused. |
-| `off` | Pushed if the rules that are not a model pass; the classifier does not run. Its own state, readable back, not the widest setting. |
+| `off` | Pushed if every rule passes, **and** no model check ever runs for this group — including one added later. Today it behaves exactly as `allow`; it is kept because it is a state a group declares about itself, readable back, and not the widest setting. |
 
 **Each machine enforces this for its own tasks.** There is no hook upstream, so the control state is
 a rule the operator's machines keep, not a wall — the same limit B13 ([index](README.md)) already
 names for the owner of a machine. What a machine cannot do is hide having broken it: the commits are
-signed and the branch is the record.
+signed, the branch is the record, and **every other gate checks the state a message was written under
+as it fetches**, so a message from a held or closed group reaches no reader anywhere and the operator
+is told which machine wrote it.
 
 **A held message is released or refused, never edited.** A release is a new commit by the person,
 carrying the message unchanged with `Sokar-Released-By` and `Sokar-Held: <commit>` trailers, signed
@@ -354,7 +370,7 @@ type Message (
 
 type TalkOutcome (
   ACCEPTED, HELD, NOT_DECLARED, REFUSED_BY_CLASS, NO_TALK, REFUSED_BY_RULE, CLOSED, OVER_BUDGET,
-  RECEIVER_FULL, ALREADY_IN_A_GROUP, UNATTRIBUTED, UPSTREAM_UNREACHABLE
+  RECEIVER_FULL, ALREADY_IN_A_GROUP, UNATTRIBUTED, RULE_BROKEN, UPSTREAM_UNREACHABLE
 )
 
 # Every group the projects on this machine belong to.
@@ -408,7 +424,7 @@ world-readable and nobody can promise what an operator will paste into a message
 | Event | What happens |
 |---|---|
 | `task start` | If the project declares a group, the gate's mirror for it is fetched and the task's `talk/` is cloned from the gate. No talk helper, no extra socket. |
-| A message | Policy, state, shape, sluice, classifier, the gate's commit, the host signature, the push. A failure at any step stops the next. |
+| A message | Policy, state, shape, sluice, the gate's commit, the host signature, the push. A failure at any step stops the next. |
 | Every tick | The gate fetches every group branch, verifies what is new, and feeds the daemon's `Talk` stream. Tasks see it on their next pull. |
 | `task stop` | Nothing to reap. The branch keeps everything the task said. |
 | `task resume` | `talk/` is cloned again from the gate; nothing is replayed. |
@@ -422,7 +438,6 @@ world-readable and nobody can promise what an operator will paste into a message
 |---|---|---|
 | The distributing repository cannot be reached | Nothing is delivered; the sender is told on its push. | A message waiting silently reads as ignored. |
 | The sluice cannot start or cannot run | The push is refused. | Fail closed: an unchecked message is the thing this exists to prevent. |
-| The classifier's container fails, times out or answers out of bounds | The message is held. | A classifier that cannot answer must not become one that says yes. |
 | An agent commits a file outside its own directory | The gate refuses before signing. | Otherwise one task could write in another's name. |
 | An agent commits more than the message | Only the message file reaches the gate's commit. | The agent's commit is an assertion, not a record. |
 | A message carries a file part, an unknown property or an unknown kind | Refused by the gate. | A closed schema that ignores what it does not know is an open one. |
@@ -430,7 +445,7 @@ world-readable and nobody can promise what an operator will paste into a message
 | The group is held or closed | Refused with that state as the reason. | An agent told nothing retries. |
 | Either budget runs out | Refused, and the group's budget closes the group with a reason. | A warning nobody is watching is not a control. |
 | A task tries to fetch another group | There is nothing to fetch: its gate mirror holds one branch. | Hidden refs are not access control. |
-| A machine ignores the group's state | It is visible in the record afterwards, never prevented. | Stated, because the opposite would have to be believed. |
+| A machine ignores the group's state | Its messages are not delivered by any other gate, and the operator is told which key signed them. Prevention was never possible off that machine. | Detection that waits for somebody to look is not detection. |
 
 ## What must be proven to fail
 
@@ -456,13 +471,14 @@ world-readable and nobody can promise what an operator will paste into a message
   of the other group, rather than listing refs.
 - A held group **must** deliver nothing: assert a peer's pull brings nothing new, not that the state
   field says `held`.
-- A classifier container that exits without output, prints two numbers, or sleeps past the timeout
-  **must** each produce *hold*, and none of them *accept*.
-- The classifier container **must** fail to open a network connection and to write outside its
-  standard output. Assert on the attempt from inside, not on the flags passed.
+- A message pushed while its group was held, closed or over budget **must not** be delivered by a
+  peer's gate, even though that peer runs no content check — assert on what reaches the peer's task,
+  not on what the record says.
+- A payload split across **two machines** into pieces that are each unremarkable **must** be refused
+  on the machine that sends the piece crossing the threshold, with both senders' messages named.
 - With the distributing repository unreachable, a push **must** fail loudly and the next tick **must**
   deliver what was missed.
-- No key file appears anywhere a task container or the classifier container can read.
+- No key file appears anywhere a task container can read.
 
 Anything needing podman, ssh or a remote belongs in the acceptance suite, not in surefire.
 
@@ -471,7 +487,7 @@ Anything needing podman, ssh or a remote belongs in the acceptance suite, not in
 | Option | Why not |
 |---|---|
 | **A self-hosted filter between every machine and the forge**, plain git over ssh with the check as its `pre-receive` hook | A host of its own, a system user, a forced ssh command, a forwarding hook and a forge credential nobody else may hold — to run the same code that already runs where the message is written. It bought one thing the local check does not: a machine could not skip it. That is worth a great deal against somebody else's machines and almost nothing against the operator's own, which is the case here. |
-| **A model reviewer on every machine** | A hosted free model is a place every conversation leaks to, and a model that reads every project's messages becomes a bridge between them. The sluice is rules, and the classifier that is a model can only hold. |
+| **A model reviewer on every machine** | A hosted free model is a place every conversation leaks to, and a model that reads every project's messages becomes a bridge between them. The sluice is rules; a model, if one is ever added, may hold a message and never release one. |
 | **A socket helper**: a `talk serve` helper per task with a socket mounted at `/run/sokar/talk.sock`, a `Talk1` varlink interface, a hash-chained journal under the state directory, and the daemon as hub | Sound on one machine and widened nothing. It had to invent what git and the gate already provide — a wire, an inbox in agents that have none, a journal and its verifier — and across machines it needed a client carrying frames between daemons, with two records and no shared clock. |
 | **[FINOS GitProxy](https://github.com/finos/git-proxy)** (Apache-2.0, FINOS graduated) | A push interceptor with approval and forwarding, in TypeScript on Node with MongoDB or NeDB, bringing its own UI and user model. It is the centralized shape that was dropped; worth revisiting only if people outside Sokar have to approve messages in a browser. |
 | **[Gerrit](https://gerrit-review.googlesource.com/Documentation/config-validation.html)** | A whole code-review server with its own users and UI, to run for a message filter. Worth taking if messages ever need real review with several reviewers. |
@@ -480,24 +496,24 @@ Anything needing podman, ssh or a remote belongs in the acceptance suite, not in
 | [NATS](https://nats.io/about/) + JetStream, [Matrix](https://spec.matrix.org/latest/) via [continuwuity](https://continuwuity.org/introduction), [Prosody](https://prosody.im/) | Brokers and chat servers take transport and storage off the pile, and leave the policy, the hold and a verifiable record to be built on top — beside a daemon with its own authentication database. They would also put a service where a bare repository is enough. |
 | [Rekor](https://github.com/sigstore/rekor), [immudb](https://immudb.io/) | A transparency log proves more than a signed linear branch, and runs as another service. Worth revisiting if the record has to satisfy somebody who trusts neither the operator nor the forge. |
 
-## Open questions this design leaves
+## Questions this design carried, and their answers
 
-- **What the correlation across messages can see.** The sluice reads what its own machine let through,
-  so a payload spread across two machines is caught by neither. A shared corpus would mean shipping
-  fragment metadata between machines, which is a second channel to check.
-- **Whether dialogue at poll cadence is enough.** A minute is fine for handing work over and asking
-  questions; it is poor for fast back-and-forth, which was the one thing that justified a channel
-  beside the gate. The interval is configurable, but a machine polling every second is a different
-  design.
-- **Where `talk/` sits in the container**, so that it is outside the workspace, survives what the
-  agent does to its working directory, and is not mistaken for part of the project.
-- **Membership changes are one-way.** A new member reads the whole history; a removed member keeps
-  what it fetched. Excluding somebody from the past means a new branch.
-- **Whether the five kinds are the right five.** They are a proposal; a kind added later is a schema
-  change every gate must learn at once, and with no central check there is nothing to enforce that
-  they did.
-- **A2A's part fields.** The specification page, which showed version 1.0.0 on 2026-09-13, was read
-  for the message's fields; the exact field names of a part were not, and the table above must be
-  checked against them.
-- **The classifier's licence, whether it runs from Java, and its threshold.** Unread, unmeasured, and
-  undecided.
+Struck through rather than deleted: what was asked is worth as much as what was decided.
+
+- ~~**What the correlation across messages can see.**~~ The group's whole branch, which the gate
+  fetches anyway — `approved/` is that clone. Two gaps remain and are accepted: a sender can beat the
+  corpus by less than one fetch interval, and a piece refused or held elsewhere never reached the
+  branch to be counted.
+- ~~**Whether dialogue at poll cadence is enough.**~~ On one machine there is no cadence — the gate
+  watches the local repository and sees a push as it lands. Against a remote the timer stands, and
+  talk is for handover and questions rather than fast exchange.
+- ~~**Where `talk/` sits in the container.**~~ `/run/sokar/talk`, beside the sockets, outside the
+  workspace, untouched by an agent that wipes its working directory.
+- ~~**Membership changes are one-way.**~~ Accepted and stated in the requirement: joining reads the
+  whole history, removal is not retroactive, and excluding somebody from the past means a new group.
+- ~~**Whether the five kinds are the right five.**~~ They stay. Adding one later is a coordinated
+  change on every machine, which is exactly why the set is small.
+- ~~**A2A's part fields.**~~ Verified against the proto at `v1.0.1` on 2026-09-16 — see the message
+  format above.
+- ~~**The classifier's licence, whether it runs from Java, and its threshold.**~~ Not in the first
+  version, so none of the three is in the critical path.
