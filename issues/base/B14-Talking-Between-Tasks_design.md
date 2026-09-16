@@ -14,6 +14,9 @@ fact about a third-party product is quoted it comes from that product's document
   over ssh with Sokar's own binary as the hook. The filter may run on the same machine as the tasks
   when there is only one. Which of the two is used is one address in the gate's configuration.
 - **A message is an A2A message narrowed by a strict schema**, refused otherwise.
+- **What a message contains is checked by a tool of its own**, the message sluice: the schema,
+  encoded payloads, credentials, personal data, and a payload spread over several messages. It is
+  deterministic, carries no model, and lives in its own repository.
 - **The classifier runs in a container of its own**, with no network and nothing to take.
 
 ## Scope of the first version
@@ -150,8 +153,9 @@ On every talk push, in this order, and a failure at any step stops the next:
    3. every project in the group has the same class, refused as `REFUSED_BY_CLASS`;
    4. the task's agent declares `talk: git`.
 2. **The rules that are not a model**, run early so that an obvious refusal never leaves the machine:
-   one new file, under the task's own directory, valid against the narrowed schema, and clean under
-   `CredentialScan`. The same code as the check at the filter.
+   one new file, under the task's own directory, and then **the message sluice** — the narrowed
+   schema, encoded payloads, credentials, personal data, and what earlier messages of the same group
+   already carried. The same tool the check runs upstream, given the same message.
 3. **The gate's own commit.** The message file is taken out of the agent's commit and written into a
    new commit on the current tip of the group's branch, with the trailers above. The agent's author,
    dates, parents and any other file it committed are discarded rather than validated.
@@ -183,7 +187,8 @@ repository the gates push to:
 3. **The narrowed schema**, and `role` against `Sokar-Author`.
 4. **State**: the group is not closed, not held, and within its budget — read from `group.yml` at the
    tip.
-5. **`CredentialScan`**, the same code the vault proxy runs.
+5. **The message sluice**, the same tool the gate ran, here with every machine's messages as its
+   corpus rather than one machine's.
 6. **The classifier**, last, in its own container. It can answer *hold*; it cannot turn a refusal into
    an acceptance.
 
@@ -192,6 +197,42 @@ the reason `held`, the gate pushes the same commit to `refs/held/<group>/<id>`, 
 accepts after steps 1 to 3 only, and a person releasing it makes a new commit carrying the message and
 `Sokar-Released-By` and `Sokar-Held: <commit>` trailers, signed with the person's key. The held commit
 stays where it was, so the record shows both what the task said and who let it through.
+
+## The content check is its own tool
+
+**`sokar-message-sluice`, in a repository of its own**, where its requirement and its design are
+issue 001. Sokar decides *who* may say something to *whom*; the sluice decides *what* a message may
+contain. Keeping it separate is what lets the same tool run in two places that trust each other very
+differently — the gate on the sending machine, and the check upstream — without either growing a
+copy of the other's rules.
+
+**It is not an agent and carries no model.** Fixed rules over files, the same verdict every time for
+the same input, and every refusal traceable to one rule with a part index and an offset. A checker
+that asked a model would be open to the same manipulation as the task it checks, through exactly the
+text it is reading.
+
+What it decides, beyond the narrowed schema: **encoded payloads** (base64 and its relatives, hex,
+quoted-printable, PEM, ciphertext) caught by asking whether the text obeys the statistics of English
+rather than by a list of encodings; **credentials and personal data** by a catalogue of pattern,
+surrounding context and checksum; and **a payload spread over several messages**, by correlating
+against everything already let through for that `contextId`.
+
+**Its file contract, and how the gate drives it:**
+
+| The sluice's directory | What it is here |
+|---|---|
+| `inbox/` | where the gate writes the message it took out of the task's push, before it signs anything |
+| `approved/` | **the gate's clone of the group's branch.** The gate commits, signs and pushes what lands there — the push is the delivery, and nothing is ever removed, so it is also the corpus the chunking check reads |
+| `feedback/` | the answer: a receipt, or a refusal naming every reason with nothing a rule matched in clear text. The gate returns it to the task on its push |
+| `rejected/`, `error/` | the originals, which hold the secret in clear text. They stay on the host, are never pushed, and **must lie outside the clone's work tree** — the sluice refuses to start otherwise |
+
+The filter drives it the same way from its `pre-receive` hook, with every machine's messages as the
+corpus rather than one machine's.
+
+**What it does not catch**, stated here rather than discovered later: a secret described in words
+instead of written out, steganography in word choice, and anything that is not English prose. The
+classifier after it does not catch those either — it is why a group's mode, its text limit and its
+turn budget are the controls that bound what a conversation can carry.
 
 ## Where the check runs
 
@@ -462,6 +503,16 @@ Anything needing podman, sshd or a forge belongs in the acceptance suite, not in
 
 - **Whether GitHub may store the conversations at all.** Behind the filter it still holds every one of
   them in plaintext; a filter with no forward is a valid configuration.
+- **Where the sluice runs: at the gate, upstream, or at both.** At the gate nothing unchecked leaves
+  the machine, but the machine trusted to check is the one that may be compromised; upstream one
+  instance checks every machine, but the message has already travelled. Both is the safe answer, and
+  it keeps the same catalogue in two places.
+- **Whether the credential catalogue is kept twice.** `CredentialScan` here and the sluice's own
+  catalogue answer the same question in two forms, and the second copy is the one that goes stale.
+  Which of them is authoritative has to be decided before either grows.
+- **What the sluice's thresholds should be.** They are derived from the properties of English prose,
+  not calibrated against real traffic, so the first groups have to run in its reporting mode before
+  anything is blocked on them.
 - **Where `talk/` sits in the container**, so that it is outside the workspace, survives what the
   agent does to its working directory, and is not mistaken for part of the project.
 - **Whether a task may be in two groups.** It can carry what it read in one into the other.

@@ -41,10 +41,13 @@ cut.
   forge — plain git over ssh with Sokar's binary as the hook, the only writer the forge accepts, on a
   host of its own or on the one machine there is. Which of the two is one address in the gate's
   configuration.
-- **Rules decide; a classifier can only hold.** Schema, signature, group membership, class and the
-  credential scan accept or refuse. A prompt-injection classifier runs after them, in a container of
-  its own, and can hold a message for a person. It is not containment: a model that means to get past
-  it can.
+- **Rules decide; a classifier can only hold.** Signature, group membership and class are decided
+  here. **What a message contains is decided by a tool of its own, the message sluice**, which is not
+  a model: the narrowed schema, encoded payloads, credentials, personal data, and a payload spread
+  over several messages. It lives in its own repository, reads a directory and writes a directory,
+  and refuses the same way every time. A prompt-injection classifier runs after all of it, in a
+  container of its own, and can only hold a message for a person. It is not containment: a model that
+  means to get past it can.
 - **A branch separates writing, not reading.** A task reads only its own group because the gate's
   copy for it holds nothing else. Every machine that fetches the repository can read every group, so
   anything that must be kept from the operator's other machines needs a repository of its own.
@@ -69,6 +72,15 @@ cut.
   gate's configuration on the host, never in a container.
 - Only the rules that are not a model can accept a message. A classifier can hold one, and a
   classifier that fails, times out or answers out of bounds holds.
+- **What a message contains is judged by the message sluice**: at the gate before anything is signed,
+  and again where the check runs upstream. It carries no model, and its refusal names the rule, the
+  part and the offset.
+- Nothing reaches the talk repository that the sluice did not accept. The branch is pushed from the
+  directory the sluice writes, never from the one a task pushed into.
+- A sluice that cannot start, cannot be configured or cannot run holds everything: nothing leaves the
+  machine.
+- A refusal reaches the sending task as the sluice wrote it, with nothing a rule matched in clear
+  text. A refusal that quoted the secret back would carry it out itself.
 - The classifier runs in a container with no network, a read-only root filesystem and no credential,
   never in the process that forwards to the forge.
 - The filter runs as a user of its own, not as a Sokar task, and holds the forge credential where no
@@ -105,3 +117,10 @@ cut.
   provider and credential.
 - **Whether a hosted forge may store the conversations at all.** Behind a filter it still holds every
   one of them in plaintext; a filter that forwards nowhere is a valid configuration.
+- **Where the sluice runs: at the gate, upstream, or at both.** At the gate a message is refused
+  before it leaves the machine, but the machine being trusted to check is the one that may be
+  compromised. Upstream every machine is checked by the same instance, but by then the message has
+  travelled. Both is the safe answer and costs the same catalogue kept in two places.
+- **What the chunking check can see from where it runs.** It catches a payload spread over messages
+  by reading what it already let through, so a gate sees one machine and the instance upstream sees
+  all of them. The two placements do not catch the same thing.
