@@ -30,10 +30,10 @@ get out of.
 
 ## 2. The one-sentence answer
 
-**Sokar puts each agent run inside a sealed workshop: it can use the tools and the
+**Sokar puts each agent run inside a sealed environment: it can use the tools and the
 copy of your project you put in there, it cannot reach the internet except where you
 said so, it never holds your real passwords, and nothing it produces leaves the
-workshop until you have looked at it.**
+environment until you have looked at it.**
 
 The rest of this document is that sentence, unpacked.
 
