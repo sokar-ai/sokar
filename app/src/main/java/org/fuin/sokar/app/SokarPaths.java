@@ -284,6 +284,20 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file holding the key this machine signs messages with.
+     * <p>
+     * Under the state directory, mode {@code 0600}, and never mounted anywhere. A key a task
+     * container could reach is a key it could copy, which is why the task never signs and the host
+     * always does - and why what a signature proves is that this installation vouched for the
+     * message, not that a particular agent typed it.
+     *
+     * @return The key file, which may not exist yet.
+     */
+    public Path messageKey() {
+        return xdg.state().resolve("message-key");
+    }
+
+    /**
      * Returns the filter that decides what a message may contain, or {@code null} when this
      * machine has none.
      * <p>

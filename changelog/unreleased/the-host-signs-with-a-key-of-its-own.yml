@@ -1,0 +1,2 @@
+title: "The host signs messages with a key of its own, kept 0600 under the state directory and never mounted into a container, created the first time a message is sent."
+type: added
