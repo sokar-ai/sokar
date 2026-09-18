@@ -38,10 +38,12 @@ public final class MessagePass {
      * @param sent Per transport, what was handed over, deferred or refused.
      * @param delivered What reached the agent, and what was held on arrival.
      * @param bounced The filter's answers handed to the agent.
+     * @param polled What each transport fetched, and what could not be asked.
      */
     public record Report(List<String> taken, MessageFiltering.Outcome filtered,
             MessageDispatch.Outcome dispatched, Map<String, TransportSend.Result> sent,
-            MessageDelivery.Outcome delivered, List<String> bounced) {
+            MessageDelivery.Outcome delivered, List<String> bounced,
+            TransportPoll.Outcome polled) {
     }
 
     private final CommandRunner runner;
@@ -128,11 +130,21 @@ public final class MessagePass {
             }
         }
 
+        // Asked before anything is delivered: a transport that keeps its arrivals elsewhere has
+        // to be given the chance to put them here, or the delivery below would walk past them.
+        final TransportPoll.Outcome polled =
+                new TransportPoll(runner, transports).poll(mailbox);
+        for (final Map.Entry<String, String> failure : polled.failures().entrySet()) {
+            record.append(MessageRecord.HELD, "", "", failure.getKey(),
+                    "it could not be asked what arrived: " + failure.getValue());
+        }
+
         // Independent of our own filter: what a peer sent is delivered whether or not this machine
         // can send anything today.
         final MessageDelivery.Outcome delivered =
                 new MessageDelivery().deliver(mailbox, peers, record.delivered(),
-                        new InboundCheck(runner, filter, mail), budget);
+                        new InboundCheck(runner, filter, mail), budget,
+                        attestedBy(polled, mail));
         for (final MessageDelivery.Delivered one : delivered.delivered()) {
             record.append(MessageRecord.DELIVERED, one.message(), one.id(), one.peer(), "");
         }
@@ -144,7 +156,34 @@ public final class MessagePass {
                     "it had been delivered before");
         }
         final List<String> bounced = new BounceDelivery().deliver(mailbox);
-        return new Report(taken, filtered, dispatched, sent, delivered, bounced);
+        return new Report(taken, filtered, dispatched, sent, delivered, bounced, polled);
+    }
+
+    /**
+     * Builds the ownership check for messages this pass fetched.
+     * <p>
+     * Which transport brought a message decides whether it has to prove who owned it, and that is
+     * known only here - the message itself does not say, and a transport's own word about it is the
+     * claim that must not be trusted.
+     *
+     * @param polled What each transport fetched.
+     * @param mail The project's peers, where an address names a Unix user.
+     * @return The check, which lets through anything nobody promised anything about.
+     */
+    private MessageDelivery.Attested attestedBy(final TransportPoll.Outcome polled,
+            final Mail mail) {
+        return (mailbox, message, peer) -> {
+            final String carrier = polled.arrivals().get(message.getFileName().toString());
+            if (carrier == null) {
+                // Nothing fetched it in this pass: it was put here by something that does not
+                // poll, and nothing was promised about it.
+                return "";
+            }
+            final Path adapter = transports.find(carrier);
+            final boolean attesting = adapter != null
+                    && TransportDescription.of(runner, adapter).attestsOwner();
+            return OwnerAttestation.refuse(mailbox, message, peer, mail, attesting);
+        };
     }
 
     private List<String> queues(final Mailbox mailbox) throws IOException {

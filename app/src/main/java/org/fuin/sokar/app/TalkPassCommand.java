@@ -56,6 +56,13 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
                 ProjectReader.read(projectFile).mail(),
                 AllowedSigners.read(context.paths().allowedSigners()));
 
+        report.polled().failures().forEach((transport, why) ->
+                err.println("transport " + transport + " - " + why));
+        if (!report.polled().arrivals().isEmpty()) {
+            out.println("fetched   " + report.polled().arrivals().size() + " by "
+                    + String.join(", ", new java.util.TreeSet<>(
+                            report.polled().arrivals().values())));
+        }
         out.println("taken     " + report.taken().size());
         if (!report.filtered().ran()) {
             // Not a warning among others: this is the reason nothing left, and it is the state an
