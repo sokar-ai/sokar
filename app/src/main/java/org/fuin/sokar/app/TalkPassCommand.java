@@ -54,7 +54,7 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
                 context.paths().messageFilter(), context.paths().transportDirectory());
         final MessagePass.Report report = pass.run(mailbox,
                 ProjectReader.read(projectFile).mail(),
-                AllowedSigners.read(context.paths().allowedSigners()));
+                KnownPeers.of(context));
 
         report.polled().failures().forEach((transport, why) ->
                 err.println("transport " + transport + " - " + why));

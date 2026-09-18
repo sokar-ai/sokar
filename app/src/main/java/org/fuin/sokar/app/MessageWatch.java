@@ -117,7 +117,7 @@ public final class MessageWatch implements AutoCloseable {
             pass = new MessagePass(context.runner(),
                     HostKey.loadOrCreate(context.paths().messageKey(), "sokar@" + hostName()),
                     context.paths().messageFilter(), context.paths().transportDirectory());
-            peers = AllowedSigners.read(context.paths().allowedSigners());
+            peers = KnownPeers.of(context);
         } catch (final IOException ex) {
             // No key that can be written, or a keyring with a line nobody can read. Both are the
             // operator's to fix, and both stop every mailbox rather than one - so nothing is moved

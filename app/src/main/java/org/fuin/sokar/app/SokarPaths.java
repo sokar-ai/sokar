@@ -35,6 +35,9 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     /** Name of a hook binary, used to tell an install apart from an empty directory. */
     private static final String MARKER = "sokar-hook-nft";
 
+    /** Names a spool other than the machine's own, for a test or an unusual machine. */
+    public static final String SPOOL_VARIABLE = "SOKAR_SPOOL";
+
     /** What the program that decides a message's content is called. */
     public static final String MESSAGE_FILTER = "sokar-message-sluice-filter";
 
@@ -199,7 +202,22 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
      * @return The directory, which need not exist.
      */
     public Path sharedKeys() {
-        return Path.of("/var/spool/sokar/keys");
+        return spool().resolve("keys");
+    }
+
+    /**
+     * Returns where the users of this machine exchange messages, drops and keys.
+     * <p>
+     * Overridable through {@link #SPOOL_VARIABLE}, for the same reason the vault's path is: a test
+     * needs somewhere that is not the machine's real one, and a machine may keep it elsewhere.
+     * The default is what the setup script makes.
+     *
+     * @return The directory, which need not exist.
+     */
+    public Path spool() {
+        final String override = System.getenv(SPOOL_VARIABLE);
+        return override == null || override.isBlank()
+                ? Path.of("/var/spool/sokar") : Path.of(override);
     }
 
     /**
