@@ -9,13 +9,22 @@ that neither closes, and it is the first five minutes of every new machine:
 1. **Nothing starts the daemon.** `sokar-setup.sh` deliberately leaves it to the work user's own
    session, because a root script starting another user's service is either wrong or a lie about the
    session it runs in. So somebody has to run `systemctl --user enable --now sokard` as that user.
-2. **Nothing can create the vault except a terminal on that machine.** There is no method on
+2. **Nothing registers the OCI hooks.** `sokar setup` writes into that account's own podman
+   configuration, and podman reads hook descriptors per user - so root does not know whose to write,
+   and a `hooks_dir` in the system configuration would point every user's podman at Sokar. Without
+   it `sokar doctor` says *"hooks registered: MISSING - a task would run with no firewall at all"*
+   and exits 69. Starting a task registers them too, which makes this the difference between a
+   prepared machine and one that repairs itself on first use. Found on 2026-09-18 by the
+   interface's agent on a machine the script had just prepared; the script's closing text now names
+   it, and nothing does it for them.
+3. **Nothing can create the vault except a terminal on that machine.** There is no method on
    `Tasks1` that makes one, and the daemon has none to offer: a vault is created with a passphrase,
    and a daemon has no terminal to ask for one at. `EnrollDevice` therefore answers
    `VAULT_WITHOUT_KEYSLOTS` on a new machine, and a device cannot be the first way in.
 
-So the interface's wizard, which exists so that a person never has to open a shell, has to open a
-shell twice.
+So the interface's wizard, which exists so that a person never has to open a shell, has to open one
+three times. The first two are the same kind of thing - work that belongs to the account the daemon
+runs as - and only the third carries a decision.
 
 ## What must be true
 
