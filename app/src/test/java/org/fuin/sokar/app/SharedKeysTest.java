@@ -30,39 +30,42 @@ class SharedKeysTest {
     }
 
     @Test
-    void reads_a_file_owned_by_the_user_it_is_named_after(@TempDir final Path dir)
+    void reads_a_key_whose_directory_and_file_belong_to_its_account(@TempDir final Path dir)
             throws IOException {
-        // The test runs as one user, so the file it writes is owned by that user - which makes
-        // exactly one name believable here, and it is the name to use.
+        // The test runs as one user, so everything it creates is owned by that user - which makes
+        // exactly one account name believable here, and it is the name to use.
         final String me = System.getProperty("user.name");
-        Files.writeString(dir.resolve(me + SharedKeys.SUFFIX), line(me) + "\n");
+        Files.createDirectory(dir.resolve(me));
+        Files.writeString(dir.resolve(me).resolve(SharedKeys.FILE), line(me) + "\n");
 
         assertThat(SharedKeys.read(dir)).extracting(MessageDelivery.Peer::name).containsExactly(me);
     }
 
     /**
-     * The case the ownership check exists for: a file put there in somebody else's name.
+     * The case the ownership check exists for: a directory and a key put there in another's name.
      */
     @Test
-    void a_file_named_after_another_user_counts_as_nothing(@TempDir final Path dir)
+    void a_directory_named_after_another_account_counts_as_nothing(@TempDir final Path dir)
             throws IOException {
-        Files.writeString(dir.resolve("somebody-else" + SharedKeys.SUFFIX),
+        Files.createDirectory(dir.resolve("somebody-else"));
+        Files.writeString(dir.resolve("somebody-else").resolve(SharedKeys.FILE),
                 line("somebody-else") + "\n");
 
-        assertThat(SharedKeys.read(dir)).as("written by this user, named after another").isEmpty();
+        assertThat(SharedKeys.read(dir)).as("created by this user, named after another").isEmpty();
     }
 
     @Test
     void ignores_what_is_not_a_published_key(@TempDir final Path dir) throws IOException {
         final String me = System.getProperty("user.name");
-        Files.writeString(dir.resolve(me + ".txt"), line(me) + "\n");
-        Files.createDirectory(dir.resolve("a-directory" + SharedKeys.SUFFIX));
+        Files.writeString(dir.resolve(me + ".pub"), line(me) + "\n");
+        Files.createDirectory(dir.resolve("empty-account"));
 
-        assertThat(SharedKeys.read(dir)).isEmpty();
+        assertThat(SharedKeys.read(dir)).as("a loose file is not an account, and an account with"
+                + " no key is not a key").isEmpty();
     }
 
     @Test
     void owned_by_says_no_for_a_file_that_is_not_there(@TempDir final Path dir) {
-        assertThat(SharedKeys.ownedBy(dir.resolve("nothing.pub"), "anybody")).isFalse();
+        assertThat(SharedKeys.ownedBy(dir.resolve("nothing"), "anybody")).isFalse();
     }
 }

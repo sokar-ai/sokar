@@ -81,7 +81,16 @@ public class TalkKeyCommand implements Callable<Integer>, SokarFactory.ContextAw
             return 1;
         }
         final String me = System.getProperty("user.name", "");
-        final java.nio.file.Path file = directory.resolve(me + ".pub");
+        // Into this account's own directory, which root made and only this account may write.
+        final java.nio.file.Path mine = directory.resolve(me);
+        if (!java.nio.file.Files.isDirectory(mine)) {
+            err.println("sokar: " + mine + " does not exist, so this account has no place to"
+                    + " publish to.");
+            err.println("       ask an administrator for: sokar-setup.sh --user " + me);
+            err.flush();
+            return 1;
+        }
+        final java.nio.file.Path file = mine.resolve(SharedKeys.FILE);
         try {
             java.nio.file.Files.writeString(file, line + System.lineSeparator(),
                     java.nio.charset.StandardCharsets.UTF_8);
@@ -92,8 +101,8 @@ public class TalkKeyCommand implements Callable<Integer>, SokarFactory.ContextAw
             // is not yours cannot be replaced. That is the protection working, not a fault.
             err.println("sokar: cannot write " + file + " - " + ex.getMessage());
             if (java.nio.file.Files.exists(file)) {
-                err.println("       it exists and is not yours, which is what stops one user"
-                        + " publishing a key in another's name");
+                err.println("       it exists and is not yours, which should not be possible in a"
+                        + " directory of your own - tell whoever set this machine up");
             }
             err.flush();
             return 1;

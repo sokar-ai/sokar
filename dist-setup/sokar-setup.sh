@@ -349,6 +349,12 @@ GROUP=agents
 
 drop_for() { # user
     install -d -m 1730 -o "$1" -g "$GROUP" "$SPOOL/drop/$1/tmp" "$SPOOL/drop/$1/new"
+    # A directory per user rather than a file per user in one shared directory. Measured on the VM
+    # on 2026-09-18: with one shared directory, a group member can create 'keys/<other>.pub' before
+    # that user ever publishes - the owner check then rightly disbelieves it, and the sticky bit
+    # stops the rightful user removing it, so their messaging is silenced until root steps in.
+    # Nobody but root creates anything in 'keys/', so there is no name left to take.
+    install -d -m 0755 -o "$1" -g "$GROUP" "$SPOOL/keys/$1"
     # The mode lets the group drop a file in without listing or reading the directory; the sticky
     # bit stops one sender removing another's. The default ACL then hands each dropped file to the
     # recipient alone - without it a file arrives readable by the whole group.
@@ -367,8 +373,8 @@ if [ "$BETWEEN" = on ]; then
     fi
     getent group "$GROUP" >/dev/null 2>&1 || run groupadd "$GROUP"
     run install -d -m 0755 -o root -g root "$SPOOL"
-    # Every member may publish their own key here; the sticky bit stops them replacing another's.
-    run install -d -m 1775 -o root -g "$GROUP" "$SPOOL/keys"
+    # Root-only: each user gets a directory of their own inside it, made with their drop.
+    run install -d -m 0755 -o root -g "$GROUP" "$SPOOL/keys"
     run install -d -m 0755 -o root -g root "$SPOOL/drop"
     note "allowed. Each user publishes their key with 'sokar talk key --publish'."
 elif [ "$BETWEEN" = off ]; then
@@ -396,7 +402,7 @@ if [ -d "$SPOOL/drop" ]; then
     if [ -d "$SPOOL/drop/$USER_NAME/new" ]; then
         note "$SPOOL/drop/$USER_NAME is already there"
     elif [ "$SHOW" = yes ]; then
-        printf '   $ %s\n' "install -d -m 1730 -o $USER_NAME -g $GROUP $SPOOL/drop/$USER_NAME/{tmp,new}, with a default ACL"
+        printf '   $ %s\n' "install -d -m 1730 -o $USER_NAME -g $GROUP $SPOOL/drop/$USER_NAME/{tmp,new} with a default ACL, and -m 0755 $SPOOL/keys/$USER_NAME"
     else
         drop_for "$USER_NAME"
         note "wrote $SPOOL/drop/$USER_NAME"
