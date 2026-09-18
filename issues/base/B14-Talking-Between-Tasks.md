@@ -1,12 +1,26 @@
 # B14 — Talking Between Tasks
 
-**Status:** in progress since 2026-09-18. The way out and the way in are built and measured against
-the filter and the transport of `sokar-message-sluice`; what a person controls is not. What is built:
-the mailbox and its lifetime, the signature, the filter call, dispatch, sending with its three
-outcomes, delivery against a key list, bounces, one pass per mailbox, the daemon's timer, and the
-`sokar talk` verbs. What is not: everything under *What a person controls*, the budgets, the record,
-the content check for an external peer, and the daemon's own contract - so no interface can see any
-of this yet.
+**Status:** built on 2026-09-18, and measured against the filter and the transport of
+`sokar-message-sluice`. What is built: the mailbox and its lifetime, the signature, the filter call
+on the way out and on the way in for an external peer, dispatch, sending with its three outcomes,
+delivery against a key list, the hash-chained record, duplicate suppression, bounces, the day's
+budget in both directions, holding and releasing with the four `clearance` modes, `sokar talk`
+including `verify` and `say`, the daemon's five message methods with their interface description,
+the timer, and noticing a message that lands on this machine without waiting for it.
+
+**Three things are named in *Acceptance* and are not built.** They are listed here rather than left
+to be discovered: **groups** - a group as a host-side peer list, held, released and closed as one -
+are not implemented at all, and a message addressing more than one peer is refused with a reason;
+**`sokar talk log`** does not exist, and what it was for is served by the daemon's streaming `Talk`,
+so the gap is a terminal one rather than a missing capability; and a **transport that reaches
+another machine** is `sokar-message-sluice` 003 (git) and deliberately later. Until that exists,
+"another machine" is untested by construction - what has run is two mailboxes on one machine, on
+this laptop and on the Ubuntu VM.
+
+**The default is the strict one.** A peer nobody has decided about is in `prompt`, so nothing a
+person has not released leaves the machine. `allow` and `off` need `unread_work_may_leave: true` in
+a project that is not `online` - the same setting B13 ([index](README.md)) asks before unreviewed
+work goes to a review branch.
 
 **How it would be built** is [B14-Talking-Between-Tasks_design.md](B14-Talking-Between-Tasks_design.md).
 

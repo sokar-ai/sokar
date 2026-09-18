@@ -82,7 +82,11 @@ public final class MessagePass {
         final MessageRecord record = new MessageRecord(mailbox);
         final List<String> taken = new MessageIntake(key).take(mailbox);
         for (final String message : taken) {
-            record.append(MessageRecord.TAKEN, message, "", "");
+            // The role goes into the record: a person writing into a conversation has to be
+            // distinguishable from the agent afterwards, and the message itself may be gone by
+            // the time anybody asks.
+            record.append(MessageRecord.TAKEN, message, "", "",
+                    MessageFile.role(mailbox.incoming().resolve(message)));
         }
         final MessageFiltering.Outcome filtered = new MessageFiltering(runner, filter).run(mailbox);
 

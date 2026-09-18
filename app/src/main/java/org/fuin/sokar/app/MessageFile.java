@@ -21,6 +21,25 @@ public final class MessageFile {
     }
 
     /**
+     * Returns who wrote a message.
+     *
+     * @param message The file.
+     * @return {@code ROLE_USER} when a person wrote it, {@code ROLE_AGENT} when a task did, or an
+     *         empty string when the file cannot be read as a message.
+     * @throws IOException Reading failed.
+     */
+    public static String role(final Path message) throws IOException {
+        if (!Files.isRegularFile(message)) {
+            return "";
+        }
+        final Object parsed = Json.parse(Files.readString(message, StandardCharsets.UTF_8));
+        if (parsed instanceof Map<?, ?> document && document.get("role") instanceof String role) {
+            return role;
+        }
+        return "";
+    }
+
+    /**
      * Returns a message's identifier.
      *
      * @param message The file.
