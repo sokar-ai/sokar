@@ -1,7 +1,8 @@
 # B54 — Stopping The Daemon Stops The Tasks It Started
 
-**Status:** open, found and measured on 2026-09-13 while answering the interface's question whether
-it should offer to stop a daemon as well as start one. Related to B43 - a restarted machine leaves
+**Status:** decided on 2026-09-18, and not built. The cause is measured, the fix is measured in
+isolation, and what is left is doing it in the daemon. Found on 2026-09-13 while answering the
+interface's question whether it should offer to stop a daemon as well as start one. Related to B43 - a restarted machine leaves
 tasks `Exited (143)` too, from a different cause - and to B44, which brings a stopped task back.
 
 **What it blocks.** `sokar-frontend` F33, offering to stop a daemon from the interface. Until
@@ -35,8 +36,56 @@ files the agent had added - but the running task was stopped by stopping the dae
 The unit sets no `KillMode`, so systemd's default applies: stopping a unit stops **every process in
 its control group**. And a task started through the daemon is started from inside it - the daemon
 runs `TaskLaunch` in its own process, which starts the helpers and podman as its children, and they
-stay in the unit's control group. conmon landed there too, although podman's cgroup manager is
-`systemd`; why is part of what is open below.
+stay in the unit's control group.
+
+## Measured, 2026-09-18: where the parts actually are, and what kills them
+
+On `ubuntu26.04` as `claude`, podman 5 with cgroup manager `systemd`, one `guarded` project, the stub
+agent, the task started through the daemon's socket rather than from the CLI.
+
+**The workload is already in a scope of its own; its monitor is not.**
+
+    sokard.service/                       pasta, conmon, dnsmasq,
+                                          sokar shield read, sokar gate serve, sokar shield watch
+    user.slice/libpod-<id>.scope/container /run/podman-init -- sleep infinity, and the agent
+
+So podman **did** give the container its own transient scope. What stayed in the daemon's control
+group is conmon - the process that keeps the container alive - together with the network, the
+resolver and the three helpers.
+
+**Why conmon is there, and it is not what the 2026-09-13 note assumed.** The daemon's environment
+carries both `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1001/bus`, so
+podman could reach the user's systemd and did: the `libpod-<id>.scope` exists and is active. podman
+places the **container** in that scope and leaves **conmon in the control group of whoever invoked
+it**. The daemon invoked it, so conmon is the daemon's.
+
+**A scope of its own did not save the task.** `systemctl --user stop sokard`, measured:
+
+| | before | after |
+|---|---|---|
+| container | `Up About a minute` | `Exited (143)` |
+| conmon | alive | gone |
+| the workload inside `libpod-<id>.scope` | alive | gone |
+| pasta, dnsmasq, the three helpers | alive | gone |
+| `libpod-<id>.scope` | active | inactive |
+
+The payload died although it was not in the unit's control group, because its **monitor** was: kill
+conmon and the container goes with it, and podman's cleanup then takes the scope down. **The thing to
+move out of the daemon is the monitor and the helpers, not the payload.**
+
+**The fix, measured in isolation.** The same task started inside a transient scope -
+`systemd-run --user --scope --unit=sokar-scope-t2 --collect sokar task start …` - puts conmon, the
+gate, the resolver and the helpers in `app.slice/sokar-scope-t2.scope`. Stopping the daemon then
+leaves everything running:
+
+    sokard: inactive
+    containers up: sokar-b54-t2 Up 9 seconds
+    conmon: alive   gate: alive   dnsmasq: alive
+
+That is the shape to build: **one transient scope per task, created by whoever starts it**, so that a
+task's lifetime is decided by the task and not by its parent. It also answers the third question this
+requirement used to carry - once both paths put a task in a scope of its own, nothing needs to record
+which path started it, because the difference is gone.
 
 ## Why it matters
 
@@ -67,14 +116,17 @@ for that task to end.**
 - A task started through the daemon and one started from the CLI live in the same place, so how a
   task was started does not decide how long it lives.
 - A test fails if a task's process is ever found in the daemon's own control group again.
+- **A task's scope ends when the task ends.** No scope, and no helper, outlives the task it belongs
+  to - otherwise stopping the daemon stops nothing and removing a task leaves processes nobody
+  names.
 
-## Open questions
+## To be checked
 
-1. **Where a task's processes should live.** In a scope of their own per task - podman's, or a
-   transient `systemd-run --user --scope` - or by changing the unit's `KillMode`. The last is one
-   line and the weakest: the processes stay in the unit's control group, and systemd warns about
-   what is left over at the next start.
-2. **Why conmon landed in the unit's control group** although podman's cgroup manager is `systemd`.
-   What podman needs in order to give a container its own scope has to be measured, not assumed.
-3. **Whether anything should record that a task was started through the daemon**, once the answer to
-   the first question makes that difference disappear.
+- **Whether removing a task reaps helpers that live in its scope.** Measured once, in the unusual
+  arrangement above - a CLI-started task inside a hand-made scope - `sokar task remove` reported
+  `removed` and left conmon, `sokar shield read` and dnsmasq running in the scope, conmon reparented
+  to init. The scope then had to be stopped by hand. Whether that is an artifact of the hand-made
+  scope or a defect in removal has to be measured again once the daemon creates the scope itself,
+  because a task that leaves its helpers behind is the failure this requirement's own contract calls
+  out: *a container that is up with no helpers is not the same thing as a healthy task*, and the
+  mirror image - helpers with no container - is no better.
