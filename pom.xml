@@ -357,8 +357,13 @@
                     <extensions>true</extensions>
                     <configuration>
                         <fallback>false</fallback>
+                        <!-- '- -no-fallback' was here and is gone: this GraalVM answers it with
+                             "Using a deprecated option - -no-fallback from command line. No effect,
+                             no replacement available", so it only put a warning in every build.
+                             Fallback images no longer exist, and <fallback>false</fallback> above
+                             says what we mean. Noticed by the filter's agent, confirmed in this
+                             build's own output on 2026-09-18. -->
                         <buildArgs>
-                            <buildArg>--no-fallback</buildArg>
                             <buildArg>-H:+ReportExceptionStackTraces</buildArg>
                         </buildArgs>
                     </configuration>

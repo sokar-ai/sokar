@@ -90,6 +90,53 @@ class InboundCheckTest {
     }
 
     /**
+     * The filter's agent measured that without this only a malformed envelope is refused, so a
+     * message whose text is full of base64 would be delivered with the finding in a receipt
+     * nobody here reads.
+     */
+    @Test
+    void the_filter_is_asked_to_block_on_the_way_in(@TempDir final Path dir) throws IOException {
+        final Mailbox mailbox = arrived(dir, "m-1.json");
+        final FakeCommandRunner runner = new FakeCommandRunner();
+
+        new InboundCheck(runner, filter, mail)
+                .refuse(mailbox, mailbox.inbound().resolve("m-1.json"), "ops");
+
+        assertThat(runner.lines()).singleElement()
+                .satisfies(line -> assertThat(line).contains("--blocking")
+                        .contains(mailbox.check().toString()));
+    }
+
+    /**
+     * Never sent - it would tell an unvouched sender what this machine looks for - but kept, because
+     * an operator deciding on a release has nothing else that says why.
+     */
+    @Test
+    void the_filters_answer_is_kept_beside_the_held_message(@TempDir final Path dir)
+            throws IOException {
+        final Mailbox mailbox = arrived(dir, "m-1.json");
+        final CommandRunner refusing = command -> {
+            try (Stream<Path> waiting = Files.list(mailbox.checkIncoming())) {
+                for (final Path message : waiting.toList()) {
+                    Files.move(message, mailbox.checkRejected()
+                            .resolve(message.getFileName().toString()));
+                }
+                Files.writeString(mailbox.checkFeedback().resolve("answer.json"),
+                        "{\"messageId\":\"sluice-1\"}");
+            } catch (final IOException e) {
+                throw new IllegalStateException(e);
+            }
+            return new CommandResult(command, MessageFiltering.SOMETHING_REFUSED, "", "");
+        };
+
+        new InboundCheck(refusing, filter, mail)
+                .refuse(mailbox, mailbox.inbound().resolve("m-1.json"), "ops");
+
+        assertThat(mailbox.hold().resolve("m-1.json.refusal-1.json")).exists();
+        assertThat(mailbox.checkFeedback()).as("and nothing is left to be sent").isEmptyDirectory();
+    }
+
+    /**
      * Fail closed, in the direction that is easy to forget: a machine that cannot check does not
      * get to skip checking.
      */

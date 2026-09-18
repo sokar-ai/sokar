@@ -26,7 +26,17 @@ import org.fuin.sokar.core.project.Mail;
  * <p>
  * <strong>A refusal is not answered to the sender.</strong> What the filter refused came from
  * outside; replying with what was wrong with it would tell somebody unvouched exactly what this
- * machine looks for. It is held, and the operator is the one who is told.
+ * machine looks for. It is held together with the filter's own answer, which is redacted by
+ * construction and is the only record of why - the operator deciding on a release needs it.
+ * <p>
+ * <strong>And here the filter is asked to block, which is the one place it is.</strong> On the way
+ * out it runs in reporting mode, because thresholds fitted to nobody's traffic would refuse an
+ * agent's ordinary work before anybody had seen what it normally says. That argument is about the
+ * sender's own traffic and does not reach this direction: here the sender is the peer this machine
+ * does not vouch for. Without it the check would be worthless rather than lenient - the filter's
+ * agent measured that in reporting mode only a malformed envelope moves a message to
+ * {@code rejected/}, so text full of base64 or a message hidden in zero-width characters lands in
+ * {@code accepted/} with the finding in a receipt nobody here reads.
  */
 public final class InboundCheck {
 
@@ -78,7 +88,7 @@ public final class InboundCheck {
         final CommandResult result;
         try {
             result = runner.run(Command.of(filter.toString(), "--mail",
-                    mailbox.check().toString()));
+                    mailbox.check().toString(), "--blocking"));
         } catch (final RuntimeException e) {
             return "it is from an external peer and the filter could not be run: " + e.getMessage();
         }
@@ -90,12 +100,36 @@ public final class InboundCheck {
             clear(mailbox);
             return "";
         }
-        if (Files.isRegularFile(mailbox.checkError().resolve(name))) {
-            clear(mailbox);
-            return "it is from an external peer and the filter could not read it";
-        }
+        final boolean unreadable = Files.isRegularFile(mailbox.checkError().resolve(name));
+        keepTheAnswer(mailbox, name);
         clear(mailbox);
-        return "the filter refused it on the way in";
+        return unreadable ? "it is from an external peer and the filter could not read it"
+                : "the filter refused it on the way in";
+    }
+
+    /**
+     * Keeps the filter's own answer beside the message that is about to be held.
+     * <p>
+     * It is never sent - it would tell an unvouched sender what this machine looks for - but it is
+     * the only record of why, and an operator deciding whether to release the message needs it.
+     * Nothing in it holds what a rule matched: the filter redacts before it writes.
+     *
+     * @param mailbox The task's mailbox.
+     * @param name The message's file name, which the answer is named after.
+     * @throws IOException Moving failed.
+     */
+    private void keepTheAnswer(final Mailbox mailbox, final String name) throws IOException {
+        if (!Files.isDirectory(mailbox.checkFeedback())) {
+            return;
+        }
+        try (Stream<Path> answers = Files.list(mailbox.checkFeedback())) {
+            int number = 0;
+            for (final Path answer : answers.filter(Files::isRegularFile).sorted().toList()) {
+                number++;
+                Files.move(answer, mailbox.hold().resolve(name + ".refusal-" + number + ".json"),
+                        StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
     }
 
     /**
