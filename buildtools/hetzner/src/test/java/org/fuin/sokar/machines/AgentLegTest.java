@@ -55,4 +55,39 @@ class AgentLegTest {
         assertThat(AgentLeg.install("ubuntu", "https://x", "p")).doesNotContain("@");
         assertThat(AgentLeg.install("fedora", "https://x", "p")).doesNotContain("@");
     }
+
+    @Test
+    void readsADebianPackageNameOffItsFileName() {
+        assertThat(AgentLeg.packageName("sokar_0.1.0~snapshot.151_amd64.deb", ".deb"))
+                .isEqualTo("sokar");
+        assertThat(AgentLeg.packageName("sokar-message-sluice-filter_1.0.0_amd64.deb", ".deb"))
+                .as("a name full of dashes is still one name")
+                .isEqualTo("sokar-message-sluice-filter");
+    }
+
+    @Test
+    void readsAnRpmPackageNameOffItsFileName() {
+        assertThat(AgentLeg.packageName("sokar-0.1.0-1.x86_64.rpm", ".rpm")).isEqualTo("sokar");
+        assertThat(AgentLeg.packageName("sokar-agent-claude-1.2.3-1.x86_64.rpm", ".rpm"))
+                .isEqualTo("sokar-agent-claude");
+    }
+
+    /**
+     * Two different packages are a set to install together - an agent repository builds several,
+     * and so does the messaging one. Two builds of the same package are the ambiguity that is
+     * refused, and the names have to tell the cases apart before either file is on a machine.
+     */
+    @Test
+    void tellsTwoPackagesApartFromTwoBuildsOfOne() {
+        assertThat(AgentLeg.packageName("sokar-message-sluice-filter_1.0.0_amd64.deb", ".deb"))
+                .isNotEqualTo(AgentLeg.packageName(
+                        "sokar-message-transport-local_1.0.0_amd64.deb", ".deb"));
+        assertThat(AgentLeg.packageName("sokar_0.1.0~snapshot.150_amd64.deb", ".deb"))
+                .isEqualTo(AgentLeg.packageName("sokar_0.1.0~snapshot.151_amd64.deb", ".deb"));
+    }
+
+    @Test
+    void aFileWithoutThatShapeIsItsOwnPackage() {
+        assertThat(AgentLeg.packageName("something.deb", ".deb")).isEqualTo("something");
+    }
 }

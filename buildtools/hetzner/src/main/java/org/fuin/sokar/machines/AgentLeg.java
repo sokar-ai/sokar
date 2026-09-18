@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,9 +30,9 @@ public final class AgentLeg {
     private static final Map<String, String> IMAGES = Map.of(
             "ubuntu", "ubuntu-26.04", "fedora", "fedora-44");
 
-    /** Where a candidate package is put, and how the package manager is pointed at it. */
+    /** Which suffix a candidate package has, per operating system. */
     private static final Map<String, String> CANDIDATE = Map.of(
-            "ubuntu", "/root/candidate/*.deb", "fedora", "/root/candidate/*.rpm");
+            "ubuntu", ".deb", "fedora", ".rpm");
 
     /** The unprivileged user a suite runs as: the shape a task runs in, rootless. */
     private static final String USER = "acceptance";
@@ -155,16 +156,21 @@ public final class AgentLeg {
     }
 
     /**
-     * Puts a package built in this run on the machine, refusing anything ambiguous.
+     * Puts the packages built in this run on the machine, refusing anything ambiguous.
+     * <p>
+     * <strong>Several packages are allowed; two builds of the same one are not.</strong> A
+     * repository may produce a set that only makes sense together - a filter and a transport, a
+     * tool and its agent - and installing them in one command is what proves their dependencies
+     * resolve. What is refused is two files naming the same package, because a working tree
+     * accumulates those and letting the package manager pick whichever it prefers proves nothing.
      *
      * @param lease The machine.
      * @param options What to do.
-     * @return How the package manager should name it.
-     * @throws IOException If the directory holds no package, or more than one.
+     * @return How the package manager should name them, space separated.
+     * @throws IOException If the directory holds no package, or two builds of one.
      */
     private static String sendCandidate(Lease lease, Options options) throws IOException {
-        final String pattern = CANDIDATE.get(options.os());
-        final String suffix = pattern.substring(pattern.lastIndexOf('.'));
+        final String suffix = CANDIDATE.get(options.os());
         final List<Path> built = new ArrayList<>();
         try (var found = Files.list(options.candidate())) {
             found.filter(each -> each.getFileName().toString().endsWith(suffix))
@@ -175,16 +181,53 @@ public final class AgentLeg {
                     + " package. Installing the published package instead would look exactly like"
                     + " a passing run, which is why this stops.");
         }
-        if (built.size() > 1) {
-            // A working tree accumulates them; letting the package manager pick proves nothing.
-            throw new IOException("--candidate " + options.candidate() + " holds " + built.size()
-                    + " packages: " + built + ". The package manager would take whichever it"
-                    + " prefers - clean the directory.");
+        final Map<String, Path> byName = new LinkedHashMap<>();
+        for (final Path each : built) {
+            final String name = packageName(each.getFileName().toString(), suffix);
+            final Path already = byName.put(name, each);
+            if (already != null) {
+                throw new IOException("--candidate " + options.candidate() + " holds two builds of"
+                        + " '" + name + "': " + already.getFileName() + " and "
+                        + each.getFileName() + ". The package manager would take whichever it"
+                        + " prefers - clean the directory.");
+            }
         }
-        System.out.println("\n-- sending the candidate: " + built.getFirst().getFileName() + " --");
+
+        System.out.println("\n-- sending the candidate: " + byName.keySet() + " --");
         run(lease, "mkdir -p /root/candidate && rm -f /root/candidate/*");
-        lease.ssh().upload(built.getFirst(), "/root/candidate/" + built.getFirst().getFileName());
-        return pattern;
+        final StringBuilder remote = new StringBuilder();
+        for (final Path each : byName.values()) {
+            final String at = "/root/candidate/" + each.getFileName();
+            lease.ssh().upload(each, at);
+            remote.append(remote.isEmpty() ? "" : " ").append(at);
+        }
+        return remote.toString();
+    }
+
+    /**
+     * Returns the package a built file belongs to.
+     * <p>
+     * By the file name, which is the only thing available before the file is on a machine that
+     * has the tools to read it. Both formats put the name first and separate it from the version
+     * the same way every time: {@code name_version_arch.deb} and
+     * {@code name-version-release.arch.rpm}.
+     *
+     * @param file The file name.
+     * @param suffix {@code .deb} or {@code .rpm}.
+     * @return The package name, or the whole file name when it does not have that shape - which
+     *         makes such a file its own package rather than silently grouping it with another.
+     */
+    static String packageName(String file, String suffix) {
+        final String stem = file.endsWith(suffix)
+                ? file.substring(0, file.length() - suffix.length()) : file;
+        if (".deb".equals(suffix)) {
+            final int underscore = stem.indexOf('_');
+            return underscore > 0 ? stem.substring(0, underscore) : stem;
+        }
+        // name-version-release.arch: drop the last two dash-separated parts, and only those.
+        final int release = stem.lastIndexOf('-');
+        final int version = release > 0 ? stem.lastIndexOf('-', release - 1) : -1;
+        return version > 0 ? stem.substring(0, version) : stem;
     }
 
     /**

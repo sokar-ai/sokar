@@ -83,8 +83,8 @@ public final class Main {
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
                        leg      --os <ubuntu|fedora> --repo <dir> [--key <file>] [--keep]
                                 [--fetch <dir>] [--acceptance]
-                       acceptance --package <p> --script <f> [--os <o>] [--type <t>]
-                                [--candidate <dir>] [--cucumber <dir>] [--keep]
+                       acceptance (--package <p> | --candidate <dir>) --script <f>
+                                [--os <o>] [--type <t>] [--cucumber <dir>] [--keep]
                        lease    --os <ubuntu|fedora> [--key <file>] [--write <file>]
                                 [--type <t>] - rents a machine, installs Sokar, starts the
                                 daemon as an unprivileged user, and leaves it running. What
@@ -96,6 +96,14 @@ public final class Main {
                   --now                  delete, rather than saying what would be deleted
                   --older-than <minutes> age at which a server counts as forgotten (default 60)
                   (none)                 say what would be deleted, and delete nothing
+
+                  --candidate <dir>      install the packages built in this run instead of
+                                         published ones, from a directory holding one build of
+                                         each. What a repository uses before it has published
+                                         anything. Several different packages go in together, so
+                                         a set that only makes sense together is proved together;
+                                         two builds of the same package are refused, because the
+                                         package manager would take whichever it prefers.
 
                 The API token is read from the environment, never from an argument: everything on
                 a command line is readable by every process on the machine.""");
@@ -259,11 +267,15 @@ public final class Main {
                 }
             }
         }
-        if (pkg == null || script == null) {
-            complain.accept("acceptance needs --package and --script");
+        if (script == null || (pkg == null && candidate == null)) {
+            // --package names what to install from the repository; --candidate installs files
+            // built in this run instead, and then the name is not used for anything. Asking for
+            // both would make a caller invent a name for packages it is holding in its hand.
+            complain.accept("acceptance needs --script, and --package or --candidate");
             return 2;
         }
-        final AgentLeg.Options options = new AgentLeg.Options(os, List.of(type), artifactory, pkg,
+        final AgentLeg.Options options = new AgentLeg.Options(os, List.of(type), artifactory,
+                pkg == null ? "" : pkg,
                 java.nio.file.Files.readString(java.nio.file.Path.of(script)),
                 candidate == null ? null : java.nio.file.Path.of(candidate), keep,
                 cucumber == null ? null : java.nio.file.Path.of(cucumber));
