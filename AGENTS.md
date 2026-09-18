@@ -1065,6 +1065,13 @@ The same text in `sokar`, `sokar-frontend`, the three agent repositories and
 - **A secret never appears in a command line, and reaches a process through its environment or its
   standard input.** Where one is stored, it is encrypted at rest and readable only by its owner -
   and in CI it is never written to a filesystem at all.
+- **Every file fetched from Artifactory follows redirects** - `curl -L`, `jf rt curl -L`. A file
+  large enough is answered with a `302` to its cloud storage, and a fetch without `-L` gets an
+  empty body: the check passes for months and fails the day the file grows. What "large enough"
+  is has not been measured - only that a Debian index crossed it and turned four builds red, on
+  2026-09-18 and before. The `/api/` endpoints answer directly. Let `curl` drop the credentials
+  on that cross-host redirect - the storage URL is signed - and never pass
+  `--location-trusted`.
 - **The test machines are shared.** Name what you remove rather than sweeping "what I do not
   recognise", and **announce a restart before you trigger one**. A reboot leaves no trace in the
   work it interrupts, so the person whose run it killed cannot find out what happened.
