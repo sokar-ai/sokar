@@ -45,6 +45,7 @@ class HostKeyTest {
         final String line = HostKey.allowedSignersLine(key, "sokar@laptop");
 
         assertThat(line).startsWith("sokar@laptop ssh-ed25519 ").doesNotContain("\n");
+        assertThat(line.split(" ")).as("principal, type, key - and nothing after it").hasSize(3);
     }
 
     @Test

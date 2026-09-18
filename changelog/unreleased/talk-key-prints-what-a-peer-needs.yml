@@ -1,0 +1,2 @@
+title: "'sokar talk key' prints this machine's signing key as the line a peer adds to their allowed_signers file, so telling a peer who you are does not mean reading a key file by hand."
+type: added

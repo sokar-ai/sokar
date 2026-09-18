@@ -154,6 +154,19 @@ key Sokar never saw verifies here, while the wrong namespace, a tampered message
 each answer false. So a peer can check a message with nothing but `ssh-keygen` and an
 `allowed_signers` file, and a person can sign one without Sokar at all.
 
+**Measured again on 2026-09-18, this time end to end rather than in a harness.** A message written
+into a task's outbox, signed at intake, filtered, queued, carried by the local transport and
+delivered into the peer's inbox was then checked from the outside with nothing but the key line
+`sokar talk key` prints:
+
+    $ ssh-keygen -Y verify -f allowed_signers -I sender -n sokar-message -s <sig> < <message>
+    Good "sokar-message" signature for sender with ED25519 key SHA256:7Hdo/EiXE13Reg...
+
+So what the pipeline produces - not only what a test produces - is verifiable by somebody with no
+Sokar. The key line is `<principal> ssh-ed25519 <key>` and nothing after it: OpenSSH accepts a
+trailing comment, measured, but a line reading `sender ssh-ed25519 AAAA... sender` makes a person
+decide which of the two names matters, and neither does.
+
 Transport-native signatures are a second, weaker signal about the hop and never the basis of trust:
 DKIM says a message left a domain unmodified, not who wrote it.
 

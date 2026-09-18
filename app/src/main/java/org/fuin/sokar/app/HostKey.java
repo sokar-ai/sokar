@@ -65,6 +65,11 @@ public final class HostKey {
      * @return One line, without a newline.
      */
     public static String allowedSignersLine(final SigningKey key, final String principal) {
-        return principal + " " + key.authorizedKeysLine();
+        // Without the key's own comment. OpenSSH accepts a trailing comment - measured on
+        // 2026-09-18, the same signature verified with and without one - but the line then reads
+        // "sender ssh-ed25519 AAAA... sender", and a person copying that has to decide which of the
+        // two names matters. Neither does: the principal is the first field.
+        final String[] fields = key.authorizedKeysLine().split("\\s+");
+        return principal + " " + fields[0] + " " + fields[1];
     }
 }

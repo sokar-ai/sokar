@@ -12,6 +12,7 @@ import picocli.CommandLine.Command;
 @Command(name = "talk",
         mixinStandardHelpOptions = true,
         description = "Shows and moves the messages a task exchanges.",
-        subcommands = { TalkPeersCommand.class, TalkPassCommand.class, TalkHeldCommand.class })
+        subcommands = { TalkPeersCommand.class, TalkPassCommand.class, TalkHeldCommand.class,
+                TalkKeyCommand.class })
 public class TalkCommand {
 }
