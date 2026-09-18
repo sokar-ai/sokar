@@ -35,6 +35,9 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     /** Name of a hook binary, used to tell an install apart from an empty directory. */
     private static final String MARKER = "sokar-hook-nft";
 
+    /** What the program that decides a message's content is called. */
+    public static final String MESSAGE_FILTER = "sokar-message-sluice-filter";
+
     /**
      * Returns the command that installs the SELinux policy module.
      *
@@ -278,6 +281,27 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
         // Under the runtime directory, so the kernel removes it when the session ends and no
         // stale sidecar can be picked up by a later run.
         return xdg.runtime().resolve(container);
+    }
+
+    /**
+     * Returns the filter that decides what a message may contain, or {@code null} when this
+     * machine has none.
+     * <p>
+     * A machine without it sends nothing: the filter is what stands between an agent's outbox and
+     * every transport, so its absence is a closed door rather than an open one.
+     *
+     * @return The executable, or {@code null}.
+     */
+    public @org.jspecify.annotations.Nullable Path messageFilter() {
+        for (final Path candidate : java.util.List.of(
+                xdg.data().resolve("filter").resolve(MESSAGE_FILTER),
+                Path.of("/usr/libexec/sokar").resolve(MESSAGE_FILTER))) {
+            if (java.nio.file.Files.isRegularFile(candidate)
+                    && java.nio.file.Files.isExecutable(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     /**

@@ -1,0 +1,2 @@
+title: "Outgoing messages are put through the message filter before any transport sees them, and a machine whose filter is missing or cannot run sends nothing at all."
+type: added
