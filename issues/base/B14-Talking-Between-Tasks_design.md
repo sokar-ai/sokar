@@ -273,6 +273,13 @@ transport refuses it always. Two users are two Sokar installations with two sign
 sharing only a kernel, and a file moved between them is carriage between hosts rather than a local
 delivery.
 
+**Each account publishes its message key into a directory of its own** - `/var/spool/sokar/keys/<user>/key.pub`,
+made by root with that account's drop - and a key is believed only when **both the directory and the
+file** belong to the account they are named after. A single shared directory was tried first and is
+wrong: measured on 2026-09-18, a group member could create `keys/<other>.pub` before that account
+ever published, and the sticky bit then stopped the rightful owner removing it - silencing them
+until root intervened, with nothing forged and nothing repairable. Found by the filter's agent.
+
 **Where an operator has deliberately allowed it for a machine**, a transport that attests `owner`
 may carry between them - addressed `spool:<unix-user>`, so that the address itself names who the
 host must find the message to be owned by. Nothing is allowed by installing a package: the drop
