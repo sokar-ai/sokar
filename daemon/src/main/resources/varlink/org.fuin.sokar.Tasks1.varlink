@@ -1180,8 +1180,13 @@ method WatchProjects() -> (projects: []Project)
 # and an nftables set name. An answer accepted here and rejected at the first task start is
 # rejected far from where it was given.
 method CreateProject(
-  # Absolute path of the project.yml to write.
-  file: string,
+  # Absolute path of the project.yml to write, or absent to let this machine choose.
+  #
+  # Absent is the ordinary case for an interface: it reaches this machine over a forwarded socket,
+  # cannot look at its filesystem, and must not invent a path - that would be this machine's layout
+  # written down a second time, where it could not be kept in step. The path chosen is answered in
+  # 'file', in 'dryRun' as well, so a person sees where it will go before anything is written.
+  file: ?string,
   name: string,
   # offline, guarded or online.
   securityClass: string,

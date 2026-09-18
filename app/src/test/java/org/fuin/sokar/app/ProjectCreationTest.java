@@ -174,4 +174,44 @@ class ProjectCreationTest {
         assertThat(create(dir, "demo", "offline", List.of(), false).outcome())
                 .isEqualTo(ProjectCreation.Outcome.CREATED);
     }
+
+    /**
+     * An interface across a forwarded socket cannot look at this machine's filesystem, so asking
+     * it for a path asks it to guess. It sends none, and the machine says where it put the file.
+     */
+    @Test
+    void choosesWhereTheFileGoesWhenNobodySays(@TempDir Path dir) {
+
+        final ProjectCreation.Result result = ProjectCreation.create(context(dir), null, "demo",
+                "guarded", "ubuntu:24.04", null, List.of(), false);
+
+        assertThat(result.outcome()).isEqualTo(ProjectCreation.Outcome.CREATED);
+        assertThat(result.file()).endsWith("projects/demo/project.yml");
+        assertThat(Path.of(result.file())).exists();
+    }
+
+    /**
+     * And it says so before writing anything, which is what a person is shown in the dialog.
+     */
+    @Test
+    void namesTheChosenPlaceInADryRunToo(@TempDir Path dir) {
+
+        final ProjectCreation.Result result = ProjectCreation.create(context(dir), null, "demo",
+                "guarded", "ubuntu:24.04", null, List.of(), true);
+
+        assertThat(result.outcome()).isEqualTo(ProjectCreation.Outcome.PREVIEWED);
+        assertThat(result.file()).endsWith("projects/demo/project.yml");
+        assertThat(Path.of(result.file())).as("a preview writes nothing").doesNotExist();
+    }
+
+    /** A path that was given still wins: a project beside its own code stays possible. */
+    @Test
+    void aGivenPathIsStillUsed(@TempDir Path dir) {
+
+        final ProjectCreation.Result result = ProjectCreation.create(context(dir),
+                dir.resolve("beside-the-code.yml"), "demo", "guarded", "ubuntu:24.04", null,
+                List.of(), false);
+
+        assertThat(result.file()).isEqualTo(dir.resolve("beside-the-code.yml").toString());
+    }
 }

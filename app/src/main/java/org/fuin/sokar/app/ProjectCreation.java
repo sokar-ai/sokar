@@ -84,11 +84,18 @@ public final class ProjectCreation {
      * @param dryRun Checks and renders, writing nothing.
      * @return What happened.
      */
-    public static Result create(SokarContext context, Path file, String name,
+    public static Result create(SokarContext context, @Nullable Path wanted, String name,
             String securityClass, String baseImage, @Nullable String upstream, List<String> sets,
             boolean dryRun) {
 
         final List<Problem> problems = new ArrayList<>();
+
+        // Where it goes is Sokar's to decide when nobody said. A caller that cannot see this
+        // machine's filesystem - an interface on the other end of a forwarded socket - has no way
+        // to name a path, and the answer reports the one chosen so a person sees it before
+        // anything is written.
+        final Path file = wanted == null || wanted.toString().isBlank()
+                ? context.paths().defaultProjectFile(name) : wanted;
 
         if (!name.matches("[a-z0-9][a-z0-9-]{0,62}")) {
             // The same rule Project enforces. A name becomes an image tag, a container name and an

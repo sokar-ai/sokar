@@ -221,6 +221,24 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
      *
      * @return The registry directory.
      */
+    /**
+     * Returns where a project's file goes when nobody says where.
+     * <p>
+     * <strong>A place rather than a prompt.</strong> An interface reaching a machine over a
+     * forwarded socket cannot look at its filesystem, so asking a person for an absolute path there
+     * asks them to guess - and an interface that guessed for them would be writing this layout down
+     * a second time, where it could not be kept in step.
+     * <p>
+     * A directory per project, so that what belongs to it - an image snippet, anything a project
+     * grows later - can sit beside it rather than somewhere else with a name that has to match.
+     *
+     * @param name The project's name.
+     * @return The file, which need not exist.
+     */
+    public Path defaultProjectFile(String name) {
+        return xdg.config().resolve("projects").resolve(name).resolve("project.yml");
+    }
+
     public Path projectRegistry() {
         return xdg.data().resolve("projects");
     }

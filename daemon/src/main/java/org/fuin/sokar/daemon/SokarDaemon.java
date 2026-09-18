@@ -364,7 +364,10 @@ public final class SokarDaemon {
         server.method("CreateProject", (parameters, replies) -> {
             final org.fuin.sokar.app.ProjectCreation.Result result =
                     org.fuin.sokar.app.ProjectCreation.create(context,
-                            java.nio.file.Path.of(text(parameters, "file")),
+                            // Absent means "you choose": the daemon knows where projects live on
+                            // this machine and an interface across a socket cannot.
+                            absent(parameters, "file") == null ? null
+                                    : java.nio.file.Path.of(text(parameters, "file")),
                             text(parameters, "name"), text(parameters, "securityClass"),
                             text(parameters, "baseImage"), absent(parameters, "upstream"),
                             strings(parameters, "sets"), flag(parameters, "dryRun"));
