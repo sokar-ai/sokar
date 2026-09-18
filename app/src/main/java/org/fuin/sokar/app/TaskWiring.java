@@ -15,9 +15,13 @@ import org.jspecify.annotations.Nullable;
  * @param gatePort Port the git gate listens on, or zero.
  * @param vaultSocket Host path of the credential proxy's socket, or {@code null} when the task
  *        brokers no credential.
+ * @param sshSocket Host path of the ssh-agent's socket, or {@code null}.
+ * @param mailbox Host path of the half of the task's mailbox that is mounted, or {@code null} when
+ *        the task exchanges no messages. Never the mailbox's root: what the host keeps - the
+ *        refused originals above all - stays outside the mount.
  */
 public record TaskWiring(@Nullable String gateAddress, int gatePort, @Nullable Path vaultSocket,
-        @Nullable Path sshSocket) {
+        @Nullable Path sshSocket, @Nullable Path mailbox) {
 
     /** Where the vault socket is mounted inside the container. */
     public static final String VAULT_MOUNT = "/run/sokar/vault.sock";
@@ -62,7 +66,7 @@ public record TaskWiring(@Nullable String gateAddress, int gatePort, @Nullable P
      * @return Empty wiring.
      */
     public static TaskWiring none() {
-        return new TaskWiring(null, 0, null, null);
+        return new TaskWiring(null, 0, null, null, null);
     }
 
     /**
@@ -72,7 +76,7 @@ public record TaskWiring(@Nullable String gateAddress, int gatePort, @Nullable P
      * @return New wiring.
      */
     public TaskWiring withVaultSocket(Path socket) {
-        return new TaskWiring(gateAddress, gatePort, socket, sshSocket);
+        return new TaskWiring(gateAddress, gatePort, socket, sshSocket, mailbox);
     }
 
     /**
@@ -82,6 +86,16 @@ public record TaskWiring(@Nullable String gateAddress, int gatePort, @Nullable P
      * @return New wiring.
      */
     public TaskWiring withSshSocket(Path socket) {
-        return new TaskWiring(gateAddress, gatePort, vaultSocket, socket);
+        return new TaskWiring(gateAddress, gatePort, vaultSocket, socket, mailbox);
+    }
+
+    /**
+     * Returns a copy with the mounted half of the mailbox set.
+     *
+     * @param box Host path of the directory holding the agent's inbox, outbox and sent copies.
+     * @return New wiring.
+     */
+    public TaskWiring withMailbox(Path box) {
+        return new TaskWiring(gateAddress, gatePort, vaultSocket, sshSocket, box);
     }
 }

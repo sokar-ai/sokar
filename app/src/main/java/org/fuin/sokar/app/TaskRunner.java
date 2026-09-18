@@ -199,6 +199,12 @@ public class TaskRunner {
             // The ssh-agent. The private key never crosses this: only signatures do.
             specification.volume(wiring.sshSocket(), TaskWiring.SSH_MOUNT);
         }
+        if (wiring.mailbox() != null) {
+            // The agent's own inbox and outbox, and nothing else of the mailbox: what the host
+            // keeps on the other side of this mount includes the originals of refused messages,
+            // which hold in clear text exactly what the filter refused to let out.
+            specification.volume(wiring.mailbox(), Mailbox.MOUNT);
+        }
         podman.create(specification);
         out.println("container " + container);
 

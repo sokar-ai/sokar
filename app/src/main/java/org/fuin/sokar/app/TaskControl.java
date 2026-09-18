@@ -275,6 +275,13 @@ public final class TaskControl {
 
         if (purge) {
             deleteTree(state);
+            // The mailbox outlives the container on purpose, so this is the one place it ends.
+            try {
+                new Mailbox(context.paths().mailbox(container)).delete();
+            } catch (final java.io.IOException e) {
+                throw new java.io.UncheckedIOException(
+                        "Removed the task but could not delete its mailbox: " + container, e);
+            }
         }
         return new Stopped(Outcome.STOPPED, work, rescued, purge, helpers.size(), surviving,
                 purge || !Files.isDirectory(state) ? null : state, null, discarded);

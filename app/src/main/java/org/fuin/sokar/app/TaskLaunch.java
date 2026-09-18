@@ -441,9 +441,14 @@ public final class TaskLaunch {
             final java.nio.file.Path state = context.paths().containerState(container);
             java.nio.file.Files.createDirectories(state);
 
+            // The mailbox, which is not in the state directory and does not go with it: a
+            // conversation survives stop, start and a machine restart, and only 'remove' ends it.
+            final Mailbox mailbox = new Mailbox(context.paths().mailbox(container));
+            mailbox.create();
+
             TaskWiring wiring = new TaskWiring(
                     workspace == null || !workspace.gated() ? null : gate().gateAddress(project, err),
-                    workspace == null ? 0 : workspace.port(), null, null);
+                    workspace == null ? 0 : workspace.port(), null, null, mailbox.box());
 
             java.util.Map<String, String> environmentCache = new java.util.LinkedHashMap<>();
 

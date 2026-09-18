@@ -1,0 +1,2 @@
+title: "A task's mailbox is mounted at /run/sokar/mail, holding only the agent's inbox, outbox and sent copies; it is created with the task, survives stopping and starting it, and is deleted when the task is removed."
+type: added
