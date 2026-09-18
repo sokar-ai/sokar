@@ -23,8 +23,8 @@ when a device opens the vault; the four `Tasks1` methods with their interface de
 `sokar vault devices` and `sokar vault revoke` at the machine, where the storage kind is rendered
 as what it is actually worth rather than as a label.
 
-**What is deliberately not built**, and is its own issue: deriving a share at unlock time from a
-FIDO2 token's `hmac-secret` or a TPM2 object rather than storing it. Today a device says which of
+**What is deliberately not built**, and is now B63 ([index](README.md)): deriving a share at unlock
+time from a FIDO2 token's `hmac-secret` or a TPM2 object rather than storing it. Today a device says which of
 the four it uses and Sokar records that word; on a desktop the honest answer is still
 `USER_SCOPED`, and the product says so in `vault devices` rather than implying otherwise.
 
