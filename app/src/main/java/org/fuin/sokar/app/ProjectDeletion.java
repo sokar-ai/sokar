@@ -201,7 +201,13 @@ public final class ProjectDeletion {
                 }
             }
             context.podman().removeImage("sokar/" + project);
-            deleteTree(mirrorOf(project));
+            for (final Path mirror : mirrorsOf(project)) {
+                deleteTree(mirror);
+            }
+            // The directory the named repositories' mirrors sat in, now that they are gone. It is
+            // removed last and only when empty, so a mirror this run could not delete keeps its
+            // parent and stays findable rather than being orphaned under a deleted path.
+            Files.deleteIfExists(context.paths().xdg().data().resolve("mirrors").resolve(project));
             deleteTree(context.paths().buildContext(project));
             Files.deleteIfExists(context.paths().projectRegistry().resolve(project));
             Files.deleteIfExists(context.paths().upstreamRecords().resolve(project));
@@ -215,8 +221,8 @@ public final class ProjectDeletion {
     private List<Removal> plan(String project, ProjectInventory.Summary summary,
             List<TaskInventory.Task> tasks) {
         final List<Removal> removes = new ArrayList<>();
-        if (summary.mirror() != null) {
-            removes.add(new Removal("MIRROR", summary.mirror()));
+        for (final Path mirror : mirrorsOf(project)) {
+            removes.add(new Removal("MIRROR", mirror.toString()));
         }
         if (summary.prepared()) {
             removes.add(new Removal("IMAGE", "sokar/" + project));
@@ -237,23 +243,64 @@ public final class ProjectDeletion {
     }
 
     private List<String> unreviewedIn(String project) {
-        final Path mirror = mirrorOf(project);
-        if (!Files.isDirectory(mirror)) {
-            return List.of();
+        final List<String> waiting = new ArrayList<>();
+        for (final Path mirror : mirrorsOf(project)) {
+            try {
+                for (final String ref : new GitGate(context.runner(), mirror,
+                        GateMode.GATEKEEPING, null).pending()) {
+                    // Named by repository, because a bare ref name would be ambiguous the moment a
+                    // project has two of them and the person deciding has to know which is at risk.
+                    waiting.add(nameOf(mirror) + "/" + ref);
+                }
+            } catch (RuntimeException ex) {
+                // A mirror that cannot be asked is a mirror that may be holding work. Refusing to
+                // answer is safer than answering "none": the whole point of this list is to stop a
+                // deletion, and an empty one lets it through.
+                throw new IllegalStateException("cannot read what is waiting in " + mirror, ex);
+            }
         }
-        try {
-            return List.copyOf(new GitGate(context.runner(), mirror, GateMode.GATEKEEPING, null)
-                    .pending());
-        } catch (RuntimeException ex) {
-            // A mirror that cannot be asked is a mirror that may be holding work. Refusing to
-            // answer is safer than answering "none": the whole point of this list is to stop a
-            // deletion, and an empty one lets it through.
-            throw new IllegalStateException("cannot read what is waiting in " + mirror, ex);
-        }
+        return List.copyOf(waiting);
     }
 
-    private Path mirrorOf(String project) {
-        return context.paths().xdg().data().resolve("mirrors").resolve(project + ".git");
+    /**
+     * Returns every mirror this project has, its own repository's first.
+     * <p>
+     * <strong>Read from disk, not from the project file.</strong> Deleting is exactly the moment
+     * the file may already be gone or may no longer name a repository whose mirror still holds
+     * pushes nobody has reviewed. What decides whether work is at risk has to be what is there.
+     *
+     * @param project Project name.
+     * @return Existing bare mirrors, in a fixed order.
+     */
+    private List<Path> mirrorsOf(String project) {
+        final Path mirrors = context.paths().xdg().data().resolve("mirrors");
+        final List<Path> found = new ArrayList<>();
+        final Path own = mirrors.resolve(project + ".git");
+        if (Files.isDirectory(own)) {
+            found.add(own);
+        }
+        final Path named = mirrors.resolve(project);
+        if (Files.isDirectory(named)) {
+            try (java.util.stream.Stream<Path> entries = Files.list(named)) {
+                found.addAll(entries.filter(Files::isDirectory)
+                        .filter(path -> path.getFileName().toString().endsWith(".git"))
+                        .sorted(java.util.Comparator.comparing(Path::toString)).toList());
+            } catch (IOException ex) {
+                throw new IllegalStateException("cannot read the mirrors under " + named, ex);
+            }
+        }
+        return List.copyOf(found);
+    }
+
+    /**
+     * Returns the repository name a mirror directory belongs to.
+     *
+     * @param mirror The bare mirror.
+     * @return Its name without the {@code .git}.
+     */
+    private static String nameOf(Path mirror) {
+        final String file = mirror.getFileName().toString();
+        return file.endsWith(".git") ? file.substring(0, file.length() - ".git".length()) : file;
     }
 
     private static void deleteTree(Path root) throws IOException {

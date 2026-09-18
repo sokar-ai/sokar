@@ -54,7 +54,40 @@ public final class TaskInventory {
             @Nullable String mode, @Nullable String prompt, @Nullable String branch,
             String since, Activity activity, @Nullable String waitingFor,
             @Nullable String clearance, @Nullable String label, int waiting,
-            String startAction, String startDetail) {
+            String startAction, String startDetail, @Nullable String repository) {
+
+        /**
+         * Constructor for a task taken before the repository was known.
+         *
+         * @param name Container name.
+         * @param project Project name, or {@code null}.
+         * @param securityClass Security class, or {@code null}.
+         * @param state The runtime's own words.
+         * @param running Whether it is up.
+         * @param helpers How many host processes it has.
+         * @param agent The agent, or {@code null}.
+         * @param mode How somebody is involved, or {@code null}.
+         * @param prompt What it was asked, or {@code null}.
+         * @param branch The ref it pushes to, or {@code null}.
+         * @param since When it entered its state.
+         * @param activity What its work is doing.
+         * @param waitingFor What it is waiting for, or {@code null}.
+         * @param clearance Its clearance mode, or {@code null}.
+         * @param label Its label, or {@code null}.
+         * @param waiting Whether its work is waiting for review.
+         * @param startAction What starting it would do.
+         * @param startDetail Why.
+         */
+        public Task(String name, @Nullable String project, @Nullable String securityClass,
+                String state, boolean running, long helpers, @Nullable String agent,
+                @Nullable String mode, @Nullable String prompt, @Nullable String branch,
+                String since, Activity activity, @Nullable String waitingFor,
+                @Nullable String clearance, @Nullable String label, int waiting,
+                String startAction, String startDetail) {
+            this(name, project, securityClass, state, running, helpers, agent, mode, prompt,
+                    branch, since, activity, waitingFor, clearance, label, waiting, startAction,
+                    startDetail, null);
+        }
 
         /**
          * Returns this task as plain values, for a caller that has to put it on a wire.
@@ -67,6 +100,10 @@ public final class TaskInventory {
             map.put("name", name);
             map.put("project", project == null ? "" : project);
             map.put("securityClass", securityClass == null ? "" : securityClass);
+            // "" for a container created before the repository was labelled, which is a project's
+            // own repository and the only one there was. An interface renders the empty string as
+            // the project's own rather than as "unknown".
+            map.put("repository", repository == null ? "" : repository);
             map.put("state", state);
             map.put("running", running);
             map.put("helpers", helpers);
@@ -256,7 +293,12 @@ public final class TaskInventory {
                         ? "started before this machine restarted; copy the workspace out with"
                                 + " 'podman cp " + summary.name() + ":/workspace ./recovered',"
                                 + " then 'sokar task remove " + summary.name() + " --force'"
-                        : "");
+                        : "",
+                // From the container's label, like the project and the class above, and for the
+                // same reason: it survives a reboot. There is no sidecar fallback because the
+                // sidecar predates repositories - a task without the label worked on the only
+                // repository its project had.
+                summary.repository());
     }
 
     /**

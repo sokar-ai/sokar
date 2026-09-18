@@ -92,7 +92,7 @@ class DoctorCommandTest {
         assertThat(doctor.probes()).extracting(Probe::name)
                 .contains("podman", "hooks registered", "rootless network", "dnsmasq nftset",
                         "nft", "git", "nsenter", "keyring", "selinux policy", "transports",
-                        "message filter");
+                        "message filter", "configuration key", "following");
     }
 
     /**
@@ -138,6 +138,28 @@ class DoctorCommandTest {
                     assertThat(probe.state()).isEqualTo(Probe.State.DEGRADED);
                     assertThat(probe.detail()).contains("nothing a task writes ever leaves");
                     assertThat(probe.action()).contains(SokarPaths.MESSAGE_FILTER);
+                });
+    }
+
+    /**
+     * A machine with nothing pinned does not break - it stops following its projects, which is the
+     * kind of failure that looks like nothing at all.
+     */
+    @Test
+    void saysWhenNoConfigurationKeyIsPinned(@TempDir Path dir) {
+
+        final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
+            case "XDG_CONFIG_HOME" -> dir.resolve("config").toString();
+            default -> null;
+        }, dir);
+        final DoctorCommand doctor = new DoctorCommand();
+        doctor.setContext(new SokarContext(new FakeCommandRunner(),
+                new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0));
+
+        assertThat(doctor.probes()).filteredOn(probe -> "configuration key".equals(probe.name()))
+                .singleElement().satisfies(probe -> {
+                    assertThat(probe.state()).isEqualTo(Probe.State.DEGRADED);
+                    assertThat(probe.detail()).contains("none pinned");
                 });
     }
 

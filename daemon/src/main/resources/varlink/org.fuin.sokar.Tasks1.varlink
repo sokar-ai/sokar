@@ -148,6 +148,14 @@ type Task (
   name: string,
   # Project the task belongs to, or "" when nothing recorded it.
   project: string,
+  # Which of the project's repositories this task works on.
+  #
+  # "" for a container created before repositories existed. That is a task on the project's own
+  # repository - the only one there was - and is to be rendered as such, NOT as "unknown".
+  #
+  # A task works on exactly one repository, fixed when the task was created. Carry it over when
+  # offering to start a stopped task again, and pass it back as Start's 'repository'.
+  repository: string,
   # offline, guarded or online - or "" when nothing recorded it.
   securityClass: string,
   # The container runtime's own words, such as "Up 4 minutes" or "Exited (143) 2 seconds ago".
@@ -437,6 +445,15 @@ type Project (
   # it stands now. A project that has never run answers false, which is a normal state and not a
   # fault - it means the first task here will spend minutes building before anything happens.
   prepared: bool,
+  # The repositories this project has, its own first.
+  #
+  # Never empty for a project whose file can be read: every project has its own repository. Empty
+  # means the file could not be read, which is NOT the same as a project with one repository - do
+  # not render it as one.
+  #
+  # Objects rather than parallel lists of names, mirrors and counts: lists indexed together drift
+  # the moment one is built from a different source, and the drift is silent.
+  repositories: []Repository,
   # ABSENT, READY, STALE or UNKNOWN - what 'prepared' cannot say.
   #
   # STALE means an image exists and was built before the project file changed under it, so work
@@ -625,6 +642,17 @@ method Start(
   tokenHours: ?int,
   # Upstream to gate against. Default: the project's own.
   upstream: ?string,
+  # Which of the project's repositories this task works on. REQUIRED, and there is no default.
+  #
+  # A project is a unit of work over one or more repositories, and a task works on exactly one of
+  # them. The project's own repository - where project.yml, the planning and the issues live - is
+  # one of the choices, and is how an agent gets a task for planning. Project.repositories lists
+  # what to offer, its own first.
+  #
+  # Not defaulted even when a project has exactly one. A default would be paid for later and
+  # somewhere else: a project that grew a second repository would silently change what an existing
+  # call does. Omitting it is refused, and the refusal names what there is to choose from.
+  repository: ?string,
   # Runs with no workspace and no git gate: the agent gets an empty directory and can commit
   # nowhere.
   noGate: ?bool,
@@ -811,6 +839,12 @@ type StartOutcome (
   # The task name is one Start would refuse: lowercase letters, digits and inner hyphens, not
   # only digits, and 'sokar-<project>-<task>' at most 65 characters. 'detail' says which.
   BAD_TASK_NAME,
+  # No repository was named and Start never picks one, not even for a project that has exactly
+  # one. Somebody chooses a REPOSITORY; Project.repositories lists them, its own first, and
+  # 'detail' names them too. This is the outcome a start dialog turns into its required choice.
+  NO_REPOSITORY_CHOSEN,
+  # A repository was named and the project has none of that name. 'detail' lists what it has.
+  UNKNOWN_REPOSITORY,
   # Nothing is installed to run. A task with no agent can still be started as a plain shell, so
   # this is not "the machine is broken".
   NO_AGENT,
@@ -848,6 +882,12 @@ type StartOutcome (
 method CanStart(
   # Path to the project file, as Start takes it. Omitted, no project file is checked.
   project: ?string,
+  # Which of the project's repositories the task would be for, exactly as Start takes it.
+  # Omitted with a project given, the answer is NO_REPOSITORY_CHOSEN - because that is what Start
+  # would do. Pass noGate when the run would have no gate: such a run works on no repository.
+  repository: ?string,
+  # Whether the run would have no workspace and no git gate, as Start takes it.
+  noGate: ?bool,
   # The task name Start would be given. Omitted, no name is checked. The length rule needs the
   # project, so without one only the characters are.
   task: ?string,
@@ -949,6 +989,13 @@ method Egress(
 method SetEgress(
   # Path of the project file, from Projects.file.
   project: string,
+  # Which of the project's repositories to declare this for. Default: the project's own.
+  #
+  # A repository's grants are ADDED to the project's, so declaring one here never takes away what
+  # the project granted - and never widens the project's other repositories, which is the whole
+  # reason this parameter exists. A repository this file does not name is refused rather than
+  # written to the project's block.
+  repository: ?string,
   # Curated sets to declare. A set this machine does not have is refused rather than written.
   addSets: ?[]string,
   removeSets: ?[]string,
@@ -1263,7 +1310,7 @@ method Prepare(
   detail: string
 )
 
-# Measures one project's distance from its upstream, now.
+# Measures one repository's distance from its upstream, now.
 #
 # Its own operation on purpose. The distance is otherwise measured on a timer and read from a
 # record, because measuring reaches the network - and a listing that fetched would make the queue
@@ -1277,14 +1324,23 @@ method SyncUpstream(
   # Project NAME, as Projects reports it - not the path Prepare takes. A path answers as though
   # the project were unknown, which on the screens these feed is a legitimate-looking answer
   # rather than an error.
-  project: string) -> (
+  project: string,
+  # Which of the project's repositories to measure. Default: the project's own.
+  #
+  # Each has its own mirror and its own upstream, so a project's distance was never one number
+  # once it had a second repository. Measuring one and showing it against all of them would be a
+  # number that is right about one repository.
+  repository: ?string) -> (
   # MEASURED, NO_SUCH_PROJECT, NO_MIRROR, UNREADABLE or FAILED.
+  #
+  # NO_SUCH_PROJECT also answers a repository the project does not have; 'detail' says which.
   #
   # NO_MIRROR is ordinary: a project that has never used the gate has nothing to measure against.
   outcome: string,
-  # Commits the upstream has that this project's mirror does not. MEANINGLESS unless 'measured'.
+  # Commits the upstream has that this repository's mirror does not. MEANINGLESS unless
+  # 'measured'.
   behind: int,
-  # Whether the number above means anything. False for a project with no upstream, and for one
+  # Whether the number above means anything. False for a repository with no upstream, and for one
   # this machine could not reach.
   measured: bool,
   # What the measurement itself reported: MEASURED, NEVER_CHECKED, NO_UPSTREAM, OFFLINE or FAILED.
@@ -1305,7 +1361,12 @@ method Backups(
   # list, and this list's empty case means "nothing is recorded for this project", which is
   # deliberately NOT the same sentence as "no bundle exists". So a wrong argument arrives as a
   # legitimate answer and somebody concludes their backups were never taken.
-  project: string) -> (backups: []Backup)
+  project: string,
+  # Which of the project's repositories the backups are of. Default: the project's own.
+  #
+  # A bundle belongs to ONE repository's mirror. Asking without this and restoring what comes back
+  # into a different repository would write one history over another's.
+  repository: ?string) -> (backups: []Backup)
 
 type Backup (
   # When it was written, ISO-8601.
@@ -1333,6 +1394,12 @@ method RestoreBackup(
   # Project NAME, as Projects reports it - not the path Prepare takes. The bundle beside it is a
   # path; the two arguments of this method are named the same way and are not the same kind.
   project: string,
+  # Which of the project's repositories to restore INTO. Default: the project's own.
+  #
+  # This writes over a mirror, and the pushes it destroys exist only there - so a bundle taken of
+  # one repository restored into another destroys the only copy of work that was never its. Pass
+  # the repository the bundle came from, as Backups was asked for it.
+  repository: ?string,
   # Absolute path of the bundle, as Backups reports it.
   bundle: string,
   # Says what would happen and changes nothing.
@@ -1546,11 +1613,19 @@ method Tail(
 #
 # The gate methods take a project file rather than a task, because a gate belongs to a project
 # and one daemon serves every project the operator has.
+#
+# Each of them also takes 'repository', because a gate belongs to ONE REPOSITORY of that project:
+# every repository has its own mirror, its own review branch and its own answer to "what is waiting
+# for review". Omitting it means the project's own repository - the one the project file belongs
+# to - which is the only default in this interface that is not Sokar picking between equals.
+# Project.repositories lists the names.
 method Pending(
   # Path to the project file.
   project: string,
   # Upstream to gate against. Default: the project's own.
-  upstream: ?string
+  upstream: ?string,
+  # Which repository of the project. Default: the project's own.
+  repository: ?string
 ) -> (
   # Path to the bare mirror the agent pushes into.
   mirror: string,
@@ -1565,6 +1640,8 @@ method Pending(
 method Review(
   project: string,
   upstream: ?string,
+  # Which repository of the project. Default: the project's own.
+  repository: ?string,
   # Ref name, from PendingPush.name.
   name: string,
   # What to diff against. Default: the upstream's default branch.
@@ -1581,13 +1658,16 @@ method Review(
 method Approve(
   project: string,
   upstream: ?string,
+  # Which repository of the project. Default: the project's own.
+  repository: ?string,
   name: string,
   # Branch to push to. Required.
   branch: string
 ) -> (forwarded: string, branch: string)
 
 # Drops a pending push. The work stays in the mirror; only the request is gone.
-method Reject(project: string, upstream: ?string, name: string) -> (rejected: string)
+method Reject(project: string, upstream: ?string, repository: ?string, name: string)
+    -> (rejected: string)
 
 # ---------------------------------------------------------------------------- clearance
 
@@ -1615,6 +1695,106 @@ method Decide(
   # Whether to let it through.
   allow: ?bool
 ) -> (ok: bool)
+
+# One repository of a project, and the state that belongs to it rather than to the project.
+#
+# A project is a unit of work over one or more repositories and a task works on exactly one of
+# them, so each of these has its own mirror, its own review branch and its own distance from its
+# own upstream. A screen that showed one of each per PROJECT would be showing one repository's
+# numbers against all of them.
+type Repository (
+  # What Start and the gate methods take as 'repository'.
+  name: string,
+  # Whether this is the project's own repository - where project.yml, the planning and the issues
+  # live. Reported rather than left to be worked out by comparing this to the project's name.
+  own: bool,
+  # Where approved work goes, or "" when it has none. A repository without an upstream is one
+  # whose work stays on this machine, which is a legitimate state.
+  upstream: string,
+  # The bare mirror on this machine, or "" when it has never been used.
+  mirror: string,
+  # Pushes waiting for review in that mirror. The project's own 'pending' is the sum of these.
+  pending: int,
+  # Commits this repository's upstream has that its mirror does not. MEANINGLESS unless
+  # behindReason is MEASURED, exactly as on the project. Never render it without behindMeasured.
+  behind: int,
+  # When 'behind' was measured, RFC 3339. "" when it never was.
+  behindMeasured: string,
+  # Why 'behind' is what it is. Same values as the project's.
+  behindReason: string,
+  behindDetail: string
+)
+
+# ---------------------------------------------------------------- following a repository
+
+# Which project repositories this account takes its configuration from.
+#
+# Per account and not per machine: two people here follow different projects, reconcile at different
+# moments, and each reaches their own vault for the credential a private repository needs.
+method Following() -> (projects: []Followed)
+
+type Followed (
+  name: string,
+  # Where its repository is.
+  url: string,
+  # The last commit this machine verified and applied, or "" when none ever was.
+  commit: string,
+  # When it last tried, RFC 3339, or "".
+  at: string,
+  # APPLIED, UNCHANGED, REFUSED, REWRITTEN, UNREACHABLE, UNUSABLE or FAILED. "" when it never
+  # tried. REWRITTEN stays until a person accepts it, so it is a state to show rather than a
+  # failure that will clear itself.
+  outcome: string,
+  detail: string
+)
+
+# Starts following a project's repository, and reconciles once, now.
+#
+# A repository URL is not a secret, so it may travel over this socket - unlike a credential, which
+# never does. Following the same project at the same address again is not an error; the same name at
+# a different address is refused, because that is a different project wearing a name.
+method Follow(
+  name: string,
+  url: string,
+  # Accepts a history rewrite: forgets the commit in force, so the next reconcile has nothing to
+  # descend from and applies what it verifies.
+  #
+  # ONLY in answer to REWRITTEN, and only when a person has said they mean it. A properly signed
+  # commit that is not a descendant of the one in force is either somebody with the key having
+  # rebased, or somebody WITHOUT it re-serving an older signed configuration to put back a rule
+  # that was taken away - which needs no key at all, only control of the route. From here the two
+  # are indistinguishable, so this must never be sent automatically or as a retry.
+  acceptRewrite: ?bool
+) -> (
+  # APPLIED, UNCHANGED, REFUSED, REWRITTEN, UNREACHABLE, UNUSABLE or FAILED. The project is
+  # followed either way; anything but APPLIED or UNCHANGED means nothing of it is in force.
+  #
+  # REWRITTEN is the one that needs a person: 'detail' says what was found, and the only way past
+  # it is calling again with acceptRewrite. Do not treat it as a transient failure.
+  outcome: string,
+  commit: string,
+  detail: string
+)
+
+# Stops following, and removes the project.
+#
+# It deletes, so it refuses first: a mirror may hold pushes nobody has reviewed and tasks may still
+# be up. The same refusal DeleteProject gives, from the same code.
+method Unfollow(
+  name: string,
+  # Says what would go, and removes nothing.
+  dryRun: ?bool,
+  # Removes it although work is waiting for review. That work is destroyed.
+  force: ?bool
+) -> (
+  # DELETED, PREVIEWED, HOLDS_WORK, TASKS_RUNNING or FAILED.
+  outcome: string,
+  # Refs nobody reviewed, with HOLDS_WORK and with force - it is what force destroys.
+  unreviewed: []string,
+  # Tasks that are up, with TASKS_RUNNING.
+  running: []string,
+  detail: string
+)
 
 # ---------------------------------------------------------------------------- keyslots
 
@@ -1868,6 +2048,13 @@ error NoClearance(task: string)
 # Refused rather than treated as the default: quietly doing the cheapest thing when somebody asked
 # for the most expensive is exactly the failure the depths exist to prevent.
 error UnknownRebuild(rebuild: string)
+
+# This account does not follow a project of that name.
+#
+# An error rather than an empty answer, for the same reason NoSuchTask is one: a caller that asked
+# about something that is not there has a wrong argument, and reporting it as "nothing to do" lets
+# that wrong argument arrive as a legitimate result.
+error NoSuchProject(project: string)
 
 error ProjectRequired()
 

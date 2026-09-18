@@ -44,12 +44,45 @@ public final class TaskLaunch {
      * @param dryRun Whether to stop after reporting what the project opens.
      * @param clearance What to do about a blocked connection: prompt, allow, deny or off.
      * @param keep Whether the container survives the end of the run.
+     * @param repository Which of the project's repositories the task works on. Never guessed: a
+     *        request that names none is refused, because a command whose meaning depends on how
+     *        many repositories exist today is one nobody can read.
      */
     public record Request(String task, Path projectFile, @Nullable String agentName,
             @Nullable String providerName, @Nullable String credentialType, int tokenHours,
             @Nullable String upstream, boolean noGate, boolean dryRun, String clearance,
             boolean keep, org.fuin.sokar.wire.TaskMode mode, @Nullable String prompt,
-            @Nullable String model, @Nullable Integer maxTurns, int minutes) {
+            @Nullable String model, @Nullable Integer maxTurns, int minutes,
+            @Nullable String repository) {
+
+        /**
+         * Constructor for a request that predates the repository being named.
+         *
+         * @param task Task name.
+         * @param projectFile Project file.
+         * @param agentName Agent to use, or {@code null}.
+         * @param providerName Provider to use, or {@code null}.
+         * @param credentialType Credential kind, or {@code null}.
+         * @param tokenHours How long the phantom token is accepted.
+         * @param upstream Upstream for the gate, or {@code null}.
+         * @param noGate Whether to run without a workspace and gate.
+         * @param dryRun Whether to report rather than start.
+         * @param clearance What to do with a blocked connection.
+         * @param keep Whether the container survives the run.
+         * @param mode How somebody is involved.
+         * @param prompt What to run unattended, or {@code null}.
+         * @param model Model to ask for, or {@code null}.
+         * @param maxTurns Turn limit, or {@code null}.
+         * @param minutes How long the agent may run.
+         */
+        public Request(String task, Path projectFile, @Nullable String agentName,
+                @Nullable String providerName, @Nullable String credentialType, int tokenHours,
+                @Nullable String upstream, boolean noGate, boolean dryRun, String clearance,
+                boolean keep, org.fuin.sokar.wire.TaskMode mode, @Nullable String prompt,
+                @Nullable String model, @Nullable Integer maxTurns, int minutes) {
+            this(task, projectFile, agentName, providerName, credentialType, tokenHours, upstream,
+                    noGate, dryRun, clearance, keep, mode, prompt, model, maxTurns, minutes, null);
+        }
 
         /**
          * Constructor for a request that does not say how somebody is involved.
@@ -84,7 +117,7 @@ public final class TaskLaunch {
         public Request withTask(String name) {
             return new Request(name, projectFile, agentName, providerName, credentialType,
                     tokenHours, upstream, noGate, dryRun, clearance, keep, mode, prompt, model,
-                    maxTurns, minutes);
+                    maxTurns, minutes, repository);
         }
     }
 
@@ -250,6 +283,21 @@ public final class TaskLaunch {
         if (summary.isEmpty()) {
             return null;
         }
+        // A task's repository was fixed when it was created and cannot change, so a caller that
+        // names a different one believes something false about work it is about to resume -
+        // and would then look for that work where it is not. Ignoring it silently is the one
+        // answer that leaves them believing it; the recorded one wins either way, so this says so
+        // rather than acting on either.
+        final String named = request.repository();
+        final String recorded = summary.get().repository();
+        if (named != null && !named.isBlank() && recorded != null && !recorded.isBlank()
+                && !named.equals(recorded)) {
+            err.println("sokar: " + container + " works on '" + recorded + "', not '" + named
+                    + "'. A task's repository is fixed when the task is created.");
+            err.flush();
+            return new Existing(container, project.name(), 64);
+        }
+
         if (summary.get().running()) {
             err.println("sokar: " + container + " is already running");
             err.println("       go into it with 'sokar task attach " + container + "'.");
@@ -312,8 +360,23 @@ public final class TaskLaunch {
             return 64;
         }
 
+        // After the task name and before the image, the plan and the dry run. Which repository the
+        // work is for is the first thing about a task, and finding out later means finding out
+        // somewhere else; the name is checked first only because a caller who got both wrong
+        // should hear about what they typed before what they left out.
+        final org.fuin.sokar.core.project.Repository repository;
+        try {
+            repository = chosenRepository(project);
+        } catch (ProjectException ex) {
+            err.println("sokar: " + ex.getMessage());
+            err.flush();
+            return 64;
+        }
+
         out.println("task           " + request.task());
         out.println("project        " + project.name());
+        out.println("repository     " + repository.name()
+                + (repository.name().equals(project.name()) ? " (the project's own)" : ""));
         out.println("security class " + project.securityClass().name().toLowerCase());
         out.println("base image     " + project.baseImage());
         out.println("task image     " + project.imageName());
@@ -324,7 +387,8 @@ public final class TaskLaunch {
         // project-file errors - before an image is built, and where --dry-run can still see it.
         final java.util.Map<String, String> projectOrigins;
         try {
-            projectOrigins = EgressReport.projectEgress(project, context.paths().egressSets());
+            projectOrigins = EgressReport.projectEgress(project, repository,
+                    context.paths().egressSets());
         } catch (org.fuin.sokar.shield.EgressSetException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();
@@ -335,6 +399,14 @@ public final class TaskLaunch {
             // What the project itself opens. The agent and provider are not chosen yet, so this
             // is a preview of the file rather than the full report a real run prints.
             EgressReport.reportReachable(project, projectOrigins, java.util.List.of(), out);
+            if ((request.repository() == null || request.repository().isBlank())
+                    && !project.repositories().isEmpty()) {
+                // Said, because otherwise a project-level plan reads as a task's. A repository
+                // adds to this, so what a task actually reaches is this or more - never less.
+                out.println("note      this is what every repository of '" + project.name()
+                        + "' gets; name one with --repository to see what it adds");
+            }
+            out.flush();
             return 0;
         }
 
@@ -516,7 +588,8 @@ public final class TaskLaunch {
             // The port is decided before this, so the firewall rule can name it; the gate itself
             // starts afterwards, because its log lives in the state directory that start()
             // creates. Starting it first silently failed to spawn at all.
-            runner.start(project, container, layers, environmentCache, domains, wiring, out);
+            runner.start(project, repository, container, layers, environmentCache, domains,
+                    wiring, out);
 
             if (needsRelay && plumbing != null) {
                 wiring().startRelay(runner, container, plumbing.socket(), out, err);
@@ -992,16 +1065,60 @@ public final class TaskLaunch {
 
     private GateWiring gate() {
         if (gate == null) {
-            gate = new GateWiring(context, this::recordHelper, request.projectFile(), request.upstream());
+            gate = new GateWiring(context, this::recordHelper, request.projectFile(),
+                    request.upstream(), request.repository());
         }
         return gate;
     }
 
     private WorkspaceSetup workspace() {
         if (workspace == null) {
-            workspace = new WorkspaceSetup(context, request.task(), request.upstream());
+            workspace = new WorkspaceSetup(context, request.task(), request.upstream(),
+                    request.repository());
         }
         return workspace;
+    }
+
+    /**
+     * Returns the repository this task works on, refusing a request that names none.
+     * <p>
+     * <strong>There is no case where Sokar picks</strong>, not even when the project has exactly
+     * one. A default would be paid for later and somewhere else: a project that grows a second
+     * repository would silently change what an existing command does, and a command whose meaning
+     * depends on how many repositories exist today is one nobody can read. Naming it is one word.
+     * <p>
+     * A task with no gate is the exception, and not really one: it gets an empty directory and
+     * cannot commit anywhere, so there is no repository for it to be about.
+     *
+     * @param project The project.
+     * @return The repository.
+     * @throws ProjectException When none was named, or none of that name exists. The message
+     *         names what there is to choose from.
+     */
+    private org.fuin.sokar.core.project.Repository chosenRepository(Project project) {
+        if (request.repository() == null || request.repository().isBlank()) {
+            if (request.noGate() || request.dryRun()) {
+                // A dry run starts nothing, so there is no task to start on a guessed repository -
+                // which is the only thing the refusal below protects. What it reports without one
+                // is the project's own repository, and that is not a pick: its egress and limits
+                // ARE the project's block, so the answer is the project-level plan, true of every
+                // repository. A repository of its own adds to it, which is why naming one shows
+                // more rather than something else.
+                return project.ownRepository();
+            }
+            // Ready to paste, because the first run of all is the one that cannot know the
+            // answer: the wizard writes the project file moments earlier, and being told what
+            // there is to choose from without being told how to say it would make the
+            // improvement into an obstacle.
+            throw new ProjectException("say which repository this task is for."
+                    + System.lineSeparator() + "       '" + project.name() + "' has: "
+                    + String.join(", ", project.repositoryNames())
+                    + System.lineSeparator() + "       '" + project.name() + "' is the project's"
+                    + " own repository, where the planning and the issues live."
+                    + System.lineSeparator() + "       sokar task start " + request.task()
+                    + " --repository " + project.name());
+        }
+        return GateSupport.repository(project, request.repository());
     }
 
     private ClearanceWiring clearance() {

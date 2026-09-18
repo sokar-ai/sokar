@@ -1,0 +1,2 @@
+title: "Allowing a blocked connection for a task remembers it in that task's repository, not in the project - so one repository's grant no longer widens every other repository of the same project."
+type: fixed

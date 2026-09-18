@@ -70,11 +70,14 @@ key it can carry is in [the project file](project-file.md).
 ## Run something
 
 ```
-sokar task start                                  # interactive shell; creates it or brings it back
-sokar task start --attach agent                   # start the agent, shell when it exits
-sokar task start --prompt "fix the failing test"  # unattended, no terminal
-sokar task start --detach                         # start it and keep your prompt
-sokar task start --rm                             # throw the container away when you leave
+# --repository says which of the project's repositories the work is for. It is always
+# named: the project's own repository is called after the project, so that is what a
+# project with only its own takes. 'sokar project list' says what a project has.
+sokar task start -r myproject                     # interactive shell; creates it or brings it back
+sokar task start -r backend --attach agent        # start the agent, shell when it exits
+sokar task start -r backend --prompt "fix the failing test"  # unattended, no terminal
+sokar task start -r myproject --detach            # start it and keep your prompt
+sokar task start -r myproject --rm                # throw the container away when you leave
 sokar task prepare                                # build the image without starting a task
 ```
 

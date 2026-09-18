@@ -1,0 +1,2 @@
+title: "Editing a project file no longer swallows the comment that introduces whatever follows an egress block, which could leave a bare 'egress:' behind with the next repository's comment inside it."
+type: fixed

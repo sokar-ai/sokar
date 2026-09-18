@@ -1,0 +1,2 @@
+title: "'sokar doctor' and the CanStart check both answer about repositories: a start that would be refused for naming no repository is now reported as NO_REPOSITORY_CHOSEN rather than answered as ready."
+type: fixed

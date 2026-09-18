@@ -74,7 +74,10 @@ class ProjectDeletionTest {
         final ProjectDeletion.Result result = new ProjectDeletion(context).delete("uc", false, false);
 
         assertThat(result.outcome()).isEqualTo(ProjectDeletion.Outcome.HOLDS_WORK);
-        assertThat(result.unreviewed()).containsExactly("shell");
+        // Named by repository. A bare ref name was enough while a project was one repository;
+        // with several, the person deciding whether to destroy it has to know which one is at
+        // risk, and "shell" would be the answer for all of them.
+        assertThat(result.unreviewed()).containsExactly("uc/shell");
         assertThat(Files.isDirectory(dir.resolve("data/sokar/mirrors/uc.git")))
                 .as("the mirror is untouched").isTrue();
         assertThat(runner.lines()).noneMatch(line -> line.startsWith("podman rmi"));
@@ -133,7 +136,7 @@ class ProjectDeletionTest {
 
         assertThat(result.outcome()).isEqualTo(ProjectDeletion.Outcome.DELETED);
         assertThat(result.unreviewed()).as("what force destroyed, still named")
-                .containsExactly("shell");
+                .containsExactly("uc/shell");
         assertThat(Files.exists(dir.resolve("data/sokar/mirrors/uc.git"))).isFalse();
     }
 

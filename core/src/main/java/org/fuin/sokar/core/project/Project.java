@@ -22,11 +22,38 @@ package org.fuin.sokar.core.project;
  *        setting rather than two because it is one decision - a project where an agent may talk
  *        unsupervised is a project where an agent may publish unsupervised, and splitting it would
  *        let somebody answer it twice without noticing they had.
+ * @param repositories The work repositories it names, in the order the file names them. Empty for
+ *        a project that has only its own, which is what a project still being planned looks like.
+ *        Its own repository is not in here - see {@link #ownRepository()}.
  */
 public record Project(String name, String description, SecurityClass securityClass, String baseImage,
         @org.jspecify.annotations.Nullable String imageSnippet,
         @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
-        java.util.List<String> packageSources, Mail mail, boolean unreadWorkMayLeave) {
+        java.util.List<String> packageSources, Mail mail, boolean unreadWorkMayLeave,
+        java.util.List<Repository> repositories) {
+
+    /**
+     * Constructor for a project whose only repository is its own.
+     *
+     * @param name Project name.
+     * @param description What it is for.
+     * @param securityClass How contained its tasks are.
+     * @param baseImage Image its task image is built from.
+     * @param imageSnippet Extra build fragment, or {@code null}.
+     * @param upstream Where approved work goes, or {@code null}.
+     * @param limits What a task may use.
+     * @param egress What a task may reach.
+     * @param packageSources Where apt fetches from.
+     * @param mail The peers its tasks may address.
+     * @param unreadWorkMayLeave Whether unread work may leave this machine.
+     */
+    public Project(String name, String description, SecurityClass securityClass, String baseImage,
+            @org.jspecify.annotations.Nullable String imageSnippet,
+            @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
+            java.util.List<String> packageSources, Mail mail, boolean unreadWorkMayLeave) {
+        this(name, description, securityClass, baseImage, imageSnippet, upstream, limits, egress,
+                packageSources, mail, unreadWorkMayLeave, java.util.List.of());
+    }
 
     /**
      * Constructor for a project that keeps unread work at home.
@@ -254,6 +281,124 @@ public record Project(String name, String description, SecurityClass securityCla
             }
         }
         packageSources = packageSources == null ? null : java.util.List.copyOf(packageSources);
+        repositories = repositories == null ? java.util.List.of()
+                : java.util.List.copyOf(repositories);
+        final java.util.Set<String> named = new java.util.LinkedHashSet<>();
+        for (final Repository repository : repositories) {
+            if (repository.name().equals(name)) {
+                // That name is already taken by the project's own repository, and a project where
+                // one name meant two repositories would hand a task the wrong mirror without ever
+                // saying so.
+                throw new ProjectException("Project '" + name + "' names a repository '"
+                        + repository.name() + "', which is the name of the project's own"
+                        + " repository. Call it something else.");
+            }
+            if (!named.add(repository.name())) {
+                throw new ProjectException("Project '" + name + "' names the repository '"
+                        + repository.name() + "' twice");
+            }
+            if (securityClass == SecurityClass.ONLINE && !repository.hasUpstream()) {
+                // Online means the agent's own remote is the upstream, so a repository without one
+                // is a repository nothing can be cloned from. Refused here rather than inside a
+                // container, where it is a git error against an empty address.
+                throw new ProjectException("Project '" + name + "' is online, so its repository '"
+                        + repository.name() + "' needs an upstream");
+            }
+        }
+    }
+
+    /**
+     * Returns the project's own repository - where {@code project.yml}, the planning and the
+     * issues live.
+     * <p>
+     * It is named after the project, which is why a declared repository may not take that name. A
+     * task can be started for it like any other: that is how an agent gets a task for planning,
+     * and what it writes there goes through that repository's gate like anything else.
+     *
+     * @return Never {@code null}. Every project has one.
+     */
+    public Repository ownRepository() {
+        return new Repository(name, upstream, description);
+    }
+
+    /**
+     * Returns every repository a task may be started for, the project's own first.
+     *
+     * @return At least one entry.
+     */
+    public java.util.List<Repository> allRepositories() {
+        final java.util.List<Repository> all = new java.util.ArrayList<>();
+        all.add(ownRepository());
+        all.addAll(repositories);
+        return java.util.List.copyOf(all);
+    }
+
+    /**
+     * Returns the repository of one name.
+     *
+     * @param repository As a person named it.
+     * @return The repository, or {@code null} when this project has none of that name.
+     */
+    public @org.jspecify.annotations.Nullable Repository repository(final String repository) {
+        return allRepositories().stream().filter(each -> each.name().equals(repository))
+                .findFirst().orElse(null);
+    }
+
+    /**
+     * Returns what a task on one repository may reach: the project's grants plus that
+     * repository's.
+     * <p>
+     * <strong>Added, never replaced.</strong> Egress is a list of grants, and a repository's
+     * declaration must not take away what the project gave - not least because allowing a blocked
+     * connection writes itself back into the repository's block, and a grant that removes a grant
+     * is the wrong direction for the most dangerous key in this file.
+     * <p>
+     * The project's entries come first and duplicates are dropped, so a set named in both places
+     * is named once and reads as the project's.
+     *
+     * @param repository One of this project's repositories.
+     * @return What a task of that repository may reach.
+     */
+    public Egress egressFor(final Repository repository) {
+        if (repository.egress().isEmpty()) {
+            return egress;
+        }
+        return new Egress(merged(egress.sets(), repository.egress().sets()),
+                merged(egress.domains(), repository.egress().domains()));
+    }
+
+    private static java.util.List<String> merged(java.util.List<String> first,
+            java.util.List<String> second) {
+        final java.util.Set<String> all = new java.util.LinkedHashSet<>(first);
+        all.addAll(second);
+        return java.util.List.copyOf(all);
+    }
+
+    /**
+     * Returns what a task on one repository may consume: the project's limits with that
+     * repository's over them, key by key.
+     * <p>
+     * <strong>Absent means the project's, never the default.</strong> A repository that names only
+     * {@code pids} keeps the project's memory - including a memory the project deliberately
+     * raised. Falling back to {@link Limits#defaults()} per key would quietly undo that for one
+     * repository, and nothing on screen would mention it.
+     *
+     * @param repository One of this project's repositories.
+     * @return The limits a task of that repository runs under.
+     */
+    public Limits limitsFor(final Repository repository) {
+        return repository.limits().over(limits);
+    }
+
+    /**
+     * Returns the names a task may be started for, in the order they are offered.
+     * <p>
+     * What a refusal prints when nobody said which repository the work is for.
+     *
+     * @return At least one name.
+     */
+    public java.util.List<String> repositoryNames() {
+        return allRepositories().stream().map(Repository::name).toList();
     }
 
     /**

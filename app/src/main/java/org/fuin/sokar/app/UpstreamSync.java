@@ -64,6 +64,24 @@ public final class UpstreamSync {
      * @return What happened.
      */
     public static Result sync(SokarContext context, String project) {
+        return sync(context, project, null);
+    }
+
+    /**
+     * Measures one repository's distance from its own upstream, now.
+     * <p>
+     * <strong>Per repository, because a project's distance was never one number</strong> once it
+     * had a second repository. Each has its own mirror and its own upstream, and reporting the
+     * first one's as the project's would be a number that is right about one repository and shown
+     * against all of them.
+     *
+     * @param context The machine.
+     * @param project Project name, as {@code Projects} reports it.
+     * @param repository Which of its repositories, or {@code null} for the project's own.
+     * @return What happened.
+     */
+    public static Result sync(SokarContext context, String project,
+            @org.jspecify.annotations.Nullable String repository) {
 
         final ProjectInventory.Summary summary = new ProjectInventory(context).projects().stream()
                 .filter(candidate -> candidate.name().equals(project)).findFirst().orElse(null);
@@ -71,21 +89,29 @@ public final class UpstreamSync {
             return new Result(Outcome.NO_SUCH_PROJECT, 0, false, "", "no project '" + project
                     + "' is registered here");
         }
-        if (summary.mirror() == null) {
-            return new Result(Outcome.NO_MIRROR, 0, false, "", "'" + project + "' has never used"
-                    + " the gate, so there is no mirror to measure");
-        }
         if (summary.file() == null) {
             return new Result(Outcome.UNREADABLE, 0, false, "", "the project file recorded for '"
                     + project + "' is not there any more");
         }
+        final String wanted = repository == null || repository.isBlank() ? project : repository;
+        final ProjectInventory.RepositorySummary chosen = summary.repositories().stream()
+                .filter(candidate -> candidate.name().equals(wanted)).findFirst().orElse(null);
+        if (chosen == null) {
+            return new Result(Outcome.NO_SUCH_PROJECT, 0, false, "", "project '" + project
+                    + "' has no repository '" + wanted + "'");
+        }
+        if (chosen.mirror().isEmpty()) {
+            return new Result(Outcome.NO_MIRROR, 0, false, "", "'" + wanted + "' has never used"
+                    + " the gate, so there is no mirror to measure");
+        }
         try {
             final Project read = GateSupport.project(Path.of(summary.file()));
             final UpstreamDistance.Distance distance = UpstreamDistance.measure(context.runner(),
-                    Path.of(summary.mirror()), GateMode.of(read.securityClass()));
+                    Path.of(chosen.mirror()), GateMode.of(read.securityClass()));
             // Written where every listing reads it, so a triggered measurement and a timed one
             // leave the same trace and a listing shows the newer of the two without asking.
-            new UpstreamRecords(context.paths().upstreamRecords()).put(project, distance);
+            new UpstreamRecords(context.paths().upstreamRecords())
+                    .put(GateSupport.recordKey(project, wanted), distance);
             return new Result(Outcome.MEASURED, distance.behind(), distance.measured() != null,
                     distance.reason().name(), distance.detail() == null ? "" : distance.detail());
         } catch (RuntimeException ex) {

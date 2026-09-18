@@ -2,6 +2,7 @@ package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
 import org.fuin.sokar.core.project.Project;
+import org.fuin.sokar.core.project.Repository;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -20,6 +21,9 @@ final class WorkspaceSetup {
 
     private final @Nullable String upstream;
 
+    /** Which of the project's repositories this task works on, or {@code null} for its own. */
+    private final @Nullable String repository;
+
     /**
      * Constructor with what the run decided.
      *
@@ -28,9 +32,23 @@ final class WorkspaceSetup {
      * @param upstream Value of {@code --upstream}, or {@code null}.
      */
     WorkspaceSetup(SokarContext context, String task, @Nullable String upstream) {
+        this(context, task, upstream, null);
+    }
+
+    /**
+     * Constructor naming the repository.
+     *
+     * @param context Where podman and the paths come from.
+     * @param task Task name, which becomes the ref the agent pushes to.
+     * @param upstream Value of {@code --upstream}, or {@code null}.
+     * @param repository Which repository of the project, or {@code null} for its own.
+     */
+    WorkspaceSetup(SokarContext context, String task, @Nullable String upstream,
+            @Nullable String repository) {
         this.context = context;
         this.task = task;
         this.upstream = upstream;
+        this.repository = repository;
     }
 
     /**
@@ -46,14 +64,15 @@ final class WorkspaceSetup {
             return null;
         }
         try {
+            final Repository chosen = GateSupport.repository(project, repository);
             if (project.securityClass() == org.fuin.sokar.core.project.SecurityClass.ONLINE) {
                 // Online takes the gate out of the path entirely: the agent's remote IS the
                 // upstream. Nothing is reviewed, which is what the class is for and why a project
                 // has to opt into it rather than a task asking for it.
-                return TaskWorkspace.direct(project.upstream());
+                return TaskWorkspace.direct(chosen.upstream());
             }
-            return TaskWorkspace.gated(
-                    GateSupport.gate(project, upstream, seed(project, out)),
+            return TaskWorkspace.gated(chosen,
+                    GateSupport.gate(project, chosen, upstream, seed(project, chosen, out)),
                     TaskWorkspace.containerVisibleHost());
         } catch (RuntimeException ex) {
             // A task with no workspace is still a useful task - a shell in a hardened box - so
@@ -72,14 +91,24 @@ final class WorkspaceSetup {
      * rather than assumed silently, and only committed history is copied - a bare clone has no
      * working tree.
      *
+     * <strong>Only for the project's own repository.</strong> The checkout somebody is standing in
+     * is the project's own - that is where {@code project.yml} is - so seeding a repository the
+     * project merely names from it would fill that repository's mirror with somebody else's
+     * history. A named repository with no upstream simply starts empty, which is what it is.
+     *
      * @param project The project.
+     * @param chosen The repository this task works on.
      * @param out Where to report.
      * @return Path of the work tree, or {@code null} when there is none.
      */
     @org.jspecify.annotations.Nullable
-    private String seed(Project project, PrintWriter out) {
-        if (upstream != null || project.upstream() != null
-                || java.nio.file.Files.isDirectory(GateSupport.mirror(project).resolve("objects"))) {
+    private String seed(Project project, Repository chosen, PrintWriter out) {
+        if (!chosen.name().equals(project.name())) {
+            return null;
+        }
+        if (upstream != null || chosen.hasUpstream()
+                || java.nio.file.Files.isDirectory(
+                        GateSupport.mirror(project, chosen).resolve("objects"))) {
             // A mirror that exists is never re-seeded, so saying it would be seeded is a lie.
             return null;
         }

@@ -157,7 +157,11 @@ sokar vault login claude
 # name from this directory - Enter accepts every default. What it writes includes an
 # 'egress' block: a task reaches only what the file names, so add 'maven', 'nodejs' or
 # whatever your build needs. 'sokar shield sets' lists them.
-sokar task start
+#
+# -r names which of the project's repositories the work is for; a new project has one,
+# its own, named after the project. Sokar never picks, and says what to type if you
+# leave it out.
+sokar task start -r <project>
 ```
 
 **Fedora and RHEL**
@@ -208,7 +212,11 @@ sokar vault login claude
 # name from this directory - Enter accepts every default. What it writes includes an
 # 'egress' block: a task reaches only what the file names, so add 'maven', 'nodejs' or
 # whatever your build needs. 'sokar shield sets' lists them.
-sokar task start
+#
+# -r names which of the project's repositories the work is for; a new project has one,
+# its own, named after the project. Sokar never picks, and says what to type if you
+# leave it out.
+sokar task start -r <project>
 ```
 
 **No Claude Code on this host?** Then there is nothing to import, and the credential goes in

@@ -1,0 +1,2 @@
+title: "The start check asks which repository a task is for last, so being told to choose one now means nothing else is in the way - previously it hid a missing agent, a locked vault or an absent credential behind the question."
+type: fixed

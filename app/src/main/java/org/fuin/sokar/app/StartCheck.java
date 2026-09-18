@@ -46,6 +46,12 @@ public final class StartCheck {
         /** The task name is one Start would refuse. {@code detail} says why. */
         BAD_TASK_NAME,
 
+        /** No repository was named, and Start never picks one. {@code detail} names the choices. */
+        NO_REPOSITORY_CHOSEN,
+
+        /** A repository was named and the project has none of that name. */
+        UNKNOWN_REPOSITORY,
+
         /** Nothing is installed to run. A task with no agent can still be started as a shell. */
         NO_AGENT,
 
@@ -150,6 +156,105 @@ public final class StartCheck {
      * @return What was found.
      */
     public static Result check(SokarContext context, @Nullable Path projectFile,
+            @Nullable String taskName, @Nullable String agentName, @Nullable String providerName,
+            @Nullable String credentialType) {
+        return check(context, projectFile, taskName, agentName, providerName, credentialType,
+                null, true);
+    }
+
+    /**
+     * Answers whether a run with these choices could start, including the repository.
+     * <p>
+     * <strong>The repository has to be checked here or the promise breaks.</strong> This check
+     * exists so that an answer of READY and a Start that refuses cannot disagree, and starting a
+     * task now always names a repository. A check that skipped it would tell an interface to
+     * enable its button and let the start fail a second later, which is the exact failure this
+     * method was written to remove.
+     *
+     * @param context Where the agents, providers and vault come from.
+     * @param projectFile The project file, or {@code null} not to check one.
+     * @param taskName The task name Start would be given, or {@code null} not to check one.
+     * @param agentName Agent to run, or {@code null} for the only one installed.
+     * @param providerName Provider to route through, or {@code null} for the agent's own default.
+     * @param credentialType Overrides the stored credential kind, or {@code null}.
+     * @param repository Which repository the task is for, or {@code null} when none was named.
+     * @param needsRepository Whether this run would have a gate at all. A task started with no
+     *        gate gets an empty directory and works on no repository, so there is nothing for it
+     *        to name.
+     * @return What was found.
+     */
+    public static Result check(SokarContext context, @Nullable Path projectFile,
+            @Nullable String taskName, @Nullable String agentName, @Nullable String providerName,
+            @Nullable String credentialType, @Nullable String repository,
+            boolean needsRepository) {
+
+        final Result rest = checkEverythingElse(context, projectFile, taskName, agentName,
+                providerName, credentialType);
+        return withRepository(rest, projectFile, repository, needsRepository);
+    }
+
+    /**
+     * Returns the answer with the repository question applied, which is asked last.
+     * <p>
+     * <strong>Last, although Start refuses on it first.</strong> Nothing else depends on which
+     * repository a task is for, so asking it early only buys a refusal that HIDES the others: an
+     * interface asking <em>"can work start in this project at all"</em> would have been told to
+     * choose a repository and learned nothing about a missing agent, a locked vault or an absent
+     * credential. Asked last, {@link Outcome#NO_REPOSITORY_CHOSEN} means <em>"and nothing else is
+     * in the way"</em>, which is the sentence a required choice in a dialog needs - the same shape
+     * {@link Outcome#SEVERAL_AGENTS} has.
+     * <p>
+     * The contract still holds: {@link Outcome#READY} is returned only when a repository was named
+     * and exists, so a check that says READY and a Start that refuses cannot disagree.
+     *
+     * @param rest What everything else answered.
+     * @param projectFile The project file, or {@code null} when none was given.
+     * @param repository What was named, or {@code null}.
+     * @param needsRepository Whether this run would have a gate at all.
+     * @return The answer.
+     */
+    static Result withRepository(Result rest, @Nullable Path projectFile,
+            @Nullable String repository, boolean needsRepository) {
+
+        if (rest.outcome() != Outcome.READY || projectFile == null || !needsRepository) {
+            return rest;
+        }
+        final org.fuin.sokar.core.project.Project project;
+        try {
+            project = org.fuin.sokar.core.project.ProjectReader.read(projectFile);
+        } catch (RuntimeException ex) {
+            // A file that is there and cannot be read is Start's to report, as it is for the task
+            // name. Not this check's to turn into an outcome.
+            return rest;
+        }
+        if (repository == null || repository.isBlank()) {
+            return new Result(Outcome.NO_REPOSITORY_CHOSEN, rest.agent(), rest.provider(),
+                    rest.credential(), "say which repository this task is for. '" + project.name()
+                            + "' has: " + String.join(", ", project.repositoryNames()) + ". '"
+                            + project.name() + "' is the project's own repository, where the"
+                            + " planning and the issues live.");
+        }
+        if (project.repository(repository) == null) {
+            return new Result(Outcome.UNKNOWN_REPOSITORY, rest.agent(), rest.provider(),
+                    rest.credential(), "project '" + project.name() + "' has no repository '"
+                            + repository + "'. It has: "
+                            + String.join(", ", project.repositoryNames()));
+        }
+        return rest;
+    }
+
+    /**
+     * Everything a start needs except which repository it is for.
+     *
+     * @param context The machine.
+     * @param projectFile The project file, or {@code null}.
+     * @param taskName The task name, or {@code null}.
+     * @param agentName Agent to run, or {@code null}.
+     * @param providerName Provider to route through, or {@code null}.
+     * @param credentialType Credential kind override, or {@code null}.
+     * @return What was found.
+     */
+    private static Result checkEverythingElse(SokarContext context, @Nullable Path projectFile,
             @Nullable String taskName, @Nullable String agentName, @Nullable String providerName,
             @Nullable String credentialType) {
 

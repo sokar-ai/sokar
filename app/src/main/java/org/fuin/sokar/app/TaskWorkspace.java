@@ -49,6 +49,14 @@ public class TaskWorkspace {
     private final @Nullable String upstream;
 
     /**
+     * Which of the project's repositories the agent has open, or {@code null} for its own.
+     * <p>
+     * Only the path the gate is asked for. A task works on exactly one repository, so the name is
+     * fixed when the workspace is opened and never changes underneath the container.
+     */
+    private final @Nullable String repository;
+
+    /**
      * Prepares the settings for one task's gate.
      * <p>
      * Does not start a server. The gate has to outlive {@code task run} - which either returns or
@@ -59,7 +67,8 @@ public class TaskWorkspace {
      * @param host Address the container reaches the host on.
      */
     private TaskWorkspace(@Nullable GitGate gate, String host,
-            @Nullable String upstream) {
+            @Nullable String upstream, @Nullable String repository) {
+        this.repository = repository;
         this.gate = gate;
         this.host = host;
         this.upstream = upstream;
@@ -81,7 +90,20 @@ public class TaskWorkspace {
      * @return A gated workspace.
      */
     public static TaskWorkspace gated(GitGate gate, String host) {
-        return new TaskWorkspace(gate, host, null);
+        return new TaskWorkspace(gate, host, null, null);
+    }
+
+    /**
+     * A workspace on one named repository of a project, served by that repository's gate.
+     *
+     * @param repository Which repository the agent has open.
+     * @param gate That repository's gate.
+     * @param host Address the container reaches the host on.
+     * @return A gated workspace.
+     */
+    public static TaskWorkspace gated(org.fuin.sokar.core.project.Repository repository,
+            GitGate gate, String host) {
+        return new TaskWorkspace(gate, host, null, repository.name());
     }
 
     /**
@@ -96,7 +118,7 @@ public class TaskWorkspace {
      * @return A direct workspace.
      */
     public static TaskWorkspace direct(String upstream) {
-        return new TaskWorkspace(null, containerVisibleHost(), upstream);
+        return new TaskWorkspace(null, containerVisibleHost(), upstream, null);
     }
 
     /**
@@ -148,8 +170,12 @@ public class TaskWorkspace {
      * @return Gate URL.
      */
     public String url(Project project) {
+        // The repository's name rather than the project's, because that is what the agent has
+        // open. With one repository the two are the same string, so nothing that reads a URL
+        // today sees a change.
         return gate == null ? upstream
-                : "http://" + host + ":" + port() + "/" + project.name() + ".git";
+                : "http://" + host + ":" + port() + "/"
+                        + (repository == null ? project.name() : repository) + ".git";
     }
 
     /**

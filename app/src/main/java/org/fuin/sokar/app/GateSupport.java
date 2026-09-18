@@ -5,6 +5,7 @@ import org.fuin.sokar.core.config.XdgPaths;
 import org.fuin.sokar.core.process.ProcessCommandRunner;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.core.project.ProjectReader;
+import org.fuin.sokar.core.project.Repository;
 import org.fuin.sokar.gate.GateMode;
 import org.fuin.sokar.gate.GitGate;
 import org.jspecify.annotations.Nullable;
@@ -33,8 +34,27 @@ public final class GateSupport {
     }
 
     static Path mirror(Project project) {
-        return new SokarPaths(XdgPaths.current(), Path.of("")).xdg().data()
-                .resolve("mirrors").resolve(project.name() + ".git");
+        return mirror(project, project.ownRepository());
+    }
+
+    /**
+     * Returns where one repository of a project keeps its mirror.
+     * <p>
+     * <strong>The project's own repository keeps the path it has always had.</strong> A mirror is
+     * not a cache - it holds pushes nobody has reviewed yet - so moving one is not a rename but a
+     * thing that can lose somebody's work. The repositories a project names are new, so they can
+     * be put where they belong from the start, one directory down.
+     *
+     * @param project The project.
+     * @param repository One of its repositories.
+     * @return Path to the bare mirror, which need not exist yet.
+     */
+    static Path mirror(Project project, Repository repository) {
+        final Path mirrors = new SokarPaths(XdgPaths.current(), Path.of("")).xdg().data()
+                .resolve("mirrors");
+        return repository.name().equals(project.name())
+                ? mirrors.resolve(project.name() + ".git")
+                : mirrors.resolve(project.name()).resolve(repository.name() + ".git");
     }
 
     /**
@@ -45,7 +65,7 @@ public final class GateSupport {
      * @return Gate.
      */
     public static GitGate gate(Project project, @Nullable String upstream) {
-        return gate(project, upstream, null);
+        return gate(project, project.ownRepository(), upstream, null);
     }
 
     /**
@@ -57,11 +77,79 @@ public final class GateSupport {
      * @return Gate.
      */
     public static GitGate gate(Project project, @Nullable String upstream, @Nullable String seed) {
-        final String forwardTo = upstream != null ? upstream : project.upstream();
+        return gate(project, project.ownRepository(), upstream, seed);
+    }
+
+    /**
+     * Builds the gate of one repository of a project.
+     * <p>
+     * Each repository has its own mirror and therefore its own gate, its own review branch and its
+     * own answer to <em>"what is waiting for review"</em>. That is the whole reason a task works on
+     * exactly one of them.
+     *
+     * @param project The project.
+     * @param repository Which of its repositories this gate serves.
+     * @param upstream Value of {@code --upstream}, or {@code null} for the repository's own.
+     * @param seed Repository to seed an empty mirror from, or {@code null}.
+     * @return Gate.
+     */
+    public static GitGate gate(Project project, Repository repository, @Nullable String upstream,
+            @Nullable String seed) {
+        final String forwardTo = upstream != null ? upstream : repository.upstream();
         // The mode follows the project's security class, so an offline project cannot be talked
-        // into forwarding by a command-line flag.
-        return new GitGate(new ProcessCommandRunner(), mirror(project),
+        // into forwarding by a command-line flag. The class describes the box, and the box does
+        // not change with which repository is open in it.
+        return new GitGate(new ProcessCommandRunner(), mirror(project, repository),
                 GateMode.of(project.securityClass()), forwardTo,
                 forwardTo != null ? forwardTo : seed);
+    }
+
+    /**
+     * Returns the key one repository's records are kept under.
+     * <p>
+     * <strong>One key for every per-repository record</strong> - the backups taken of a mirror and
+     * the distance last measured from an upstream - because both answer a question about one
+     * repository and both were keyed by project while a project was one repository.
+     * <p>
+     * <strong>The project's own repository keeps the project's own key</strong>, for the reason its
+     * mirror keeps its own path: what was recorded before repositories existed was this, and a
+     * rename would throw it away for nothing. The others are {@code <project>.<repository>}, which
+     * cannot collide - both halves are lower-case letters, digits and hyphens, so the dot belongs
+     * to neither.
+     *
+     * @param project Project name.
+     * @param repository Repository name.
+     * @return A key, safe as a file name.
+     */
+    public static String recordKey(String project, String repository) {
+        return project.equals(repository) ? project : project + "." + repository;
+    }
+
+    /**
+     * Resolves the repository a command was told to work on, falling back to the project's own.
+     * <p>
+     * <strong>The fallback is not Sokar picking between equals.</strong> These are the commands
+     * whose subject is the project <em>file</em> - the gate, the shield, the talk commands - and
+     * the project's own repository is the one that file belongs to. Starting a task is the other
+     * case: there the repository is what the work is for, nothing points at one, and
+     * {@link TaskLaunch} refuses a request that names none rather than reaching this.
+     *
+     * @param project The project.
+     * @param named What was given, or {@code null} when nothing was.
+     * @return The repository named, or the project's own when nothing was named.
+     * @throws org.fuin.sokar.core.project.ProjectException If the project has no repository of
+     *         that name. The message names what there is.
+     */
+    public static Repository repository(Project project, @Nullable String named) {
+        if (named == null || named.isBlank()) {
+            return project.ownRepository();
+        }
+        final Repository found = project.repository(named);
+        if (found == null) {
+            throw new org.fuin.sokar.core.project.ProjectException("Project '" + project.name()
+                    + "' has no repository '" + named + "'. It has: "
+                    + String.join(", ", project.repositoryNames()));
+        }
+        return found;
     }
 }

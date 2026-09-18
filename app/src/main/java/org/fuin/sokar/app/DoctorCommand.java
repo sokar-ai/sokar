@@ -139,6 +139,115 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         return Probe.ok(name, filter.toString());
     }
 
+    /**
+     * Reports whether this machine can tell configuration it may apply from configuration it may
+     * not.
+     * <p>
+     * Its own line, because the failure is quiet: a machine with nothing pinned does not break, it
+     * simply stops following its projects, and would otherwise look fine while drifting further
+     * from what its repositories say. And the direction is unusual enough to deserve naming - every
+     * other check here is about work leaving.
+     *
+     * @return The probe.
+     */
+    private Probe configurationAnchor() {
+        final String name = "configuration key";
+        final java.nio.file.Path signers = context.paths().configurationSigners();
+        if (!java.nio.file.Files.isRegularFile(signers)) {
+            return Probe.degraded(name,
+                    "none pinned, so no configuration from a project's repository is applied here",
+                    "write the key its configuration is signed with to " + signers);
+        }
+        try {
+            final int keys = org.fuin.sokar.app.AllowedSigners.read(signers).size();
+            if (keys == 0) {
+                return Probe.degraded(name, signers + " names no key",
+                        "write the key its configuration is signed with there");
+            }
+            return Probe.ok(name, keys + " pinned in " + signers);
+        } catch (final java.io.IOException ex) {
+            // One unreadable line refuses the whole file, by the same rule the message keyring
+            // follows: a keyring that is partly understood is worse than one that is refused.
+            return Probe.degraded(name, signers + " cannot be read: " + ex.getMessage(),
+                    "fix the line it names");
+        }
+    }
+
+    /**
+     * Reports how this account's followed projects are doing.
+     * <p>
+     * <strong>Two silences that look alike and are not.</strong> A machine whose vault is shut is
+     * not following, and a machine whose repository is unreachable is not following - the first is
+     * waiting for its own person and the second is a fault somewhere else. Reporting them as one
+     * line would send an operator to look in the wrong place, and after a restart the first is the
+     * ordinary state rather than a problem.
+     *
+     * @return The probe.
+     */
+    private Probe following() {
+        final String name = "following";
+        final java.util.List<FollowedProjects.Followed> followed;
+        try {
+            followed = new FollowedProjects(context.paths().followed()).all();
+        } catch (final java.io.IOException ex) {
+            return Probe.degraded(name, "cannot be read: " + ex.getMessage(), null);
+        }
+        if (followed.isEmpty()) {
+            // Not a fault. An account that follows nothing is configured by hand, which is what
+            // every account did until this existed.
+            return Probe.ok(name, "no project repository, so nothing is reconciled here");
+        }
+        final java.util.List<String> behind = new java.util.ArrayList<>();
+        for (final FollowedProjects.Followed one : followed) {
+            if (!"APPLIED".equals(one.outcome()) && !"UNCHANGED".equals(one.outcome())) {
+                behind.add(one.name() + " ("
+                        + (one.outcome().isEmpty() ? "never tried"
+                                : one.outcome().toLowerCase(java.util.Locale.ROOT)) + ")");
+            }
+        }
+        if (behind.isEmpty()) {
+            return Probe.ok(name, followed.size() + " project(s), all up to date");
+        }
+        final boolean shut = context.opener().isEmpty();
+        return Probe.degraded(name, String.join(", ", behind)
+                + (shut ? " - and this account's vault is shut, which is why a private repository"
+                        + " cannot be fetched" : ""),
+                shut ? "unlock the vault: sokar vault unlock" : "sokar projects following");
+    }
+
+    /**
+     * Reports the projects on this machine and how many repositories each has.
+     * <p>
+     * <strong>The count is the point.</strong> A project is a unit of work over one or more
+     * repositories, and every report that named a project without saying how many it has would
+     * read as though a project were one - which is exactly the assumption this machine no longer
+     * makes. A project whose file cannot be read says so rather than being counted as one.
+     *
+     * @return The probe.
+     */
+    private Probe projects() {
+        final String name = "projects";
+        final java.util.List<ProjectInventory.Summary> projects;
+        try {
+            projects = new ProjectInventory(context).projects();
+        } catch (final RuntimeException ex) {
+            return Probe.degraded(name, "cannot be listed: " + ex.getMessage(), "sokar projects");
+        }
+        if (projects.isEmpty()) {
+            return Probe.ok(name, "none yet - one appears the first time you run a task");
+        }
+        final java.util.List<String> said = new java.util.ArrayList<>();
+        for (final ProjectInventory.Summary project : projects) {
+            said.add(project.name() + " " + (project.repositories().isEmpty()
+                    // Not "1". An unreadable file is not a project with one repository, and
+                    // saying so would be the very thing this line exists to stop.
+                    ? "(file unreadable)"
+                    : project.repositories().size() + " repositor"
+                            + (project.repositories().size() == 1 ? "y" : "ies")));
+        }
+        return Probe.ok(name, String.join(", ", said));
+    }
+
     private Probe binary(String name, String program, String consequence) {
         try {
             final CommandResult result = context.runner()
@@ -358,7 +467,8 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
                 nftSetSupport(),
                 binary("nft", "nft", "a container comes up with no firewall ruleset"),
                 binary("git", "git", "the gate has no mirror to serve and no push can be reviewed"),
-                transports(), messageFilter(), binary("nsenter", "nsenter", "nothing can enter a container's network namespace,"
+                transports(), messageFilter(), configurationAnchor(), following(), projects(),
+                binary("nsenter", "nsenter", "nothing can enter a container's network namespace,"
                         + " so a clearance decision cannot be applied to a running task"),
                 keyring(),
                 socketPolicy());

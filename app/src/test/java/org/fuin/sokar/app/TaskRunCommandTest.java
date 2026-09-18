@@ -106,11 +106,72 @@ class TaskRunCommandTest {
         }
     }
 
+    /**
+     * Runs the CLI, naming the repository for a task start that did not name one itself.
+     * <p>
+     * Every project here is the one-repository project called {@code uc}, and starting a task
+     * always names a repository - there is no default, not even then. Added by the helper rather
+     * than by thirty call sites, each of which is about something else; the requirement itself is
+     * measured by {@link #startingATaskWithoutNamingARepositoryIsRefused}.
+     */
     private int execute(SokarContext context, String... args) {
         final CommandLine cmd = SokarCli.commandLine(context);
         cmd.setOut(new PrintWriter(out));
         cmd.setErr(new PrintWriter(err));
-        return cmd.execute(args);
+        final List<String> all = new java.util.ArrayList<>(List.of(args));
+        if (all.size() > 1 && "task".equals(all.get(0)) && "start".equals(all.get(1))
+                && !all.contains("--repository") && !all.contains("-r")) {
+            all.add("--repository");
+            all.add("uc");
+        }
+        return cmd.execute(all.toArray(new String[0]));
+    }
+
+    @Test
+    void startingATaskWithoutNamingARepositoryIsRefused(@TempDir Path dir) throws IOException {
+
+        final CommandLine cmd = SokarCli.commandLine(context(dir, true));
+        cmd.setOut(new PrintWriter(out));
+        cmd.setErr(new PrintWriter(err));
+
+        // No --repository, and the project has exactly one. Sokar still does not pick: a project
+        // that grew a second repository would otherwise silently change what this command does.
+        final int code = cmd.execute("task", "start", "--attach", "shell", "--detach",
+                "-p", projectFile(dir, MINIMAL).toString());
+
+        assertThat(code).isEqualTo(64);
+        // And the refusal is one somebody can act on without opening the file.
+        assertThat(err.toString()).contains("--repository").contains("uc");
+    }
+
+    @Test
+    void aDryRunNeedsNoRepositoryBecauseItStartsNothing(@TempDir Path dir) throws IOException {
+
+        // The refusal protects against starting a task on a guessed repository; a dry run starts
+        // nothing. What it reports without one is the project-level plan - the project's own
+        // block, which is true of every repository because a repository only ever ADDS to it.
+        final CommandLine cmd = SokarCli.commandLine(context(dir, true));
+        cmd.setOut(new PrintWriter(out));
+        cmd.setErr(new PrintWriter(err));
+
+        final int code = cmd.execute("task", "start",
+                "-p", projectFile(dir, TWO_REPOSITORIES).toString(), "--dry-run");
+
+        assertThat(code).isZero();
+        // And it says which plan this is, or a project-level answer reads as a task's.
+        assertThat(out.toString()).contains("every repository");
+    }
+
+    @Test
+    void namingARepositoryTheProjectDoesNotHaveIsRefusedByName(@TempDir Path dir)
+            throws IOException {
+
+        final int code = execute(context(dir, true), "task", "start",
+                "-p", projectFile(dir, MINIMAL).toString(), "--repository", "nowhere",
+                "--dry-run");
+
+        assertThat(code).isEqualTo(64);
+        assertThat(err.toString()).contains("nowhere").contains("uc");
     }
 
     private Path projectFile(Path dir, String content) throws IOException {
@@ -553,13 +614,54 @@ class TaskRunCommandTest {
     void labelsTheContainerWithItsProjectAndClass(@TempDir Path dir) throws IOException {
 
         // So a listing can still say what a task belongs to after a reboot. The sidecar holding
-        // the same two facts is in $XDG_RUNTIME_DIR and does not survive one.
+        // the same facts is in $XDG_RUNTIME_DIR and does not survive one.
         execute(context(dir, true), "task", "start", "--attach", "shell", "--detach",
                 "-p", projectFile(dir, MINIMAL).toString());
 
         assertThat(runner.lines()).anyMatch(line -> line.contains("create")
                 && line.contains("--label org.fuin.sokar.project=uc")
                 && line.contains("--label org.fuin.sokar.class=guarded"));
+    }
+
+    /**
+     * A project with a second repository, so a label can be wrong in a visible way.
+     * <p>
+     * <strong>No upstream on it, deliberately.</strong> The gate is built with a real command
+     * runner even here, so a repository that named one would have this test cloning from that
+     * address - and an unreachable host does not fail, it waits. Measured: the run hung until it
+     * was killed. A repository with no upstream is a legitimate one whose work stays on this
+     * machine, and it exercises the label exactly as well.
+     */
+    private static final String TWO_REPOSITORIES = MINIMAL + """
+            repositories:
+              backend:
+            """;
+
+    @Test
+    void labelsTheContainerWithTheRepositoryTheTaskWorksOn(@TempDir Path dir) throws IOException {
+
+        // A task works on exactly one repository and that is fixed when it is created, so a
+        // listing has to be able to say which one after a reboot - and bringing a stopped task
+        // back has to carry it over. The sidecar cannot answer: it predates repositories.
+        execute(context(dir, true), "task", "start", "--attach", "shell", "--detach",
+                "-p", projectFile(dir, TWO_REPOSITORIES).toString(), "--repository", "backend");
+
+        assertThat(runner.lines()).anyMatch(line -> line.contains("create")
+                && line.contains("--label org.fuin.sokar.repository=backend"));
+    }
+
+    @Test
+    void labelsATaskOnTheProjectsOwnRepositoryWithTheProjectsName(@TempDir Path dir)
+            throws IOException {
+
+        // The project's own repository is named after the project, so this is not a special case
+        // in the label - it is the ordinary one, and the value is never empty for a task this
+        // version started.
+        execute(context(dir, true), "task", "start", "--attach", "shell", "--detach",
+                "-p", projectFile(dir, TWO_REPOSITORIES).toString(), "--repository", "uc");
+
+        assertThat(runner.lines()).anyMatch(line -> line.contains("create")
+                && line.contains("--label org.fuin.sokar.repository=uc"));
     }
 
     @Test

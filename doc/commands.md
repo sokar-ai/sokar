@@ -226,6 +226,14 @@ the same list the command prints when you get the name wrong, so the two cannot 
 `shell`, not `sokar-utils4j-shell` — so the container names the other verbs offer would be the
 wrong list there. It completes its options and nothing else.
 
+**A task always names its repository.** `sokar task start shell --repository backend` says which of
+the project's repositories the work is for. There is no default, not even for a project that has
+exactly one: naming it is one word, and a default would mean a project that grew a second
+repository silently changed what an existing command does. The project's own repository - the one
+holding `project.yml`, the planning and the issues - is named after the project and is one of the
+choices; that is how an agent gets a task for planning. Leaving it out is refused, and the refusal
+lists what there is to choose from. `sokar project list` says which repositories a project has.
+
 **A task name** is lowercase letters, digits and hyphens, starting and ending with a letter or
 digit, and not only digits; `sokar-<project>-<task>` may have at most 65 characters. Anything else
 is refused before an image is built, with a name that would do: `Foo Bar` becomes `foo-bar`. A

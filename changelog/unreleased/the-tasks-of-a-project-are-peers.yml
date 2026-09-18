@@ -1,0 +1,2 @@
+title: "The tasks of one project can address each other by task name without anybody writing a peer list. A peer written in the project file still wins on the same name."
+type: added

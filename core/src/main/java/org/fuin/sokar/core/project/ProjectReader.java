@@ -89,7 +89,52 @@ public final class ProjectReader {
                 mail(root, origin),
                 // Absent means no. A setting that says unread work may leave is one somebody has
                 // to write down, because forgetting it must never be the permissive answer.
-                Boolean.TRUE.equals(project.get("unread_work_may_leave")));
+                Boolean.TRUE.equals(project.get("unread_work_may_leave")),
+                repositories(root, origin));
+    }
+
+    /**
+     * Reads the optional {@code repositories} section, which names the work repositories.
+     * <p>
+     * Absent means the project has only its own, which is what a project still being planned looks
+     * like. A mapping rather than a list because the name is the key a person types at
+     * {@code sokar task start}, and a list of mappings each carrying its own {@code name} would
+     * let two entries claim the same one without YAML noticing.
+     *
+     * @param root The whole document.
+     * @param origin Name used in error messages.
+     * @return What the project declared, empty when it declared nothing.
+     */
+    private static java.util.List<Repository> repositories(Map<?, ?> root, String origin) {
+        final Object value = root.get("repositories");
+        if (value == null) {
+            return java.util.List.of();
+        }
+        if (!(value instanceof Map<?, ?> declared)) {
+            throw new ProjectException(origin
+                    + ": 'repositories' must be a mapping of name to repository");
+        }
+        final java.util.List<Repository> read = new java.util.ArrayList<>();
+        for (final Map.Entry<?, ?> entry : declared.entrySet()) {
+            final String name = String.valueOf(entry.getKey());
+            if (entry.getValue() == null) {
+                // A name with nothing under it is a repository with no upstream, which is a
+                // repository whose work stays here. Legitimate, so it is read rather than refused.
+                read.add(new Repository(name, null));
+                continue;
+            }
+            if (!(entry.getValue() instanceof Map<?, ?> repository)) {
+                throw new ProjectException(origin + ": 'repositories." + name
+                        + "' must be a mapping with 'upstream'");
+            }
+            read.add(new Repository(name,
+                    text(repository.get("upstream")).isEmpty() ? null
+                            : text(repository.get("upstream")),
+                    text(repository.get("description")),
+                    egress(repository, origin, "repositories." + name + "."),
+                    declaredLimits(repository, origin, name)));
+        }
+        return java.util.List.copyOf(read);
     }
 
     /**
@@ -182,15 +227,66 @@ public final class ProjectReader {
      * @return What the project declared, empty when it declared nothing.
      */
     private static Egress egress(Map<?, ?> root, String origin) {
+        return egress(root, origin, "");
+    }
+
+    /**
+     * Reads an {@code egress} block, at the top level or under a repository.
+     * <p>
+     * The same reader for both, so the two cannot come to mean different things - and so that a
+     * bad set name under a repository is refused with the same message and the same rule as one at
+     * the top.
+     *
+     * @param root The mapping the block sits in.
+     * @param origin Name used in error messages.
+     * @param path What to put before the key in an error message, so a reader is told which
+     *        {@code egress} block was wrong.
+     * @return What was declared, empty when nothing was.
+     */
+    private static Egress egress(Map<?, ?> root, String origin, String path) {
         final Object value = root.get("egress");
         if (value == null) {
             return Egress.none();
         }
         if (!(value instanceof Map<?, ?> egress)) {
-            throw new ProjectException(origin + ": 'egress' must be a mapping");
+            throw new ProjectException(origin + ": '" + path + "egress' must be a mapping");
         }
-        return new Egress(strings(egress.get("sets"), "egress.sets", origin),
-                strings(egress.get("domains"), "egress.domains", origin));
+        return new Egress(strings(egress.get("sets"), path + "egress.sets", origin),
+                strings(egress.get("domains"), path + "egress.domains", origin));
+    }
+
+    /**
+     * Reads a repository's optional {@code limits} block.
+     * <p>
+     * <strong>Absent keys stay absent.</strong> Unlike the project's limits, which fall back to
+     * {@link Limits#defaults()} key by key, a key nobody wrote here has to remain unwritten - it
+     * means "the project's", and resolving it to a default at this point would quietly undo a
+     * project that had deliberately raised one.
+     *
+     * @param repository The repository's mapping.
+     * @param origin Name used in error messages.
+     * @param name The repository's name, for error messages.
+     * @return What it declared, all absent when it declared nothing.
+     */
+    private static Limits.Declared declaredLimits(Map<?, ?> repository, String origin,
+            String name) {
+        final Object value = repository.get("limits");
+        if (value == null) {
+            return Limits.Declared.none();
+        }
+        if (!(value instanceof Map<?, ?> limits)) {
+            throw new ProjectException(origin + ": 'repositories." + name
+                    + ".limits' must be a mapping");
+        }
+        final Object pids = limits.get("pids");
+        if (pids != null && !(pids instanceof Number)) {
+            throw new ProjectException(origin + ": 'repositories." + name
+                    + ".limits.pids' must be a number, not '" + pids + "'");
+        }
+        return new Limits.Declared(
+                limits.get("memory") == null ? null : text(limits.get("memory")),
+                limits.get("cpus") == null ? null : text(limits.get("cpus")),
+                pids == null ? null : ((Number) pids).intValue());
     }
 
     /**

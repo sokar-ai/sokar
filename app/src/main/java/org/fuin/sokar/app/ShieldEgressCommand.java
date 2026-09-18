@@ -34,6 +34,11 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
             description = "Project file. Default: ${DEFAULT-VALUE}")
     private Path projectFile = Path.of("project.yml");
 
+    @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
+            description = "Which of the project's repositories to declare this for. Default: the"
+                    + " project's own. A repository's grants are ADDED to the project's.")
+    private String repository;
+
     @Option(names = "--add-set", paramLabel = "<name>",
             description = "Curated set to declare. Repeatable.")
     private List<String> addSets = new ArrayList<>();
@@ -93,7 +98,7 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
         if (task != null) {
             return widen(out, err);
         }
-        return change(control.apply(projectFile, change, dryRun), out, err);
+        return change(control.apply(projectFile, repository, change, dryRun), out, err);
     }
 
     /**

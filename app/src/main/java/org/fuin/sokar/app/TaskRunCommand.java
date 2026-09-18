@@ -101,6 +101,12 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Upstream the gate forwards approved pushes to.")
     private String upstream;
 
+    @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
+            description = "Which of the project's repositories the task works on. Required:"
+                    + " there is no default, and the project's own repository is one of the"
+                    + " choices.")
+    private String repository;
+
     @Option(names = "--no-gate",
             description = "Runs without a workspace or a git gate. The agent gets an empty"
                     + " directory and cannot commit anywhere.")
@@ -174,7 +180,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         // daemon builds the same request and gets the same behavior without running a CLI.
         final TaskLaunch launch = new TaskLaunch(context, new TaskLaunch.Request(task, projectFile,
                 agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
-                clearance, !rm, mode(), prompt, model, maxTurns, minutes));
+                clearance, !rm, mode(), prompt, model, maxTurns, minutes, repository));
 
         final TaskLaunch.Existing existing = launch.startExisting(out, err);
         if (existing != null) {

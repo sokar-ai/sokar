@@ -9,6 +9,10 @@ want to know what else is possible, or why the wizard chose what it chose.
 **Only `project.name`, `project.security_class` and `image.base_image` are required.** Everything
 else has a default, and the defaults are the ones most projects want.
 
+**A project is not a repository.** It is a named unit of work over one or more of them: its own,
+which holds this file, and any it names under `repositories`. `sokar project list` says which a
+project has; `sokar task start --repository <name>` says which a task is for.
+
 ```yaml
 project:
 
@@ -30,12 +34,60 @@ project:
   #   online   the agent's remote IS the upstream. Needs 'upstream' below.
   security_class: "guarded"
 
-  # Where approved work goes. Required for online, optional otherwise.
+  # Where approved work goes, for the project's OWN repository. Required for online, optional
+  # otherwise.
   #
   # In guarded the agent never sees this: it pushes to Sokar's gate, and the gate forwards what
   # somebody approved. That is the whole point of the class - the credential stays outside the
   # container.
   upstream: "git@github.com:you/myproject.git"
+
+# Optional. The other repositories this project's work happens in.
+#
+# A project is a unit of work over ONE OR MORE repositories, not a second name for one. Its own
+# repository - the one holding this file, the planning and the issues - is always there and is
+# named after the project; these are the ones its agents change. A project that names none is a
+# project still being planned, which is a legitimate state rather than a broken one.
+#
+# A task works on exactly one of them, chosen at 'sokar task start --repository <name>'. There is
+# no default, not even here where there are three: a project that grows a repository would
+# otherwise silently change what an existing command does.
+#
+# Each keeps its own mirror, its own gate and its own review branch, so nothing about review
+# changes. Coordination between repositories happens between tasks, by message - the tasks of one
+# project can address each other by task name without anybody writing a peer list.
+repositories:
+
+  backend:
+    # Optional, exactly as above. A repository with no upstream is one whose work stays on this
+    # machine - fine, and not the same as forgetting it.
+    upstream: "git@github.com:you/backend.git"
+    # Optional. For people.
+    description: "The thing that talks to the payment provider"
+
+  frontend:
+    upstream: "git@github.com:you/frontend.git"
+
+    # Optional. What THIS repository's tooling needs, ADDED to the project's egress below.
+    #
+    # Added, never replacing: a repository's declaration must not take away what the project
+    # granted. So a frontend that drives its build through Maven keeps 'maven' without repeating
+    # it, and adds only what is particular to it. Naming a set in both places names it once.
+    #
+    # To make a repository reach LESS, move the set out of the project's block into the
+    # repositories that do need it. Then that is written down too.
+    egress:
+      sets: [nodejs]
+      domains: ["registry.internal.example"]
+
+    # Optional. What a task on THIS repository may consume, REPLACING the project's key by key.
+    #
+    # Not added - a limit is one number, and two memory limits for one container is not something
+    # podman can be asked for. A key nobody writes here means THE PROJECT'S, not the default: a
+    # repository naming only 'pids' keeps the project's memory, including one the project
+    # deliberately raised. 'none' opts out of a limit and is not the same as saying nothing.
+    limits:
+      memory: "16g"
 
 image:
 

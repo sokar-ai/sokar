@@ -27,13 +27,15 @@ class TaskStepsTest {
         // A prompt is what makes a run unattended, and only an unattended run is refused for a
         // missing credential rather than warned about.
         assertThat(TaskSteps.startCommand("nocred", "omp"))
-                .isEqualTo("cd ~/nocred && sokar task start --agent 'omp' --prompt 'hello'");
+                .isEqualTo("cd ~/nocred && sokar task start --agent 'omp' --repository 'nocred'"
+                        + " --prompt 'hello'");
     }
 
     @Test
     void asksWhatWouldHappenWithoutDoingIt() {
         assertThat(TaskSteps.planCommand("noask", "claude"))
-                .isEqualTo("cd ~/noask && sokar task start --agent 'claude' --dry-run --detach");
+                .isEqualTo("cd ~/noask && sokar task start --agent 'claude' --repository 'noask'"
+                        + " --dry-run --detach");
     }
 
     @Test

@@ -287,6 +287,9 @@ public final class SokarDaemon {
         server.method("SetEgress", (parameters, replies) -> {
             final EgressControl.Effect effect = new EgressControl(context).apply(
                     projectFile(parameters),
+                    // Which block it lands in. A repository's grants are added to the project's,
+                    // so this never takes anything away from the repository it names.
+                    empty(parameters, "repository"),
                     new EgressControl.Change(strings(parameters, "addSets"),
                             strings(parameters, "removeSets"),
                             strings(parameters, "addDomains"),
@@ -415,6 +418,7 @@ public final class SokarDaemon {
         server.method("RestoreBackup", (parameters, replies) -> {
             final org.fuin.sokar.app.BackupRestore.Result result =
                     org.fuin.sokar.app.BackupRestore.restore(context, text(parameters, "project"),
+                            empty(parameters, "repository"),
                             java.nio.file.Path.of(text(parameters, "bundle")),
                             flag(parameters, "dryRun"), flag(parameters, "force"));
             replies.last(Map.of("outcome", result.outcome().name(), "mirror", result.mirror(),
@@ -454,7 +458,8 @@ public final class SokarDaemon {
 
         server.method("SyncUpstream", (parameters, replies) -> {
             final org.fuin.sokar.app.UpstreamSync.Result result =
-                    org.fuin.sokar.app.UpstreamSync.sync(context, text(parameters, "project"));
+                    org.fuin.sokar.app.UpstreamSync.sync(context, text(parameters, "project"),
+                            empty(parameters, "repository"));
             replies.last(Map.of("outcome", result.outcome().name(), "behind", result.behind(),
                     "measured", result.measured(), "reason", result.reason(),
                     "detail", result.detail()));
@@ -463,7 +468,12 @@ public final class SokarDaemon {
         server.method("Backups", (parameters, replies) -> {
             replies.last(Map.of("backups",
                     new org.fuin.sokar.app.BackupRecords(context.paths().backupRecords())
-                            .of(text(parameters, "project")).stream()
+                            .of(org.fuin.sokar.app.GateSupport.recordKey(
+                                    text(parameters, "project"),
+                                    text(parameters, "repository").isEmpty()
+                                            ? text(parameters, "project")
+                                            : text(parameters, "repository")))
+                            .stream()
                             .map(backup -> Map.<String, Object>of(
                                     "taken", backup.taken().toString(),
                                     "bundle", backup.bundle().toString(),
@@ -638,7 +648,11 @@ public final class SokarDaemon {
             replies.last(org.fuin.sokar.app.StartCheck.check(context,
                     project.isEmpty() ? null : Path.of(project), empty(parameters, "task"),
                     empty(parameters, "agent"), empty(parameters, "provider"),
-                    empty(parameters, "credentialType")).asMap());
+                    empty(parameters, "credentialType"), empty(parameters, "repository"),
+                    // A run with no gate works on no repository, so there is nothing for it to
+                    // name - and asking for one would be asking about something that does not
+                    // exist for that run.
+                    !flag(parameters, "noGate")).asMap());
         });
 
         server.method("Credentials", (parameters, replies) -> {
@@ -859,6 +873,71 @@ public final class SokarDaemon {
             replies.last(answer);
         });
 
+        // Following a project's repository. A repository URL is not a secret, so it may travel
+        // over this socket where a credential may not.
+        server.method("Following", (parameters, replies) -> {
+            replies.last(Map.of("projects",
+                    new org.fuin.sokar.app.FollowedProjects(context.paths().followed()).all()
+                            .stream().map(one -> Map.<String, Object>of(
+                                    "name", one.name(), "url", one.url(),
+                                    "commit", one.commit(), "at", one.at(),
+                                    "outcome", one.outcome(), "detail", one.detail()))
+                            .toList()));
+        });
+
+        server.method("Follow", (parameters, replies) -> {
+            final org.fuin.sokar.app.FollowedProjects projects =
+                    new org.fuin.sokar.app.FollowedProjects(context.paths().followed());
+            final String name = text(parameters, "name");
+            try {
+                projects.follow(name, text(parameters, "url"));
+            } catch (IllegalArgumentException ex) {
+                throw new VarlinkException(INTERFACE + ".Failed",
+                        Map.of("message", String.valueOf(ex.getMessage())));
+            }
+            if (flag(parameters, "acceptRewrite")) {
+                // Forgetting what is in force is the whole of accepting: the next reconcile then
+                // has nothing to descend from and applies what it verifies. The same two lines the
+                // CLI runs, because a rewrite accepted over the socket and one accepted at the
+                // machine have to mean the same thing.
+                final org.fuin.sokar.app.FollowedProjects.Followed known = projects.find(name);
+                projects.write(new org.fuin.sokar.app.FollowedProjects.Followed(known.name(),
+                        known.url(), "", known.at(), known.outcome(), known.detail()));
+            }
+            // Once, now: somebody who asked for this wants to know whether it works, and a refusal
+            // at the next tick is one nobody connects to what they did.
+            final org.fuin.sokar.app.Reconcile.Result result =
+                    new org.fuin.sokar.app.Reconcile(context).run(projects.find(name));
+            projects.write(org.fuin.sokar.app.Reconcile.after(projects.find(name), result));
+            replies.last(Map.of("outcome", result.outcome().name(), "commit", result.commit(),
+                    "detail", result.detail()));
+        });
+
+        server.method("Unfollow", (parameters, replies) -> {
+            final org.fuin.sokar.app.FollowedProjects projects =
+                    new org.fuin.sokar.app.FollowedProjects(context.paths().followed());
+            final String name = text(parameters, "name");
+            if (projects.find(name) == null) {
+                throw new VarlinkException(INTERFACE + ".NoSuchProject", Map.of("project", name));
+            }
+            // The same refusal 'projects delete' gives, through the same code: a mirror may hold
+            // work nobody reviewed, and this must not be the quiet way to destroy it.
+            final org.fuin.sokar.app.ProjectDeletion.Result deleted =
+                    new org.fuin.sokar.app.ProjectDeletion(context).delete(name,
+                            flag(parameters, "dryRun"), flag(parameters, "force"));
+            final boolean refused =
+                    deleted.outcome() == org.fuin.sokar.app.ProjectDeletion.Outcome.HOLDS_WORK
+                    || deleted.outcome()
+                            == org.fuin.sokar.app.ProjectDeletion.Outcome.TASKS_RUNNING;
+            if (!refused && deleted.outcome()
+                    != org.fuin.sokar.app.ProjectDeletion.Outcome.PREVIEWED) {
+                projects.unfollow(name);
+            }
+            replies.last(Map.of("outcome", deleted.outcome().name(),
+                    "unreviewed", deleted.unreviewed(), "running", deleted.running(),
+                    "detail", deleted.detail() == null ? "" : deleted.detail()));
+        });
+
         server.method("Installable", (parameters, replies) -> {
             // Asked of this machine's own package source, never of a list kept here: every agent
             // package declares it provides 'sokar-agent' and every transport 'sokar-transport',
@@ -1064,7 +1143,9 @@ public final class SokarDaemon {
         }
         final Project project = GateSupport.project(Path.of(file));
         final String upstream = text(parameters, "upstream");
-        final GitGate gate = GateSupport.gate(project, upstream.isEmpty() ? null : upstream);
+        final GitGate gate = GateSupport.gate(project,
+                GateSupport.repository(project, text(parameters, "repository")),
+                upstream.isEmpty() ? null : upstream, null);
         gate.initialize();
         return gate;
     }
@@ -1362,7 +1443,11 @@ public final class SokarDaemon {
                 empty(parameters, "model"),
                 parameters.get("maxTurns") instanceof Number turns ? turns.intValue() : null,
                 parameters.get("minutes") instanceof Number minutes ? minutes.intValue()
-                        : TaskLaunch.DEFAULT_MINUTES);
+                        : TaskLaunch.DEFAULT_MINUTES,
+                // Not defaulted here. A project is a unit of work over one or more repositories,
+                // and a client that does not say which one the task is for gets the same refusal
+                // the CLI gives, naming what there is to choose from.
+                empty(parameters, "repository"));
     }
 
     /**
@@ -1545,11 +1630,15 @@ public final class SokarDaemon {
         // nothing in a test should walk a machine's mailboxes by existing.
         final java.time.Duration messages =
                 org.fuin.sokar.app.MessageWatch.interval(System::getenv);
+        final java.time.Duration following =
+                org.fuin.sokar.app.ConfigurationWatch.interval(System::getenv);
         try (VarlinkServer server = serving(context, socket);
                 org.fuin.sokar.app.UpstreamWatch upstream =
                         new org.fuin.sokar.app.UpstreamWatch(context, every);
                 org.fuin.sokar.app.MessageWatch mail =
-                        new org.fuin.sokar.app.MessageWatch(context, messages)) {
+                        new org.fuin.sokar.app.MessageWatch(context, messages);
+                org.fuin.sokar.app.ConfigurationWatch configuration =
+                        new org.fuin.sokar.app.ConfigurationWatch(context, following)) {
             // try-with-resources does not run for a signal, and a signal is how a daemon normally
             // ends - systemctl stop, a kill, a terminal closing. Without this the socket file
             // outlived the process that bound it, and an interface met a name that answers
@@ -1563,6 +1652,7 @@ public final class SokarDaemon {
             // timer still goes and asks, because a watch can miss things and a transport that
             // fetches from elsewhere has to be asked rather than waited on.
             final boolean noticing = mail.startNotices();
+            configuration.start();
             System.out.println("sokard listening on " + socket);
             System.out.println(messages.isZero() || messages.isNegative()
                     ? "not moving messages (" + org.fuin.sokar.app.MessageWatch.INTERVAL_VARIABLE
@@ -1570,6 +1660,11 @@ public final class SokarDaemon {
                     : "moving every mailbox along every " + messages.toSeconds() + " seconds"
                             + (noticing ? ", and at once when one lands here"
                                     : " (this machine cannot watch directories)"));
+            System.out.println(following.isZero() || following.isNegative()
+                    ? "not following project repositories ("
+                            + org.fuin.sokar.app.ConfigurationWatch.INTERVAL_VARIABLE + "=0)"
+                    : "following each project's repository every " + following.toSeconds()
+                            + " seconds");
             System.out.println(every.isZero() || every.isNegative()
                     ? "not measuring how far projects are behind upstream ("
                             + org.fuin.sokar.app.UpstreamWatch.INTERVAL_VARIABLE + "=0)"

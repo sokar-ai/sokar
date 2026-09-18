@@ -11,7 +11,23 @@ package org.fuin.sokar.runtime;
  */
 public record ContainerSummary(String name, String state, String since,
         @org.jspecify.annotations.Nullable String project,
-        @org.jspecify.annotations.Nullable String securityClass) {
+        @org.jspecify.annotations.Nullable String securityClass,
+        @org.jspecify.annotations.Nullable String repository) {
+
+    /**
+     * Constructor for a summary taken before the repository was labelled.
+     *
+     * @param name Container name.
+     * @param state The runtime's own words.
+     * @param since When it entered that state.
+     * @param project Project name, or {@code null}.
+     * @param securityClass Security class, or {@code null}.
+     */
+    public ContainerSummary(String name, String state, String since,
+            @org.jspecify.annotations.Nullable String project,
+            @org.jspecify.annotations.Nullable String securityClass) {
+        this(name, state, since, project, securityClass, null);
+    }
 
     /**
      * Constructor for a summary whose timestamps the runtime did not give.

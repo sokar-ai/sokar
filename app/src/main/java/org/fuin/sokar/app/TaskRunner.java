@@ -146,6 +146,29 @@ public class TaskRunner {
             java.util.Map<String, String> environment,
             java.util.List<String> allowedDomains,
             TaskWiring wiring, PrintWriter out) throws IOException {
+        start(project, project.ownRepository(), container, layers, environment, allowedDomains,
+                wiring, out);
+    }
+
+    /**
+     * Starts a task, naming the repository it works on.
+     *
+     * @param project The project.
+     * @param repository Which of its repositories this task works on.
+     * @param container Container name.
+     * @param layers What the image is built from.
+     * @param environment What the container is given.
+     * @param allowedDomains What its resolver may answer.
+     * @param wiring Host-side endpoints this container is attached to.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, org.fuin.sokar.core.project.Repository repository,
+            String container,
+            org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment,
+            java.util.List<String> allowedDomains,
+            TaskWiring wiring, PrintWriter out) throws IOException {
 
         final Path state = paths.containerState(container);
         Files.createDirectories(state);
@@ -176,18 +199,29 @@ public class TaskRunner {
 
         final ContainerSpec specification = new ContainerSpec(container, image)
                 .command("sleep", "infinity")
-                .limits(project.limits())
+                // The repository's, over the project's, key by key. A repository that says nothing
+                // gets the project's unchanged.
+                .limits(project.limitsFor(repository))
                 .resolver(org.fuin.sokar.shield.DnsPolicy.LISTEN_ADDRESS)
                 .annotation(Sidecar.ANNOTATION, sidecarFile.toString())
                 // The same two facts as in the sidecar, on the container itself. The sidecar is
                 // in the runtime directory and goes when the session does; these outlive a
                 // reboot, which is exactly as long as the thing they describe.
                 .label(Sidecar.PROJECT_LABEL, project.name())
-                .label(Sidecar.CLASS_LABEL, project.securityClass().name().toLowerCase());
-        out.println("limits    " + (project.limits().memory() == null ? "no memory cap"
-                : project.limits().memory() + " memory")
-                + (project.limits().cpus() == null ? "" : ", " + project.limits().cpus() + " cpus")
-                + ", " + project.limits().pids() + " processes");
+                .label(Sidecar.CLASS_LABEL, project.securityClass().name().toLowerCase())
+                // Which repository the agent has open. A task works on exactly one, fixed when the
+                // task is created, so it belongs on the container rather than being worked out
+                // again later from something that may have changed underneath it.
+                .label(Sidecar.REPOSITORY_LABEL, repository.name());
+        final org.fuin.sokar.core.project.Limits limits = project.limitsFor(repository);
+        out.println("limits    " + (limits.memory() == null ? "no memory cap"
+                : limits.memory() + " memory")
+                + (limits.cpus() == null ? "" : ", " + limits.cpus() + " cpus")
+                + ", " + limits.pids() + " processes"
+                // Said, because a task running under different limits from the ones in the
+                // project's own block is a thing somebody reading the file would not expect.
+                + (repository.limits().isEmpty() ? ""
+                        : " (from repository " + repository.name() + ")"));
         environment.forEach(specification::environment);
         if (wiring.vaultSocket() != null) {
             // The credential proxy. Mounted rather than reached over the network on purpose: it

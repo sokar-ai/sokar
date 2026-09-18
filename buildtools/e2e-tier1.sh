@@ -232,8 +232,35 @@ START_LOG="$WORK/start.log"
 # then wait for it. A blocked destination is data here, not a question.
 # --agent, not "whatever is installed": another agent on the machine would otherwise decide
 # what this run measures, or refuse it outright for being ambiguous.
+# Before the one that works, because it is the cheaper half of the same rule: a task always names
+# the repository it is for, and Sokar never picks - not even here, where the project has exactly
+# one. The refusal has to name what there is to choose from, or somebody reads "say which" and has
+# nowhere to look.
+NO_REPO_LOG="$WORK/no-repository.log"
 if (cd "$WORK" && "$SOKAR" task start --agent "$AGENT_NAME" --detach --clearance deny \
-        > "$START_LOG" 2>&1); then
+        > "$NO_REPO_LOG" 2>&1); then
+    fail "a task start that named no repository was accepted"
+elif grep -q -- "--repository" "$NO_REPO_LOG" && grep -q "$PROJECT" "$NO_REPO_LOG"; then
+    pass "a task start that names no repository is refused, with the choices"
+else
+    fail "the refusal did not name the flag and the choices"
+    sed -n '1,5p' "$NO_REPO_LOG"
+fi
+
+# And the other half of the same rule: a DRY RUN needs none, because it starts nothing. What it
+# reports without one is the project-level plan - true of every repository, and what an interface
+# shows when it asks what a project would open.
+DRY_LOG="$WORK/dry-no-repository.log"
+if (cd "$WORK" && "$SOKAR" task start --agent "$AGENT_NAME" --dry-run \
+        > "$DRY_LOG" 2>&1); then
+    pass "a dry run needs no repository, because it starts nothing"
+else
+    fail "a dry run was refused for naming no repository"
+    sed -n '1,5p' "$DRY_LOG"
+fi
+
+if (cd "$WORK" && "$SOKAR" task start --agent "$AGENT_NAME" --repository "$PROJECT" \
+        --detach --clearance deny > "$START_LOG" 2>&1); then
     pass "task start built the image and started the container"
 else
     fail "task start failed"
@@ -537,7 +564,8 @@ image:
 egress:
   sets: [mvn]
 EOF
-if (cd "$WORK/typo" && "$SOKAR" task start --agent "$AGENT_NAME" --dry-run 2>&1 || true) \
+if (cd "$WORK/typo" && "$SOKAR" task start --agent "$AGENT_NAME" \
+        --repository "$PROJECT-typo" --dry-run 2>&1 || true) \
         | grep -q "Unknown egress set"; then
     pass "an unknown set name stops the run"
 else
@@ -807,7 +835,8 @@ image:
   base_image: "sokar-no-such-base-image:0"
 EOF
 
-if (cd "$FAIL_DIR" && "$SOKAR" task start --agent "$AGENT_NAME" --detach --clearance deny \
+if (cd "$FAIL_DIR" && "$SOKAR" task start --agent "$AGENT_NAME" \
+        --repository "$FAIL_PROJECT" --detach --clearance deny \
         > "$FAIL_DIR/start.log" 2>&1); then
     fail "a task with an unbuildable image reported success"
 else
@@ -893,7 +922,8 @@ RUN_LOG="$WORK/unattended.log"
 
 # Same project, so the image is the one already built; a second project would rebuild every layer
 # for nothing.
-if (cd "$WORK" && "$SOKAR" task start headless --agent "$AGENT_NAME" --clearance deny \
+if (cd "$WORK" && "$SOKAR" task start headless --agent "$AGENT_NAME" \
+        --repository "$PROJECT" --clearance deny \
         -P "say hello and stop" > "$RUN_LOG" 2>&1); then
     :
 fi
@@ -942,10 +972,23 @@ else
         # outcomes that matter are exactly the ones a unit test cannot reach, because they need
         # all four inputs to be real at once.
         canstart() {
-            printf '{"method":"org.fuin.sokar.Tasks1.CanStart","parameters":{"project":"%s","agent":"%s"}}\0' \
-                "$WORK/project.yml" "$AGENT_NAME" \
+            printf '{"method":"org.fuin.sokar.Tasks1.CanStart","parameters":{"project":"%s","agent":"%s","repository":"%s"}}\0' \
+                "$WORK/project.yml" "$AGENT_NAME" "$PROJECT" \
                 | "$SOKAR" daemon connect 2>/dev/null | tr '\0' '\n' | grep -m1 outcome
         }
+
+        # The same question without a repository, which is what an interface asks when it wants to
+        # know whether work can start in this project AT ALL. It has to answer about everything
+        # else first: being told to choose a repository means nothing else is in the way, and a
+        # check that reported it before the credential would hide a locked vault behind it.
+        if printf '{"method":"org.fuin.sokar.Tasks1.CanStart","parameters":{"project":"%s","agent":"%s"}}\0' \
+                "$WORK/project.yml" "$AGENT_NAME" \
+                | "$SOKAR" daemon connect 2>/dev/null | tr '\0' '\n' \
+                | grep -q '"outcome":"NO_REPOSITORY_CHOSEN"'; then
+            pass "CanStart with no repository asks for one, and only once nothing else is missing"
+        else
+            fail "CanStart with no repository did not ask for one"
+        fi
 
         READY_REPLY="$(canstart)"
         if ! echo "$READY_REPLY" | grep -q '"outcome":"READY"'; then
@@ -1011,8 +1054,8 @@ else
 
         # One varlink call, framed the way the wire frames it, through the bridge that exists for
         # exactly this: no client library in a shell script.
-        printf '{"method":"org.fuin.sokar.Tasks1.Start","parameters":{"task":"viadaemon","project":"%s","agent":"%s","prompt":"say hello and stop","clearance":"deny","keep":true}}\0' \
-            "$WORK/project.yml" "$AGENT_NAME" \
+        printf '{"method":"org.fuin.sokar.Tasks1.Start","parameters":{"task":"viadaemon","project":"%s","agent":"%s","repository":"%s","prompt":"say hello and stop","clearance":"deny","keep":true}}\0' \
+            "$WORK/project.yml" "$AGENT_NAME" "$PROJECT" \
             | "$SOKAR" daemon connect > "$WORK/daemon-start.json" 2>"$WORK/daemon-start.err"
 
         DAEMON_REPLY="$(tr '\0' '\n' < "$WORK/daemon-start.json" | grep -m1 'exitCode' || true)"
@@ -1070,7 +1113,8 @@ rm -rf "$REFUSED_MIRROR"
 
 REFUSED_LOG="$WORK/nocred-run.log"
 REFUSED_CODE=0
-(cd "$WORK" && "$SOKAR" task start nocredrun --project nocred-project.yml --agent "$AGENT_NAME" \
+(cd "$WORK" && "$SOKAR" task start nocredrun --project nocred-project.yml \
+        --agent "$AGENT_NAME" --repository "$REFUSED_PROJECT" \
         --clearance deny -P "say hello and stop" > "$REFUSED_LOG" 2>&1) || REFUSED_CODE=$?
 
 if [ "$REFUSED_CODE" -eq 0 ]; then

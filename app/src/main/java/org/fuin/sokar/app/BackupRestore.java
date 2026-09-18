@@ -68,6 +68,28 @@ public final class BackupRestore {
      */
     public static Result restore(SokarContext context, String project, Path bundle,
             boolean dryRun, boolean force) {
+        return restore(context, project, null, bundle, dryRun, force);
+    }
+
+    /**
+     * Restores one repository's mirror from a bundle.
+     * <p>
+     * <strong>Which repository has to be said, because this writes over a mirror.</strong> A
+     * bundle taken of one repository restored into another writes one history over another's, and
+     * the pushes it destroys exist only in that mirror. Omitting it means the project's own
+     * repository, which is the one the project file belongs to.
+     *
+     * @param context The machine.
+     * @param project Project name, as {@code Projects} reports it.
+     * @param repository Which of its repositories, or {@code null} for the project's own.
+     * @param bundle The bundle to restore from.
+     * @param dryRun Says what would happen and changes nothing.
+     * @param force Proceeds even though unreviewed work would be destroyed.
+     * @return What happened.
+     */
+    public static Result restore(SokarContext context, String project,
+            @org.jspecify.annotations.Nullable String repository, Path bundle,
+            boolean dryRun, boolean force) {
 
         final ProjectInventory.Summary summary = new ProjectInventory(context).projects().stream()
                 .filter(candidate -> candidate.name().equals(project)).findFirst().orElse(null);
@@ -84,15 +106,19 @@ public final class BackupRestore {
         try {
             final org.fuin.sokar.core.project.Project read =
                     GateSupport.project(Path.of(summary.file()));
+            final org.fuin.sokar.core.project.Repository chosen =
+                    GateSupport.repository(read, repository);
             // Built from the context rather than through GateSupport, which derives its paths
             // from the real environment and its runner from nothing - so anything going through
             // it reaches this machine's directories whatever it was handed. That is the same
             // shape as the listing that bypassed its runner, and it is why a test of this wrote
             // a mirror into a real home directory before it was noticed.
-            mirror = context.paths().xdg().data().resolve("mirrors")
-                    .resolve(read.name() + ".git");
+            final Path mirrors = context.paths().xdg().data().resolve("mirrors");
+            mirror = chosen.name().equals(read.name())
+                    ? mirrors.resolve(read.name() + ".git")
+                    : mirrors.resolve(read.name()).resolve(chosen.name() + ".git");
             gate = new GitGate(context.runner(), mirror,
-                    org.fuin.sokar.gate.GateMode.of(read.securityClass()), read.upstream());
+                    org.fuin.sokar.gate.GateMode.of(read.securityClass()), chosen.upstream());
         } catch (RuntimeException ex) {
             return new Result(Outcome.FAILED, "", List.of(), String.valueOf(ex.getMessage()));
         }

@@ -37,6 +37,10 @@ public class GateCheckoutCommand implements Callable<Integer>, SokarFactory.Cont
             description = "Project file. Default: project.yml in this directory.")
     private Path projectFile = Path.of("project.yml");
 
+    @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
+            description = "Which of the project's repositories. Default: the project's own.")
+    private String repository;
+
     @Option(names = "--into", paramLabel = "<dir>",
             description = "Where to write it. Default: a directory beside the project file.")
     private Path into;
@@ -72,7 +76,8 @@ public class GateCheckoutCommand implements Callable<Integer>, SokarFactory.Cont
         final Path target = into != null ? into
                 : context.paths().reviewCheckout(project.name(), name);
         try {
-            GateSupport.gate(project, null).checkout(name, target);
+            GateSupport.gate(project, GateSupport.repository(project, repository),
+                    null, null).checkout(name, target);
         } catch (GateException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();

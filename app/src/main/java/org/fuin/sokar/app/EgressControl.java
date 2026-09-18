@@ -177,6 +177,31 @@ public final class EgressControl {
      * @return What it does, or why it was refused.
      */
     public Effect apply(Path projectFile, Change change, boolean dryRun) {
+        return apply(projectFile, null, change, dryRun);
+    }
+
+    /**
+     * Applies a change to one repository's declaration, or reports what it would do.
+     * <p>
+     * <strong>Which block this writes into is the whole of B68's write-back.</strong> A connection
+     * a task made is a fact about the repository that task works on, and remembering it in the
+     * project's block would widen every other repository of that project for a reason none of them
+     * can see. The project's own repository has no block of its own - its egress <em>is</em> the
+     * project's - so {@code null} means that one.
+     * <p>
+     * <strong>It can only ever add.</strong> A repository's grants are added to the project's, so
+     * creating a repository's block takes nothing away from it; that is why the additive rule was
+     * chosen over replacement, and this is the method that would otherwise have removed a grant
+     * while granting one.
+     *
+     * @param projectFile The project file.
+     * @param repository Which repository's block to edit, or {@code null} for the project's own.
+     * @param change What to change.
+     * @param dryRun Whether to stop before writing.
+     * @return What it does, or why it was refused.
+     */
+    public Effect apply(Path projectFile, @Nullable String repository, Change change,
+            boolean dryRun) {
 
         final Project project;
         final String original;
@@ -190,18 +215,42 @@ public final class EgressControl {
                     "cannot read " + projectFile + ": " + ex.getMessage());
         }
 
+        // The project's own repository is named after the project and has no block of its own, so
+        // it is the project's block - and a caller that passed the project's name means that.
+        final String block = repository == null || repository.isBlank()
+                || repository.equals(project.name()) ? null : repository;
+        final org.fuin.sokar.core.project.Repository chosen;
+        try {
+            chosen = GateSupport.repository(project, block);
+        } catch (ProjectException ex) {
+            return Effect.refused(Outcome.UNREADABLE, ex.getMessage());
+        }
+        // What that block says today, which is what the change is applied to. The project's lists
+        // for the project's block, the repository's own for a repository's - editing the project's
+        // and writing the result into a repository would copy every project-level grant into it.
+        final org.fuin.sokar.core.project.Egress declared =
+                block == null ? project.egress() : chosen.egress();
+
         final EgressSetDirectory sets = context.paths().egressSets();
-        final String updated = EgressEdit.withEgress(original,
-                edited(project.egress().sets(), change.addSets(), change.removeSets()),
-                edited(project.egress().domains(), change.addDomains(), change.removeDomains()));
+        final String updated;
+        try {
+            updated = EgressEdit.withEgress(original, block,
+                    edited(declared.sets(), change.addSets(), change.removeSets()),
+                    edited(declared.domains(), change.addDomains(), change.removeDomains()));
+        } catch (IllegalArgumentException ex) {
+            // A repository the file does not name. Refused rather than written to the project's
+            // block, which is the one place this must not put it.
+            return Effect.refused(Outcome.UNREADABLE, ex.getMessage());
+        }
 
         final Project after;
         final Map<String, String> before;
         final Map<String, String> now;
         try {
             after = ProjectReader.read(new StringReader(updated), projectFile.toString());
-            before = EgressReport.projectEgress(project, sets);
-            now = EgressReport.projectEgress(after, sets);
+            before = EgressReport.projectEgress(project, chosen, sets);
+            now = EgressReport.projectEgress(after,
+                    GateSupport.repository(after, block), sets);
         } catch (ProjectException ex) {
             // Where an offline project is refused, in the words that rule already chose.
             return Effect.refused(Outcome.REFUSED_BY_CLASS, ex.getMessage());

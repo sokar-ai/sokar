@@ -1,0 +1,2 @@
+title: "The project listing counts what is waiting for review across every repository of a project, not only the project's own - a number that silently excluded repositories was worse than none, because a number that is there is read as the answer."
+type: fixed

@@ -1,0 +1,2 @@
+title: "A project can name several git repositories. A task works on exactly one of them, chosen with 'sokar task start --repository <name>' - there is no default, and the project's own repository is one of the choices."
+type: added

@@ -1,0 +1,2 @@
+title: "A dry run needs no repository, because it starts nothing: without one it reports the project-level plan, which is true of every repository, and says so. Resuming a stopped task with a repository that is not the one it works on is refused rather than ignored."
+type: fixed

@@ -1,0 +1,2 @@
+title: "A backup taken of one repository's mirror is recorded against that repository rather than against the project, and restoring names the repository to write into - previously a bundle of one repository could be restored over another's mirror, destroying pushes that exist nowhere else."
+type: fixed

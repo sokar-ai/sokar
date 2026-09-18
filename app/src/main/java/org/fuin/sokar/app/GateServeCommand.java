@@ -32,6 +32,10 @@ public class GateServeCommand implements Callable<Integer> {
             description = "Project file. Default: ${DEFAULT-VALUE}")
     private Path projectFile = Path.of("project.yml");
 
+    @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
+            description = "Which of the project's repositories. Default: the project's own.")
+    private String repository;
+
     @Option(names = "--upstream", paramLabel = "<url>",
             description = "Upstream repository, used only when approving.")
     private String upstream;
@@ -78,7 +82,8 @@ public class GateServeCommand implements Callable<Integer> {
             final Project project = GateSupport.project(projectFile);
             final String effectiveUpstream = upstream != null ? upstream
                     : System.getenv("SOKAR_GATE_UPSTREAM");
-            final GitGate gate = GateSupport.gate(project, effectiveUpstream);
+            final GitGate gate = GateSupport.gate(project, GateSupport.repository(project, repository),
+                    effectiveUpstream, null);
             gate.initialize();
 
             // From the environment when a task started this gate, so the container and the gate

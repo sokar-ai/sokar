@@ -402,6 +402,9 @@ public final class RunningEgress {
                             + "' keeps its file, so it was not written down");
         }
         final EgressControl.Effect written = new EgressControl(context).apply(Path.of(file),
+                // The repository this task works on, so a grant taken back is taken back where it
+                // was given rather than out of every repository of the project.
+                task.repository(),
                 new EgressControl.Change(List.of(), List.of(), List.of(), names), false);
         if (written.outcome() != EgressControl.Outcome.CHANGED
                 && written.outcome() != EgressControl.Outcome.NO_CHANGE) {
@@ -428,6 +431,9 @@ public final class RunningEgress {
                             + "' keeps its file, so it was not written down");
         }
         final EgressControl.Effect written = new EgressControl(context).apply(Path.of(file),
+                // Remembered against the repository the task works on. Allowing one connection
+                // must not widen the five other repositories of the same project.
+                task.repository(),
                 new EgressControl.Change(List.of(), List.of(), names, List.of()), false);
         if (written.outcome() != EgressControl.Outcome.CHANGED
                 && written.outcome() != EgressControl.Outcome.NO_CHANGE) {

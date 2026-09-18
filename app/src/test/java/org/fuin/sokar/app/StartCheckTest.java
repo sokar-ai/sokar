@@ -104,4 +104,92 @@ class StartCheckTest {
                 .containsEntry("credential", "").containsEntry("ready", false)
                 .containsKey("detail");
     }
+
+    /** A project with two repositories beside its own. */
+    private Path threeRepositories(Path dir) throws Exception {
+        Files.createDirectories(dir.resolve("project"));
+        final Path project = dir.resolve("project/project.yml");
+        Files.writeString(project, """
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                repositories:
+                  backend:
+                  frontend:
+                """);
+        return project;
+    }
+
+    /**
+     * What everything except the repository answers when nothing is in its way.
+     * <p>
+     * The names are deliberately not any agent's or provider's: nothing here depends on which they
+     * are, and a real one written down outside the agent modules is what
+     * {@code AgentIsolationTest} refuses - it caught this fixture.
+     */
+    private static final StartCheck.Result READY =
+            new StartCheck.Result(StartCheck.Outcome.READY, "an-agent", "a-provider", "key", "");
+
+    @Test
+    void theRepositoryIsAskedLastSoARefusalNeverHidesTheOthers(@TempDir Path dir)
+            throws Exception {
+
+        // The point Agent Frontend's question exposed: an interface asking "can work start in this
+        // project at all" must not be told to choose a repository and learn nothing about a
+        // missing agent. There is no agent on this machine, so that is the answer - even though no
+        // repository was named either.
+        assertThat(StartCheck.check(context(dir), threeRepositories(dir), null, null, null, null,
+                null, true).outcome())
+                .isEqualTo(StartCheck.Outcome.NO_AGENT);
+    }
+
+    @Test
+    void sayingNothingAboutTheRepositoryIsRefusedWithTheChoices(@TempDir Path dir)
+            throws Exception {
+
+        // Asked of the last step directly, because reaching it through check() needs an agent
+        // installed on the machine, which this test cannot do - and a fixture that could would be
+        // testing a stand-in.
+        final StartCheck.Result result =
+                StartCheck.withRepository(READY, threeRepositories(dir), null, true);
+
+        assertThat(result.outcome()).isEqualTo(StartCheck.Outcome.NO_REPOSITORY_CHOSEN);
+        assertThat(result.ready()).isFalse();
+        // Named, so a dialog can offer them without reading the file itself.
+        assertThat(result.detail()).contains("uc").contains("backend").contains("frontend");
+        // And what was already settled is carried, so the dialog does not lose it while asking.
+        assertThat(result.agent()).isEqualTo("an-agent");
+        assertThat(result.credential()).isEqualTo("key");
+    }
+
+    @Test
+    void aRepositoryTheProjectDoesNotHaveIsItsOwnOutcome(@TempDir Path dir) throws Exception {
+
+        // Different from naming none: somebody typed something, and what helps is the list.
+        final StartCheck.Result result =
+                StartCheck.withRepository(READY, threeRepositories(dir), "nowhere", true);
+
+        assertThat(result.outcome()).isEqualTo(StartCheck.Outcome.UNKNOWN_REPOSITORY);
+        assertThat(result.detail()).contains("nowhere").contains("backend");
+    }
+
+    @Test
+    void aRunWithNoGateIsNotAskedWhichRepository(@TempDir Path dir) throws Exception {
+
+        // It gets an empty directory and can commit nowhere, so it works on no repository and
+        // there is nothing for it to name.
+        assertThat(StartCheck.withRepository(READY, threeRepositories(dir), null, false))
+                .isEqualTo(READY);
+    }
+
+    @Test
+    void aNamedRepositoryChangesNothingAboutTheAnswer(@TempDir Path dir) throws Exception {
+
+        // Proves the refusals above are about the repository and not about the fixture: with a
+        // good name, what everything else answered comes back untouched.
+        assertThat(StartCheck.withRepository(READY, threeRepositories(dir), "backend", true))
+                .isEqualTo(READY);
+    }
 }

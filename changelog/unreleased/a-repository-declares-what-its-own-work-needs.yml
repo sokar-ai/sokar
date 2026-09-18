@@ -1,0 +1,2 @@
+title: "A repository of a project can declare the egress and the limits its own work needs: egress added to the project's, a limit replacing the project's key by key, and a key nobody wrote meaning the project's rather than the default."
+type: added

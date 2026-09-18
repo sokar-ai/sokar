@@ -1,0 +1,2 @@
+title: "A task says which of its project's repositories it works on. The name is a label on the container, so a listing still answers after a reboot and bringing a stopped task back carries it over."
+type: added

@@ -24,6 +24,10 @@ public class GateReviewCommand implements Callable<Integer> {
             description = "Project file. Default: ${DEFAULT-VALUE}")
     private Path projectFile = Path.of("project.yml");
 
+    @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
+            description = "Which of the project's repositories. Default: the project's own.")
+    private String repository;
+
     @Option(names = "--upstream", paramLabel = "<url>",
             description = "Upstream repository to forward approved pushes to.")
     private String upstream;
@@ -46,7 +50,8 @@ public class GateReviewCommand implements Callable<Integer> {
 
         try {
             final Project project = GateSupport.project(projectFile);
-            final GitGate gate = GateSupport.gate(project, upstream);
+            final GitGate gate = GateSupport.gate(project,
+                    GateSupport.repository(project, repository), upstream, null);
             gate.initialize();
             out.println(gate.log(name, against));
             out.println(gate.review(name, against == null ? "HEAD" : against));

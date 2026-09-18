@@ -1,0 +1,2 @@
+title: "Deleting a project now looks for unreviewed work in every one of its repositories rather than only the first, and names each waiting push by the repository it is in."
+type: fixed

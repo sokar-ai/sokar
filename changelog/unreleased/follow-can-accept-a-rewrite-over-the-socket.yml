@@ -1,0 +1,2 @@
+title: "Following a project over the socket reports REWRITTEN and takes 'acceptRewrite', so an interface can show a refused history rewrite and let a person accept it - previously it was an outcome a client had never heard of with no way past it."
+type: fixed

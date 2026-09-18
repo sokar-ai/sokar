@@ -35,6 +35,23 @@ final class UpstreamRecords {
     }
 
     /**
+     * Returns the key one repository's measurement is stored under.
+     * <p>
+     * <strong>The project's own repository keeps the project's own key</strong>, for the reason
+     * its mirror keeps its own path: what was measured before repositories existed was this, and a
+     * rename would throw it away for no gain. The others are {@code <project>.<repository>}, which
+     * cannot collide - both halves are lower-case letters, digits and hyphens, so the dot belongs
+     * to neither.
+     *
+     * @param project Project name.
+     * @param repository Repository name.
+     * @return A file name.
+     */
+    static String key(String project, String repository) {
+        return GateSupport.recordKey(project, repository);
+    }
+
+    /**
      * Records what was measured for one project.
      *
      * @param project Project name.

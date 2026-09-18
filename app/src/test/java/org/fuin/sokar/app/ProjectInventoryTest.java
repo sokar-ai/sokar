@@ -36,6 +36,12 @@ class ProjectInventoryTest {
         Files.createDirectories(root.resolve("data/sokar/mirrors").resolve(name + ".git"));
     }
 
+    /** The mirror of a repository the project names, which sits one directory down. */
+    private void mirror(String project, String repository) throws IOException {
+        Files.createDirectories(root.resolve("data/sokar/mirrors").resolve(project)
+                .resolve(repository + ".git"));
+    }
+
     private void task(String container, String project) throws IOException {
         final Path state = root.resolve("run/sokar").resolve(container);
         Files.createDirectories(state);
@@ -238,6 +244,25 @@ class ProjectInventoryTest {
 
         assertThat(new ProjectInventory(context).projects()).singleElement()
                 .satisfies(project -> assertThat(project.pending()).isEqualTo(2));
+    }
+
+    @Test
+    void countsWhatIsWaitingInEveryRepositoryOfTheProject(@TempDir Path dir) throws IOException {
+
+        // A project is a unit of work over one or more repositories, and each keeps its own
+        // mirror. Counting only the project's own would report a number that silently excludes
+        // repositories - worse than reporting none, because a number that is there is read as the
+        // answer. The fake answers the same two refs for every mirror it is asked about, so three
+        // mirrors is six: what this measures is that all three were asked.
+        final SokarContext context = context(dir);
+        mirror("uc");
+        mirror("uc", "backend");
+        mirror("uc", "frontend");
+        runner.answering("for-each-ref",
+                "refs/sokar/incoming/shell\nrefs/sokar/incoming/build\n");
+
+        assertThat(new ProjectInventory(context).projects()).singleElement()
+                .satisfies(project -> assertThat(project.pending()).isEqualTo(6));
     }
 
     @Test

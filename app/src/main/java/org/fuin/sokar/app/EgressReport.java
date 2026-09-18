@@ -37,7 +37,25 @@ final class EgressReport {
      */
     static java.util.Map<String, String> projectEgress(Project project,
             org.fuin.sokar.shield.EgressSetDirectory sets) {
-        final org.fuin.sokar.core.project.Egress egress = project.egress();
+        return projectEgress(project, project.ownRepository(), sets);
+    }
+
+    /**
+     * Returns the hosts a task on one repository may reach, each mapped to where it came from.
+     * <p>
+     * The project's grants and the repository's, added rather than replaced, and each host
+     * labelled with which of the two granted it - so a person reading the report can see that a
+     * host is reachable because of the repository they are in and not because of the project.
+     *
+     * @param project The project.
+     * @param repository The repository the task works on.
+     * @param sets Where the installed sets are found.
+     * @return Host to origin, empty when neither declared anything.
+     */
+    static java.util.Map<String, String> projectEgress(Project project,
+            org.fuin.sokar.core.project.Repository repository,
+            org.fuin.sokar.shield.EgressSetDirectory sets) {
+        final org.fuin.sokar.core.project.Egress egress = project.egressFor(repository);
         if (egress.isEmpty()) {
             return java.util.Map.of();
         }
@@ -45,7 +63,10 @@ final class EgressReport {
         sets.origins(egress.sets()).forEach((host, set) -> origins.put(host, "set " + set));
         // A directly named host wins the label: an operator who wrote it down should see it
         // reported as their own decision, not as whichever set happens to contain it too.
-        egress.domains().forEach(domain -> origins.put(domain, "project"));
+        egress.domains().forEach(domain -> origins.put(domain,
+                repository.egress().domains().contains(domain)
+                        && !project.egress().domains().contains(domain)
+                                ? "repository " + repository.name() : "project"));
         return origins;
     }
 

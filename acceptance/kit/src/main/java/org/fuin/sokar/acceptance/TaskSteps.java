@@ -84,7 +84,10 @@ public class TaskSteps {
      * @return The command.
      */
     static String startCommand(String project, String agent) {
+        // The repository is always named: a project's own repository is called after the project,
+        // and these fixtures have only that one. Sokar never picks, not even then.
         return inProject(project) + " && sokar task start --agent " + Shell.quote(agent)
+                + " --repository " + Shell.quote(project)
                 + " --prompt " + Shell.quote(PROMPT);
     }
 
@@ -112,6 +115,7 @@ public class TaskSteps {
      */
     static String planCommand(String project, String agent) {
         return inProject(project) + " && sokar task start --agent " + Shell.quote(agent)
+                + " --repository " + Shell.quote(project)
                 + " --dry-run --detach";
     }
 

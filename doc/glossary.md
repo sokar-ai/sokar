@@ -11,7 +11,8 @@ disagree with.
 | [Node](#node) | A running `sokard` and the state it owns — one per OS user, not one per machine. |
 | [Operator](#operator) | The person who owns a node — the only one who can unlock its vault or approve at its gate. |
 | [Client](#client) | Software that talks to one or more nodes and decides nothing itself. |
-| [Project](#project) | A body of work with one upstream, one security class and one set of destinations. |
+| [Project](#project) | A body of work over one or more repositories, with one security class and one set of destinations. |
+| [Repository](#repository) | One git repository of a project. A task works on exactly one. |
 | [Task](#task) | One run of one agent on one project, in its own container. |
 | [Mode](#mode) | How a person is meant to be involved in a task. |
 | [Agent](#agent) | The tool that does the work, declared by a manifest rather than known to Sokar. |
@@ -103,8 +104,27 @@ limits a task runs under, and the egress a task may reach.
 A project is not a container and does not run. It is what tasks are started *for*, and what a
 security class applies to.
 
-A project's name is how everything else finds its things: its image is `sokar/<name>`, its gate
-mirror is `<name>.git`, and its tasks are named after it.
+**A project is not one repository.** It is a named unit of work over one or more: its own, which
+holds `project.yml`, the planning and the issues, and any it names under `repositories`. A project
+whose only repository is its own is one still being planned, which is a legitimate state.
+
+A project's name is how everything else finds its things: its image is `sokar/<name>`, the gate
+mirror of its own repository is `<name>.git`, and its tasks are named after it.
+
+## Repository
+
+**One git repository of a project**, named in `project.yml` or the project's own. Each keeps its own
+mirror, its own gate and its own review branch, so *"what is waiting for review"* has one answer per
+repository.
+
+**A task works on exactly one**, named at `sokar task start --repository <name>` and never guessed.
+Repositories are separate because the work is separable - if it were not, it would be one repository
+- and a task that changed three at once would have to be paid for at the gate, where a person could
+approve a third of it. Coordination between repositories happens between tasks, by message: the
+tasks of one project can address each other by task name without anybody writing a peer list.
+
+The project's own repository is named after the project, which is why a declared repository may not
+take that name.
 
 ## Task
 
@@ -185,14 +205,16 @@ node-local, so review needs no network and `offline` stays usable.
 
 ## Mirror
 
-**A project's bare repository on the node.** A task clones from it and pushes to it, and the gate
-serves review out of it. One per project, and it is the only git remote a task can reach.
+**A [repository](#repository)'s bare clone on the node.** A task clones from it and pushes to it,
+and the gate serves review out of it. One per repository - not one per project - and it is the only
+git remote a task can reach.
 
 ## Upstream
 
-**The real remote a project's work is eventually forwarded to.** GitHub, a company forge, anything
-git can push to. It is named in the project file, and in `guarded` nothing reaches it except an
-`approve`.
+**The real remote a [repository](#repository)'s work is eventually forwarded to.** GitHub, a company
+forge, anything git can push to. It is named in the project file - `project.upstream` for the
+project's own repository, `repositories.<name>.upstream` for the others - and in `guarded` nothing
+reaches it except an `approve`.
 
 ## Vault
 

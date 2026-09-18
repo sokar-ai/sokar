@@ -193,6 +193,24 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file naming the keys whose commits this machine will apply as configuration.
+     * <p>
+     * <strong>Pinned out of band, and never from the repository it authenticates.</strong> A trust
+     * anchor that travels with what it checks is not an anchor. An operator writes this when the
+     * machine is prepared, the same way a peer's key is pinned for messages, and it is in the
+     * configuration directory rather than the data one because it is a decision rather than
+     * something Sokar accumulated.
+     * <p>
+     * {@code allowed_signers} format, so it is the same file shape - and the same reader - as the
+     * one that decides which peers may send a message.
+     *
+     * @return The file, which need not exist. A machine with none applies nothing.
+     */
+    public Path configurationSigners() {
+        return xdg.config().resolve("configuration_signers");
+    }
+
+    /**
      * Returns where the users of this machine publish their message keys to each other.
      * <p>
      * Outside any user's home, because it is shared, and made only where an operator has allowed
@@ -255,6 +273,36 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
      */
     public Path defaultProjectFile(String name) {
         return xdg.config().resolve("projects").resolve(name).resolve("project.yml");
+    }
+
+    /**
+     * Returns where this account records the project repositories it follows.
+     * <p>
+     * A directory with one file per project, like the registry beside it and for the same reason:
+     * two things can change at once, and a file each is a race that cannot happen.
+     * <p>
+     * <strong>Per account, not per machine.</strong> Two people on one machine follow different
+     * projects, reconcile at different moments and open different vaults.
+     *
+     * @return The directory.
+     */
+    public Path followed() {
+        return xdg.state().resolve("follow");
+    }
+
+    /**
+     * Returns where a followed project's repository is cloned.
+     * <p>
+     * Under the state directory because it is this machine's copy of a source of truth, not a
+     * working copy: nothing edits it and it is rebuilt by fetching. An agent that works <em>in</em>
+     * a project's repository gets its own checkout through the gate, like a task on any other
+     * repository.
+     *
+     * @param project The project's name.
+     * @return The clone's directory, which need not exist.
+     */
+    public Path followedClone(String project) {
+        return followed().resolve(project + ".git");
     }
 
     public Path projectRegistry() {

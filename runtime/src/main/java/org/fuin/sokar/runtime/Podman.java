@@ -681,15 +681,16 @@ public class Podman {
         return runner.runOrFail(podman("ps", "--all", "--format",
                         "{{.Names}}\t{{.Status}}\t{{.StartedAt}}\t{{.ExitedAt}}"
                         + "\t{{index .Labels \"" + Sidecar.PROJECT_LABEL + "\"}}"
-                        + "\t{{index .Labels \"" + Sidecar.CLASS_LABEL + "\"}}"))
+                        + "\t{{index .Labels \"" + Sidecar.CLASS_LABEL + "\"}}"
+                        + "\t{{index .Labels \"" + Sidecar.REPOSITORY_LABEL + "\"}}"))
                 .standardOutput().lines()
                 .map(String::strip)
                 .filter(line -> !line.isEmpty())
-                .map(line -> line.split("\t", 6))
+                .map(line -> line.split("\t", 7))
                 .filter(parts -> ContainerName.isTask(parts[0]))
                 .map(parts -> new ContainerSummary(parts[0], parts.length > 1 ? parts[1] : "",
                         since(parts),
-                        label(parts, 4), label(parts, 5)))
+                        label(parts, 4), label(parts, 5), label(parts, 6)))
                 .toList();
     }
 

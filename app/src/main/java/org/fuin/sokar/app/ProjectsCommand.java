@@ -25,7 +25,9 @@ import picocli.CommandLine.Spec;
 @Command(name = "project",
         aliases = { "projects" },
         mixinStandardHelpOptions = true,
-        subcommands = { ProjectListCommand.class, ProjectDeleteCommand.class },
+        subcommands = { ProjectListCommand.class, ProjectDeleteCommand.class,
+                ProjectFollowCommand.class, ProjectFollowingCommand.class,
+                ProjectUnfollowCommand.class },
         description = "Lists and removes the projects this machine has run tasks for.")
 public class ProjectsCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
@@ -69,6 +71,20 @@ public class ProjectsCommand implements Callable<Integer>, SokarFactory.ContextA
             out.printf("%-" + width + "s  %-8s  %s%n", project.name(),
                     project.securityClass() == null ? "-" : project.securityClass(),
                     project.file() == null ? "(file not recorded)" : project.file());
+            if (project.repositories().size() > 1) {
+                // Only when there is more than one, because one repository is what the line above
+                // already reads as. Naming them rather than counting them: this is the list
+                // 'sokar task start --repository' takes, and a number would send somebody to the
+                // file to find out what to type.
+                out.printf("%-" + width + "s  %d repositories: %s%n", "",
+                        project.repositories().size(), project.repositories().stream()
+                                .map(repository -> repository.name()
+                                        // Only where there is something to act on, by the same
+                                        // rule the line below follows.
+                                        + (repository.pending() > 0
+                                                ? " (" + repository.pending() + " waiting)" : ""))
+                                .collect(java.util.stream.Collectors.joining(", ")));
+            }
             if (project.pending() > 0 || project.tasks() > 0) {
                 // Only when there is something to act on: a line of zeroes under every project is
                 // a line nobody reads.

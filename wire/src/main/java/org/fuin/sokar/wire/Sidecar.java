@@ -58,6 +58,16 @@ public record Sidecar(int version, String project, String securityClass,
     public static final String CLASS_LABEL = "org.fuin.sokar.class";
 
     /**
+     * Label carrying the repository this task works on. See {@link #PROJECT_LABEL}.
+     * <p>
+     * On the container rather than only in the sidecar, for the reason the other two are: a
+     * listing has to say which repository a task is in after a reboot, and bringing a task back
+     * has to carry it over. A container created before this existed carries no such label, which
+     * reads as the project's own repository - the only one there was.
+     */
+    public static final String REPOSITORY_LABEL = "org.fuin.sokar.repository";
+
+    /**
      * Constructor with all data.
      *
      * @param version Schema version.

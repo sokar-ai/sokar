@@ -1,0 +1,2 @@
+title: "A project reports each of its repositories with its own upstream, mirror, pending count and distance from upstream, and the distance is measured per repository rather than once per project."
+type: added

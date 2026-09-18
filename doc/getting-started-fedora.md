@@ -489,8 +489,13 @@ To add your own tooling to the image, see [your tooling](your-tooling.md).
 ## 5. Run a task
 
 ```
-sokar task start
+sokar task start --repository <project>
 ```
+
+`--repository` says which of the project's repositories the work is for. A project
+made here has one - its own, named after the project - so that name is what goes in.
+A project can name more later, and a task still works on exactly one of them. Leave
+the flag out and Sokar refuses rather than picking, printing the line to type.
 
 By default it starts the agent for you and leaves a shell behind when the agent
 exits, so the workspace is still there to look at and its work can still be pushed

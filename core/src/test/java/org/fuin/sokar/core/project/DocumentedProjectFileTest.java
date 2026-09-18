@@ -42,6 +42,16 @@ class DocumentedProjectFileTest {
         assertThat(project.egress().domains()).isNotEmpty();
         assertThat(project.limits().memory()).isEqualTo("8g");
         assertThat(project.limits().pids()).isEqualTo(2048);
+        assertThat(project.repositoryNames())
+                .containsExactly("myproject", "backend", "frontend");
+        assertThat(project.repository("backend").upstream())
+                .isEqualTo("git@github.com:you/backend.git");
+        // The per-repository blocks, and what the page says they do: egress added, a limit
+        // replacing, and a key nobody wrote falling back to the project rather than the default.
+        final Repository frontend = project.repository("frontend");
+        assertThat(project.egressFor(frontend).sets()).contains("maven", "nodejs");
+        assertThat(project.limitsFor(frontend).memory()).isEqualTo("16g");
+        assertThat(project.limitsFor(frontend).pids()).isEqualTo(project.limits().pids());
     }
 
     private static String exampleFrom(Path page) throws IOException {

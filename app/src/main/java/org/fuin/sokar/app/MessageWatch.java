@@ -270,7 +270,7 @@ public final class MessageWatch implements AutoCloseable {
             }
             try {
                 final Project project = GateSupport.project(Path.of(summary.file()));
-                return project.mail();
+                return withSiblings(project, container);
             } catch (final RuntimeException ex) {
                 return Mail.none();
             }
@@ -278,6 +278,49 @@ public final class MessageWatch implements AutoCloseable {
         // A mailbox whose project file is gone still receives: what a peer already sent is
         // delivered, and only sending needs to know where anything goes.
         return Mail.none();
+    }
+
+    /**
+     * Returns the project's written peers with its own other tasks added.
+     * <p>
+     * <strong>Nobody writes these down.</strong> A project is a unit of work over one or more
+     * repositories and a task works on exactly one of them, so coordination between repositories
+     * happens between tasks - and a peer list somebody has to maintain for tasks this machine
+     * starts and stops by itself would be wrong most of the time. The tasks of one project are
+     * peers because they are tasks of one project.
+     * <p>
+     * <strong>A written peer of the same name wins.</strong> That is how an exception stays
+     * possible and stays explicit: naming a task in {@code mail.peers} sends to what the file says
+     * rather than to the task next door.
+     * <p>
+     * <strong>Vouched, because this machine wrote them.</strong> Both mailboxes belong to this
+     * installation and this Unix user; a message between them was checked where it was written.
+     *
+     * @param project The project both tasks belong to.
+     * @param container The task asking, which is never its own peer.
+     * @return The peers this task may address.
+     */
+    Mail withSiblings(final Project project, final String container) {
+        final List<org.fuin.sokar.core.project.Mail.Peer> peers =
+                new ArrayList<>(project.mail().peers());
+        final List<String> written = peers.stream()
+                .map(org.fuin.sokar.core.project.Mail.Peer::name).toList();
+        for (final org.fuin.sokar.runtime.ContainerSummary task : context.podman().sokarTasks()) {
+            final String name = task.name();
+            if (name.equals(container) || !name.startsWith("sokar-" + project.name() + "-")) {
+                continue;
+            }
+            final String sibling = org.fuin.sokar.runtime.ContainerName.taskIn(project.name(), name);
+            if (sibling == null || written.contains(sibling)) {
+                continue;
+            }
+            // The local transport takes the absolute path of the recipient's inbound directory and
+            // derives nothing itself - the host holds the peer table, which is this method.
+            peers.add(new org.fuin.sokar.core.project.Mail.Peer(sibling,
+                    "local:" + new Mailbox(context.paths().mailbox(name)).inbound(),
+                    org.fuin.sokar.core.project.Mail.Peer.VOUCHED));
+        }
+        return new Mail(List.copyOf(peers));
     }
 
     private List<Path> mailboxes() {

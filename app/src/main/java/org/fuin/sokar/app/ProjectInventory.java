@@ -49,7 +49,8 @@ public final class ProjectInventory {
      */
     public record Summary(String name, @Nullable String securityClass, @Nullable String file,
             @Nullable String mirror, int pending, int tasks, int running, boolean prepared,
-            Readiness readiness, org.fuin.sokar.gate.UpstreamDistance.Distance behind) {
+            Readiness readiness, org.fuin.sokar.gate.UpstreamDistance.Distance behind,
+            List<RepositorySummary> repositories) {
 
         /**
          * Constructor for a project whose image has not been looked for yet.
@@ -66,7 +67,28 @@ public final class ProjectInventory {
                 @Nullable String mirror, int pending, int tasks, int running) {
             this(name, securityClass, file, mirror, pending, tasks, running, false,
                     Readiness.ABSENT,
-                    org.fuin.sokar.gate.UpstreamDistance.Distance.neverChecked());
+                    org.fuin.sokar.gate.UpstreamDistance.Distance.neverChecked(), List.of());
+        }
+
+        /**
+         * Constructor for a project whose repositories have not been read yet.
+         *
+         * @param name Project name.
+         * @param securityClass How much the agent is trusted, or {@code null}.
+         * @param file Path of the project file, or {@code null}.
+         * @param mirror The gate's mirror, or {@code null}.
+         * @param pending Pushes waiting for review.
+         * @param tasks How many tasks it has.
+         * @param running How many of those are up.
+         * @param prepared Whether an image exists.
+         * @param readiness What the image state is.
+         * @param behind Last measured upstream distance.
+         */
+        Summary(String name, @Nullable String securityClass, @Nullable String file,
+                @Nullable String mirror, int pending, int tasks, int running, boolean prepared,
+                Readiness readiness, org.fuin.sokar.gate.UpstreamDistance.Distance behind) {
+            this(name, securityClass, file, mirror, pending, tasks, running, prepared, readiness,
+                    behind, List.of());
         }
 
         /**
@@ -77,7 +99,22 @@ public final class ProjectInventory {
          */
         Summary prepared(boolean built, Readiness state) {
             return new Summary(name, securityClass, file, mirror, pending, tasks, running, built,
-                    state, behind);
+                    state, behind, repositories);
+        }
+
+        /**
+         * Returns this project with the repositories it names filled in.
+         * <p>
+         * The project's own first, then the ones its file names. Reported rather than left to be
+         * inferred from the one mirror a reader can see: a listing that showed one line per
+         * project would imply a project is one repository, which is what it is not.
+         *
+         * @param named What the project file says.
+         * @return A copy.
+         */
+        Summary repositories(List<RepositorySummary> named) {
+            return new Summary(name, securityClass, file, mirror, pending, tasks, running,
+                    prepared, readiness, behind, named);
         }
 
         /**
@@ -119,6 +156,10 @@ public final class ProjectInventory {
                     behind.measured() == null ? "" : behind.measured().toString());
             map.put("behindReason", behind.reason().name());
             map.put("behindDetail", behind.detail() == null ? "" : behind.detail());
+            // The repositories themselves, not a count and not just names: a client offering the
+            // choice at task start needs the names, and a project view needs each one's own
+            // mirror, pending count and distance. A number would send it back to read the file.
+            map.put("repositories", repositories.stream().map(RepositorySummary::asMap).toList());
             return map;
         }
     }
@@ -188,9 +229,103 @@ public final class ProjectInventory {
                     final boolean built = images.contains("sokar/" + summary.name());
                     return summary.prepared(built, readiness(context, summary.name(),
                             summary.file() == null ? null : java.nio.file.Path.of(summary.file()),
-                            built)).behind(upstream.get(summary.name()));
+                            built)).behind(upstream.get(summary.name()))
+                            .repositories(repositoriesOf(summary, upstream));
                 })
                 .toList();
+    }
+
+    /**
+     * One repository of a project, and the state that belongs to it rather than to the project.
+     * <p>
+     * <strong>A list of these rather than parallel lists.</strong> Four lists indexed together
+     * drift the moment one of them is built from a different source, and the drift is silent -
+     * a mirror reported against the wrong repository reads as an answer.
+     *
+     * @param name What {@code --repository} takes.
+     * @param own Whether this is the project's own repository - where the project file, the
+     *        planning and the issues live. Reported rather than left to be worked out by comparing
+     *        the name to the project's, which is a rule a reader would have to know.
+     * @param upstream Where approved work goes, or "" when it has none. A repository without one
+     *        is one whose work stays on this machine.
+     * @param mirror The bare mirror on this machine, or "" when it has never been used.
+     * @param pending How many pushes are waiting for review in that mirror.
+     * @param behind How far this repository is from its upstream, as last measured.
+     */
+    public record RepositorySummary(String name, boolean own, String upstream, String mirror,
+            int pending, org.fuin.sokar.gate.UpstreamDistance.Distance behind) {
+
+        /**
+         * Returns this as plain values, for a caller that has to put it on a wire.
+         *
+         * @return The repository.
+         */
+        public Map<String, Object> asMap() {
+            final Map<String, Object> map = new LinkedHashMap<>();
+            map.put("name", name);
+            map.put("own", own);
+            map.put("upstream", upstream);
+            map.put("mirror", mirror);
+            map.put("pending", pending);
+            // The same three fields the project carries, for the same reason: a bare number would
+            // have to be shown as though it were current.
+            map.put("behind", behind.behind());
+            map.put("behindMeasured",
+                    behind.measured() == null ? "" : behind.measured().toString());
+            map.put("behindReason", behind.reason().name());
+            map.put("behindDetail", behind.detail() == null ? "" : behind.detail());
+            return map;
+        }
+    }
+
+    /**
+     * Returns the repositories a project names, its own first.
+     *
+     * @param summary The project, which may have no readable file.
+     * @return The names, empty when the file cannot be read - which is not the same as a project
+     *         with one repository, and is why an unreadable file yields nothing rather than a
+     *         guess at the project's own name.
+     */
+    private List<RepositorySummary> repositoriesOf(Summary summary, UpstreamRecords upstream) {
+        if (summary.file() == null) {
+            return List.of();
+        }
+        final org.fuin.sokar.core.project.Project project;
+        try {
+            project = GateSupport.project(java.nio.file.Path.of(summary.file()));
+        } catch (final RuntimeException ex) {
+            return List.of();
+        }
+        final List<RepositorySummary> found = new java.util.ArrayList<>();
+        for (final org.fuin.sokar.core.project.Repository repository
+                : project.allRepositories()) {
+            final Path mirror = GateSupport.mirror(project, repository);
+            found.add(new RepositorySummary(repository.name(),
+                    repository.name().equals(project.name()),
+                    repository.upstream() == null ? "" : repository.upstream(),
+                    Files.isDirectory(mirror) ? mirror.toString() : "",
+                    pendingInMirror(mirror),
+                    upstream.get(UpstreamRecords.key(project.name(), repository.name()))));
+        }
+        return List.copyOf(found);
+    }
+
+    /**
+     * Counts what is waiting in one mirror.
+     *
+     * @param mirror The bare mirror, which need not exist.
+     * @return How many pushes are waiting, zero when it cannot be asked.
+     */
+    private int pendingInMirror(Path mirror) {
+        if (!Files.isDirectory(mirror)) {
+            return 0;
+        }
+        try {
+            return new GitGate(context.runner(), mirror, GateMode.GATEKEEPING, null)
+                    .pending().size();
+        } catch (RuntimeException ex) {
+            return 0;
+        }
     }
 
     /** What an interface can say about a project's task image. */
@@ -300,18 +435,61 @@ public final class ProjectInventory {
      * because this is exactly the case where there may not be one - and the mode does not enter
      * into listing what has arrived.
      */
+    /**
+     * Counts what is waiting for review across every repository of a project.
+     * <p>
+     * <strong>Every mirror, not the project's own.</strong> A project is a unit of work over one or
+     * more repositories, and each keeps its own mirror; counting only the first would report a
+     * number that silently excludes repositories - worse than reporting none, because a number
+     * that is there is read as the answer. Found by the interface, which asked whether this
+     * already counted them all.
+     *
+     * @param name Project name.
+     * @return How many pushes are waiting, across all of its mirrors.
+     */
     private int pendingIn(String name) {
-        final Path mirror = mirrorOf(name);
-        if (!Files.isDirectory(mirror)) {
-            return 0;
+        int waiting = 0;
+        for (final Path mirror : mirrorsOf(name)) {
+            try {
+                waiting += new GitGate(context.runner(), mirror, GateMode.GATEKEEPING, null)
+                        .pending().size();
+            } catch (RuntimeException ex) {
+                // A directory that is not a repository, or a git that would not run. Neither is
+                // worth failing a listing for, and neither is worth losing the other mirrors over.
+                continue;
+            }
         }
-        try {
-            return new GitGate(context.runner(), mirror, GateMode.GATEKEEPING, null)
-                    .pending().size();
-        } catch (RuntimeException ex) {
-            // A directory that is not a repository, or a git that would not run. Neither is worth
-            // failing a listing for.
-            return 0;
+        return waiting;
+    }
+
+    /**
+     * Returns every mirror a project has, its own repository's first.
+     * <p>
+     * Read from disk rather than from the project file, for the reason the deletion path reads it
+     * that way: a mirror holds pushes nobody has reviewed, and it outlives the file that named it.
+     *
+     * @param name Project name.
+     * @return Existing bare mirrors, in a fixed order.
+     */
+    private List<Path> mirrorsOf(String name) {
+        final Path mirrors = context.paths().xdg().data().resolve("mirrors");
+        final List<Path> found = new java.util.ArrayList<>();
+        final Path own = mirrorOf(name);
+        if (Files.isDirectory(own)) {
+            found.add(own);
         }
+        final Path named = mirrors.resolve(name);
+        if (Files.isDirectory(named)) {
+            try (java.util.stream.Stream<Path> entries = Files.list(named)) {
+                found.addAll(entries.filter(Files::isDirectory)
+                        .filter(path -> path.getFileName().toString().endsWith(".git"))
+                        .sorted(java.util.Comparator.comparing(Path::toString)).toList());
+            } catch (java.io.IOException ex) {
+                // The project's own mirror is still an answer, and a listing is not the place to
+                // fail over a directory that cannot be read.
+                return List.copyOf(found);
+            }
+        }
+        return List.copyOf(found);
     }
 }

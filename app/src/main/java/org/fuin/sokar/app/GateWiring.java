@@ -23,6 +23,9 @@ final class GateWiring {
 
     private final @Nullable String upstream;
 
+    /** Which repository of the project this gate serves, or {@code null} for the project's own. */
+    private final @Nullable String repository;
+
     /**
      * Constructor with what the run decided.
      *
@@ -33,10 +36,25 @@ final class GateWiring {
      */
     GateWiring(SokarContext context, CredentialWiring.Recorder recorder, Path projectFile,
             @Nullable String upstream) {
+        this(context, recorder, projectFile, upstream, null);
+    }
+
+    /**
+     * Constructor naming the repository this gate is for.
+     *
+     * @param context Where podman and the paths come from.
+     * @param recorder Where the gate process is recorded, so a resumed task starts it again.
+     * @param projectFile The project file this task runs from.
+     * @param upstream Value of {@code --upstream}, or {@code null}.
+     * @param repository Which repository of the project, or {@code null} for its own.
+     */
+    GateWiring(SokarContext context, CredentialWiring.Recorder recorder, Path projectFile,
+            @Nullable String upstream, @Nullable String repository) {
         this.context = context;
         this.recorder = recorder;
         this.projectFile = projectFile;
         this.upstream = upstream;
+        this.repository = repository;
     }
 
     void startGate(TaskRunner runner, TaskWorkspace workspace,
@@ -45,13 +63,20 @@ final class GateWiring {
             PrintWriter err) {
 
         final java.nio.file.Path state = context.paths().containerState(container);
-        final java.util.List<String> command = java.util.List.of(
+        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
                 SokarBinary.path(),
                 "gate", "serve",
                 "--project", projectFile.toAbsolutePath().toString(),
                 "--address", gateBind(gateAddress, err),
                 "--port", String.valueOf(workspace.port()),
-                "--pid-file", state.resolve("gate.pid").toString());
+                "--pid-file", state.resolve("gate.pid").toString()));
+        if (repository != null) {
+            // On the recorded command line, so that resuming the task brings back a gate on the
+            // same mirror. A resumed task that served the project's own repository instead would
+            // offer the agent a different history under the same URL.
+            command.add("--repository");
+            command.add(repository);
+        }
 
         try {
             final ProcessBuilder builder = new ProcessBuilder(command)
