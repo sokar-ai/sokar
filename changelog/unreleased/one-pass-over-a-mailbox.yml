@@ -1,0 +1,2 @@
+title: "One pass over a task's mailbox runs intake, filtering, dispatch, sending, delivery and bounces in that order, and a step that cannot run stops only what depends on it."
+type: added
