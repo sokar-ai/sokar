@@ -1,6 +1,12 @@
 # B14 — Talking Between Tasks
 
-**Status:** decided. Nothing waits on it.
+**Status:** in progress since 2026-09-18. The way out and the way in are built and measured against
+the filter and the transport of `sokar-message-sluice`; what a person controls is not. What is built:
+the mailbox and its lifetime, the signature, the filter call, dispatch, sending with its three
+outcomes, delivery against a key list, bounces, one pass per mailbox, the daemon's timer, and the
+`sokar talk` verbs. What is not: everything under *What a person controls*, the budgets, the record,
+the content check for an external peer, and the daemon's own contract - so no interface can see any
+of this yet.
 
 **How it would be built** is [B14-Talking-Between-Tasks_design.md](B14-Talking-Between-Tasks_design.md).
 
