@@ -118,6 +118,71 @@ else
         fuse-overlayfs crun
 fi
 
+# ---------------------------------------------------------------- where Sokar comes from
+
+say "the repository Sokar is published to"
+if [ "$FAMILY" = apt ]; then
+    if [ -f /usr/share/keyrings/sokar.gpg ]; then
+        note "/usr/share/keyrings/sokar.gpg is already there"
+    elif [ "$SHOW" = yes ]; then
+        printf '   $ %s\n' "curl -fsSL $BASE/api/security/keypair/sokar-packages/public | gpg --dearmor -o /usr/share/keyrings/sokar.gpg"
+    else
+        # Dearmored, not the .asc: apt wants the binary form at that path, and the armored file
+        # fails with a verification error that never mentions the format.
+        curl -fsSL "$BASE/api/security/keypair/sokar-packages/public" \
+            | gpg --dearmor -o /usr/share/keyrings/sokar.gpg
+        note "wrote /usr/share/keyrings/sokar.gpg"
+    fi
+    SOURCE_LINE="deb [signed-by=/usr/share/keyrings/sokar.gpg] $BASE/sokar-dist-deb $DISTRIBUTION main"
+    if [ -f /etc/apt/sources.list.d/sokar.list ] \
+            && [ "$(cat /etc/apt/sources.list.d/sokar.list)" = "$SOURCE_LINE" ]; then
+        note "/etc/apt/sources.list.d/sokar.list already says this"
+    elif [ "$SHOW" = yes ]; then
+        printf '   $ %s\n' "echo '$SOURCE_LINE' > /etc/apt/sources.list.d/sokar.list"
+    else
+        echo "$SOURCE_LINE" > /etc/apt/sources.list.d/sokar.list
+        note "wrote /etc/apt/sources.list.d/sokar.list"
+    fi
+    run apt-get update -qq
+    INSTALL="apt-get install -y -qq"
+    HAVE="apt-cache show"
+    OFFERS="apt-cache policy sokar | grep -q sokar-dist-deb"
+else
+    REPO=/etc/yum.repos.d/sokar.repo
+    REPO_BODY="[sokar]
+name=Sokar
+baseurl=$BASE/sokar-dist-rpm/$DISTRIBUTION
+enabled=1
+gpgcheck=0"
+    if [ -f "$REPO" ] && [ "$(cat "$REPO")" = "$REPO_BODY" ]; then
+        note "$REPO already says this"
+    elif [ "$SHOW" = yes ]; then
+        printf '   $ %s\n' "write $REPO for $BASE/sokar-dist-rpm/$DISTRIBUTION"
+    else
+        printf '%s\n' "$REPO_BODY" > "$REPO"
+        note "wrote $REPO"
+    fi
+    run dnf makecache -q
+    INSTALL="dnf install -y -q"
+    HAVE="dnf list --available"
+    OFFERS="dnf repoquery --repo=sokar --qf %{name} sokar | grep -q sokar"
+fi
+
+# The repository has to actually serve Sokar, and this is where that is found out. On a machine
+# that already has Sokar installed, the install below says "nothing to do" whether the repository
+# works or not - so a misconfigured source would pass silently and be met later as a machine that
+# cannot install an agent. Measured on Fedora, where exactly that happened.
+if [ "$SHOW" = yes ]; then
+    printf '   $ %s\n' "$OFFERS"
+elif sh -c "$OFFERS" >/dev/null 2>&1; then
+    note "the repository offers sokar"
+else
+    echo "sokar-setup: $BASE does not offer a 'sokar' package for this system." >&2
+    echo "Nothing further would be installable from it. Check the address and the distribution" >&2
+    echo "('$DISTRIBUTION'), then run this again." >&2
+    exit 5
+fi
+
 # ---------------------------------------------------------------- what else this machine could have
 
 # Every agent package declares 'Provides: sokar-agent' and every transport 'sokar-transport', so

@@ -10,10 +10,22 @@ had already allocated, and checked dnsmasq for nftset support. The second run ch
 said so on every line. An unsupported system is refused with exit 3 and one sentence naming what it
 found, measured against a fabricated `/etc/os-release`.
 
-**What is not done:** nothing here installs the message filter or the local transport, because
-neither is packaged yet (the filter's repository, issue 009). The script says so in its closing
-output rather than leaving a machine that quietly cannot message. Fedora's half is written from
-`doc/getting-started-fedora.md` and **has not been run on a Fedora machine**.
+**Measured on Fedora 44 as well, on 2026-09-18**: repository written, `dnf makecache`, the account
+with linger and the subuid ranges `useradd` allocated, the dnsmasq check, and a second run that
+changed nothing. `--list` and `--list --json` answer there too (`{"packages":[]}`, because no
+published package declares `Provides: sokar-agent` yet).
+
+**The Fedora run found two things the Ubuntu runs could not.** First, a regression: a restructure
+had deleted the whole repository section, and Ubuntu did not notice because its source file was
+already written by an earlier run. Fedora hit it on the first line that needed it. Second, a blind
+spot that is now a check: on a machine that already has Sokar installed, `apt`/`dnf` answer
+"nothing to do" whether the repository works or not, so a misconfigured source passed silently. The
+script now verifies that the repository actually offers a `sokar` package and refuses with exit 5
+when it does not.
+
+**What is not done:** nothing here installs the message filter or the local transport unless they
+are published, and they are not yet (the filter's repository, issue 009). The script says so in its
+closing output rather than leaving a machine that quietly cannot message.
 
 Everything Sokar knows how to do, it does through the daemon. **Preparing a machine is the one thing
 that cannot**, because the machine being prepared has no daemon yet, no packages, and no work user
