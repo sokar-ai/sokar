@@ -10,9 +10,15 @@
 #
 #   --user <name>       The account tasks run as. Default: agents
 #   --distribution <d>  Which published distribution to install from. Default: snapshots
+#   --with <package>    Also install this package. May be given several times.
+#   --list              Print what this machine could install, install nothing, and stop
 #   --show              Print every command and run none of them
 #   --os-release <file> Read the system description from here instead of /etc/os-release
 #   --help              This text
+#
+# What is always installed: Sokar, the message filter and the local transport. The filter because
+# without it nothing leaves, which is the point of it. Agents and any further transports are
+# chosen - '--list' says what there is, '--with' installs them.
 #
 # Exit codes, which a caller may rely on:
 #   0  the machine is prepared, or already was
@@ -27,6 +33,8 @@ set -eu
 USER_NAME=agents
 DISTRIBUTION=snapshots
 SHOW=no
+LIST=no
+WITH=
 OS_RELEASE=/etc/os-release
 BASE=https://fuinorg.jfrog.io/artifactory
 
@@ -34,9 +42,11 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --user) USER_NAME="${2:?--user needs a name}"; shift 2 ;;
         --distribution) DISTRIBUTION="${2:?--distribution needs a name}"; shift 2 ;;
+        --with) WITH="$WITH ${2:?--with needs a package name}"; shift 2 ;;
+        --list) LIST=yes; shift ;;
         --show) SHOW=yes; shift ;;
         --os-release) OS_RELEASE="${2:?--os-release needs a file}"; shift 2 ;;
-        --help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help) sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "sokar-setup: unexpected argument '$1'" >&2; exit 2 ;;
     esac
 done
@@ -96,6 +106,37 @@ else
         fuse-overlayfs crun
 fi
 
+# ---------------------------------------------------------------- what else this machine could have
+
+# Every agent package declares 'Provides: sokar-agent' and every transport 'sokar-transport', so
+# the repository is the catalogue and nobody keeps a list. The same query the daemon's
+# 'Installable' method runs - kept word for word, so the two cannot answer differently.
+catalogue() {
+    if [ "$FAMILY" = apt ]; then
+        for virtual in sokar-agent sokar-transport; do
+            apt-cache showpkg "$virtual" 2>/dev/null \
+                | sed -n '/^Reverse Provides:/,$p' | tail -n +2 | awk 'NF {print $1}' | sort -u \
+                | while read -r name; do
+                    [ -n "$name" ] || continue
+                    state=available
+                    dpkg-query -W -f='${Version}' "$name" >/dev/null 2>&1 && state=installed
+                    printf '   %-34s %-16s %-10s %s\n' "$name" "$virtual" "$state" \
+                        "$(apt-cache show "$name" 2>/dev/null | sed -n 's/^Description: //p' | head -1)"
+                done
+        done
+    else
+        for virtual in sokar-agent sokar-transport; do
+            dnf repoquery --qf '%{name}|%{summary}' --whatprovides "$virtual" 2>/dev/null \
+                | sort -u | while IFS='|' read -r name summary; do
+                    [ -n "$name" ] || continue
+                    state=available
+                    rpm -q "$name" >/dev/null 2>&1 && state=installed
+                    printf '   %-34s %-16s %-10s %s\n' "$name" "$virtual" "$state" "$summary"
+                done
+        done
+    fi
+}
+
 # ---------------------------------------------------------------- where Sokar comes from
 
 say "the repository Sokar is published to"
@@ -113,23 +154,19 @@ if [ "$FAMILY" = apt ]; then
             note "wrote /usr/share/keyrings/sokar.gpg"
         fi
     fi
-    LIST="deb [signed-by=/usr/share/keyrings/sokar.gpg] $BASE/sokar-dist-deb $DISTRIBUTION main"
+    SOURCE_LINE="deb [signed-by=/usr/share/keyrings/sokar.gpg] $BASE/sokar-dist-deb $DISTRIBUTION main"
     if [ -f /etc/apt/sources.list.d/sokar.list ] \
-            && [ "$(cat /etc/apt/sources.list.d/sokar.list)" = "$LIST" ]; then
+            && [ "$(cat /etc/apt/sources.list.d/sokar.list)" = "$SOURCE_LINE" ]; then
         note "/etc/apt/sources.list.d/sokar.list already says this"
     elif [ "$SHOW" = yes ]; then
-        printf '   $ %s\n' "echo '$LIST' > /etc/apt/sources.list.d/sokar.list"
+        printf '   $ %s\n' "echo '$SOURCE_LINE' > /etc/apt/sources.list.d/sokar.list"
     else
-        echo "$LIST" > /etc/apt/sources.list.d/sokar.list
+        echo "$SOURCE_LINE" > /etc/apt/sources.list.d/sokar.list
         note "wrote /etc/apt/sources.list.d/sokar.list"
     fi
     run apt-get update -qq
-    # Plain install, deliberately not '--reinstall'. This script prepares a machine; it does not
-    # update one. '--reinstall' fails outright on a machine carrying a version the repository does
-    # not have - a local build, say - and it would make running this twice do work the second
-    # time. Re-fetching a snapshot whose version string did not change is
-    # 'apt install --reinstall sokar', and that belongs in an operator's hands, not here.
-    run apt-get install -y -qq sokar
+    INSTALL="apt-get install -y -qq"
+    HAVE="apt-cache show"
 else
     REPO=/etc/yum.repos.d/sokar.repo
     if [ "$SHOW" = yes ]; then
@@ -144,7 +181,59 @@ gpgcheck=0
 REPOFILE
         note "wrote $REPO"
     fi
-    run dnf install -y -q sokar
+    run dnf makecache -q
+    INSTALL="dnf install -y -q"
+    HAVE="dnf list --available"
+fi
+
+# ---------------------------------------------------------------- what else this machine could have
+
+if [ "$LIST" = yes ]; then
+    say "what this machine could install"
+    printf '   %-34s %-16s %-10s %s\n' PACKAGE KIND STATE DESCRIPTION
+    found="$(catalogue)"
+    if [ -n "$found" ]; then
+        printf '%s\n' "$found"
+    else
+        note "nothing yet - no package in this repository declares that it provides an agent"
+        note "or a transport. That line is one per package, and the repositories that build"
+        note "them add it; until they do, there is nothing here to choose."
+    fi
+    cat <<LISTED
+
+   Install one with:  sokar-setup.sh --with <package>
+   Always installed, and not listed as a choice: sokar, the message filter. Without the
+   filter nothing leaves a task, which is what it is for - there is no second one to pick.
+LISTED
+    exit 0
+fi
+
+
+# ---------------------------------------------------------------- Sokar itself
+
+say "Sokar"
+# Plain install, deliberately not '--reinstall'. This script prepares a machine; it does not
+# update one. '--reinstall' fails outright on a machine carrying a version the repository does not
+# have - a local build, say - and it would make running this twice do work the second time.
+# Re-fetching a snapshot whose version string did not change is 'apt install --reinstall sokar',
+# and that belongs in an operator's hands, not here.
+# shellcheck disable=SC2086
+run $INSTALL sokar
+
+# Always: the filter, because without it nothing leaves a task, and the local transport, because
+# a machine whose tasks only talk to each other still has to be able to.
+say "the message filter and the local transport"
+if $HAVE sokar-message-sluice-filter >/dev/null 2>&1; then
+    # shellcheck disable=SC2086
+    run $INSTALL sokar-message-sluice-filter sokar-message-transport-local
+else
+    note "not published yet - this machine can run tasks but not exchange messages"
+fi
+
+if [ -n "$WITH" ]; then
+    say "what you asked for"
+    # shellcheck disable=SC2086
+    run $INSTALL $WITH
 fi
 
 # ---------------------------------------------------------------- the account tasks run as

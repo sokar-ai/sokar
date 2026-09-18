@@ -811,6 +811,18 @@ public final class SokarDaemon {
             }
         });
 
+        server.method("Installable", (parameters, replies) -> {
+            // Asked of this machine's own package source, never of a list kept here: every agent
+            // package declares it provides 'sokar-agent' and every transport 'sokar-transport',
+            // so a package published this morning is offered this morning.
+            replies.last(Map.of("packages",
+                    new org.fuin.sokar.app.InstallablePackages(context.runner()).list().stream()
+                            .map(one -> Map.of("name", one.name(), "kind", one.kind(),
+                                    "description", one.description(),
+                                    "installed", one.installed(), "version", one.version()))
+                            .toList()));
+        });
+
         // The five message verbs. They are the same objects 'sokar talk' shows, through the same
         // classes, so an interface and a terminal cannot disagree about what a mailbox holds.
         server.method("Peers", (parameters, replies) -> {

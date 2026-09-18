@@ -1611,6 +1611,32 @@ method Decide(
   allow: ?bool
 ) -> (ok: bool)
 
+# What this machine could install, from its own package source.
+#
+# Nobody maintains a list: every agent package declares 'Provides: sokar-agent' and every transport
+# 'Provides: sokar-transport', so the repository is the catalogue and a package published today is
+# offered today. The names here are always real packages, never the virtual one - a virtual package
+# with several providers cannot be installed by its own name.
+#
+# The message filter is deliberately absent. It is not one of a kind to choose from: it is the one
+# thing without which nothing leaves, and it is always installed.
+#
+# As fresh as the machine's last index refresh, which needs root and is not done here.
+method Installable() -> (packages: []Installable)
+
+type Installable (
+  # The real package name, which is what may be installed.
+  name: string,
+  # 'sokar-agent' or 'sokar-transport'.
+  kind: string,
+  # One line, from the package itself.
+  description: string,
+  # Whether it is on this machine now.
+  installed: bool,
+  # What is installed, or what the repository offers. "" when neither is known.
+  version: string
+)
+
 # ---------------------------------------------------------------------------- messages
 
 # The peers this task may address, and what a person decided about each.
