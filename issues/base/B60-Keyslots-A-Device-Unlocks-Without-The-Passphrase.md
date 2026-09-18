@@ -46,6 +46,9 @@ Adapted from what LUKS does with its keyslots.
   only knows version 1 rather than being half read.
 - What a device holds is scoped to Sokar where the platform allows it, and where it does not, the
   product says so rather than implying otherwise.
+- **A device declares how it stores its share** - user-scoped, application-scoped, FIDO2 or TPM2 -
+  and the node records it with the keyslot, so a list of devices can say what each one is worth
+  without the interface guessing from the operating system's name.
 
 ## What it is honestly worth per platform
 
