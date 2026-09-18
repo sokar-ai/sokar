@@ -1,0 +1,2 @@
+title: "Sokar signs and verifies detached signatures in OpenSSH's SSHSIG format, so a message can be checked with ssh-keygen and an allowed_signers file by somebody who has no Sokar."
+type: added

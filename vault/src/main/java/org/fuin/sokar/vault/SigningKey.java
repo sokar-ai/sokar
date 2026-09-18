@@ -105,6 +105,45 @@ public class SigningKey {
      * @param signatureBlob The blob returned by {@link #sign(byte[])}.
      * @return {@code true} if the signature is this key's.
      */
+    /**
+     * Verifies a signature against a public key nobody here holds the private half of.
+     * <p>
+     * Static, because verifying is what a reader does with somebody else's key: a signature that
+     * arrived carries the key it claims to be from, and the caller decides separately whether that
+     * key is allowed to speak for that peer. Answering {@code false} rather than throwing is
+     * deliberate - a malformed key or signature is not a different outcome from a wrong one.
+     *
+     * @param keyBlob OpenSSH public key blob to verify against.
+     * @param data The exact bytes that were signed.
+     * @param signatureBlob OpenSSH signature blob.
+     * @return {@code true} when the signature is that key's, over those bytes.
+     */
+    public static boolean verify(byte[] keyBlob, byte[] data, byte[] signatureBlob) {
+        try {
+            final java.nio.ByteBuffer key = java.nio.ByteBuffer.wrap(keyBlob);
+            if (!"ssh-ed25519".equals(new String(SshWire.readString(key),
+                    java.nio.charset.StandardCharsets.UTF_8))) {
+                return false;
+            }
+            final byte[] material = SshWire.readString(key);
+            if (material.length != Ed25519PublicKeyParameters.KEY_SIZE) {
+                return false;
+            }
+            final java.nio.ByteBuffer signed = java.nio.ByteBuffer.wrap(signatureBlob);
+            if (!"ssh-ed25519".equals(new String(SshWire.readString(signed),
+                    java.nio.charset.StandardCharsets.UTF_8))) {
+                return false;
+            }
+            final byte[] signature = SshWire.readString(signed);
+            final Ed25519Signer verifier = new Ed25519Signer();
+            verifier.init(false, new Ed25519PublicKeyParameters(material, 0));
+            verifier.update(data, 0, data.length);
+            return verifier.verifySignature(signature);
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
     public boolean verify(byte[] data, byte[] signatureBlob) {
         final java.nio.ByteBuffer buffer = java.nio.ByteBuffer.wrap(signatureBlob);
         final byte[] algorithm = SshWire.readString(buffer);

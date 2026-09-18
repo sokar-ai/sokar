@@ -142,6 +142,18 @@ Every object is closed: a property the schema does not name is a refusal, not so
 - **It says the installation vouched, not that the agent typed it.** The task never holds a key;
   which task and project spoke is inside the signed bytes.
 
+**Measured on 2026-09-18, both directions.** The format is OpenSSH's, not a shape of our own, and
+that is only worth claiming if OpenSSH agrees:
+
+    $ ssh-keygen -Y verify -f allowed_signers -I sokar@interop -n sokar-message -s sig < message.json
+    Good "sokar-message" signature for sokar@interop with ED25519 key SHA256:HCbWdFByflN0Qa...
+
+One byte changed in the message and the same command answers *"Signature verification failed:
+incorrect signature"*. The other direction holds too: a signature made by `ssh-keygen -Y sign` with a
+key Sokar never saw verifies here, while the wrong namespace, a tampered message and a different key
+each answer false. So a peer can check a message with nothing but `ssh-keygen` and an
+`allowed_signers` file, and a person can sign one without Sokar at all.
+
 Transport-native signatures are a second, weaker signal about the hop and never the basis of trust:
 DKIM says a message left a domain unmodified, not who wrote it.
 
