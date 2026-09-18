@@ -22,6 +22,30 @@ class VaultFileTest {
     private static final char[] PASSPHRASE = "correct horse battery staple".toCharArray();
 
     /** Offset of the Argon2 iteration count: magic (8) plus version (4). */
+    /** Reads a vault's header the way the code does, rather than by counting bytes. */
+    private static VaultHeader headerOf(Path file) throws IOException {
+        return VaultHeader.read(Files.readAllBytes(file), file);
+    }
+
+    /**
+     * Replaces text in the header's JSON, which is in the clear and authenticated.
+     * <p>
+     * The length field is corrected too, the way somebody editing the file would have to: leaving
+     * it stale truncates the JSON and the test then measures a parse failure rather than the
+     * authentication it is about.
+     */
+    private static void patchHeader(Path file, String from, String to) throws IOException {
+        final byte[] content = Files.readAllBytes(file);
+        final String raw = new String(content, java.nio.charset.StandardCharsets.ISO_8859_1);
+        assertThat(raw).as("the header should contain " + from).contains(from);
+        final byte[] patched = raw.replace(from, to)
+                .getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        final java.nio.ByteBuffer buffer = java.nio.ByteBuffer.wrap(patched);
+        buffer.position(12);
+        buffer.putInt(buffer.getInt(12) + (patched.length - content.length));
+        Files.write(file, patched);
+    }
+
     private static final int HEADER_ITERATIONS_OFFSET = 12;
 
     /** Offset of the salt: iteration count, memory and parallelism follow the version. */
@@ -54,12 +78,17 @@ class VaultFileTest {
     @Test
     void doesNotSayWhetherItWasThePassphraseOrTheFile(@TempDir Path dir) throws IOException {
 
-        // Distinguishing the two would tell an attacker holding the file whether a guessed
-        // passphrase was close, and there is no way to tell them apart anyway: both are just a
-        // tag that did not verify.
+        // Under keyslots the two ARE different events, and hiding that no longer buys anything:
+        // the passphrase is checked against its own slot's tag, so anybody holding the file can
+        // already tell a right passphrase from a wrong one without asking Sokar. What is left is
+        // an operator who needs to know whether to retype or to restore, so each says which.
         final Path file = dir.resolve("vault.bin");
         final VaultFile vault = new VaultFile(file);
         vault.write(ENTRIES, PASSPHRASE);
+
+        assertThatThrownBy(() -> vault.read("not it".toCharArray()))
+                .isInstanceOf(VaultException.class)
+                .hasMessageContaining("wrong passphrase, or the file has been altered");
 
         final byte[] content = Files.readAllBytes(file);
         content[content.length - 1] ^= 0x01;
@@ -67,7 +96,7 @@ class VaultFileTest {
 
         assertThatThrownBy(() -> vault.read(PASSPHRASE))
                 .isInstanceOf(VaultException.class)
-                .hasMessageContaining("wrong passphrase, or the file has been altered");
+                .hasMessageContaining("has been altered");
     }
 
     @Test
@@ -88,13 +117,13 @@ class VaultFileTest {
         final Path file = dir.resolve("vault.bin");
         new VaultFile(file).write(ENTRIES, PASSPHRASE);
 
-        final byte[] content = Files.readAllBytes(file);
-        // Change the salt, not the cost parameters: those are covered by their own test below.
-        content[HEADER_SALT_OFFSET] ^= 0x01;
-        Files.write(file, content);
+        // A field nothing derives a key from, so what fails is the authentication and not the
+        // decryption: the slot's own name. Same length, so nothing else moves.
+        patchHeader(file, "\"name\":\"passphrase\"", "\"name\":\"passphrasX\"");
 
         assertThatThrownBy(() -> new VaultFile(file).read(PASSPHRASE))
-                .isInstanceOf(VaultException.class);
+                .isInstanceOf(VaultException.class)
+                .hasMessageContaining("has been altered");
     }
 
     @Test
@@ -108,9 +137,7 @@ class VaultFileTest {
         final Path file = dir.resolve("vault.bin");
         new VaultFile(file).write(ENTRIES, PASSPHRASE);
 
-        final byte[] content = Files.readAllBytes(file);
-        content[HEADER_ITERATIONS_OFFSET] = 1;
-        Files.write(file, content);
+        patchHeader(file, "\"iterations\":3", "\"iterations\":16777219");
 
         assertThatThrownBy(() -> new VaultFile(file).read(PASSPHRASE))
                 .isInstanceOf(VaultException.class)
@@ -125,9 +152,7 @@ class VaultFileTest {
         final Path file = dir.resolve("vault.bin");
         new VaultFile(file).write(ENTRIES, PASSPHRASE);
 
-        final byte[] content = Files.readAllBytes(file);
-        content[HEADER_ITERATIONS_OFFSET + 4] = 0x7f;
-        Files.write(file, content);
+        patchHeader(file, "\"memory\":65536", "\"memory\":2130706432");
 
         assertThatThrownBy(() -> new VaultFile(file).read(PASSPHRASE))
                 .isInstanceOf(VaultException.class)
@@ -411,12 +436,18 @@ class VaultFileTest {
     }
 
     /** The salt, read straight out of the header where it sits in the clear. */
+    /** The passphrase slot's salt, read through the header rather than by counting bytes. */
     private static byte[] saltOf(Path file) throws Exception {
-        return java.util.Arrays.copyOfRange(java.nio.file.Files.readAllBytes(file), 24, 40);
+        for (final VaultHeader.Slot slot : headerOf(file).slots()) {
+            if (slot.slot().recovery()) {
+                return slot.salt();
+            }
+        }
+        throw new IllegalStateException("no passphrase slot in " + file);
     }
 
-    /** The nonce, immediately after the salt. */
+    /** The nonce the content is encrypted under. */
     private static byte[] nonceOf(Path file) throws Exception {
-        return java.util.Arrays.copyOfRange(java.nio.file.Files.readAllBytes(file), 40, 52);
+        return headerOf(file).contentNonce();
     }
 }

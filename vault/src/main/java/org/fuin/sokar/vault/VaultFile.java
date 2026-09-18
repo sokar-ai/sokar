@@ -32,22 +32,22 @@ import org.fuin.sokar.wire.Json;
  * <p>
  * The file layout is:
  * <pre>
- * magic "SOKARVLT" | version | KDF params | salt | nonce | AEAD ciphertext+tag
+ * magic "SOKARVLT" | version | header length | header JSON | content nonce | AEAD ciphertext+tag
  * </pre>
- * The header is authenticated as additional data, so downgrading the KDF parameters of an existing
- * file is not something an attacker can do without invalidating the tag.
+ * The header is authenticated as additional data, so nothing in it can be changed without
+ * invalidating the tag - not the KDF parameters, not a wrapped key, not a device's name.
+ * <p>
+ * <strong>The content is encrypted under a master key that no credential is.</strong> The master
+ * key is generated once, when the vault is created, and stored only in wrapped form - once per
+ * {@link Keyslot}. The passphrase is keyslot 0 and wraps it with Argon2id; a device's share wraps
+ * it with HKDF. Adding a device adds a slot, removing one deletes a slot, and neither re-keys
+ * anything or disturbs another device. See B60.
  */
 public class VaultFile {
 
-    /** Magic bytes at the start of every vault file. */
-    static final byte[] MAGIC = "SOKARVLT".getBytes(StandardCharsets.US_ASCII);
-
-    /** Current file format version. */
-    static final int VERSION = 1;
-
     private static final int SALT_LENGTH = 16;
 
-    private static final int NONCE_LENGTH = 12;
+    static final int NONCE_LENGTH = 12;
 
     private static final int TAG_BITS = 128;
 
@@ -70,9 +70,6 @@ public class VaultFile {
 
     /** Largest parallelism that will be accepted from a file. */
     static final int MAX_PARALLELISM = 64;
-
-    private static final int HEADER_LENGTH =
-            MAGIC.length + 4 + 4 + 4 + 4 + SALT_LENGTH + NONCE_LENGTH;
 
     /**
      * One lock per vault path, held for the life of the process.
@@ -124,55 +121,166 @@ public class VaultFile {
      * @throws VaultException If the file is unreadable, malformed, or the passphrase is wrong.
      */
     public Map<String, VaultEntry> read(char[] passphrase) {
+        return read(opened(Opener.passphrase(passphrase)));
+    }
 
-        final byte[] content;
-        try {
-            content = Files.readAllBytes(file);
-        } catch (IOException ex) {
-            throw new VaultException("Cannot read " + file, ex);
-        }
-        if (content.length < HEADER_LENGTH) {
-            throw new VaultException(file + " is too short to be a vault");
-        }
+    /**
+     * Reads and decrypts the vault with a device's share.
+     *
+     * @param share The 32 bytes that device keeps in its platform's keystore.
+     * @return The entries, in the order they were written.
+     * @throws VaultException If the file is unreadable, malformed, or no slot takes that share.
+     */
+    public Map<String, VaultEntry> read(byte[] share) {
+        return read(opened(Opener.share(share)));
+    }
 
-        final ByteBuffer buffer = ByteBuffer.wrap(content);
-        final byte[] magic = new byte[MAGIC.length];
-        buffer.get(magic);
-        if (!Arrays.equals(magic, MAGIC)) {
-            throw new VaultException(file + " is not a Sokar vault");
+    /**
+     * Returns every credential that can open this vault, without opening it.
+     * <p>
+     * Readable while locked on purpose: an interface has to show which devices can open a vault
+     * before anything opens it. Nothing here is secret.
+     *
+     * @return The slots, the passphrase first. Empty when there is no vault yet.
+     * @throws VaultException If the file exists and cannot be read as a vault.
+     */
+    public java.util.List<Keyslot> slots() {
+        if (!exists()) {
+            return java.util.List.of();
         }
-        final int version = buffer.getInt();
-        if (version != VERSION) {
-            throw new VaultException("Unsupported vault version " + version + ", expected " + VERSION);
+        return header().slots().stream().map(VaultHeader.Slot::slot).toList();
+    }
+
+    /**
+     * Enrolls a device, so that its share opens this vault.
+     * <p>
+     * <strong>The share arrives once and is discarded.</strong> The node derives a wrapping key
+     * from it, stores the master key wrapped under that, and keeps nothing it could derive the
+     * wrapping key from again. What is left on this machine is worth nothing without the device,
+     * and what the device holds is worth nothing without this file.
+     *
+     * @param opener What opens the vault now - the passphrase, or another device's share.
+     * @param share The device's 32 random bytes. The caller clears them.
+     * @param name What to call the device in a list.
+     * @param storage How the device says it keeps the share, one of {@link Keyslot#STORAGE}.
+     * @return The slot that was made.
+     * @throws VaultException If the vault will not open, or the share or storage is not usable.
+     */
+    public Keyslot enroll(Opener opener, byte[] share, String name, String storage) {
+        if (share == null || share.length != KEY_LENGTH) {
+            throw new VaultException("A share is " + KEY_LENGTH + " bytes");
         }
-        final int iterations = buffer.getInt();
-        final int memory = buffer.getInt();
-        final int parallelism = buffer.getInt();
-        checkCost(iterations, memory, parallelism);
+        if (!Keyslot.STORAGE.contains(storage)) {
+            throw new VaultException("'" + storage + "' is not a kind of storage this knows: "
+                    + String.join(", ", Keyslot.STORAGE.stream().sorted().toList()));
+        }
+        final Opened opened = opened(opener);
+        for (final VaultHeader.Slot existing : opened.header().slots()) {
+            if (keyFor(existing, Opener.share(share)) != null
+                    && takes(existing, Opener.share(share))) {
+                // Asked again after an answer was lost, most likely. Saying so beats making a
+                // second slot for one device, which would then need revoking twice.
+                throw new VaultException("That share is already enrolled as '"
+                        + existing.slot().name() + "'");
+            }
+        }
         final byte[] salt = new byte[SALT_LENGTH];
-        buffer.get(salt);
+        random.nextBytes(salt);
         final byte[] nonce = new byte[NONCE_LENGTH];
-        buffer.get(nonce);
+        random.nextBytes(nonce);
+        final byte[] key = wrappingKey(share, salt);
+        final Keyslot made;
+        final java.util.List<VaultHeader.Slot> slots;
+        try {
+            made = new Keyslot(java.util.UUID.randomUUID().toString(), name, storage,
+                    java.time.Instant.now().toString(), "", false);
+            slots = new java.util.ArrayList<>(opened.header().slots());
+            slots.add(new VaultHeader.Slot(VaultHeader.SHARE_SLOT, made, salt, nonce,
+                    wrap(key, nonce, opened.master()), 0, 0, 0));
+        } finally {
+            Arrays.fill(key, (byte) 0);
+        }
+        writeContent(read(opened(opener)), slots, opened.master());
+        return made;
+    }
 
-        final byte[] cipherText = new byte[buffer.remaining()];
-        buffer.get(cipherText);
+    /**
+     * Removes a device's way in.
+     * <p>
+     * Deleting one wrapped blob, and nothing else: no re-keying, no other device disturbed, no
+     * passphrase rotated. That is what keyslots are for.
+     *
+     * @param opener What opens the vault now.
+     * @param id The slot to remove.
+     * @return What can still open the vault afterwards.
+     * @throws VaultException If there is no such slot, or it is the last way in.
+     */
+    public java.util.List<Keyslot> revoke(Opener opener, String id) {
+        final Opened opened = opened(opener);
+        final java.util.List<VaultHeader.Slot> kept = new java.util.ArrayList<>();
+        boolean found = false;
+        for (final VaultHeader.Slot slot : opened.header().slots()) {
+            if (slot.slot().id().equals(id)) {
+                found = true;
+            } else {
+                kept.add(slot);
+            }
+        }
+        if (!found) {
+            throw new VaultException("No keyslot of " + file + " is called '" + id + "'");
+        }
+        if (kept.isEmpty()) {
+            // A vault nothing can open is not a revoked device, it is a lost vault.
+            throw new VaultException("That is the last way into " + file
+                    + ", and removing it would leave the vault openable by nothing");
+        }
+        writeContent(read(opened(opener)), kept, opened.master());
+        return kept.stream().map(VaultHeader.Slot::slot).toList();
+    }
 
-        final byte[] key = deriveKey(passphrase, salt, iterations, memory, parallelism);
+    /**
+     * Says whether a slot takes what is offered, without unwrapping anything the caller keeps.
+     *
+     * @param slot The slot.
+     * @param opener What was offered.
+     * @return {@code true} when it opens.
+     */
+    private boolean takes(VaultHeader.Slot slot, Opener opener) {
+        final byte[] key = keyFor(slot, opener);
+        if (key == null) {
+            return false;
+        }
         try {
             final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"),
-                    new GCMParameterSpec(TAG_BITS, nonce));
-            // The header is authenticated, so the KDF parameters cannot be downgraded in place.
-            cipher.updateAAD(content, 0, HEADER_LENGTH);
-            return parse(new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8));
+                    new GCMParameterSpec(TAG_BITS, slot.nonce()));
+            Arrays.fill(cipher.doFinal(slot.wrapped()), (byte) 0);
+            return true;
         } catch (GeneralSecurityException ex) {
-            // A GCM tag failure cannot tell the two apart, so neither does this message.
-            throw new VaultException("Cannot decrypt " + file
-                    + " - wrong passphrase, or the file has been altered."
-                    + " If the passphrase should be right, a cached one may be in the way:"
-                    + " run 'sokar vault unlock --forget' and try again");
+            return false;
         } finally {
             Arrays.fill(key, (byte) 0);
+        }
+    }
+
+    private Map<String, VaultEntry> read(Opened opened) {
+        try {
+            final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(opened.master(), "AES"),
+                    new GCMParameterSpec(TAG_BITS, opened.header().contentNonce()));
+            cipher.updateAAD(opened.header().authenticated());
+            final byte[] file = opened.file();
+            final byte[] cipherText = Arrays.copyOfRange(file, opened.header().contentAt(),
+                    file.length);
+            return parse(new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8));
+        } catch (GeneralSecurityException ex) {
+            // The slot's own tag already proved the key, so a failure here is the file having
+            // been altered rather than a wrong credential - and the message says so.
+            throw new VaultException("Cannot decrypt " + file
+                    + " - the credential opened a keyslot but the content does not match this"
+                    + " vault's header. The file has been altered.");
+        } finally {
+            Arrays.fill(opened.master(), (byte) 0);
         }
     }
 
@@ -225,32 +333,148 @@ public class VaultFile {
         }
     }
 
-    private java.util.Optional<byte[]> existingSalt() {
-        if (!exists()) {
-            return java.util.Optional.empty();
+    /**
+     * What opening the vault produced: the master key, the header it came from, and the file.
+     *
+     * @param master The unwrapped master key. The caller clears it.
+     * @param header The header it was unwrapped from.
+     * @param file The whole file, so the content can be decrypted without reading it twice.
+     * @param slot Which keyslot opened it.
+     */
+    private record Opened(byte[] master, VaultHeader header, byte[] file, VaultHeader.Slot slot) {
+    }
+
+    /**
+     * What may open a vault.
+     * <p>
+     * Two things do, and they are not interchangeable: a passphrase is typed by a person and
+     * derived with Argon2id, a share is held by a device and derived with HKDF. One type rather
+     * than two overloads everywhere, so a method that needs "whatever opened this session" can say
+     * so.
+     */
+    public static final class Opener {
+
+        private final char[] passphrase;
+
+        private final byte[] share;
+
+        private Opener(char[] passphrase, byte[] share) {
+            this.passphrase = passphrase;
+            this.share = share;
         }
+
+        /**
+         * A person's passphrase, which is keyslot 0.
+         *
+         * @param passphrase The passphrase.
+         * @return The opener.
+         */
+        public static Opener passphrase(char[] passphrase) {
+            return new Opener(passphrase, null);
+        }
+
+        /**
+         * A device's share.
+         *
+         * @param share The 32 bytes it keeps.
+         * @return The opener.
+         */
+        public static Opener share(byte[] share) {
+            return new Opener(null, share);
+        }
+    }
+
+    private VaultHeader header() {
+        return VaultHeader.read(bytes(), file);
+    }
+
+    private byte[] bytes() {
         try {
-            final byte[] header = new byte[HEADER_LENGTH];
-            try (java.io.InputStream in = java.nio.file.Files.newInputStream(file)) {
-                if (in.readNBytes(header, 0, HEADER_LENGTH) != HEADER_LENGTH) {
-                    return java.util.Optional.empty();
-                }
-            }
-            final ByteBuffer buffer = ByteBuffer.wrap(header);
-            final byte[] magic = new byte[MAGIC.length];
-            buffer.get(magic);
-            if (!Arrays.equals(magic, MAGIC) || buffer.getInt() != VERSION) {
-                return java.util.Optional.empty();
-            }
-            buffer.getInt();
-            buffer.getInt();
-            buffer.getInt();
-            final byte[] salt = new byte[SALT_LENGTH];
-            buffer.get(salt);
-            return java.util.Optional.of(salt);
-        } catch (IOException | RuntimeException ex) {
-            return java.util.Optional.empty();
+            return Files.readAllBytes(file);
+        } catch (IOException ex) {
+            throw new VaultException("Cannot read " + file, ex);
         }
+    }
+
+    /**
+     * Unwraps the master key with whatever was offered.
+     *
+     * @param opener The passphrase or a share.
+     * @return The master key and where it came from.
+     * @throws VaultException If no slot takes it.
+     */
+    private Opened opened(Opener opener) {
+        final byte[] content = bytes();
+        final VaultHeader header = VaultHeader.read(content, file);
+        for (final VaultHeader.Slot slot : header.slots()) {
+            final byte[] key = keyFor(slot, opener);
+            if (key == null) {
+                continue;
+            }
+            try {
+                final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"),
+                        new GCMParameterSpec(TAG_BITS, slot.nonce()));
+                return new Opened(cipher.doFinal(slot.wrapped()), header, content, slot);
+            } catch (GeneralSecurityException ex) {
+                // This slot is not the one. A share is tried against every share slot, because a
+                // device that lost its slot id must still be able to open the vault it enrolled
+                // with.
+                continue;
+            } finally {
+                Arrays.fill(key, (byte) 0);
+            }
+        }
+        if (opener.share != null) {
+            throw new VaultException("No keyslot in " + file + " takes that share."
+                    + " The device may have been revoked, or this is another vault.");
+        }
+        throw new VaultException("Cannot open " + file
+                + " - wrong passphrase, or the file has been altered."
+                + " If the passphrase should be right, a cached one may be in the way:"
+                + " run 'sokar vault unlock --forget' and try again");
+    }
+
+    /**
+     * Derives the key that unwraps one slot, or {@code null} when this opener is not for it.
+     *
+     * @param slot The slot.
+     * @param opener What was offered.
+     * @return The slot key, or {@code null}.
+     */
+    private byte[] keyFor(VaultHeader.Slot slot, Opener opener) {
+        if (VaultHeader.PASSPHRASE_SLOT.equals(slot.kind())) {
+            if (opener.passphrase == null) {
+                return null;
+            }
+            checkCost(slot.iterations(), slot.memoryKib(), slot.parallelism());
+            return deriveKey(opener.passphrase, slot.salt(), slot.iterations(), slot.memoryKib(),
+                    slot.parallelism());
+        }
+        return opener.share == null ? null : wrappingKey(opener.share, slot.salt());
+    }
+
+    /**
+     * Derives a share's wrapping key.
+     * <p>
+     * HKDF-SHA256 rather than Argon2id: a share is 32 random bytes from a keystore, not something a
+     * person chose, so there is nothing to make expensive to guess. <strong>The node cannot produce
+     * this key from anything it stores</strong> - that is the property the whole design rests on,
+     * and it is why the share is never written down here.
+     *
+     * @param share The device's share.
+     * @param salt This slot's salt.
+     * @return A 32-byte key.
+     */
+    private static byte[] wrappingKey(byte[] share, byte[] salt) {
+        final org.bouncycastle.crypto.generators.HKDFBytesGenerator generator =
+                new org.bouncycastle.crypto.generators.HKDFBytesGenerator(
+                        new org.bouncycastle.crypto.digests.SHA256Digest());
+        generator.init(new org.bouncycastle.crypto.params.HKDFParameters(share, salt,
+                "sokar-keyslot".getBytes(StandardCharsets.US_ASCII)));
+        final byte[] key = new byte[KEY_LENGTH];
+        generator.generateBytes(key, 0, key.length);
+        return key;
     }
 
     /**
@@ -275,26 +499,110 @@ public class VaultFile {
      * @param freshSalt Whether to generate a new salt rather than keep the file's.
      */
     private void write(Map<String, VaultEntry> entries, char[] passphrase, boolean freshSalt) {
-
-        final byte[] salt = new byte[SALT_LENGTH];
-        final java.util.Optional<byte[]> kept = freshSalt
-                ? java.util.Optional.empty() : existingSalt();
-        if (kept.isPresent()) {
-            System.arraycopy(kept.get(), 0, salt, 0, SALT_LENGTH);
-        } else {
-            random.nextBytes(salt);
+        if (!exists()) {
+            final byte[] master = freshMaster();
+            writeContent(entries, java.util.List.of(
+                    passphraseSlot(passphrase, master, describeRecovery(java.util.List.of()))),
+                    master);
+            return;
         }
+        final Opened opened = opened(Opener.passphrase(passphrase));
+        writeContent(entries, opened.header().slots(), opened.master());
+    }
+
+    /**
+     * Writes the vault under a different passphrase, keeping every device.
+     * <p>
+     * <strong>The master key does not change</strong>, so a rekey replaces exactly one slot and no
+     * enrolled device notices. That is the point of keyslots: the passphrase is a way in, not the
+     * key.
+     *
+     * @param entries What to store.
+     * @param opened What opening with the old passphrase produced.
+     * @param fresh The passphrase to use from now on.
+     */
+    private void writeRekeyed(Map<String, VaultEntry> entries, Opened opened, char[] fresh) {
+        final java.util.List<VaultHeader.Slot> slots = new java.util.ArrayList<>();
+        for (final VaultHeader.Slot slot : opened.header().slots()) {
+            if (!VaultHeader.PASSPHRASE_SLOT.equals(slot.kind())) {
+                slots.add(slot);
+            }
+        }
+        slots.add(0, passphraseSlot(fresh, opened.master(),
+                describeRecovery(opened.header().slots())));
+        writeContent(entries, slots, opened.master());
+    }
+
+    /**
+     * Returns what to record about the passphrase slot, keeping what an existing one said.
+     *
+     * @param slots The slots read from the file, which may be empty.
+     * @return The recovery keyslot.
+     */
+    private Keyslot describeRecovery(java.util.List<VaultHeader.Slot> slots) {
+        for (final VaultHeader.Slot slot : slots) {
+            if (VaultHeader.PASSPHRASE_SLOT.equals(slot.kind())) {
+                return slot.slot();
+            }
+        }
+        return new Keyslot(Keyslot.PASSPHRASE, "passphrase", "USER_SCOPED",
+                java.time.Instant.now().toString(), "", true);
+    }
+
+    private byte[] freshMaster() {
+        final byte[] master = new byte[KEY_LENGTH];
+        random.nextBytes(master);
+        return master;
+    }
+
+    /**
+     * Wraps the master key under a passphrase.
+     *
+     * @param passphrase The passphrase.
+     * @param master The master key.
+     * @param description What to record about the slot.
+     * @return The slot.
+     */
+    private VaultHeader.Slot passphraseSlot(char[] passphrase, byte[] master,
+            Keyslot description) {
+        final byte[] salt = new byte[SALT_LENGTH];
+        random.nextBytes(salt);
+        final byte[] key = deriveKey(passphrase, salt, ITERATIONS, MEMORY_KIB, PARALLELISM);
         final byte[] nonce = new byte[NONCE_LENGTH];
         random.nextBytes(nonce);
+        try {
+            return new VaultHeader.Slot(VaultHeader.PASSPHRASE_SLOT, description, salt, nonce,
+                    wrap(key, nonce, master), ITERATIONS, MEMORY_KIB, PARALLELISM);
+        } finally {
+            Arrays.fill(key, (byte) 0);
+        }
+    }
 
-        final ByteBuffer header = ByteBuffer.allocate(HEADER_LENGTH);
-        header.put(MAGIC);
-        header.putInt(VERSION);
-        header.putInt(ITERATIONS);
-        header.putInt(MEMORY_KIB);
-        header.putInt(PARALLELISM);
-        header.put(salt);
-        header.put(nonce);
+    /**
+     * Encrypts the master key under one slot's key.
+     *
+     * @param key The slot key.
+     * @param nonce This slot's nonce, used for nothing else.
+     * @param master The master key.
+     * @return The wrapped key, with its tag.
+     */
+    private byte[] wrap(byte[] key, byte[] nonce, byte[] master) {
+        try {
+            final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
+                    new GCMParameterSpec(TAG_BITS, nonce));
+            return cipher.doFinal(master);
+        } catch (GeneralSecurityException ex) {
+            throw new VaultException("Cannot wrap the vault's master key", ex);
+        }
+    }
+
+    private void writeContent(Map<String, VaultEntry> entries,
+            java.util.List<VaultHeader.Slot> slots, byte[] master) {
+
+        final byte[] contentNonce = new byte[NONCE_LENGTH];
+        random.nextBytes(contentNonce);
+        final VaultHeader header = VaultHeader.of(slots, contentNonce);
 
         // Not Json.write(...).getBytes(...): that hands back a String holding every credential in
         // this vault in plaintext, which cannot be cleared and lives until the collector gets to
@@ -311,18 +619,17 @@ public class VaultFile {
         encoded.get(plaintext);
         wipe(json);
 
-        final byte[] key = deriveKey(passphrase, salt, ITERATIONS, MEMORY_KIB, PARALLELISM);
         final byte[] cipherText;
         try {
             final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
-                    new GCMParameterSpec(TAG_BITS, nonce));
-            cipher.updateAAD(header.array());
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(master, "AES"),
+                    new GCMParameterSpec(TAG_BITS, contentNonce));
+            cipher.updateAAD(header.authenticated());
             cipherText = cipher.doFinal(plaintext);
         } catch (GeneralSecurityException ex) {
             throw new VaultException("Cannot encrypt the vault", ex);
         } finally {
-            Arrays.fill(key, (byte) 0);
+            Arrays.fill(master, (byte) 0);
             // No test covers this line and none can from outside: the buffer is local and gone by
             // the time anything could look at it. Kept because it is the same discipline as the
             // key beside it, and noted so it is not deleted as dead on the grounds that nothing
@@ -330,7 +637,7 @@ public class VaultFile {
             Arrays.fill(plaintext, (byte) 0);
         }
 
-        atomicWrite(header.array(), cipherText);
+        atomicWrite(header.authenticated(), cipherText);
     }
 
     /**
@@ -428,7 +735,7 @@ public class VaultFile {
 
     private void update(char[] passphrase,
             java.util.function.UnaryOperator<Map<String, VaultEntry>> change, char[] writeWith,
-            boolean freshSalt) {
+            boolean rekeying) {
 
         final Path absolute = file.toAbsolutePath();
         final Path lockFile = absolute.resolveSibling(absolute.getFileName() + ".lock");
@@ -441,9 +748,22 @@ public class VaultFile {
             Files.createDirectories(lockFile.getParent());
             try (RandomAccessFile raf = new RandomAccessFile(lockFile.toFile(), "rw");
                     FileLock lock = raf.getChannel().lock()) {
+                if (!exists()) {
+                    write(change.apply(new LinkedHashMap<>()), writeWith, false);
+                    return;
+                }
+                // Opened once, with the passphrase that is current now. A rekey then writes under
+                // the new one without opening again - opening with the new passphrase is exactly
+                // the mistake that would make a rekey impossible.
+                final Opened opened = opened(Opener.passphrase(passphrase));
                 final Map<String, VaultEntry> current =
-                        exists() ? new LinkedHashMap<>(read(passphrase)) : new LinkedHashMap<>();
-                write(change.apply(current), writeWith, freshSalt);
+                        new LinkedHashMap<>(read(opened(Opener.passphrase(passphrase))));
+                final Map<String, VaultEntry> next = change.apply(current);
+                if (rekeying) {
+                    writeRekeyed(next, opened, writeWith);
+                } else {
+                    writeContent(next, opened.header().slots(), opened.master());
+                }
             }
         } catch (IOException ex) {
             throw new VaultException("Cannot lock " + lockFile, ex);

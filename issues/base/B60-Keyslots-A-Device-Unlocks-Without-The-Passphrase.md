@@ -1,6 +1,10 @@
 # B60 — Keyslots: A Device Unlocks Without The Passphrase
 
-**Status:** decided on 2026-09-18 by the operator, and not built. It is option **E** of
+**Status:** decided on 2026-09-18 by the operator, and being built. **No migration**: the operator
+decided the same day that version 2 is a hard cut, because the only vaults that exist are his own
+test ones and every credential in them can be entered again. A vault written before this is refused
+with a sentence saying to create it again - which is the opposite of migrating it, and is said
+plainly rather than met as an exception. It is option **E** of
 [the secrets-from-elsewhere design](Secrets-From-Elsewhere_design.md), which weighs it against four
 alternatives; this file is what must be true if it is built, and the design is why it was chosen.
 
@@ -28,9 +32,10 @@ Adapted from what LUKS does with its keyslots.
    agreement between the node's private key and the device's public key would let it, which collapses
    the whole design - *the private key in any agreement must be the one the node does not have.*
    A test has to fail if the node can unwrap with only what it holds.
-7. **The vault file's format carries keyslots**, as version 2, and a reader understands version 1 as
-   it stands today. The format is the part to do first: it is cheap while nothing is stored that
-   somebody cannot retype, and expensive afterwards.
+7. **The vault file's format carries keyslots**, as version 2, and **there is one format, not
+   two**. The format is the part to do first: it is cheap while nothing is stored that somebody
+   cannot retype, and expensive afterwards - which is exactly why the cut is being made now rather
+   than being carried as a second read path forever.
 
 ## Acceptance
 
@@ -42,8 +47,10 @@ Adapted from what LUKS does with its keyslots.
   device and the passphrase still can.
 - **The node alone cannot unwrap.** With the vault file and everything the node stores, and no share,
   the master key does not come out. Proven against the built code, not argued from the design.
-- A vault written by version 1 is read, and a vault written by version 2 is refused by a reader that
-  only knows version 1 rather than being half read.
+- **A vault written before version 2 is refused, and the refusal says what to do about it** - create
+  the vault again and enter the credentials, which is possible because nothing in it was
+  unrepeatable. Refused, never half read: a reader that made sense of part of an older file would
+  be the migration this deliberately does not have.
 - What a device holds is scoped to Sokar where the platform allows it, and where it does not, the
   product says so rather than implying otherwise.
 - **A device declares how it stores its share** - user-scoped, application-scoped, FIDO2 or TPM2 -
