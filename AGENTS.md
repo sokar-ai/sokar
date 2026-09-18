@@ -1029,63 +1029,76 @@ way. A skill that carries the same knowledge in advance is the cheaper end of th
 this repository disagree, the measurement wins and the disagreement is worth writing down. The
 facts above this section were all measured here, on the versions this build pins.
 
-## Rules the five repositories share
+## Shared across the Sokar repositories
 
-Sokar is worked on here; the interface, the three agent repositories and the message sluice by
-other agents. These hold in all five. They are written in one wording on purpose: five paraphrases
-of one rule become five rules.
+The same text in `sokar`, `sokar-frontend`, the three agent repositories and
+`sokar-message-sluice`. Change it in the channel first, not in one copy.
 
-- **The operator pushes.** Agents commit and stop. Never `git push`.
+- **The operator pushes. Agents commit and stop.** A push starts a build that costs metered minutes
+  and can cancel one already running. Say what is ready and let him decide when.
 - **Everyone stays in their own repository and asks for what they need from another.** Ruled by
   the operator on 2026-09-13: an agent neither reads nor writes another agent's repository - what
   it needs from there, it asks that repository's agent for in the channel, with the reason. The
   one exception is the backend agent, who coordinates and may **read** the other repositories.
   **Writing is always the job of the agent responsible for the repository**, with no exception.
-- **The channel is append-only.** One heading per entry, `## <UTC timestamp> - <agent>`. Questions
-  are prefixed and numbered per agent - `QB<n>` from here - and answered as
-  `**A:** to <timestamp>`, because the prefix says who is owed an answer.
+- **The channel is append-only.** One heading per entry,
+  `## <date -u> — <agent>`. Read everything written since your marker before you post, move your
+  marker only past somebody else's entry, and never rewrite what is there. A question carries a
+  prefix naming who is owed the answer, so a reader scanning the file can see it.
+- **Re-read the channel immediately before appending to it.** An entry that landed between your
+  read and your append makes what you are about to write answer a state that no longer exists —
+  Agent Smith published advice for an experiment that had been settled four minutes earlier, and
+  the read that would have caught it costs nothing. The marker says what to compare against.
+- **Re-arm the watcher as the first thing after reading an entry**, before answering and before
+  building. A watcher that reports one change and exits is unarmed from that moment, and twice
+  entries sat unread for hours because reading went straight into work.
+- **Compare against a marker of what was actually read**, never against a fresh baseline taken when
+  you re-arm. A baseline adopts everything written between the read and the re-arm as already seen,
+  silently. Keep the last heading you read and compare against that. Both sides had this defect on
+  2026-09-07, fixed it the same afternoon, and this agent reintroduced it on 2026-09-12 by counting
+  headings at re-arm time.
 - **The file's order is the truth and the headings are a label.** An entry can sit behind ones
   stamped later, because a heading is written when an entry is composed and the append happens when
-  it is finished - on 2026-09-12 a 17:21Z entry landed after a 17:31Z one. So **take the timestamp
-  from the clock, in the command that appends** - the same day, an agent wrote the headings it
-  believed the time to be and ran a quarter of an hour fast, which put four of its own entries in
-  the wrong order and is a label with no measurement behind it. **Compare against the position of
-  the last entry you read, never against its time or its heading text**: two entries can carry one
-  heading, and a text marker then matches the earlier one for ever or skips the entry between.
-  Never sort this file by heading to reconstruct what happened.
-- **A secret never appears in a command line**, and reaches a process through its environment or
-  its standard input. Where one is stored it is encrypted at rest and readable only by its owner;
-  in CI it is never written to a filesystem at all. (Not *"never written to a file"* - the vault
-  is a file, and a rule this repository visibly breaks is a rule that gets ignored whole.)
-- **The test machine is shared.** Change nothing that was not asked for, name what you remove
-  rather than sweeping what you do not recognise, and say in the channel before restarting it -
-  **saying what a run does, not what you believe it does.** On 2026-09-12 this repository's agent
-  told the channel its acceptance suite rebooted nothing while three of its scenarios existed to
-  reboot the machine, and took a colleague's test run down with it.
-- **Measure before you claim.** *"It works"* means it was run. *"It is not the cause"* means the
-  counter-test was run too. The same day, a race condition was asserted here, written into three
-  code comments as a measurement, and then measured - five probes, no race. The explanation had
-  been invented and the behaviour it "explained" was correct all along.
-- **Two agents agreeing on an inference is not evidence** - it is one inference with two names on
-  it. Agreement counts when each measured separately; when the second agent takes the first's
-  observation and adds a reason, the reason has been reviewed by nobody. On 2026-09-12 two of us
-  agreed that a catalogue field was missing, neither looked for the specification, and it was the
-  registry behaving as documented. **Say which part you measured and which part you inferred**, so
-  the other can agree with one and not the other.
+  it is finished - on 2026-09-12 a 17:21Z entry landed after a 17:31Z one. So take the timestamp at
+  append time rather than at composition, **compare against the position of the last entry you read
+  rather than against its time**, and never sort this file by heading to reconstruct what happened.
+- **A secret never appears in a command line, and reaches a process through its environment or its
+  standard input.** Where one is stored, it is encrypted at rest and readable only by its owner -
+  and in CI it is never written to a filesystem at all.
+- **The test machines are shared.** Name what you remove rather than sweeping "what I do not
+  recognise", and **announce a restart before you trigger one**. A reboot leaves no trace in the
+  work it interrupts, so the person whose run it killed cannot find out what happened.
+- **Say what a run does to a shared machine before starting it - what it does, not what you believe
+  it does.** Check first. A confident wrong answer costs somebody else an afternoon.
+- **Link to a requirement by its number and to the index, never to its file.** A finished
+  requirement is deleted, so a link to the file breaks exactly when that requirement succeeds.
 - **From "both are valid" it does not follow that both should exist.** Two indexes, two markers,
   two manifests, the same skills in two repositories - every expensive defect of 2026-09-12 had
   that shape, and not one of them was a wrong fact. They were correct facts with one inference too
   many on top, and the second copy was always the one that quietly went stale. When a thing is
   right in two forms, publish one and say why.
+- **Measure before you claim.** "It works" means it was run. "It is not the cause" means the
+  counter-test was run too. A finding without a measurement is a guess wearing a fact's clothes.
 - **"I could not get X" is a claim about a method, not about the world**, and it is worth saying
   out loud only once a second method has failed too. On 2026-09-12 a documentation page was
   reported here as unreadable and its format as undeterminable; `curl` returns that site's chrome
   and its article body is loaded afterwards, and a fetch that renders the page answered every
   question about the format in one call. The first report was true about `curl` and false about
   the page.
-- **Link to a requirement by number and to its index, never to its file.** A file link breaks
-  exactly when that requirement succeeds and is deleted, which is the worst moment for a reader to
-  meet a 404.
+- **Two agents agreeing on an inference is not evidence** - it is one inference with two names on
+  it. Agreement counts when each measured separately; when the second agent takes the first's
+  observation and adds a reason, the reason has been reviewed by nobody. On 2026-09-12 two of us
+  agreed that a catalogue field was missing, neither looked for the specification, and it was the
+  registry behaving as documented. **Say which part you measured and which part you inferred**, so
+  the other can agree with one and not the other.
+- **An issue is one task.** If it needs two answers or two changes that could land separately, it
+  is two issues. A dependency on an issue in another Sokar repository is named in the issue, with
+  the repository and the number, so nobody discovers it by starting.
+- **The documentation language is US English** - issues, decisions, changelog, comments, commit
+  messages. The channel too.
+- **Dot files and directories are not checked in.** `.gitignore` ignores `.*` and names only the
+  exceptions a build needs. Anything true of one machine goes in `.AGENTS.md`, which that rule
+  ignores by itself.
 
 ## Security rules that are not negotiable
 
