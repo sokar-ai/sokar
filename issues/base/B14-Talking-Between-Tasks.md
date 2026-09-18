@@ -61,6 +61,10 @@ cut.
   restarting the machine leave everything in it untouched.
 - A message is complete when it has been renamed into place: no reader ever sees a partial file, and
   nothing is deleted behind the agent's back.
+- **The host creates the mailbox and every directory in it**, with the refused originals readable only
+  by the account that runs Sokar. **Nothing that reads or carries a message creates a directory**: a
+  filter or an adapter that finds one missing refuses or defers, so a malformed mailbox is repaired
+  rather than papered over and a message is never delivered into a mailbox nobody is reading.
 - What was actually sent is written back into `sent/`, so a task that comes back reads its own half
   of the conversation.
 - Removing a task that still holds an unsent or undelivered message is refused and says what is

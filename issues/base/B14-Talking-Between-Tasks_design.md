@@ -239,7 +239,11 @@ same proxy a task uses — never in a task container, never in the same process 
 declared hosts are what the egress configuration permits it to reach.
 
 **What it may not do**: change a message's bytes, decide whether a message may be sent, read another
-transport's queue, or write into the container's mount. It carries; it does not judge.
+transport's queue, write into the container's mount, or **create a directory**. The host owns the
+layout - it makes the mailbox when it makes the task - and both the filter and the adapters refuse or
+defer when something is missing. An adapter that created `inbound/tmp/` because it was absent would
+deliver into a mailbox whose owner never made it, which is either a removed task or a broken layout,
+and both deserve an answer rather than a directory.
 
 **The first one is local** (`sokar-message-sluice` 002): it moves a file into the recipient's
 `inbound/` on the same machine. No network, no credential, no history — and on a developer's machine
@@ -375,6 +379,7 @@ world-readable, and nobody can promise what an operator will paste into a messag
 |---|---|---|
 | The sluice cannot start or cannot run | Nothing is queued. | Fail closed: an unchecked message is what this exists to prevent |
 | A transport cannot reach its destination | The message stays in `deferred/` and the sender is told on its receipt | A message waiting silently reads as ignored |
+| The recipient's `inbound/` exists but `inbound/tmp/` does not | Temporary failure: the message stays in `deferred/` until the host repairs the mailbox | The layout is the host's; a delivery that repaired it would hide a malformed mailbox and deliver into it |
 | A transport's destination does not exist | Refused back to the sender, not retried. The adapter reports only that the destination is gone; the host says which it was - `NO_SUCH_PEER` when the name is not in the peer table, `PEER_GONE` when it is and the mailbox is not | Retrying forever is how a queue dies, and only the side holding the table can tell a typo from a removed task |
 | A peer's mailbox belongs to another Unix user | Refused, enforced rather than documented | Sokar runs as a user unit: two people on one machine are two installations with two signing identities, sharing only a kernel. A file move between them is not a local delivery |
 | An adapter alters a message's bytes | Verification fails at the far side | The signature is the only thing that can catch it |
