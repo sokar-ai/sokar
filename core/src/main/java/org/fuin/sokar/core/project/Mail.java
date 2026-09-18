@@ -18,7 +18,9 @@ public record Mail(List<Peer> peers) {
     /**
      * A name a task uses, and what the host resolves it to.
      *
-     * @param name What a message addresses. Letters, digits, dash and underscore.
+     * @param name What a message addresses. Letters, digits, dash, underscore, dot and at sign -
+     *        wide enough to hold an OpenSSH principal, which is how an arriving message names its
+     *        sender.
      * @param address {@code <transport>:<rest>} - the part before the colon names the transport
      *        that carries it, and the rest is that transport's business.
      * @param trust {@code vouched} for one of the operator's own machines, {@code external} for
@@ -64,7 +66,13 @@ public record Mail(List<Peer> peers) {
             return EXTERNAL.equals(trust);
         }
 
-        private static final Pattern NAME = Pattern.compile("[a-zA-Z0-9][a-zA-Z0-9_-]*");
+        // A peer name has to be able to hold an OpenSSH principal, because that is what a peer
+        // is identified by when its message arrives: 'sokar talk key' prints 'sokar@<host>' and a
+        // project that could not name that would be unable to address the machine that produced
+        // it. Measured on the VM, where the obvious path produced an identity nobody could
+        // address. It reaches no file name and no argument list, only 'metadata.to' and a key in
+        // the moderation file, so the dot and the at sign cost nothing.
+        private static final Pattern NAME = Pattern.compile("[a-zA-Z0-9][a-zA-Z0-9_.@-]*");
 
         // The transport's name reaches a file name and an argument list, so it is as narrow as a
         // peer name. The rest of an address is whatever that transport understands.
@@ -79,8 +87,8 @@ public record Mail(List<Peer> peers) {
          */
         public Peer {
             if (name == null || !NAME.matcher(name).matches()) {
-                throw new ProjectException("A peer name is letters, digits, dash and underscore: "
-                        + name);
+                throw new ProjectException("A peer name is letters, digits, dash, underscore, dot"
+                        + " and at sign, starting with a letter or digit: " + name);
             }
             if (address == null || !ADDRESS.matcher(address).matches()) {
                 throw new ProjectException("A peer's address is '<transport>:<address>', got: "
