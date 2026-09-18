@@ -26,11 +26,22 @@ import org.fuin.sokar.core.process.CommandRunner;
  */
 public final class InstallablePackages {
 
-    /** What every agent package declares it provides. */
-    public static final String AGENT = "sokar-agent";
+    /** The virtual package every agent package declares it provides. */
+    public static final String PROVIDES_AGENT = "sokar-agent";
 
-    /** What every transport package declares it provides. */
-    public static final String TRANSPORT = "sokar-transport";
+    /** The virtual package every transport package declares it provides. */
+    public static final String PROVIDES_TRANSPORT = "sokar-transport";
+
+    /**
+     * What an agent is called in an answer.
+     * <p>
+     * Not the virtual package name: that is the mechanism by which this is found out, and a person
+     * choosing between things does not need to know how the question was asked.
+     */
+    public static final String AGENT = "agent";
+
+    /** What a transport is called in an answer. */
+    public static final String TRANSPORT = "transport";
 
     /**
      * One thing this machine could install, or already has.
@@ -65,11 +76,14 @@ public final class InstallablePackages {
      */
     public List<Installable> list() {
         final Map<String, Installable> found = new LinkedHashMap<>();
-        for (final String kind : List.of(AGENT, TRANSPORT)) {
-            for (final String name : providers(kind)) {
+        // Agents first, then transports, and in that order on purpose: it is the order a person
+        // is asked to choose in, and Map.of would have decided it by hash.
+        for (final List<String> kind : List.of(List.of(PROVIDES_AGENT, AGENT),
+                List.of(PROVIDES_TRANSPORT, TRANSPORT))) {
+            for (final String name : providers(kind.get(0))) {
                 // First kind wins: a package claiming both would otherwise appear twice and a
                 // person would be offered the same install under two headings.
-                found.putIfAbsent(name, describe(name, kind));
+                found.putIfAbsent(name, describe(name, kind.get(1)));
             }
         }
         return List.copyOf(found.values());

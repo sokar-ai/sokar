@@ -51,8 +51,8 @@ class InstallablePackagesTest {
                 .containsExactly("sokar-agent-claude", "sokar-agent-omp",
                         "sokar-message-transport-local");
         assertThat(found).extracting(InstallablePackages.Installable::kind)
-                .containsExactly(InstallablePackages.AGENT, InstallablePackages.AGENT,
-                        InstallablePackages.TRANSPORT);
+                .as("what a person chooses between, not how it was asked for")
+                .containsExactly("agent", "agent", "transport");
         assertThat(found.get(0).installed()).as("what is already here says so").isTrue();
         assertThat(found.get(1).installed()).isFalse();
         assertThat(found.get(0).description()).isEqualTo("Claude Code inside a Sokar task");
@@ -66,7 +66,8 @@ class InstallablePackagesTest {
     void never_offers_the_virtual_name_itself() {
         assertThat(new InstallablePackages(debian()).list())
                 .extracting(InstallablePackages.Installable::name)
-                .doesNotContain(InstallablePackages.AGENT, InstallablePackages.TRANSPORT);
+                .doesNotContain(InstallablePackages.PROVIDES_AGENT,
+                        InstallablePackages.PROVIDES_TRANSPORT);
     }
 
     @Test

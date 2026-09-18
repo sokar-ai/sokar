@@ -1627,7 +1627,8 @@ method Installable() -> (packages: []Installable)
 type Installable (
   # The real package name, which is what may be installed.
   name: string,
-  # 'sokar-agent' or 'sokar-transport'.
+  # 'agent' or 'transport'. What a person chooses between - the virtual package name that this
+  # was read from ('sokar-agent', 'sokar-transport') is the mechanism and is not returned.
   kind: string,
   # One line, from the package itself.
   description: string,

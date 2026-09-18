@@ -12,6 +12,7 @@
 #   --distribution <d>  Which published distribution to install from. Default: snapshots
 #   --with <package>    Also install this package. May be given several times.
 #   --list              Print what this machine could install, install nothing, and stop
+#   --json              With --list: one JSON object on stdout, for a program rather than a person
 #   --show              Print every command and run none of them
 #   --os-release <file> Read the system description from here instead of /etc/os-release
 #   --help              This text
@@ -34,6 +35,7 @@ USER_NAME=agents
 DISTRIBUTION=snapshots
 SHOW=no
 LIST=no
+JSON=no
 WITH=
 OS_RELEASE=/etc/os-release
 BASE=https://fuinorg.jfrog.io/artifactory
@@ -44,12 +46,22 @@ while [ $# -gt 0 ]; do
         --distribution) DISTRIBUTION="${2:?--distribution needs a name}"; shift 2 ;;
         --with) WITH="$WITH ${2:?--with needs a package name}"; shift 2 ;;
         --list) LIST=yes; shift ;;
+        --json) JSON=yes; shift ;;
         --show) SHOW=yes; shift ;;
         --os-release) OS_RELEASE="${2:?--os-release needs a file}"; shift 2 ;;
-        --help) sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help) sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "sokar-setup: unexpected argument '$1'" >&2; exit 2 ;;
     esac
 done
+
+# With --json, stdout is reserved for the one object a program parses, so everything a person
+# would read moves to stderr. File descriptor 3 stays pointed at the real stdout, and only the
+# JSON is written there.
+if [ "$JSON" = yes ]; then
+    exec 3>&1 1>&2
+else
+    exec 3>&1
+fi
 
 say()  { printf '\n== %s ==\n' "$1"; }
 note() { printf '   %s\n' "$1"; }
@@ -111,89 +123,81 @@ fi
 # Every agent package declares 'Provides: sokar-agent' and every transport 'sokar-transport', so
 # the repository is the catalogue and nobody keeps a list. The same query the daemon's
 # 'Installable' method runs - kept word for word, so the two cannot answer differently.
+# One row per installable package, as 'name|kind|state|version|description'. One producer, so the
+# human table and the JSON cannot disagree about what this machine offers - and so widening a
+# column never changes what a program parses.
+#
+# 'kind' is 'agent' or 'transport': what a person chooses between. The virtual package name it was
+# read from is the mechanism, and the daemon's Installable method answers the same way.
 catalogue() {
     if [ "$FAMILY" = apt ]; then
         for virtual in sokar-agent sokar-transport; do
+            kind=${virtual#sokar-}
             apt-cache showpkg "$virtual" 2>/dev/null \
                 | sed -n '/^Reverse Provides:/,$p' | tail -n +2 | awk 'NF {print $1}' | sort -u \
                 | while read -r name; do
                     [ -n "$name" ] || continue
-                    state=available
-                    dpkg-query -W -f='${Version}' "$name" >/dev/null 2>&1 && state=installed
-                    printf '   %-34s %-16s %-10s %s\n' "$name" "$virtual" "$state" \
-                        "$(apt-cache show "$name" 2>/dev/null | sed -n 's/^Description: //p' | head -1)"
+                    version=$(dpkg-query -W -f='${Version}' "$name" 2>/dev/null || true)
+                    if [ -n "$version" ]; then
+                        state=installed
+                    else
+                        state=available
+                        version=$(apt-cache show "$name" 2>/dev/null \
+                            | sed -n 's/^Version: //p' | head -1)
+                    fi
+                    printf '%s|%s|%s|%s|%s\n' "$name" "$kind" "$state" "$version" \
+                        "$(apt-cache show "$name" 2>/dev/null \
+                            | sed -n 's/^Description: //p' | head -1)"
                 done
         done
     else
         for virtual in sokar-agent sokar-transport; do
-            dnf repoquery --qf '%{name}|%{summary}' --whatprovides "$virtual" 2>/dev/null \
-                | sort -u | while IFS='|' read -r name summary; do
+            kind=${virtual#sokar-}
+            dnf repoquery --qf '%{name}|%{version}-%{release}|%{summary}' \
+                --whatprovides "$virtual" 2>/dev/null | sort -u \
+                | while IFS='|' read -r name version summary; do
                     [ -n "$name" ] || continue
                     state=available
                     rpm -q "$name" >/dev/null 2>&1 && state=installed
-                    printf '   %-34s %-16s %-10s %s\n' "$name" "$virtual" "$state" "$summary"
+                    printf '%s|%s|%s|%s|%s\n' "$name" "$kind" "$state" "$version" "$summary"
                 done
         done
     fi
 }
 
-# ---------------------------------------------------------------- where Sokar comes from
-
-say "the repository Sokar is published to"
-if [ "$FAMILY" = apt ]; then
-    if [ -f /usr/share/keyrings/sokar.gpg ]; then
-        note "/usr/share/keyrings/sokar.gpg is already there"
-    else
-        # Dearmored, not the .asc: apt wants the binary form at that path, and the armored file
-        # fails with a verification error that never mentions the format.
-        if [ "$SHOW" = yes ]; then
-            printf '   $ %s\n' "curl -fsSL $BASE/api/security/keypair/sokar-packages/public | gpg --dearmor -o /usr/share/keyrings/sokar.gpg"
-        else
-            curl -fsSL "$BASE/api/security/keypair/sokar-packages/public" \
-                | gpg --dearmor -o /usr/share/keyrings/sokar.gpg
-            note "wrote /usr/share/keyrings/sokar.gpg"
-        fi
-    fi
-    SOURCE_LINE="deb [signed-by=/usr/share/keyrings/sokar.gpg] $BASE/sokar-dist-deb $DISTRIBUTION main"
-    if [ -f /etc/apt/sources.list.d/sokar.list ] \
-            && [ "$(cat /etc/apt/sources.list.d/sokar.list)" = "$SOURCE_LINE" ]; then
-        note "/etc/apt/sources.list.d/sokar.list already says this"
-    elif [ "$SHOW" = yes ]; then
-        printf '   $ %s\n' "echo '$SOURCE_LINE' > /etc/apt/sources.list.d/sokar.list"
-    else
-        echo "$SOURCE_LINE" > /etc/apt/sources.list.d/sokar.list
-        note "wrote /etc/apt/sources.list.d/sokar.list"
-    fi
-    run apt-get update -qq
-    INSTALL="apt-get install -y -qq"
-    HAVE="apt-cache show"
-else
-    REPO=/etc/yum.repos.d/sokar.repo
-    if [ "$SHOW" = yes ]; then
-        printf '   $ %s\n' "write $REPO for $BASE/sokar-dist-rpm/$DISTRIBUTION"
-    else
-        cat > "$REPO" <<REPOFILE
-[sokar]
-name=Sokar
-baseurl=$BASE/sokar-dist-rpm/$DISTRIBUTION
-enabled=1
-gpgcheck=0
-REPOFILE
-        note "wrote $REPO"
-    fi
-    run dnf makecache -q
-    INSTALL="dnf install -y -q"
-    HAVE="dnf list --available"
-fi
-
-# ---------------------------------------------------------------- what else this machine could have
+# The same rows, as one object. Written from the piped form rather than from the table: a format
+# a program parses must not change when a column is widened.
+catalogue_json() {
+    printf '{"packages":['
+    catalogue | awk -F'|' '
+        function escape(text) {
+            gsub(/\\/, "\\\\", text); gsub(/"/, "\\\"", text); return text
+        }
+        NF >= 5 {
+            printf "%s{\"name\":\"%s\",\"kind\":\"%s\",\"description\":\"%s\",",
+                (seen++ ? "," : ""), escape($1), escape($2), escape($5)
+            printf "\"installed\":%s,\"version\":\"%s\"}",
+                ($3 == "installed" ? "true" : "false"), escape($4)
+        }'
+    printf ']}\n'
+}
 
 if [ "$LIST" = yes ]; then
+    if [ "$JSON" = yes ]; then
+        # The object alone on the real stdout; everything else went to stderr from the start, so
+        # a caller parses what it reads without stripping anything.
+        catalogue_json >&3
+        [ -n "$(catalogue)" ] || echo "nothing yet - no package in this repository declares that"\
+            " it provides an agent or a transport." >&2
+        exit 0
+    fi
     say "what this machine could install"
-    printf '   %-34s %-16s %-10s %s\n' PACKAGE KIND STATE DESCRIPTION
+    printf '   %-34s %-11s %-10s %s\n' PACKAGE KIND STATE DESCRIPTION
     found="$(catalogue)"
     if [ -n "$found" ]; then
-        printf '%s\n' "$found"
+        printf '%s\n' "$found" | while IFS='|' read -r name kind state version description; do
+            printf '   %-34s %-11s %-10s %s\n' "$name" "$kind" "$state" "$description"
+        done
     else
         note "nothing yet - no package in this repository declares that it provides an agent"
         note "or a transport. That line is one per package, and the repositories that build"
