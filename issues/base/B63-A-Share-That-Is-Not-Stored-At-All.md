@@ -1,7 +1,8 @@
 # B63 — A Share That Is Not Stored At All
 
-**Status:** open, split off from B60 on 2026-09-18 when the keyslots were built. B60 made a device a
-way into the vault; this makes a device worth more than the account it runs under.
+**Status:** open, split off on 2026-09-18 when the keyslots were built. That requirement is finished
+and gone; what it settled is in [doc/vault-keyslots.md](../../doc/vault-keyslots.md). It made a device a way into the vault;
+this makes a device worth more than the account it runs under.
 
 A keyslot's share is 32 bytes the device keeps in its platform's keystore. On the two platforms most
 operators actually use, that keystore is **user-scoped**: a Secret Service keyring that unlocks at
@@ -10,7 +11,7 @@ the share.** So on a desktop a keyslot protects against a stolen file and agains
 and not at all against the thing people picture when they hear "a device unlocks it", which is code
 running as them right now.
 
-B60 says this out loud rather than implying otherwise: `sokar vault devices` prints *"any process
+Sokar says this out loud rather than implying otherwise: `sokar vault devices` prints *"any process
 running as you can ask for it"* next to a `USER_SCOPED` slot. **This issue is how that sentence gets
 to say something better.**
 
@@ -25,7 +26,7 @@ to say something better.**
    otherwise the keyslot it opened stops opening. What the device stores is the *inputs* (a
    credential id and a salt, or a sealed object's handle), never the output.
 4. **Losing the token loses that slot and nothing else.** The passphrase is the recovery credential
-   and every other device keeps working, exactly as B60 already promises.
+   and every other device keeps working, exactly as the keyslots already promise.
 5. **What the node records is what actually protected the unlock**, not what a client claimed. Today
    `storage` is a word the device sends and Sokar writes down; a slot that says `FIDO2` because a
    client typed `FIDO2` is worth no more than a `USER_SCOPED` one and reads as worth more. Either
@@ -41,7 +42,7 @@ to say something better.**
   reporting a rejected share.
 - **The unlock fails with the token present and nobody touching it**, within a stated timeout. A
   test that passes because the tester's token happened to be in a touched state proves nothing.
-- **The share never reaches the filesystem or a keyring** - asserted the way B60 asserts it, by
+- **The share never reaches the filesystem or a keyring** - asserted the way enrollment already is, by
   searching the machine's state for its bytes after an unlock.
 - **A reboot changes nothing**: the same token opens the same slot.
 - **`sokar vault devices` says what a FIDO2 or TPM2 slot is worth**, and stops saying it for a slot
@@ -60,14 +61,14 @@ claim.
 
 ## Notes
 
-**Nothing here has been measured.** B60's measurements are of keyslots, not of tokens: no FIDO2
+**Nothing here has been measured.** What was measured is keyslots, not tokens: no FIDO2
 token and no TPM2 device has been near this code. The libraries exist on Linux - `systemd-cryptenroll`
 does exactly this for LUKS, and libfido2 and tpm2-tss are packaged - so the shape is known to work;
 what is not known is how it behaves in this codebase, whether a native image can call those
 libraries without carrying half of them, and what a token that is absent looks like from Java. The
 first commit against this issue should be a measurement, not a design.
 
-**Why this is not part of B60.** B60 is about where the master key lives and how many credentials
-may unwrap it, and it is complete without a single token. This is about what one credential is worth,
+**Why this was not part of the keyslots.** That requirement is about where the master key lives and
+how many credentials may unwrap it, and it was complete without a single token. This is about what one credential is worth,
 which is a different question with different failure modes - and bundling them would have meant
 neither shipping until a token was on somebody's desk.

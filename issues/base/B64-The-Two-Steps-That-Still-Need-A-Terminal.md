@@ -3,7 +3,7 @@
 **Status:** open, found on 2026-09-18 by walking the flow for a machine that had just been prepared:
 packages installed, nothing started, an operator sitting at an interface on another computer.
 
-B62 prepares a machine end to end and B60 lets a device open its vault. Between them there is a gap
+B62 prepares a machine end to end and a keyslot lets a device open its vault ([doc/vault-keyslots.md](../../doc/vault-keyslots.md)). Between them there is a gap
 that neither closes, and it is the first five minutes of every new machine:
 
 1. **Nothing starts the daemon.** `sokar-setup.sh` deliberately leaves it to the work user's own
@@ -24,7 +24,7 @@ shell twice.
   it is Sokar's to describe, and the interface must not be the second place where the knowledge
   lives.
 - **Whatever is chosen does not weaken what the daemon is.** Today's rule is that a daemon can shut
-  the vault but never open it, because it has no terminal; B60 weakened that in exactly one
+  the vault but never open it, because it has no terminal; the keyslots weakened that in exactly one
   direction - a *share*, which arrives from a device and is worthless on its own. A passphrase
   travelling to the daemon would be a different thing and needs to be decided rather than slid into.
 - **A machine that is half-prepared says so.** `sokar doctor` should answer "there is no vault here
@@ -38,7 +38,7 @@ shell twice.
 |---|---|
 | **The wizard runs `sokar vault init` over ssh** | Nothing new in Sokar; the wizard already has an ssh session, since that is how it installed the packages as root. The interface gains "runs a command on a machine", which it does not have today and which is a capability worth naming. |
 | **A `Tasks1` method that creates a vault from a passphrase sent over the socket** | The passphrase travels. The socket is a unix socket owned by that user and forwarded over ssh, so it is not travelling far - but "the daemon never receives a passphrase" stops being true, and every later argument that relies on it has to be re-read. |
-| **A vault whose first and only way in is a device** | No passphrase anywhere, and no recovery: B60 makes keyslot 0 the passphrase precisely so that losing every device is survivable. It would have to be paired with something else recoverable, which is a larger design than this gap deserves. |
+| **A vault whose first and only way in is a device** | No passphrase anywhere, and no recovery: keyslot 0 is the passphrase precisely so that losing every device is survivable ([doc/vault-keyslots.md](../../doc/vault-keyslots.md)). It would have to be paired with something else recoverable, which is a larger design than this gap deserves. |
 
 The first is the recommendation. It is the only one that adds no new path for a secret, and the
 capability it needs is one the wizard already exercises with root.
