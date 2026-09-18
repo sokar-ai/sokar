@@ -281,6 +281,21 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the root of one task's mailbox.
+     * <p>
+     * Under the state directory rather than the runtime one, because a conversation has to survive
+     * {@code stop}, {@code start} and a machine restart, and the kernel clears the runtime
+     * directory at boot. It is the task's: made when the task is made, deleted when the task is
+     * removed, and untouched in between.
+     *
+     * @param container Container name.
+     * @return Mailbox root, which is the host's half - only what is under it is mounted.
+     */
+    public Path mailbox(String container) {
+        return xdg.state().resolve("mail").resolve(container);
+    }
+
+    /**
      * Returns the file holding one task's clearance decisions.
      * <p>
      * Under the state directory, not beside the rest of the task's files. Everything else a task

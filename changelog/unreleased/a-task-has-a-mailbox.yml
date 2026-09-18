@@ -1,0 +1,2 @@
+title: "A task has a mailbox on the host: a Maildir-shaped directory that is created with the task, outlives its container, and mounts only the half holding the agent's inbox and outbox."
+type: added
