@@ -91,7 +91,8 @@ class DoctorCommandTest {
 
         assertThat(doctor.probes()).extracting(Probe::name)
                 .contains("podman", "hooks registered", "rootless network", "dnsmasq nftset",
-                        "nft", "git", "nsenter", "keyring", "selinux policy", "transports");
+                        "nft", "git", "nsenter", "keyring", "selinux policy", "transports",
+                        "message filter");
     }
 
     /**
@@ -113,6 +114,30 @@ class DoctorCommandTest {
                 .singleElement().satisfies(probe -> {
                     assertThat(probe.state()).isEqualTo(Probe.State.DEGRADED);
                     assertThat(probe.detail()).contains("none installed");
+                });
+    }
+
+    /**
+     * Its own line, because the two silences are different: with no transport a message reaches no
+     * peer, and with no filter nothing is sent at all. A machine with every transport installed and
+     * no filter is mute, and a list of green lines must not read as ready.
+     */
+    @Test
+    void saysWhenNoMessageFilterIsInstalled(@TempDir Path dir) {
+
+        final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
+            case "XDG_DATA_HOME" -> dir.resolve("data").toString();
+            default -> null;
+        }, dir);
+        final DoctorCommand doctor = new DoctorCommand();
+        doctor.setContext(new SokarContext(new FakeCommandRunner(),
+                new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0));
+
+        assertThat(doctor.probes()).filteredOn(probe -> "message filter".equals(probe.name()))
+                .singleElement().satisfies(probe -> {
+                    assertThat(probe.state()).isEqualTo(Probe.State.DEGRADED);
+                    assertThat(probe.detail()).contains("nothing a task writes ever leaves");
+                    assertThat(probe.action()).contains(SokarPaths.MESSAGE_FILTER);
                 });
     }
 

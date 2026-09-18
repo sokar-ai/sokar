@@ -117,6 +117,28 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
                 "run the adapter by hand to see why");
     }
 
+    /**
+     * Reports whether a message filter is installed.
+     * <p>
+     * Its own line rather than a footnote to {@code transports}, because the two failures are not
+     * the same: with no transport a message reaches no peer, and with no filter <strong>nothing is
+     * sent at all</strong> - that is what fail closed means here. A machine with every transport in
+     * the world and no filter is silent, and an operator reading a list of green lines should not
+     * have to work that out.
+     *
+     * @return The probe.
+     */
+    private Probe messageFilter() {
+        final String name = "message filter";
+        final java.nio.file.Path filter = context.paths().messageFilter();
+        if (filter == null) {
+            return Probe.degraded(name,
+                    "none installed, so nothing a task writes ever leaves this machine",
+                    "install " + SokarPaths.MESSAGE_FILTER);
+        }
+        return Probe.ok(name, filter.toString());
+    }
+
     private Probe binary(String name, String program, String consequence) {
         try {
             final CommandResult result = context.runner()
@@ -336,7 +358,7 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
                 nftSetSupport(),
                 binary("nft", "nft", "a container comes up with no firewall ruleset"),
                 binary("git", "git", "the gate has no mirror to serve and no push can be reviewed"),
-                transports(), binary("nsenter", "nsenter", "nothing can enter a container's network namespace,"
+                transports(), messageFilter(), binary("nsenter", "nsenter", "nothing can enter a container's network namespace,"
                         + " so a clearance decision cannot be applied to a running task"),
                 keyring(),
                 socketPolicy());
