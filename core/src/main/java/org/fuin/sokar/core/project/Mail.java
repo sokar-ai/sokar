@@ -32,6 +32,16 @@ public record Mail(List<Peer> peers) {
         /** Anybody else: what arrives from them is checked here as well. */
         public static final String EXTERNAL = "external";
 
+        /**
+         * Returns whether what this peer sends is checked on the way in.
+         *
+         * @return {@code true} for an external peer. Trust is a property of the peer, never of
+         *         what carried the message.
+         */
+        public boolean external() {
+            return EXTERNAL.equals(trust);
+        }
+
         private static final Pattern NAME = Pattern.compile("[a-zA-Z0-9][a-zA-Z0-9_-]*");
 
         // The transport's name reaches a file name and an argument list, so it is as narrow as a

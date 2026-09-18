@@ -87,6 +87,22 @@ public final class MessageDelivery {
      */
     public Outcome deliver(final Mailbox mailbox, final List<Peer> peers, final Set<String> seen)
             throws IOException {
+        return deliver(mailbox, peers, seen, null);
+    }
+
+    /**
+     * Delivers what can be attributed and, where the peer is external, what the filter also passed.
+     *
+     * @param mailbox The task's mailbox.
+     * @param peers The peers this task may hear from, with the keys allowed for each.
+     * @param seen Ids this task has already been handed, from its record.
+     * @param check What reads an external peer's message before an agent does, or {@code null}
+     *        when nothing does - which is only ever the case where no peer is external.
+     * @return What was delivered, what was held and what was a repeat.
+     * @throws IOException Reading or moving failed.
+     */
+    public Outcome deliver(final Mailbox mailbox, final List<Peer> peers, final Set<String> seen,
+            final @org.jspecify.annotations.Nullable InboundCheck check) throws IOException {
         final List<String> delivered = new ArrayList<>();
         final List<Held> held = new ArrayList<>();
         final List<Repeat> duplicates = new ArrayList<>();
@@ -125,6 +141,15 @@ public final class MessageDelivery {
                 Files.delete(message);
                 Files.delete(signature);
                 duplicates.add(new Repeat(name, id));
+                continue;
+            }
+
+            // After attribution and after the repeat check: there is no point reading a message
+            // nobody can attribute, and none in reading the same one twice.
+            final String refused = check == null ? "" : check.refuse(mailbox, message, peer.name());
+            if (!refused.isEmpty()) {
+                hold(mailbox, message, signature);
+                held.add(new Held(name, refused));
                 continue;
             }
 

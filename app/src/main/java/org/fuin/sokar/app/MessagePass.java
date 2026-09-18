@@ -123,7 +123,8 @@ public final class MessagePass {
         // Independent of our own filter: what a peer sent is delivered whether or not this machine
         // can send anything today.
         final MessageDelivery.Outcome delivered =
-                new MessageDelivery().deliver(mailbox, peers, record.delivered());
+                new MessageDelivery().deliver(mailbox, peers, record.delivered(),
+                        new InboundCheck(runner, filter, mail));
         for (final String message : delivered.delivered()) {
             record.append(MessageRecord.DELIVERED, message,
                     idOf(mailbox.inboxNew().resolve(message)), "");

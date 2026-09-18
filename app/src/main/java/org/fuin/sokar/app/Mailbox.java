@@ -316,9 +316,70 @@ public final class Mailbox {
         }
     }
 
+    /**
+     * Returns the mailbox-shaped tree a message from an {@code external} peer is checked in.
+     * <p>
+     * Its own root rather than a flag on the filter: the filter derives its whole layout from one
+     * directory, so pointing it at a second one checks a message on the way in with the same
+     * program, the same rules and the same evidence as on the way out. A message being checked
+     * here has not been delivered and is not in the agent's half of the mailbox.
+     *
+     * @return Directory.
+     */
+    public Path check() {
+        return root.resolve("check");
+    }
+
+    /**
+     * Returns where a message waits to be checked on the way in.
+     *
+     * @return Directory.
+     */
+    public Path checkIncoming() {
+        return check().resolve("incoming");
+    }
+
+    /**
+     * Returns where the filter puts what it accepted on the way in.
+     *
+     * @return Directory.
+     */
+    public Path checkAccepted() {
+        return check().resolve("filter").resolve("accepted");
+    }
+
+    /**
+     * Returns where the filter puts what it refused on the way in.
+     *
+     * @return Directory.
+     */
+    public Path checkRejected() {
+        return check().resolve("filter").resolve("rejected");
+    }
+
+    /**
+     * Returns where the filter writes why it refused something on the way in.
+     *
+     * @return Directory.
+     */
+    public Path checkFeedback() {
+        return check().resolve("filter").resolve("feedback");
+    }
+
+    /**
+     * Returns where the filter puts what it could not read on the way in.
+     *
+     * @return Directory.
+     */
+    public Path checkError() {
+        return check().resolve("filter").resolve("error");
+    }
+
     private java.util.List<Path> layout() {
         return java.util.List.of(root, box(), inboxTmp(), inboxNew(), inboxCur(), outboxTmp(),
                 outboxNew(), sentCopies(), incoming(), accepted(), feedback(), rejected(), error(),
-                index(), hold(), inbound(), inboundTmp(), sent(), record());
+                index(), hold(), inbound(), inboundTmp(), sent(), record(),
+                check(), checkIncoming(), checkAccepted(), checkRejected(), checkFeedback(),
+                checkError(), check().resolve("sent"), check().resolve("filter").resolve("index"));
     }
 }
