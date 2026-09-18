@@ -106,10 +106,23 @@ public final class TransportPoll {
         return new Outcome(arrivals, failures);
     }
 
+    /**
+     * Lists the messages in a directory, and only those.
+     * <p>
+     * A message arrives with a {@code .sig} beside it and possibly a {@code .owner}, and counting
+     * those as arrivals would report three where one came - and would put names in the map that
+     * nothing ever looks up. A message is the file ending in {@code .json}; its companions end in
+     * something else by construction.
+     *
+     * @param directory The inbound directory.
+     * @return The message file names.
+     * @throws IOException Listing failed.
+     */
     private Set<String> listing(final Path directory) throws IOException {
         try (Stream<Path> entries = Files.list(directory)) {
             final List<String> names = new ArrayList<>(entries.filter(Files::isRegularFile)
-                    .map(path -> path.getFileName().toString()).toList());
+                    .map(path -> path.getFileName().toString())
+                    .filter(name -> name.endsWith(".json")).toList());
             return new LinkedHashSet<>(names);
         }
     }

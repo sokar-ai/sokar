@@ -149,4 +149,28 @@ class TransportPollTest {
                 .containsEntry("from-aaa.json", "aaa")
                 .containsEntry("from-bbb.json", "bbb");
     }
+
+    /**
+     * A message arrives with a signature beside it and, from a transport that attests one, an
+     * owner file. Counting those as arrivals would report three where one came, and would put
+     * names in the map that nothing ever looks up.
+     */
+    @Test
+    void counts_the_message_and_not_what_arrives_beside_it(@TempDir final Path dir)
+            throws IOException {
+        final Mailbox mailbox = mailbox(dir);
+        adapter(dir.resolve("transports"), "spool", """
+                case "$1" in
+                  describe) echo '{"scheme":"spool","poll":true,"attests":["owner"]}' ;;
+                  poll) shift; printf 'sig' > "$2/m-1.json.sig";
+                        printf '1004 bob' > "$2/m-1.json.owner";
+                        printf '{"messageId":"m-1"}' > "$2/m-1.json" ;;
+                esac
+                """);
+
+        final TransportPoll.Outcome outcome = poll(dir.resolve("transports")).poll(mailbox);
+
+        assertThat(outcome.arrivals()).containsExactly(
+                org.assertj.core.api.Assertions.entry("m-1.json", "spool"));
+    }
 }
