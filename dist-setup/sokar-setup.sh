@@ -298,9 +298,11 @@ run $INSTALL sokar
 # Always: the filter, because without it nothing leaves a task, and the local transport, because
 # a machine whose tasks only talk to each other still has to be able to.
 say "the message filter and the local transport"
+MESSAGING=no
 if $HAVE sokar-message-sluice-filter >/dev/null 2>&1; then
     # shellcheck disable=SC2086
     run $INSTALL sokar-message-sluice-filter sokar-message-transport-local
+    MESSAGING=yes
 else
     note "not published yet - this machine can run tasks but not exchange messages"
 fi
@@ -430,16 +432,33 @@ say "prepared"
 [ "$SHOW" = yes ] || note "sokar $(sokar --version 2>/dev/null | awk '{print $2}')"
 cat <<DONE
 
-   What is left, in $USER_NAME's own session rather than here - a root script starting
-   another user's service is either wrong or a lie about the session it runs in:
+   What is left, in $USER_NAME's own session rather than here. Both belong to that account
+   and neither can be done from root: a root script starting another user's service is
+   either wrong or a lie about the session it runs in, and podman reads its hook
+   descriptors per user, so root does not know whose configuration to write.
 
        systemctl --user enable --now sokard
+       sokar setup                        registers the OCI hooks for that account
        sokar doctor
+
+   Without 'sokar setup', 'doctor' says "hooks registered: MISSING - a task would run with
+   no firewall at all" and exits 69. Starting a task registers them too, so this is the
+   step that makes a prepared machine one that 'doctor' passes rather than one that
+   repairs itself on first use.
 
    'sokar doctor' is the real check. This script's exit code says the steps ran; only the
    daemon can say the machine works.
 
-   This machine can run tasks. It cannot exchange messages between tasks yet: the message
-   filter and the local transport are not published as packages, and Sokar sends nothing
-   without a filter installed.
 DONE
+if [ "$MESSAGING" = yes ]; then
+    cat <<MESSAGING_ON
+   This machine's tasks can message each other: the filter and the local transport are
+   installed. Between the Unix users of this machine they cannot, until somebody runs
+   'sokar-setup.sh --between-users on' - two accounts are two Sokar installations.
+MESSAGING_ON
+else
+    cat <<MESSAGING_OFF
+   This machine can run tasks. It cannot exchange messages between tasks: the message
+   filter is not installed, and Sokar sends nothing without one.
+MESSAGING_OFF
+fi
