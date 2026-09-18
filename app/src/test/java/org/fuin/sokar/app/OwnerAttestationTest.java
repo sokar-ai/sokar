@@ -72,17 +72,31 @@ class OwnerAttestationTest {
     }
 
     /**
-     * A transport cannot gain trust by volunteering evidence it never promised, and cannot lose a
-     * message by forgetting a file it never claimed to write.
+     * A transport that promised nothing cannot lose a message by not writing a file it never
+     * claimed to write.
      */
     @Test
-    void a_transport_that_promised_nothing_has_its_file_ignored(@TempDir final Path dir)
+    void a_transport_that_promised_nothing_owes_nothing(@TempDir final Path dir)
+            throws IOException {
+        final Mailbox mailbox = arrived(dir, "m-1.json");
+
+        assertThat(OwnerAttestation.refuse(mailbox, mailbox.inbound().resolve("m-1.json"),
+                "reviewer", mail, false)).isEmpty();
+    }
+
+    /**
+     * But an attestation that is there is read whoever left it, because reading it can only hold a
+     * message and never admit one. Found on the VM: a message fetched in an earlier pass reached
+     * an agent with its owner file lying unread beside it.
+     */
+    @Test
+    void an_attestation_that_is_there_is_read_even_unpromised(@TempDir final Path dir)
             throws IOException {
         final Mailbox mailbox = arrived(dir, "m-1.json");
         attest(mailbox, "m-1.json", "1009 carol");
 
-        assertThat(OwnerAttestation.refuse(mailbox, mailbox.inbound().resolve("m-1.json"),
-                "reviewer", mail, false)).isEmpty();
+        assertThat(OwnerAttestation.refuse(mailbox, mailbox.inbound().resolve("m-1.json"), "bob",
+                mail, false)).contains("written by the user 'carol'");
     }
 
     @Test

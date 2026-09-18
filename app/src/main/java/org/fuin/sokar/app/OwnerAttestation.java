@@ -21,8 +21,12 @@ import org.fuin.sokar.core.project.Mail;
  * <p>
  * <strong>Fail closed, in both directions.</strong> A transport that promised {@code owner} and
  * handed over a message without one has its message held - a promise nobody kept is worse than none.
- * A transport that promised nothing has an attestation ignored, so it cannot gain trust by
- * volunteering a file.
+ * <p>
+ * <strong>An attestation that is there is read, whoever left it.</strong> It was once ignored unless
+ * promised, so that nobody could gain trust by volunteering a file; but reading it can only hold a
+ * message and never admit one, so there is nothing to gain and one thing to lose. Measured on the VM
+ * on 2026-09-18: a message fetched in an earlier pass reached an agent with its owner file lying
+ * unread beside it, because the pass that delivered it had watched no transport fetch it.
  */
 public final class OwnerAttestation {
 
@@ -51,13 +55,17 @@ public final class OwnerAttestation {
             final Mail mail, final boolean attesting) throws IOException {
         final Path attestation =
                 mailbox.inbound().resolve(message.getFileName().toString() + SUFFIX);
-        if (!attesting) {
-            // Not promised, so not read. A file here is somebody's leftovers, not evidence.
-            return "";
-        }
         if (!Files.isRegularFile(attestation)) {
-            return "the transport that carried it says it attests who owned it, and it did not";
+            // Absent is a fault only where it was promised. A transport that promised nothing owes
+            // nothing, and a message it carried is judged by its signature alone.
+            return attesting
+                    ? "the transport that carried it says it attests who owned it, and it did not"
+                    : "";
         }
+        // Present, so read - whoever put it there and whatever was promised. Checking it can only
+        // ever hold a message, never admit one, so there is no way to gain trust by volunteering
+        // a file; and a message that was fetched in an earlier pass, or by something the host did
+        // not watch, is judged by the evidence lying beside it rather than by nobody.
         final String said = Files.readString(attestation, StandardCharsets.UTF_8).strip();
         final String[] parts = said.split("\\s+");
         if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
