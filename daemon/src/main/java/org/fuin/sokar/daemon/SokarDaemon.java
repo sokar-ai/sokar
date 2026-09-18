@@ -473,12 +473,11 @@ public final class SokarDaemon {
         server.method("ImportCredential", (parameters, replies) -> {
             // No console tier: a daemon has no terminal to ask at, so a vault that is not already
             // unlocked is answered as VAULT_LOCKED rather than hanging on a prompt nobody sees.
+            // A device's share counts as unlocked, which is the one way a daemon can open a vault.
             final org.fuin.sokar.app.CredentialImport.Result result =
                     org.fuin.sokar.app.CredentialImport.run(context,
                             absent(parameters, "agent"), absent(parameters, "configDirectory"),
-                            () -> new org.fuin.sokar.vault.PassphraseTiers(
-                                    org.fuin.sokar.vault.KernelKeyring.source(
-                                            context.paths().vaultKeyringKey())).passphrase());
+                            context::opener);
             replies.last(Map.of("outcome", result.outcome().name(), "name", result.name(),
                     "type", result.type(), "length", result.length(),
                     "source", result.source(), "detail", result.detail()));

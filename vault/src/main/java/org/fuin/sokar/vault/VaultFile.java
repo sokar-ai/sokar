@@ -250,6 +250,40 @@ public class VaultFile {
     }
 
     /**
+     * Records that a slot has just opened the vault.
+     * <p>
+     * A write for a timestamp, which is worth it: "last used" is how an operator spots a device
+     * that has not been near this machine in months and should not still have a way in. Without
+     * it the field in the contract would be permanently empty, which is worse than not having it.
+     *
+     * @param opener What opened the vault.
+     * @param id The slot that did.
+     * @return The slot as it now reads.
+     * @throws VaultException If the vault cannot be opened or written.
+     */
+    public Keyslot used(Opener opener, String id) {
+        final Opened opened = opened(opener);
+        final String now = java.time.Instant.now().toString();
+        final java.util.List<VaultHeader.Slot> slots = new java.util.ArrayList<>();
+        Keyslot touched = null;
+        for (final VaultHeader.Slot slot : opened.header().slots()) {
+            if (slot.slot().id().equals(id)) {
+                touched = new Keyslot(slot.slot().id(), slot.slot().name(), slot.slot().storage(),
+                        slot.slot().enrolled(), now, slot.slot().recovery());
+                slots.add(new VaultHeader.Slot(slot.kind(), touched, slot.salt(), slot.nonce(),
+                        slot.wrapped(), slot.iterations(), slot.memoryKib(), slot.parallelism()));
+            } else {
+                slots.add(slot);
+            }
+        }
+        if (touched == null) {
+            throw new VaultException("No keyslot of " + file + " is called '" + id + "'");
+        }
+        writeContent(read(opened(opener)), slots, opened.master());
+        return touched;
+    }
+
+    /**
      * Says whether one named slot takes a share.
      * <p>
      * For reporting which device just unlocked the vault, and for nothing else: it answers about
@@ -764,6 +798,46 @@ public class VaultFile {
     public void update(char[] passphrase,
             java.util.function.UnaryOperator<Map<String, VaultEntry>> change) {
         update(passphrase, change, passphrase, false);
+    }
+
+    /**
+     * Changes what the vault holds, opening it with whatever opens it.
+     * <p>
+     * For everything that needs the vault open rather than needing the passphrase in particular: a
+     * machine unlocked by a device can store a credential exactly as one unlocked by a person can,
+     * and neither has to know which the other used.
+     *
+     * @param opener The passphrase or a held share.
+     * @param change What to do with the entries.
+     * @throws VaultException If the vault cannot be locked, opened or written.
+     */
+    public void update(Opener opener,
+            java.util.function.UnaryOperator<Map<String, VaultEntry>> change) {
+
+        final Path absolute = file.toAbsolutePath();
+        final Path lockFile = absolute.resolveSibling(absolute.getFileName() + ".lock");
+        final java.util.concurrent.locks.ReentrantLock threadLock = THREAD_LOCKS.computeIfAbsent(
+                absolute, key -> new java.util.concurrent.locks.ReentrantLock());
+
+        threadLock.lock();
+        try {
+            Files.createDirectories(lockFile.getParent());
+            try (RandomAccessFile raf = new RandomAccessFile(lockFile.toFile(), "rw");
+                    FileLock lock = raf.getChannel().lock()) {
+                if (!exists()) {
+                    throw new VaultException("There is no vault at " + file
+                            + " to change. Create it first.");
+                }
+                final Opened opened = opened(opener);
+                final Map<String, VaultEntry> current =
+                        new LinkedHashMap<>(read(opened(opener)));
+                writeContent(change.apply(current), opened.header().slots(), opened.master());
+            }
+        } catch (IOException ex) {
+            throw new VaultException("Cannot lock " + lockFile, ex);
+        } finally {
+            threadLock.unlock();
+        }
     }
 
     private void update(char[] passphrase,

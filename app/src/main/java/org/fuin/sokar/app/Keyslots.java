@@ -243,8 +243,13 @@ public final class Keyslots {
             final Duration howLong = minutes == null || minutes <= 0
                     ? VaultShare.DEFAULT : Duration.ofMinutes(minutes);
             VaultShare.keep(context.paths(), bytes, howLong);
+            final Keyslot opened = slotFor(bytes);
+            // Written down now, while the share is in hand: "last used" is how an operator spots a
+            // device that has not been near this machine in months.
+            final Keyslot recorded = opened == null ? null
+                    : context.vault().used(VaultFile.Opener.share(bytes), opened.id());
             return new Unlock(Unlocked.UNLOCKED, Instant.now().plus(howLong).toString(),
-                    slotFor(bytes), "");
+                    recorded, "");
         } catch (final VaultException ex) {
             return new Unlock(Unlocked.SHARE_REJECTED, "", null, String.valueOf(ex.getMessage()));
         } catch (final RuntimeException ex) {

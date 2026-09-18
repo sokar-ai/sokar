@@ -97,4 +97,61 @@ class KeyslotsTest {
         assertThat(unlocked.outcome()).isEqualTo(Keyslots.Unlocked.SHARE_REJECTED);
         assertThat(unlocked.until()).as("nothing is open, so nothing runs out").isEmpty();
     }
+
+    /**
+     * The acceptance of B60, through the paths a task actually uses: a device unlocks, and the
+     * credentials read with nothing typed.
+     * <p>
+     * Needs the kernel keyring, which is where an unlock is held. A machine without one has no
+     * unlock to hold and nothing to assert, so the test says why it did not run rather than
+     * passing quietly.
+     */
+    @Test
+    void a_device_unlocks_and_the_credentials_read_with_nothing_typed(@TempDir final Path dir) {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                org.fuin.sokar.vault.KernelKeyring.available(),
+                "no kernel keyring here, so an unlock cannot be held");
+
+        final SokarContext context = withVault(dir);
+        final Keyslots keyslots = new Keyslots(context);
+        final String share = share(1);
+        // Enrolling needs the vault open, and here nothing has opened it - so open it the way a
+        // person at the machine would, by handing the passphrase to the vault directly.
+        final org.fuin.sokar.vault.Keyslot slot = context.vault().enroll(
+                org.fuin.sokar.vault.VaultFile.Opener.passphrase(PASSPHRASE),
+                Base64.getDecoder().decode(share), "the laptop", "USER_SCOPED");
+        try {
+            assertThat(context.readableCredentials()).as("shut before the device speaks").isEmpty();
+
+            final Keyslots.Unlock unlocked = keyslots.unlock(share, 5);
+
+            assertThat(unlocked.outcome()).isEqualTo(Keyslots.Unlocked.UNLOCKED);
+            assertThat(unlocked.slot()).isNotNull();
+            assertThat(unlocked.slot().id()).isEqualTo(slot.id());
+            assertThat(unlocked.until()).isNotEmpty();
+            assertThat(unlocked.slot().lastUsed()).as("a device that unlocks says when")
+                    .isNotEmpty();
+            assertThat(context.readableCredentials()).as("open, with nothing typed")
+                    .hasValueSatisfying(entries -> assertThat(entries).containsKey("github.token"));
+        } finally {
+            VaultShare.forget(context.paths());
+        }
+    }
+
+    @Test
+    void forgetting_the_share_shuts_the_vault_again(@TempDir final Path dir) {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                org.fuin.sokar.vault.KernelKeyring.available(),
+                "no kernel keyring here, so an unlock cannot be held");
+
+        final SokarContext context = withVault(dir);
+        final String share = share(1);
+        context.vault().enroll(org.fuin.sokar.vault.VaultFile.Opener.passphrase(PASSPHRASE),
+                Base64.getDecoder().decode(share), "the laptop", "USER_SCOPED");
+        new Keyslots(context).unlock(share, 5);
+
+        VaultShare.forget(context.paths());
+
+        assertThat(context.readableCredentials()).isEmpty();
+    }
 }

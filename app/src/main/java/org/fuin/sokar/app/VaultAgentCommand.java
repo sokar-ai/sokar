@@ -103,24 +103,29 @@ public class VaultAgentCommand implements Callable<Integer> {
     }
 
     private SigningKey fromVault() {
-        final VaultFile vault = new VaultFile(
-                new SokarPaths(XdgPaths.current(), Path.of("")).vaultFile());
-        final var entry = vault.read(passphrase()).get(keyName);
+        final SokarPaths paths = new SokarPaths(XdgPaths.current(), Path.of(""));
+        final VaultFile vault = new VaultFile(paths.vaultFile());
+        final var entry = vault.read(opener(paths)).get(keyName);
         if (entry == null) {
             throw new VaultException("The vault has no entry named '" + keyName + "'");
         }
         return new SigningKey(java.util.Base64.getDecoder().decode(entry.value()), keyName);
     }
 
-    private char[] passphrase() {
+    private VaultFile.Opener opener(SokarPaths paths) {
+        // A device's share counts here too: this runs per task, and a machine a device unlocked
+        // must serve a task exactly as one a person unlocked does.
+        final java.util.Optional<byte[]> share = VaultShare.held(paths);
+        if (share.isPresent()) {
+            return VaultFile.Opener.share(share.get());
+        }
         final var runner = new org.fuin.sokar.core.process.ProcessCommandRunner();
-        return new org.fuin.sokar.vault.PassphraseTiers(
+        return VaultFile.Opener.passphrase(new org.fuin.sokar.vault.PassphraseTiers(
                 // The keyring first here, unlike 'vault unlock': this runs per task, and the whole
                 // point of the cache is that it answers without asking anyone.
-                org.fuin.sokar.vault.KernelKeyring.source(new SokarPaths(XdgPaths.current(),
-                        Path.of("")).vaultKeyringKey()),
+                org.fuin.sokar.vault.KernelKeyring.source(paths.vaultKeyringKey()),
                 new org.fuin.sokar.vault.SystemdCredential(runner, systemdCredential),
                 new org.fuin.sokar.vault.CommandPassphrase(runner, passphraseCommand),
-                new org.fuin.sokar.vault.ConsolePassphrase("Vault passphrase: ")).require();
+                new org.fuin.sokar.vault.ConsolePassphrase("Vault passphrase: ")).require());
     }
 }

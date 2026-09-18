@@ -79,7 +79,8 @@ public final class CredentialImport {
      * @return What happened.
      */
     public static Result run(SokarContext context, @Nullable String agentName,
-            @Nullable String configDirectory, Supplier<Optional<char[]>> passphrase) {
+            @Nullable String configDirectory,
+            Supplier<Optional<org.fuin.sokar.vault.VaultFile.Opener>> opener) {
 
         try (var agents = context.agents()) {
 
@@ -113,13 +114,15 @@ public final class CredentialImport {
                     SelectedProvider.choose(context.providers(), agent.definition(), null);
             final String key = selection == null ? agent.name() : selection.name();
 
-            final Optional<char[]> secret = passphrase.get();
-            if (secret.isEmpty()) {
+            // Whatever opens the vault, not the passphrase in particular: a machine a device
+            // unlocked stores a credential exactly as one a person unlocked does.
+            final Optional<org.fuin.sokar.vault.VaultFile.Opener> way = opener.get();
+            if (way.isEmpty()) {
                 return failed(Outcome.VAULT_LOCKED, "the vault is locked, and nothing here can"
-                        + " ask for a passphrase - unlock it at the machine");
+                        + " ask for a passphrase - unlock it at the machine, or with a device");
             }
 
-            context.vault().update(secret.get(), entries -> {
+            context.vault().update(way.get(), entries -> {
                 entries.put(key, new VaultEntry(value.secret(), value.type()));
                 return entries;
             });

@@ -286,16 +286,19 @@ public final class AgentLogin {
                     SelectedProvider.choose(context.providers(), agent.definition(), null);
             final String key = selection == null ? agent.name() : selection.name();
 
-            final java.util.Optional<char[]> passphrase = new org.fuin.sokar.vault.PassphraseTiers(
-                    org.fuin.sokar.vault.KernelKeyring.source(
-                            context.paths().vaultKeyringKey()),
-                    new org.fuin.sokar.vault.ConsolePassphrase("Vault passphrase: "))
-                    .passphrase();
-            if (passphrase.isEmpty()) {
+            // Whatever already opens the vault - a cached passphrase or a device's share - and
+            // only then a prompt. Storing a credential needs the vault open, not the passphrase.
+            java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> way = context.opener();
+            if (way.isEmpty()) {
+                way = new org.fuin.sokar.vault.PassphraseTiers(
+                        new org.fuin.sokar.vault.ConsolePassphrase("Vault passphrase: "))
+                        .passphrase().map(org.fuin.sokar.vault.VaultFile.Opener::passphrase);
+            }
+            if (way.isEmpty()) {
                 return failed(Outcome.VAULT_LOCKED, "logged in, but the vault is locked and"
                         + " nothing could ask for a passphrase - unlock it and run this again");
             }
-            context.vault().update(passphrase.get(), entries -> {
+            context.vault().update(way.get(), entries -> {
                 entries.put(key, new VaultEntry(value.secret(), value.type()));
                 return entries;
             });

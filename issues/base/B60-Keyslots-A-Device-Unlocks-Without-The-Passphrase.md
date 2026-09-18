@@ -1,6 +1,6 @@
 # B60 — Keyslots: A Device Unlocks Without The Passphrase
 
-**Status:** decided on 2026-09-18 by the operator, and being built. **No migration**: the operator
+**Status:** built on 2026-09-18. **No migration**: the operator
 decided the same day that version 2 is a hard cut, because the only vaults that exist are his own
 test ones and every credential in them can be entered again. A vault written before this is refused
 with a sentence saying to create it again - which is the opposite of migrating it, and is said
@@ -14,6 +14,24 @@ keyslot means **no secret travels at all**: a device sends a share that is worth
 node's own wrapped blob, and the node holds a blob that is worth nothing without the share.
 
 Adapted from what LUKS does with its keyslots.
+
+**What is built and measured:** the version 2 format with one wrapped master key per credential;
+the passphrase as keyslot 0; enrolling a device from a share that is then discarded; unlocking with
+that share and reading credentials **with nothing typed**, through the same path a task uses;
+revoking one slot without touching another; refusing to revoke the last way in; `lastUsed` written
+when a device opens the vault; the four `Tasks1` methods with their interface description; and
+`sokar vault devices` and `sokar vault revoke` at the machine, where the storage kind is rendered
+as what it is actually worth rather than as a label.
+
+**What is deliberately not built**, and is its own issue: deriving a share at unlock time from a
+FIDO2 token's `hmac-secret` or a TPM2 object rather than storing it. Today a device says which of
+the four it uses and Sokar records that word; on a desktop the honest answer is still
+`USER_SCOPED`, and the product says so in `vault devices` rather than implying otherwise.
+
+**One thing the passphrase still owns.** `sokar vault passphrase` asks for the current passphrase
+and does not accept a device instead. A share proves you may *read* the vault; letting it rotate the
+recovery credential would let a stolen device lock out the person who owns the machine, which is a
+power the design never claimed. If that should change, it is a decision, not an omission.
 
 ## What must be true
 

@@ -83,14 +83,16 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        // The passphrase is the only thing that differs from the daemon's import: here there is a
-        // terminal to ask at, so a locked vault is a prompt rather than a refusal.
+        // How the vault is opened is the only thing that differs from the daemon's import: here
+        // there is a terminal to ask at, so a vault that nothing already opens is a prompt rather
+        // than a refusal. What already opens it - a cached passphrase, or a device's share - is
+        // used first, so somebody at the machine is not asked for something they do not need.
         final char[][] typed = new char[1][];
         final CredentialImport.Result result = CredentialImport.run(context, agentName,
-                configDirectory, () -> {
+                configDirectory, () -> context.opener().or(() -> {
                     typed[0] = context.requirePassphrase();
-                    return Optional.of(typed[0]);
-                });
+                    return Optional.of(org.fuin.sokar.vault.VaultFile.Opener.passphrase(typed[0]));
+                }));
 
         if (result.outcome() != CredentialImport.Outcome.IMPORTED) {
             err.println("sokar: " + result.detail());
