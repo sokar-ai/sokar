@@ -91,7 +91,60 @@ class DoctorCommandTest {
 
         assertThat(doctor.probes()).extracting(Probe::name)
                 .contains("podman", "hooks registered", "rootless network", "dnsmasq nftset",
-                        "nft", "git", "nsenter", "keyring", "selinux policy");
+                        "nft", "git", "nsenter", "keyring", "selinux policy", "transports");
+    }
+
+    /**
+     * A machine with no transport carries no message anywhere. That is a state worth reporting
+     * rather than a fault: nothing is broken, and nothing will arrive either.
+     */
+    @Test
+    void saysWhenNoTransportIsInstalled(@TempDir Path dir) {
+
+        final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
+            case "XDG_DATA_HOME" -> dir.resolve("data").toString();
+            default -> null;
+        }, dir);
+        final DoctorCommand doctor = new DoctorCommand();
+        doctor.setContext(new SokarContext(new FakeCommandRunner(),
+                new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0));
+
+        assertThat(doctor.probes()).filteredOn(probe -> "transports".equals(probe.name()))
+                .singleElement().satisfies(probe -> {
+                    assertThat(probe.state()).isEqualTo(Probe.State.DEGRADED);
+                    assertThat(probe.detail()).contains("none installed");
+                });
+    }
+
+    /**
+     * An adapter that is installed and does not answer is worse than one that is absent: a peer
+     * configured against it looks configured.
+     */
+    @Test
+    void saysWhenAnInstalledTransportDoesNotAnswer(@TempDir Path dir) throws java.io.IOException {
+
+        final java.nio.file.Path transports = dir.resolve("data").resolve("sokar")
+                .resolve("transports");
+        java.nio.file.Files.createDirectories(transports);
+        final java.nio.file.Path adapter =
+                transports.resolve(TransportDirectory.PREFIX + "local");
+        java.nio.file.Files.writeString(adapter, "#!/bin/sh\nexit 3\n");
+        java.nio.file.Files.setPosixFilePermissions(adapter,
+                java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
+            case "XDG_DATA_HOME" -> dir.resolve("data").toString();
+            default -> null;
+        }, dir);
+        final DoctorCommand doctor = new DoctorCommand();
+        doctor.setContext(new SokarContext(
+                new FakeCommandRunner().failing("describe", 3, "no"),
+                new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0));
+
+        assertThat(doctor.probes()).filteredOn(probe -> "transports".equals(probe.name()))
+                .singleElement().satisfies(probe -> {
+                    assertThat(probe.state()).isEqualTo(Probe.State.DEGRADED);
+                    assertThat(probe.detail()).contains("local did not answer");
+                });
     }
 
     @Test

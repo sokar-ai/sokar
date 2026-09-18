@@ -74,6 +74,49 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
      * @param consequence What breaks without it, for the line that says so.
      * @return The probe.
      */
+    /**
+     * Reports the transports this machine can carry a message with, and whether each one answers.
+     * <p>
+     * Installed rather than built in, so the honest answer on a machine with none is that messages
+     * go nowhere - not an error, and not silence either. An adapter that is there and does not
+     * answer {@code describe} is worse than one that is absent, because a peer configured against
+     * it looks configured.
+     *
+     * @return The probe.
+     */
+    private Probe transports() {
+        final String name = "transports";
+        final java.util.Map<String, java.nio.file.Path> found =
+                context.paths().transportDirectory().byName();
+        if (found.isEmpty()) {
+            return Probe.degraded(name, "none installed, so a message reaches no peer",
+                    "install a transport package");
+        }
+        final java.util.List<String> answers = new java.util.ArrayList<>();
+        final java.util.List<String> silent = new java.util.ArrayList<>();
+        found.forEach((transport, executable) -> {
+            try {
+                final CommandResult result = context.runner()
+                        .run(org.fuin.sokar.core.process.Command.of(executable.toString(),
+                                "describe"));
+                if (result.successful()) {
+                    answers.add(transport);
+                } else {
+                    silent.add(transport);
+                }
+            } catch (final RuntimeException ex) {
+                silent.add(transport);
+            }
+        });
+        if (silent.isEmpty()) {
+            return Probe.ok(name, String.join(", ", answers));
+        }
+        return Probe.degraded(name,
+                String.join(", ", silent) + " did not answer 'describe'"
+                        + (answers.isEmpty() ? "" : "; " + String.join(", ", answers) + " did"),
+                "run the adapter by hand to see why");
+    }
+
     private Probe binary(String name, String program, String consequence) {
         try {
             final CommandResult result = context.runner()
@@ -293,7 +336,7 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
                 nftSetSupport(),
                 binary("nft", "nft", "a container comes up with no firewall ruleset"),
                 binary("git", "git", "the gate has no mirror to serve and no push can be reviewed"),
-                binary("nsenter", "nsenter", "nothing can enter a container's network namespace,"
+                transports(), binary("nsenter", "nsenter", "nothing can enter a container's network namespace,"
                         + " so a clearance decision cannot be applied to a running task"),
                 keyring(),
                 socketPolicy());

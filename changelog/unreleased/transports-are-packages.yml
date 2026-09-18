@@ -1,0 +1,2 @@
+title: "Transports are packages: Sokar finds message adapters in its transport directory by name, prefers an operator's own over a packaged one, and doctor says which ones answer."
+type: added

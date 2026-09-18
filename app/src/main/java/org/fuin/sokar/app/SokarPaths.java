@@ -281,6 +281,15 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the transports installed for this user, their own before the packaged ones.
+     *
+     * @return The directory.
+     */
+    public TransportDirectory transportDirectory() {
+        return TransportDirectory.standard(xdg.data());
+    }
+
+    /**
      * Returns the root of one task's mailbox.
      * <p>
      * Under the state directory rather than the runtime one, because a conversation has to survive
