@@ -1029,11 +1029,11 @@ way. A skill that carries the same knowledge in advance is the cheaper end of th
 this repository disagree, the measurement wins and the disagreement is worth writing down. The
 facts above this section were all measured here, on the versions this build pins.
 
-## Rules the four repositories share
+## Rules the five repositories share
 
-Sokar, the interface and the three agent repositories are worked on by different agents, and these
-hold in all of them. They are written in one wording on purpose: four paraphrases of one rule
-become four rules.
+Sokar and the message sluice are worked on here; the interface and the three agent repositories by
+other agents. These hold in all five. They are written in one wording on purpose: five paraphrases
+of one rule become five rules.
 
 - **The operator pushes.** Agents commit and stop. Never `git push`.
 - **Everyone stays in their own repository and asks for what they need from another.** Ruled by
