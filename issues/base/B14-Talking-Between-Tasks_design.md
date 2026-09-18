@@ -283,6 +283,16 @@ transport refuses it always. Two users are two Sokar installations with two sign
 sharing only a kernel, and a file moved between them is carriage between hosts rather than a local
 delivery.
 
+**The accounts of one machine are `external` to each other unless the operator says otherwise.**
+Trust is declared per peer, as everywhere else, and an omitted `trust` already reads as `external` -
+so the default needs no special case. What needs saying is why the default is the right one here,
+because the opposite looks plausible: both accounts run the same installed filter, and Sokar sends
+nothing without one, so a message from the account next door *has* been filtered - if it was Sokar
+that sent it. Nothing proves that. A user can write into a drop directory with their own tooling and
+sign with their own key; the signature proves the account, never that the account ran a filter. So
+`vouched` between accounts is a sentence an operator may write - *"I run both of these and I vouch
+for that one"* - and never something the machine concludes from the two being on it.
+
 **Each account publishes its message key into a directory of its own** - `/var/spool/sokar/keys/<user>/key.pub`,
 made by root with that account's drop - and a key is believed only when **both the directory and the
 file** belong to the account they are named after. A single shared directory was tried first and is
