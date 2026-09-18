@@ -23,6 +23,13 @@ when a device opens the vault; the four `Tasks1` methods with their interface de
 `sokar vault devices` and `sokar vault revoke` at the machine, where the storage kind is rendered
 as what it is actually worth rather than as a label.
 
+**What is deliberately not required.** An earlier version of this file asked that a vault written
+before version 2 be refused with advice on what to do about it. The operator struck it on
+2026-09-18: no such vault exists outside his own testing, so the promise would have been one nobody
+could ever collect on and one nothing would keep honest. **The code still refuses it** - a reader
+that checks a version field gets that for free, and the message naming `sokar vault init` is there -
+but it is behaviour, not a requirement, and no test guards it.
+
 **What is deliberately not built**, and is now B63 ([index](README.md)): deriving a share at unlock
 time from a FIDO2 token's `hmac-secret` or a TPM2 object rather than storing it. Today a device says which of
 the four it uses and Sokar records that word; on a desktop the honest answer is still
@@ -65,10 +72,6 @@ power the design never claimed. If that should change, it is a decision, not an 
   device and the passphrase still can.
 - **The node alone cannot unwrap.** With the vault file and everything the node stores, and no share,
   the master key does not come out. Proven against the built code, not argued from the design.
-- **A vault written before version 2 is refused, and the refusal says what to do about it** - create
-  the vault again and enter the credentials, which is possible because nothing in it was
-  unrepeatable. Refused, never half read: a reader that made sense of part of an older file would
-  be the migration this deliberately does not have.
 - What a device holds is scoped to Sokar where the platform allows it, and where it does not, the
   product says so rather than implying otherwise.
 - **A device declares how it stores its share** - user-scoped, application-scoped, FIDO2 or TPM2 -

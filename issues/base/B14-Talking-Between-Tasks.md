@@ -17,11 +17,20 @@ another machine** is `sokar-message-sluice` 003 (git) and deliberately later. Un
 "another machine" is untested by construction - what has run is two mailboxes on one machine, on
 this laptop and on the Ubuntu VM.
 
-**One thing is built and does not currently work end to end:** `sokar talk say` writes `ROLE_USER`,
-because B14 asks that a person be distinguishable from an agent, and the sluice's filter refuses any
-outgoing message whose role is not `ROLE_AGENT`. Measured on the VM on 2026-09-18: the message is
-refused and the person gets the refusal. Which side moves is with the filter's agent (QS10); until
-it is answered, a person's message reaches the filter and stops there.
+**A person's message works end to end**, since later on 2026-09-18. It was blocked for an afternoon
+because the filter refused any outgoing role but `ROLE_AGENT`; the filter's agent now accepts
+`ROLE_USER` on this host's word that it means what it says, and this host keeps that word by taking
+a person's message from `<mailbox>/person/` - outside the mounted `box/`, where a task can neither
+see nor write it. A task writing `ROLE_USER` into its own outbox is held rather than corrected.
+Measured on the VM: written with `talk say`, filtered, carried, and delivered still carrying
+`ROLE_USER`.
+
+**Messages between the Unix users of one machine** were added the same day and are not in the list
+below, which predates them: a transport that attests the sender's owner (`attests` in `describe`, a
+`<message>.owner` file), the `spool:<unix-user>` address, per-account key directories, and the host
+checks for all of it. Measured end to end with the filter repository's spool transport. The default
+is unchanged: another user's mailbox is refused, and this exists only where an operator ran
+`sokar-setup.sh --between-users on`.
 
 **The default is the strict one.** A peer nobody has decided about is in `prompt`, so nothing a
 person has not released leaves the machine. `allow` and `off` need `unread_work_may_leave: true` in
