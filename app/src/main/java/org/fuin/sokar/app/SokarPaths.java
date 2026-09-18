@@ -284,6 +284,18 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file naming who may speak for a peer.
+     * <p>
+     * OpenSSH's {@code allowed_signers} format, so the keys that decide what a task may read can be
+     * checked with {@code ssh-keygen -Y verify} by somebody who has no Sokar.
+     *
+     * @return The file, which may not exist.
+     */
+    public Path allowedSigners() {
+        return xdg.config().resolve("allowed_signers");
+    }
+
+    /**
      * Returns the file holding the key this machine signs messages with.
      * <p>
      * Under the state directory, mode {@code 0600}, and never mounted anywhere. A key a task

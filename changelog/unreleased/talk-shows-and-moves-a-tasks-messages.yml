@@ -1,0 +1,2 @@
+title: "'sokar talk' lists the peers a project may address, moves one task's messages along, and lists what was held; who may speak for a peer is read from an OpenSSH allowed_signers file."
+type: added
