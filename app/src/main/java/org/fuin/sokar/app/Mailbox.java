@@ -317,6 +317,21 @@ public final class Mailbox {
     }
 
     /**
+     * Returns where a person's own messages wait to be taken.
+     * <p>
+     * <strong>Outside {@link #box()}, and that is the whole point.</strong> A person's message
+     * carries {@code ROLE_USER}, and the filter accepts that role on the word of this host - so
+     * this host has to make it true. If a person wrote into the same directory the container can
+     * write into, a task could forge a message from its operator, and the role would mean nothing.
+     * Here the task cannot see it, let alone write it.
+     *
+     * @return Directory.
+     */
+    public Path person() {
+        return root.resolve("person");
+    }
+
+    /**
      * Returns the mailbox-shaped tree a message from an {@code external} peer is checked in.
      * <p>
      * Its own root rather than a flag on the filter: the filter derives its whole layout from one
@@ -379,6 +394,7 @@ public final class Mailbox {
         return java.util.List.of(root, box(), inboxTmp(), inboxNew(), inboxCur(), outboxTmp(),
                 outboxNew(), sentCopies(), incoming(), accepted(), feedback(), rejected(), error(),
                 index(), hold(), inbound(), inboundTmp(), sent(), record(),
+                person(),
                 check(), checkIncoming(), checkAccepted(), checkRejected(), checkFeedback(),
                 checkError(), check().resolve("sent"), check().resolve("filter").resolve("index"));
     }

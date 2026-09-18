@@ -19,6 +19,13 @@ import org.fuin.sokar.vault.SshSignature;
  * complete exactly when it appears here and nothing has to guess whether a file is still being
  * written.
  * <p>
+ * <strong>Two directories, and the role each may carry is fixed here.</strong> What comes out of
+ * the container's outbox may only be {@code ROLE_AGENT}; what a person wrote, which arrives in a
+ * directory the container cannot see, may only be {@code ROLE_USER}. The filter accepts both roles
+ * on this host's word that they mean what they say, so this is where that word is kept - a task
+ * that wrote {@code ROLE_USER} into its outbox would otherwise be forging a message from its own
+ * operator.
+ * <p>
  * <strong>The signature is made over the bytes as they are</strong>, and nothing downstream may
  * rewrite them - not the filter, not a transport. That is what lets the far end verify with nothing
  * but {@code ssh-keygen} and an {@code allowed_signers} file.
@@ -27,6 +34,12 @@ public final class MessageIntake {
 
     /** What a signature over a message is for, so one cannot be replayed as another. */
     public static final String NAMESPACE = "sokar-message";
+
+    /** The only role a message out of a task's own outbox may carry. */
+    public static final String AGENT = "ROLE_AGENT";
+
+    /** The only role a message a person wrote may carry. */
+    public static final String PERSON = "ROLE_USER";
 
     private final SigningKey key;
 
@@ -40,17 +53,45 @@ public final class MessageIntake {
     }
 
     /**
-     * Takes every finished message out of the outbox.
+     * Takes every finished message out of the outbox and out of the person's directory.
      *
      * @param mailbox The task's mailbox.
      * @return What was taken, in the order it was taken.
      * @throws IOException Reading or moving failed.
      */
     public List<String> take(final Mailbox mailbox) throws IOException {
+        final List<String> taken = new ArrayList<>(take(mailbox, mailbox.outboxNew(), false));
+        taken.addAll(take(mailbox, mailbox.person(), true));
+        return taken;
+    }
+
+    /**
+     * Takes from one directory.
+     *
+     * @param mailbox The task's mailbox.
+     * @param from Where to take from.
+     * @param person Whether this is the directory only a person writes into.
+     * @return What was taken.
+     * @throws IOException Reading or moving failed.
+     */
+    private List<String> take(final Mailbox mailbox, final Path from, final boolean person)
+            throws IOException {
         final List<String> taken = new ArrayList<>();
-        for (final Path message : finished(mailbox.outboxNew())) {
+        for (final Path message : finished(from)) {
             final String name = message.getFileName().toString();
             final byte[] bytes = Files.readAllBytes(message);
+            // Only the false claim is stopped here, not every wrong role: a message with no role
+            // or a nonsense one is the filter's to refuse, and it answers the sender properly.
+            // What the filter cannot judge is whether a task is entitled to say a person wrote
+            // this, and that is exactly what this decides.
+            final String role = MessageFile.role(message);
+            if (person ? !PERSON.equals(role) : PERSON.equals(role)) {
+                // Held, not corrected: a host that rewrote the role would be signing its own
+                // sentence about who wrote this, and the record would stop being evidence.
+                Files.move(message, mailbox.hold().resolve(name),
+                        StandardCopyOption.REPLACE_EXISTING);
+                continue;
+            }
 
             // The signature is written before the message is moved. A crash between the two leaves
             // a signature with no message, which the next run overwrites; the other order would

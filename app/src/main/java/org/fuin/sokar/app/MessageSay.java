@@ -21,9 +21,12 @@ import org.fuin.sokar.wire.Json;
  * machine and one they write through an interface are the same message - same shape, same role,
  * same route out.
  * <p>
- * <strong>It goes into the outbox, not into a queue.</strong> A person is not a reason to skip the
- * filter; what differs from an agent's message is {@code role}, which is how the reader can tell a
- * person wrote it.
+ * <strong>It goes through the filter like any other message</strong> - a person is not a reason to
+ * skip the check that a message carries nothing it should not.
+ * <p>
+ * <strong>But not through the container's outbox.</strong> It is written where only the host can
+ * write, because {@code ROLE_USER} is a claim the filter accepts on this host's word: a message a
+ * person wrote must be one a task could not have written.
  */
 public final class MessageSay {
 
@@ -62,11 +65,12 @@ public final class MessageSay {
         message.put("metadata", metadata);
 
         final String name = FILE_TIME.format(now) + "--" + id + ".json";
-        // Into the outbox through tmp and a rename, exactly as an agent has to write: a message is
-        // complete when it is renamed, and nothing here gets a shortcut the agent does not have.
-        final Path staged = mailbox.outboxTmp().resolve(name);
+        // Through a dot file and a rename, the same discipline the agent is held to: a message is
+        // complete exactly when it is renamed, and nothing here gets a shortcut.
+        final Path staged = mailbox.person().resolve("." + name);
+        Files.createDirectories(mailbox.person());
         Files.writeString(staged, Json.write(message), StandardCharsets.UTF_8);
-        Files.move(staged, mailbox.outboxNew().resolve(name), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(staged, mailbox.person().resolve(name), StandardCopyOption.ATOMIC_MOVE);
         return name;
     }
 }
