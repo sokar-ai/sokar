@@ -73,7 +73,7 @@ the agent, and `AgentIsolationTest` fails the build if that is got wrong.
 ```
 <task state>/mail/                durable, per task, survives every restart
 ├─ incoming/                      taken from outbox/new, unchanged
-├─ filter/  feedback/ rejected/ error/ .index/
+├─ filter/  accepted/ feedback/ rejected/ error/ .index/
 ├─ queue/<transport>/ active/ deferred/
 ├─ hold/                          waiting for a person, or unattributable on arrival
 ├─ sent/                          handed over, with the signature and the delivery record
@@ -212,6 +212,28 @@ Packages install into a directory Sokar scans, and each describes itself rather 
 | `poll` | Fetches what arrived into `inbound/`, atomically. A transport that needs no polling says so |
 | `receipt` | Optional: what became of a message it sent |
 
+**The wire, settled with the sluice's agent on 2026-09-18.** `describe` reads nothing and prints one
+JSON object - `scheme`, `poll`, `confirms` (`handover`, `receipt` or `read`), `max_bytes`,
+`credentials`, `hosts`. `check` prints its reason on stderr and exits 0 usable or 2 not.
+`send <message> <signature> --to <address>` prints its receipt as one JSON object.
+`poll --into <dir>` writes pairs there and prints how many. **Nothing is ever read from standard
+input**: messages are files, and a transport that read stdin would tempt somebody to stream a message
+through it. A signature file is named `<message file name>.sig`.
+
+**An adapter writes in exactly one place, and the host does the rest.** It delivers into the
+recipient's `inbound/tmp/` and renames into `inbound/`; it never removes anything from its own queue.
+On exit 0 the host moves the queued pair to `sent/` and writes the receipt there; on 75 it moves it to
+`deferred/`. A crash between the adapter's rename and the host's move is therefore safe: the retry
+finds the same name in `inbound/` with the same bytes and answers 0 without writing a second copy,
+and answers permanently if the bytes differ. For `local:`, `--to` is the absolute path of the
+recipient's `mail/inbound/` - resolved by the host, derived by nobody.
+
+**Which queue a message goes to is the host's decision, never the filter's.** The filter writes every
+accepted message into `filter/accepted/`, and the host dispatches from there into
+`queue/<transport>/active/` after resolving `metadata.to` against the peer table. Resolving a peer to
+a transport is policy, and policy stays where the peer table is - the same reason a container never
+sees an address. One filter pass can therefore accept messages for three peers on three transports.
+
 **Where it runs**: on the host, as its own unprivileged user, credential from the vault through the
 same proxy a task uses — never in a task container, never in the same process as the sluice. Its
 declared hosts are what the egress configuration permits it to reach.
@@ -295,7 +317,8 @@ type Message (
 
 type TalkOutcome (
   ACCEPTED, HELD, NOT_DECLARED, REFUSED_BY_CLASS, NO_MESSAGING, REFUSED_BY_RULE, CLOSED,
-  OVER_BUDGET, RECEIVER_FULL, UNATTRIBUTED, RULE_BROKEN, TRANSPORT_UNREACHABLE
+  OVER_BUDGET, RECEIVER_FULL, UNATTRIBUTED, RULE_BROKEN, NO_SUCH_PEER, PEER_GONE,
+  TRANSPORT_UNREACHABLE
 )
 
 # Every peer the projects on this machine may address.
@@ -352,7 +375,8 @@ world-readable, and nobody can promise what an operator will paste into a messag
 |---|---|---|
 | The sluice cannot start or cannot run | Nothing is queued. | Fail closed: an unchecked message is what this exists to prevent |
 | A transport cannot reach its destination | The message stays in `deferred/` and the sender is told on its receipt | A message waiting silently reads as ignored |
-| A transport's destination does not exist | Refused back to the sender, not retried | Retrying forever is how a queue dies |
+| A transport's destination does not exist | Refused back to the sender, not retried. The adapter reports only that the destination is gone; the host says which it was - `NO_SUCH_PEER` when the name is not in the peer table, `PEER_GONE` when it is and the mailbox is not | Retrying forever is how a queue dies, and only the side holding the table can tell a typo from a removed task |
+| A peer's mailbox belongs to another Unix user | Refused, enforced rather than documented | Sokar runs as a user unit: two people on one machine are two installations with two signing identities, sharing only a kernel. A file move between them is not a local delivery |
 | An adapter alters a message's bytes | Verification fails at the far side | The signature is the only thing that can catch it |
 | An arrival cannot be attributed | Held, never delivered, operator told | A task must not act on something nobody can attribute |
 | A message arrives twice | Delivered once | Acting twice on one handover is the expensive failure |
