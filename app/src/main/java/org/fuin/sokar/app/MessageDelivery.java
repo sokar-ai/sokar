@@ -254,6 +254,14 @@ public final class MessageDelivery {
             // container has no key to check it with anyway.
             Files.move(signature, mailbox.record().resolve(name + ".sig"),
                     StandardCopyOption.REPLACE_EXISTING);
+            // And so does what a transport attested about it, for the same reason and one more:
+            // left in 'inbound' it would pile up unread, and the next pass would find a file
+            // belonging to a message that is no longer there.
+            final Path ownerFile = mailbox.inbound().resolve(name + OwnerAttestation.SUFFIX);
+            if (Files.isRegularFile(ownerFile)) {
+                Files.move(ownerFile, mailbox.record().resolve(name + OwnerAttestation.SUFFIX),
+                        StandardCopyOption.REPLACE_EXISTING);
+            }
             delivered.add(new Delivered(name, id, peer.name()));
             handedOver.merge(peer.name(), 1, Integer::sum);
         }
@@ -273,8 +281,16 @@ public final class MessageDelivery {
 
     private void hold(final Mailbox mailbox, final Path message, final Path signature)
             throws IOException {
-        Files.move(message, mailbox.hold().resolve(message.getFileName().toString()),
-                StandardCopyOption.REPLACE_EXISTING);
+        final String name = message.getFileName().toString();
+        // What a transport attested travels with the message it is about: an operator looking at a
+        // held message needs to see why, and "the owner was somebody else" is only readable if the
+        // file saying so is beside it.
+        final Path attested = mailbox.inbound().resolve(name + OwnerAttestation.SUFFIX);
+        if (Files.isRegularFile(attested)) {
+            Files.move(attested, mailbox.hold().resolve(name + OwnerAttestation.SUFFIX),
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
+        Files.move(message, mailbox.hold().resolve(name), StandardCopyOption.REPLACE_EXISTING);
         if (signature != null) {
             Files.move(signature, mailbox.hold().resolve(signature.getFileName().toString()),
                     StandardCopyOption.REPLACE_EXISTING);

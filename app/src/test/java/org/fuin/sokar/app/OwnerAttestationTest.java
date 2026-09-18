@@ -126,4 +126,47 @@ class OwnerAttestationTest {
                 assertThat(held.reason()).contains("written by the user 'carol'"));
         assertThat(mailbox.inboxNew()).isEmptyDirectory();
     }
+
+    /** Nothing is left in the inbound afterwards: the attestation travels with its message. */
+    @Test
+    void the_attestation_travels_with_the_message(@TempDir final Path dir) throws IOException {
+        final SigningKey bobs = SigningKey.generate("bob");
+        final Mailbox mailbox = new Mailbox(dir.resolve("sokar-p-t"));
+        mailbox.create();
+        final String json = "{\"messageId\":\"m-1\"}";
+        Files.writeString(mailbox.inbound().resolve("m-1.json"), json);
+        Files.writeString(mailbox.inbound().resolve("m-1.json.sig"), SshSignature.sign(bobs,
+                json.getBytes(StandardCharsets.UTF_8), MessageIntake.NAMESPACE));
+        attest(mailbox, "m-1.json", "1004 bob");
+
+        new MessageDelivery().deliver(mailbox,
+                List.of(new MessageDelivery.Peer("bob", List.of(bobs.keyBlob()))), Set.of(), null,
+                null, (box, message, peer) -> OwnerAttestation.refuse(box, message, peer, mail,
+                        true));
+
+        assertThat(mailbox.inbound().resolve("m-1.json.owner")).doesNotExist();
+        assertThat(mailbox.record().resolve("m-1.json.owner")).as("kept as evidence").exists();
+    }
+
+    /** And a held one takes it along, so an operator can read why it was held. */
+    @Test
+    void a_held_message_keeps_its_attestation_beside_it(@TempDir final Path dir)
+            throws IOException {
+        final SigningKey bobs = SigningKey.generate("bob");
+        final Mailbox mailbox = new Mailbox(dir.resolve("sokar-p-t"));
+        mailbox.create();
+        final String json = "{\"messageId\":\"m-1\"}";
+        Files.writeString(mailbox.inbound().resolve("m-1.json"), json);
+        Files.writeString(mailbox.inbound().resolve("m-1.json.sig"), SshSignature.sign(bobs,
+                json.getBytes(StandardCharsets.UTF_8), MessageIntake.NAMESPACE));
+        attest(mailbox, "m-1.json", "1009 carol");
+
+        new MessageDelivery().deliver(mailbox,
+                List.of(new MessageDelivery.Peer("bob", List.of(bobs.keyBlob()))), Set.of(), null,
+                null, (box, message, peer) -> OwnerAttestation.refuse(box, message, peer, mail,
+                        true));
+
+        assertThat(mailbox.hold().resolve("m-1.json.owner")).exists();
+        assertThat(mailbox.inbound().resolve("m-1.json.owner")).doesNotExist();
+    }
 }
