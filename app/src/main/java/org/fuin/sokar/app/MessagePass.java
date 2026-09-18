@@ -79,24 +79,61 @@ public final class MessagePass {
      */
     public Report run(final Mailbox mailbox, final Mail mail,
             final List<MessageDelivery.Peer> peers) throws IOException {
+        final MessageRecord record = new MessageRecord(mailbox);
         final List<String> taken = new MessageIntake(key).take(mailbox);
+        for (final String message : taken) {
+            record.append(MessageRecord.TAKEN, message, "", "");
+        }
         final MessageFiltering.Outcome filtered = new MessageFiltering(runner, filter).run(mailbox);
 
         MessageDispatch.Outcome dispatched = new MessageDispatch.Outcome(Map.of(), List.of());
         final Map<String, TransportSend.Result> sent = new LinkedHashMap<>();
         if (filtered.ran()) {
             dispatched = new MessageDispatch().dispatch(mailbox, mail);
+            for (final Map.Entry<String, String> queued : dispatched.queued().entrySet()) {
+                record.append(MessageRecord.QUEUED, queued.getKey(), "", queued.getValue());
+            }
+            for (final MessageDelivery.Held stuck : dispatched.held()) {
+                record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
+            }
             final TransportSend send = new TransportSend(runner, transports);
             for (final String transport : queues(mailbox)) {
-                sent.put(transport, send.send(mailbox, transport));
+                final TransportSend.Result result = send.send(mailbox, transport);
+                sent.put(transport, result);
+                for (final String message : result.sent()) {
+                    record.append(MessageRecord.SENT, message, "", transport);
+                }
+                for (final String message : result.deferred()) {
+                    record.append(MessageRecord.DEFERRED, message, "", transport);
+                }
+                for (final MessageDelivery.Held stuck : result.refused()) {
+                    record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
+                }
             }
         }
 
         // Independent of our own filter: what a peer sent is delivered whether or not this machine
         // can send anything today.
-        final MessageDelivery.Outcome delivered = new MessageDelivery().deliver(mailbox, peers);
+        final MessageDelivery.Outcome delivered =
+                new MessageDelivery().deliver(mailbox, peers, record.delivered());
+        for (final String message : delivered.delivered()) {
+            record.append(MessageRecord.DELIVERED, message,
+                    idOf(mailbox.inboxNew().resolve(message)), "");
+        }
+        for (final MessageDelivery.Held stuck : delivered.held()) {
+            record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
+        }
+        for (final String message : delivered.duplicates()) {
+            record.append(MessageRecord.DUPLICATE, message, "", "it had been delivered before");
+        }
         final List<String> bounced = new BounceDelivery().deliver(mailbox);
         return new Report(taken, filtered, dispatched, sent, delivered, bounced);
+    }
+
+    private String idOf(final Path message) throws IOException {
+        // Read after the move, from where it now lies: the id is what makes the next copy of this
+        // message a duplicate, so the record has to carry it even though nothing else here does.
+        return Files.isRegularFile(message) ? MessageFile.id(message) : "";
     }
 
     private List<String> queues(final Mailbox mailbox) throws IOException {

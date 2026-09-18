@@ -8,7 +8,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.fuin.sokar.vault.SshSignature;
 
@@ -48,8 +50,9 @@ public final class MessageDelivery {
      *
      * @param delivered Messages handed to the agent.
      * @param held Messages that reached no task.
+     * @param duplicates Messages carrying an id this task has already been handed.
      */
-    public record Outcome(List<String> delivered, List<Held> held) {
+    public record Outcome(List<String> delivered, List<Held> held, List<String> duplicates) {
     }
 
     /**
@@ -61,8 +64,24 @@ public final class MessageDelivery {
      * @throws IOException Reading or moving failed.
      */
     public Outcome deliver(final Mailbox mailbox, final List<Peer> peers) throws IOException {
+        return deliver(mailbox, peers, Set.of());
+    }
+
+    /**
+     * Delivers what can be attributed, holds what cannot, and drops what has been delivered before.
+     *
+     * @param mailbox The task's mailbox.
+     * @param peers The peers this task may hear from, with the keys allowed for each.
+     * @param seen Ids this task has already been handed, from its record.
+     * @return What was delivered, what was held and what was a repeat.
+     * @throws IOException Reading or moving failed.
+     */
+    public Outcome deliver(final Mailbox mailbox, final List<Peer> peers, final Set<String> seen)
+            throws IOException {
         final List<String> delivered = new ArrayList<>();
         final List<Held> held = new ArrayList<>();
+        final List<String> duplicates = new ArrayList<>();
+        final Set<String> already = new LinkedHashSet<>(seen);
         for (final Path message : arrived(mailbox.inbound())) {
             final String name = message.getFileName().toString();
             final Path signature = mailbox.inbound().resolve(name + ".sig");
@@ -88,6 +107,18 @@ public final class MessageDelivery {
                 continue;
             }
 
+            final String id = MessageFile.id(message);
+            if (!id.isBlank() && !already.add(id)) {
+                // A transport that hands the same message over twice - after a retry it could not
+                // confirm, say - must not make the agent read it twice. The record keeps the fact
+                // that it arrived again; keeping the file as well would only grow a pile that
+                // nobody can act on, because the agent already has this exact message.
+                Files.delete(message);
+                Files.delete(signature);
+                duplicates.add(name);
+                continue;
+            }
+
             // Into the agent's half through tmp and a rename, so a reader in the container never
             // sees half a message - the same discipline the agent is asked to use on the way out.
             final Path staged = mailbox.inboxTmp().resolve(name);
@@ -99,7 +130,7 @@ public final class MessageDelivery {
                     StandardCopyOption.REPLACE_EXISTING);
             delivered.add(name);
         }
-        return new Outcome(delivered, held);
+        return new Outcome(delivered, held, duplicates);
     }
 
     private Peer peerFor(final List<Peer> peers, final byte[] signer) {

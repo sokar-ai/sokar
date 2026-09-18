@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.fuin.sokar.vault.SigningKey;
 import org.fuin.sokar.vault.SshSignature;
 import org.junit.jupiter.api.Test;
@@ -104,6 +105,45 @@ class MessageDeliveryTest {
         assertThat(outcome.held()).singleElement()
                 .satisfies(held -> assertThat(held.reason()).contains("does not match"));
         assertThat(mailbox.inboxNew()).isEmptyDirectory();
+    }
+
+    /**
+     * A transport that could not confirm a hand-over and tried again must not make the agent read
+     * the same message twice.
+     */
+    @Test
+    void drops_a_message_whose_id_was_delivered_before(@TempDir final Path dir) throws IOException {
+        final Mailbox mailbox = mailbox(dir);
+        final String json = "{\"messageId\":\"m-6\"}";
+        arrive(mailbox, "m-6.json", json, SshSignature.sign(peerKey,
+                json.getBytes(StandardCharsets.UTF_8), MessageIntake.NAMESPACE));
+
+        final MessageDelivery.Outcome outcome =
+                delivery.deliver(mailbox, reviewer(), Set.of("m-6"));
+
+        assertThat(outcome.delivered()).isEmpty();
+        assertThat(outcome.held()).isEmpty();
+        assertThat(outcome.duplicates()).containsExactly("m-6.json");
+        assertThat(mailbox.inboxNew()).isEmptyDirectory();
+        assertThat(mailbox.inbound().resolve("m-6.json")).as("nothing is left to arrive again")
+                .doesNotExist();
+        assertThat(mailbox.inbound().resolve("m-6.json.sig")).doesNotExist();
+    }
+
+    @Test
+    void delivers_the_same_id_only_once_within_one_pass(@TempDir final Path dir)
+            throws IOException {
+        final Mailbox mailbox = mailbox(dir);
+        final String json = "{\"messageId\":\"m-7\"}";
+        final String signature = SshSignature.sign(peerKey,
+                json.getBytes(StandardCharsets.UTF_8), MessageIntake.NAMESPACE);
+        arrive(mailbox, "m-7.json", json, signature);
+        arrive(mailbox, "m-7-again.json", json, signature);
+
+        final MessageDelivery.Outcome outcome = delivery.deliver(mailbox, reviewer());
+
+        assertThat(outcome.delivered()).containsExactly("m-7-again.json");
+        assertThat(outcome.duplicates()).containsExactly("m-7.json");
     }
 
     @Test
