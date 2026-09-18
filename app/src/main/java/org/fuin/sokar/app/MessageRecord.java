@@ -184,6 +184,19 @@ public final class MessageRecord {
     }
 
     /**
+     * Returns every line, in the order they were written.
+     * <p>
+     * For something that shows a conversation rather than checks it: the record is the only place
+     * that says what happened to a message, so following it is following the conversation.
+     *
+     * @return The lines, each as it was written.
+     * @throws IOException Reading failed.
+     */
+    public List<Map<String, Object>> entries() throws IOException {
+        return List.copyOf(lines());
+    }
+
+    /**
      * Returns how many lines the record holds.
      *
      * @return The count.

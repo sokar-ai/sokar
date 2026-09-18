@@ -1611,6 +1611,119 @@ method Decide(
   allow: ?bool
 ) -> (ok: bool)
 
+# ---------------------------------------------------------------------------- messages
+
+# The peers this task may address, and what a person decided about each.
+#
+# Two things at once because they are read together: the project says who may be addressed, and
+# the mailbox says whether anything currently goes there. An interface that showed only the first
+# would show a peer as available while every message to it waits.
+method Peers(
+  # Container name of the task.
+  task: string,
+  # Project file, which is where the peers are declared.
+  project: string
+) -> (peers: []TalkPeer)
+
+type TalkPeer (
+  # What a message addresses.
+  name: string,
+  # '<transport>:<rest>'.
+  address: string,
+  # 'vouched' or 'external'. It decides whether what arrives is checked again here.
+  trust: string,
+  # How many messages a day this task may exchange with it, each way.
+  perDay: int,
+  # 'prompt', 'allow', 'deny' or 'off' - clearance's four, with the same meanings.
+  mode: string,
+  # Whether everything for this peer waits, whatever the mode says.
+  held: bool
+)
+
+# Every mailbox on this machine, as it moves. Streaming only, as Prompts is.
+#
+# The events come from each task's record, which is written as things happen. There is no second
+# copy of the conversation to disagree with it, and an entry never carries what a message said -
+# a stream that quoted refused messages would be a second copy of exactly what was refused.
+method Talk() -> TalkEvent
+
+type TalkEvent (
+  # Container name of the task whose mailbox this is about.
+  task: string,
+  # When it happened, RFC 3339.
+  at: string,
+  # taken, queued, sent, deferred, held, delivered or duplicate.
+  event: string,
+  # The message's file name.
+  message: string,
+  # Its message id, or "" when none could be read.
+  id: string,
+  # The peer it was going to or came from, or "".
+  peer: string,
+  # Why, for the events that have a why. "" otherwise.
+  detail: string
+)
+
+# Writes a person's own message into a conversation.
+#
+# It lands in the outbox and goes out through the filter like any other message: a person is not a
+# reason to skip the check. What differs is the role, which says a person wrote it.
+method Say(
+  # Container name of the task.
+  task: string,
+  # Who it is addressed to.
+  peer: string,
+  # question, answer, status, review-request or handover. Empty means question.
+  kind: string,
+  # What it says.
+  text: string,
+  # The conversation it belongs to, or empty for a new one.
+  context: ?string
+) -> (
+  # The file written into the outbox.
+  message: string,
+  # WRITTEN. Not 'sent': the next pass decides that.
+  outcome: string
+)
+
+# Releases one held message, or refuses it for good.
+#
+# Released or refused, never edited: what the record shows a task said has to be what the task
+# said.
+method Release(
+  # Container name of the task.
+  task: string,
+  # Message id or file name, as Talk and 'sokar talk held' show it.
+  id: string,
+  # Whether to refuse it for good. The sender is told.
+  refuse: ?bool
+) -> (
+  # RELEASED, REFUSED, NO_SUCH_MESSAGE or AMBIGUOUS.
+  outcome: string,
+  # The file it acted on, or "".
+  message: string,
+  # The message id, or "".
+  id: string
+)
+
+# Holds a peer, releases it, or changes how much is asked before a message reaches it.
+#
+# 'allow' and 'off' mean work nobody has read leaves the machine. In a project that is not
+# 'online' that is refused unless the project carries 'unread_work_may_leave: true' - the same
+# setting asked before unreviewed work goes to a review branch.
+method Moderate(
+  # Container name of the task.
+  task: string,
+  # Project file, which decides whether unread work may leave.
+  project: string,
+  # The peer to decide about.
+  name: string,
+  # Whether to hold everything for it, or absent to leave that as it is.
+  held: ?bool,
+  # The new mode, or absent to leave it as it is.
+  mode: ?string
+) -> (name: string, mode: string, held: bool)
+
 # ---------------------------------------------------------------------------- errors
 
 # The name is not a task Sokar created.

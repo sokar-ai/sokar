@@ -811,6 +811,92 @@ public final class SokarDaemon {
             }
         });
 
+        // The five message verbs. They are the same objects 'sokar talk' shows, through the same
+        // classes, so an interface and a terminal cannot disagree about what a mailbox holds.
+        server.method("Peers", (parameters, replies) -> {
+            final org.fuin.sokar.app.Mailbox mailbox = mailboxOf(context, parameters);
+            final org.fuin.sokar.app.Moderation moderation =
+                    new org.fuin.sokar.app.Moderation(mailbox);
+            final java.util.List<Map<String, Object>> peers = new java.util.ArrayList<>();
+            for (final org.fuin.sokar.core.project.Mail.Peer peer
+                    : org.fuin.sokar.core.project.ProjectReader.read(
+                            projectFile(parameters)).mail().peers()) {
+                final org.fuin.sokar.app.Moderation.Peer state = moderation.peer(peer.name());
+                peers.add(Map.of("name", peer.name(), "address", peer.address(),
+                        "trust", peer.trust(), "perDay", peer.perDay(),
+                        "mode", state.mode(), "held", state.held()));
+            }
+            replies.last(Map.of("peers", peers));
+        });
+
+        server.method("Talk", (parameters, replies) -> {
+            if (!replies.streaming()) {
+                throw new VarlinkException(INTERFACE + ".StreamRequired", Map.of("method", "Talk"));
+            }
+            // Every mailbox on the machine, from the records themselves: what happened to a
+            // message is written down as it happens, so following the record is following the
+            // conversation without a second copy of it that could disagree.
+            final Map<String, Integer> seen = new java.util.HashMap<>();
+            try {
+                while (true) {
+                    for (final org.fuin.sokar.app.Mailbox mailbox
+                            : new org.fuin.sokar.app.Mailboxes(context.paths()).all()) {
+                        final String task = mailbox.root().getFileName().toString();
+                        final java.util.List<Map<String, Object>> lines =
+                                new org.fuin.sokar.app.MessageRecord(mailbox).entries();
+                        for (int i = seen.getOrDefault(task, 0); i < lines.size(); i++) {
+                            final Map<String, Object> line = lines.get(i);
+                            replies.more(Map.of("task", task,
+                                    "at", String.valueOf(line.getOrDefault("at", "")),
+                                    "event", String.valueOf(line.getOrDefault("event", "")),
+                                    "message", String.valueOf(line.getOrDefault("message", "")),
+                                    "id", String.valueOf(line.getOrDefault("id", "")),
+                                    "peer", String.valueOf(line.getOrDefault("peer", "")),
+                                    "detail", String.valueOf(line.getOrDefault("detail", ""))));
+                        }
+                        seen.put(task, lines.size());
+                    }
+                    Thread.sleep(TALK_INTERVAL.toMillis());
+                }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        server.method("Say", (parameters, replies) -> {
+            final org.fuin.sokar.app.Mailbox mailbox = mailboxOf(context, parameters);
+            final String written = new org.fuin.sokar.app.MessageSay().write(mailbox,
+                    text(parameters, "peer"), text(parameters, "kind"),
+                    empty(parameters, "context"), text(parameters, "text"));
+            // Written, not sent: the next pass puts it through the filter like any other message,
+            // and saying "sent" here would promise something this step does not do.
+            replies.last(Map.of("message", written, "outcome", "WRITTEN"));
+        });
+
+        server.method("Release", (parameters, replies) -> {
+            final org.fuin.sokar.app.MessageRelease.Result result =
+                    new org.fuin.sokar.app.MessageRelease().decide(mailboxOf(context, parameters),
+                            text(parameters, "id"), flag(parameters, "refuse"));
+            replies.last(Map.of("outcome", result.outcome().name(), "message", result.message(),
+                    "id", result.id()));
+        });
+
+        server.method("Moderate", (parameters, replies) -> {
+            final org.fuin.sokar.app.Mailbox mailbox = mailboxOf(context, parameters);
+            final org.fuin.sokar.app.Moderation.Change change =
+                    new org.fuin.sokar.app.Moderation(mailbox).set(text(parameters, "name"),
+                            parameters.get("held") instanceof Boolean held ? held : null,
+                            empty(parameters, "mode"),
+                            org.fuin.sokar.core.project.ProjectReader.read(
+                                    projectFile(parameters)));
+            if (change.peer() == null) {
+                throw new VarlinkException(INTERFACE + ".Failed",
+                        Map.of("message", change.refused()));
+            }
+            replies.last(Map.of("name", text(parameters, "name"), "mode", change.peer().mode(),
+                    "held", change.peer().held()));
+        });
+
         server.method("Decide", (parameters, replies) -> {
             final String task = text(parameters, "task");
             final Path clearance = clearanceSocket(context, task);
@@ -1150,6 +1236,20 @@ public final class SokarDaemon {
     static String startLine(String task, String container, int code) {
         final String name = !container.isEmpty() ? container : task.isEmpty() ? "shell" : task;
         return "start " + name + ": exit " + code;
+    }
+
+    /** How often the talk stream looks for new record lines. */
+    private static final java.time.Duration TALK_INTERVAL = java.time.Duration.ofSeconds(2);
+
+    private static org.fuin.sokar.app.Mailbox mailboxOf(SokarContext context,
+            Map<String, Object> parameters) {
+        final String task = text(parameters, "task");
+        final org.fuin.sokar.app.Mailbox mailbox =
+                new org.fuin.sokar.app.Mailbox(context.paths().mailbox(task));
+        if (!mailbox.exists()) {
+            throw new VarlinkException(INTERFACE + ".NoSuchTask", Map.of("task", task));
+        }
+        return mailbox;
     }
 
     private static TaskLaunch.Request request(Map<String, Object> parameters) {

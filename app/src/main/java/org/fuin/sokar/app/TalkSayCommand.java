@@ -2,18 +2,7 @@ package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.Callable;
-import org.fuin.sokar.wire.Json;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -36,12 +25,6 @@ import picocli.CommandLine.Spec;
         mixinStandardHelpOptions = true,
         description = "Writes a message into a conversation. The text is read from stdin.")
 public class TalkSayCommand implements Callable<Integer>, SokarFactory.ContextAware {
-
-    /** What a message from a person carries, where an agent's carries {@code ROLE_AGENT}. */
-    public static final String ROLE = "ROLE_USER";
-
-    private static final DateTimeFormatter FILE_TIME =
-            DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssSSS").withZone(ZoneOffset.UTC);
 
     @Parameters(index = "0", paramLabel = "<task>", description = "Container name of the task.")
     private String container;
@@ -84,25 +67,7 @@ public class TalkSayCommand implements Callable<Integer>, SokarFactory.ContextAw
             return 1;
         }
 
-        final Instant now = Instant.now();
-        final String id = "person-" + UUID.randomUUID();
-        final Map<String, Object> message = new LinkedHashMap<>();
-        message.put("messageId", id);
-        message.put("role", ROLE);
-        message.put("contextId", contextId == null ? "c-" + UUID.randomUUID() : contextId);
-        message.put("parts",
-                List.of(new LinkedHashMap<>(Map.of("text", text, "mediaType", "text/plain"))));
-        final Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("kind", kind);
-        metadata.put("to", peer);
-        message.put("metadata", metadata);
-
-        final String name = FILE_TIME.format(now) + "--" + id + ".json";
-        // Into the outbox through tmp and a rename, exactly as an agent has to write: a message is
-        // complete when it is renamed, and nothing here gets a shortcut the agent does not have.
-        final Path staged = mailbox.outboxTmp().resolve(name);
-        Files.writeString(staged, Json.write(message), StandardCharsets.UTF_8);
-        Files.move(staged, mailbox.outboxNew().resolve(name), StandardCopyOption.ATOMIC_MOVE);
+        final String name = new MessageSay().write(mailbox, peer, kind, contextId, text);
         out.println("written   " + name + " - the next pass puts it through the filter");
         out.flush();
         return 0;
