@@ -78,6 +78,7 @@ public final class MessageDispatch {
             final @org.jspecify.annotations.Nullable MessageBudget budget) throws IOException {
         final Map<String, String> queued = new LinkedHashMap<>();
         final Map<String, String> addressedTo = new LinkedHashMap<>();
+        final Map<String, Integer> queuedNow = new LinkedHashMap<>();
         final List<MessageDelivery.Held> held = new ArrayList<>();
         for (final Path message : accepted(mailbox.accepted())) {
             final String name = message.getFileName().toString();
@@ -107,7 +108,8 @@ public final class MessageDispatch {
                 held.add(new MessageDelivery.Held(name, waiting));
                 continue;
             }
-            final String full = budget == null ? "" : budget.outbound(addressed.get(0));
+            final String full = budget == null ? "" : budget.outbound(addressed.get(0),
+                    queuedNow.getOrDefault(addressed.get(0), 0));
             if (!full.isEmpty()) {
                 hold(mailbox, message, name);
                 held.add(new MessageDelivery.Held(name, full));
@@ -124,6 +126,7 @@ public final class MessageDispatch {
             Files.move(message, active.resolve(name), StandardCopyOption.ATOMIC_MOVE);
             queued.put(name, peer.transport());
             addressedTo.put(name, peer.name());
+            queuedNow.merge(peer.name(), 1, Integer::sum);
         }
         return new Outcome(queued, held, addressedTo);
     }

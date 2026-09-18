@@ -151,6 +151,27 @@ class MessageDeliveryTest {
     }
 
     @Test
+    void stops_at_the_days_budget_within_one_pass(@TempDir final Path dir) throws IOException {
+        final Mailbox mailbox = mailbox(dir);
+        for (final String id : List.of("m-8", "m-9")) {
+            final String json = "{\"messageId\":\"" + id + "\"}";
+            arrive(mailbox, id + ".json", json, SshSignature.sign(peerKey,
+                    json.getBytes(StandardCharsets.UTF_8), MessageIntake.NAMESPACE));
+        }
+        final MessageBudget budget = new MessageBudget(new MessageRecord(mailbox),
+                new org.fuin.sokar.core.project.Mail(List.of(
+                        new org.fuin.sokar.core.project.Mail.Peer("reviewer",
+                                "local:/peer/inbound", "vouched", 1))));
+
+        final MessageDelivery.Outcome outcome =
+                delivery.deliver(mailbox, reviewer(), Set.of(), null, budget);
+
+        assertThat(outcome.delivered()).hasSize(1);
+        assertThat(outcome.held()).singleElement().satisfies(held ->
+                assertThat(held.reason()).contains("accepted from reviewer"));
+    }
+
+    @Test
     void what_is_not_a_signature_is_held_rather_than_throwing(@TempDir final Path dir)
             throws IOException {
         final Mailbox mailbox = mailbox(dir);

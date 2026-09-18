@@ -136,6 +136,7 @@ public final class MessageDelivery {
         final List<Held> held = new ArrayList<>();
         final List<Repeat> duplicates = new ArrayList<>();
         final Set<String> already = new LinkedHashSet<>(seen);
+        final java.util.Map<String, Integer> handedOver = new java.util.HashMap<>();
         for (final Path message : arrived(mailbox.inbound())) {
             final String name = message.getFileName().toString();
             final Path signature = mailbox.inbound().resolve(name + ".sig");
@@ -173,7 +174,8 @@ public final class MessageDelivery {
                 continue;
             }
 
-            final String full = budget == null ? "" : budget.inbound(peer.name());
+            final String full = budget == null ? ""
+                    : budget.inbound(peer.name(), handedOver.getOrDefault(peer.name(), 0));
             if (!full.isEmpty()) {
                 // Held rather than refused back: this machine is the one that is full, and the
                 // message itself is nobody's fault.
@@ -201,6 +203,7 @@ public final class MessageDelivery {
             Files.move(signature, mailbox.record().resolve(name + ".sig"),
                     StandardCopyOption.REPLACE_EXISTING);
             delivered.add(new Delivered(name, id, peer.name()));
+            handedOver.merge(peer.name(), 1, Integer::sum);
         }
         return new Outcome(delivered, held, duplicates);
     }

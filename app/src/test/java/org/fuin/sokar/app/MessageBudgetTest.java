@@ -56,6 +56,19 @@ class MessageBudgetTest {
                 .contains("accepted from reviewer");
     }
 
+    /**
+     * The failure found on the VM: the record is written when a pass ends, so a budget that read
+     * only the record let a single pass through with any number of messages.
+     */
+    @Test
+    void the_pass_now_running_counts_too(@TempDir final Path dir) throws IOException {
+        final MessageBudget budget = new MessageBudget(new MessageRecord(mailbox(dir)), mail);
+
+        assertThat(budget.inbound("reviewer", 1)).isEmpty();
+        assertThat(budget.inbound("reviewer", 2)).contains("2 message(s)");
+        assertThat(budget.outbound("reviewer", 2)).contains("2 message(s)");
+    }
+
     @Test
     void a_peer_the_project_does_not_list_is_not_this_steps_refusal(@TempDir final Path dir)
             throws IOException {

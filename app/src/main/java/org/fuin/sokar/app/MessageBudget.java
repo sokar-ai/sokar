@@ -48,7 +48,20 @@ public final class MessageBudget {
      * @throws IOException Reading the record failed.
      */
     public String outbound(final String peer) throws IOException {
-        return beyond(peer, MessageRecord.QUEUED, "sent to");
+        return outbound(peer, 0);
+    }
+
+    /**
+     * Says whether one more message may go out to a peer, counting this pass as well.
+     *
+     * @param peer The peer.
+     * @param thisPass How many have already gone to it in the pass now running, which the record
+     *        does not know yet because it is written when the pass ends.
+     * @return An empty string when it may, otherwise why it may not.
+     * @throws IOException Reading the record failed.
+     */
+    public String outbound(final String peer, final int thisPass) throws IOException {
+        return beyond(peer, MessageRecord.QUEUED, "sent to", thisPass);
     }
 
     /**
@@ -59,18 +72,33 @@ public final class MessageBudget {
      * @throws IOException Reading the record failed.
      */
     public String inbound(final String peer) throws IOException {
-        return beyond(peer, MessageRecord.DELIVERED, "accepted from");
+        return inbound(peer, 0);
     }
 
-    private String beyond(final String peer, final String event, final String direction)
-            throws IOException {
+    /**
+     * Says whether one more message may reach the agent, counting this pass as well.
+     *
+     * @param peer The peer.
+     * @param thisPass How many have already been handed over in the pass now running.
+     * @return An empty string when it may, otherwise why it may not.
+     * @throws IOException Reading the record failed.
+     */
+    public String inbound(final String peer, final int thisPass) throws IOException {
+        return beyond(peer, MessageRecord.DELIVERED, "accepted from", thisPass);
+    }
+
+    private String beyond(final String peer, final String event, final String direction,
+            final int thisPass) throws IOException {
         final Mail.Peer known = mail.peer(peer);
         if (known == null) {
             // Not this step's refusal to make: a peer the project does not list is turned away
             // where that is decided, with a message that says so.
             return "";
         }
-        final int used = record.count(event, peer, Instant.now().minus(DAY));
+        // The pass now running is counted too. The record is written when a pass ends, so a
+        // budget that read only the record would let a single pass through with any number of
+        // messages - which is exactly the runaway the budget exists to stop.
+        final int used = record.count(event, peer, Instant.now().minus(DAY)) + thisPass;
         if (used < known.perDay()) {
             return "";
         }
