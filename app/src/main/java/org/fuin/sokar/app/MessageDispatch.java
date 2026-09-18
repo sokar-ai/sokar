@@ -45,6 +45,20 @@ public final class MessageDispatch {
      * @throws IOException Reading or moving failed.
      */
     public Outcome dispatch(final Mailbox mailbox, final Mail mail) throws IOException {
+        return dispatch(mailbox, mail, new Moderation(mailbox));
+    }
+
+    /**
+     * Queues every accepted message whose peer a person has not held.
+     *
+     * @param mailbox The task's mailbox.
+     * @param mail The project's peers.
+     * @param moderation What a person decided about each of them.
+     * @return What was queued and what was held.
+     * @throws IOException Reading or moving failed.
+     */
+    public Outcome dispatch(final Mailbox mailbox, final Mail mail, final Moderation moderation)
+            throws IOException {
         final Map<String, String> queued = new LinkedHashMap<>();
         final List<MessageDelivery.Held> held = new ArrayList<>();
         for (final Path message : accepted(mailbox.accepted())) {
@@ -65,6 +79,14 @@ public final class MessageDispatch {
                 hold(mailbox, message, name);
                 held.add(new MessageDelivery.Held(name,
                         "this project may not address '" + addressed.get(0) + "'"));
+                continue;
+            }
+            // Last, and after the peer is known to exist: a person's decision is about a peer,
+            // and "held" is a different answer from "this project may not address that name".
+            final String waiting = moderation.whyNotNow(addressed.get(0));
+            if (!waiting.isEmpty()) {
+                hold(mailbox, message, name);
+                held.add(new MessageDelivery.Held(name, waiting));
                 continue;
             }
             final Path active = mailbox.queueActive(peer.transport());

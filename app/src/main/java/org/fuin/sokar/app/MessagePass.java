@@ -95,6 +95,10 @@ public final class MessagePass {
             }
             for (final MessageDelivery.Held stuck : dispatched.held()) {
                 record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
+                // The sender is told the moment it is held, not when somebody gets round to the
+                // hold list: an agent with no answer waits forever or sends the same thing again.
+                new HostBounce().write(mailbox, mailbox.hold().resolve(stuck.message()),
+                        "it was not sent: " + stuck.reason(), false);
             }
             final TransportSend send = new TransportSend(runner, transports);
             for (final String transport : queues(mailbox)) {
@@ -108,6 +112,10 @@ public final class MessagePass {
                 }
                 for (final MessageDelivery.Held stuck : result.refused()) {
                     record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
+                    // A permanent transport failure is final, so the answer says so rather than
+                    // leaving the agent to believe its message is still on its way.
+                    new HostBounce().write(mailbox, mailbox.hold().resolve(stuck.message()),
+                            "it could not be delivered: " + stuck.reason(), true);
                 }
             }
         }
@@ -123,8 +131,9 @@ public final class MessagePass {
         for (final MessageDelivery.Held stuck : delivered.held()) {
             record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
         }
-        for (final String message : delivered.duplicates()) {
-            record.append(MessageRecord.DUPLICATE, message, "", "it had been delivered before");
+        for (final MessageDelivery.Repeat repeat : delivered.duplicates()) {
+            record.append(MessageRecord.DUPLICATE, repeat.message(), repeat.id(),
+                    "it had been delivered before");
         }
         final List<String> bounced = new BounceDelivery().deliver(mailbox);
         return new Report(taken, filtered, dispatched, sent, delivered, bounced);

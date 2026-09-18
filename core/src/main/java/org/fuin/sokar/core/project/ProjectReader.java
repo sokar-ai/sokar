@@ -86,7 +86,10 @@ public final class ProjectReader {
                 limits(root, origin),
                 egress(root, origin),
                 packageSources(image, origin),
-                mail(root, origin));
+                mail(root, origin),
+                // Absent means no. A setting that says unread work may leave is one somebody has
+                // to write down, because forgetting it must never be the permissive answer.
+                Boolean.TRUE.equals(project.get("unread_work_may_leave")));
     }
 
     /**

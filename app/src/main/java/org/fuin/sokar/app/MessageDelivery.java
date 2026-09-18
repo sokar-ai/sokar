@@ -46,13 +46,22 @@ public final class MessageDelivery {
     }
 
     /**
+     * One message that arrived again after having been delivered.
+     *
+     * @param message File name it arrived under this time.
+     * @param id The id it repeats, which is what names it in the record.
+     */
+    public record Repeat(String message, String id) {
+    }
+
+    /**
      * What one pass did.
      *
      * @param delivered Messages handed to the agent.
      * @param held Messages that reached no task.
      * @param duplicates Messages carrying an id this task has already been handed.
      */
-    public record Outcome(List<String> delivered, List<Held> held, List<String> duplicates) {
+    public record Outcome(List<String> delivered, List<Held> held, List<Repeat> duplicates) {
     }
 
     /**
@@ -80,7 +89,7 @@ public final class MessageDelivery {
             throws IOException {
         final List<String> delivered = new ArrayList<>();
         final List<Held> held = new ArrayList<>();
-        final List<String> duplicates = new ArrayList<>();
+        final List<Repeat> duplicates = new ArrayList<>();
         final Set<String> already = new LinkedHashSet<>(seen);
         for (final Path message : arrived(mailbox.inbound())) {
             final String name = message.getFileName().toString();
@@ -115,7 +124,7 @@ public final class MessageDelivery {
                 // nobody can act on, because the agent already has this exact message.
                 Files.delete(message);
                 Files.delete(signature);
-                duplicates.add(name);
+                duplicates.add(new Repeat(name, id));
                 continue;
             }
 

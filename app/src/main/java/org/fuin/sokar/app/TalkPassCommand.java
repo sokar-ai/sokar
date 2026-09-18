@@ -78,6 +78,8 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
                         : ", held " + report.delivered().held().size()));
         report.delivered().held().forEach(held ->
                 err.println("held      " + held.message() + " - " + held.reason()));
+        report.delivered().duplicates().forEach(repeat -> out.println(
+                "dropped   " + repeat.message() + " - " + repeat.id() + " was delivered before"));
         out.println("answers   " + report.bounced().size());
         out.flush();
         err.flush();

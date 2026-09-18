@@ -14,11 +14,41 @@ package org.fuin.sokar.core.project;
  *        other classes it is only where an approved push is forwarded.
  * @param limits What a task may consume.
  * @param egress What the project's own tooling may reach.
+ * @param mail The peers its tasks may address.
+ * @param unreadWorkMayLeave Whether work nobody has read may leave this machine.
+ *        <p>
+ *        The one setting two features ask before anything unread goes out: a message sent without
+ *        a person having seen it, and work pushed to a review branch on an upstream. It is one
+ *        setting rather than two because it is one decision - a project where an agent may talk
+ *        unsupervised is a project where an agent may publish unsupervised, and splitting it would
+ *        let somebody answer it twice without noticing they had.
  */
 public record Project(String name, String description, SecurityClass securityClass, String baseImage,
         @org.jspecify.annotations.Nullable String imageSnippet,
         @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
-        java.util.List<String> packageSources, Mail mail) {
+        java.util.List<String> packageSources, Mail mail, boolean unreadWorkMayLeave) {
+
+    /**
+     * Constructor for a project that keeps unread work at home.
+     *
+     * @param name Project name.
+     * @param description What it is for.
+     * @param securityClass How contained its tasks are.
+     * @param baseImage Image its task image is built from.
+     * @param imageSnippet Extra build fragment, or {@code null}.
+     * @param upstream Where approved work goes, or {@code null}.
+     * @param limits What a task may use.
+     * @param egress What a task may reach.
+     * @param packageSources Where apt fetches from.
+     * @param mail The peers its tasks may address.
+     */
+    public Project(String name, String description, SecurityClass securityClass, String baseImage,
+            @org.jspecify.annotations.Nullable String imageSnippet,
+            @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
+            java.util.List<String> packageSources, Mail mail) {
+        this(name, description, securityClass, baseImage, imageSnippet, upstream, limits, egress,
+                packageSources, mail, false);
+    }
 
     /**
      * Constructor for a project that exchanges no messages.

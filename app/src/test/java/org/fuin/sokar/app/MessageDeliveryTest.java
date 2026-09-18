@@ -123,7 +123,8 @@ class MessageDeliveryTest {
 
         assertThat(outcome.delivered()).isEmpty();
         assertThat(outcome.held()).isEmpty();
-        assertThat(outcome.duplicates()).containsExactly("m-6.json");
+        assertThat(outcome.duplicates()).singleElement()
+                .satisfies(repeat -> assertThat(repeat.id()).isEqualTo("m-6"));
         assertThat(mailbox.inboxNew()).isEmptyDirectory();
         assertThat(mailbox.inbound().resolve("m-6.json")).as("nothing is left to arrive again")
                 .doesNotExist();
@@ -143,7 +144,8 @@ class MessageDeliveryTest {
         final MessageDelivery.Outcome outcome = delivery.deliver(mailbox, reviewer());
 
         assertThat(outcome.delivered()).containsExactly("m-7-again.json");
-        assertThat(outcome.duplicates()).containsExactly("m-7.json");
+        assertThat(outcome.duplicates()).extracting(MessageDelivery.Repeat::message)
+                .containsExactly("m-7.json");
     }
 
     @Test
