@@ -49,7 +49,8 @@ class MessageDeliveryTest {
 
         final MessageDelivery.Outcome outcome = delivery.deliver(mailbox, reviewer());
 
-        assertThat(outcome.delivered()).containsExactly("m-1.json");
+        assertThat(outcome.delivered()).extracting(MessageDelivery.Delivered::message)
+                .containsExactly("m-1.json");
         assertThat(outcome.held()).isEmpty();
         assertThat(mailbox.inboxNew().resolve("m-1.json")).exists();
         assertThat(mailbox.inboxTmp()).isEmptyDirectory();
@@ -143,7 +144,8 @@ class MessageDeliveryTest {
 
         final MessageDelivery.Outcome outcome = delivery.deliver(mailbox, reviewer());
 
-        assertThat(outcome.delivered()).containsExactly("m-7-again.json");
+        assertThat(outcome.delivered()).extracting(MessageDelivery.Delivered::message)
+                .containsExactly("m-7-again.json");
         assertThat(outcome.duplicates()).extracting(MessageDelivery.Repeat::message)
                 .containsExactly("m-7.json");
     }

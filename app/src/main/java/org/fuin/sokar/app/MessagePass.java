@@ -86,12 +86,16 @@ public final class MessagePass {
         }
         final MessageFiltering.Outcome filtered = new MessageFiltering(runner, filter).run(mailbox);
 
-        MessageDispatch.Outcome dispatched = new MessageDispatch.Outcome(Map.of(), List.of());
+        final MessageBudget budget = new MessageBudget(record, mail);
+        MessageDispatch.Outcome dispatched =
+                new MessageDispatch.Outcome(Map.of(), List.of(), Map.of());
         final Map<String, TransportSend.Result> sent = new LinkedHashMap<>();
         if (filtered.ran()) {
-            dispatched = new MessageDispatch().dispatch(mailbox, mail);
+            dispatched = new MessageDispatch().dispatch(mailbox, mail, new Moderation(mailbox),
+                    budget);
             for (final Map.Entry<String, String> queued : dispatched.queued().entrySet()) {
-                record.append(MessageRecord.QUEUED, queued.getKey(), "", queued.getValue());
+                record.append(MessageRecord.QUEUED, queued.getKey(), "",
+                        dispatched.peers().getOrDefault(queued.getKey(), ""), queued.getValue());
             }
             for (final MessageDelivery.Held stuck : dispatched.held()) {
                 record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
@@ -124,10 +128,9 @@ public final class MessagePass {
         // can send anything today.
         final MessageDelivery.Outcome delivered =
                 new MessageDelivery().deliver(mailbox, peers, record.delivered(),
-                        new InboundCheck(runner, filter, mail));
-        for (final String message : delivered.delivered()) {
-            record.append(MessageRecord.DELIVERED, message,
-                    idOf(mailbox.inboxNew().resolve(message)), "");
+                        new InboundCheck(runner, filter, mail), budget);
+        for (final MessageDelivery.Delivered one : delivered.delivered()) {
+            record.append(MessageRecord.DELIVERED, one.message(), one.id(), one.peer(), "");
         }
         for (final MessageDelivery.Held stuck : delivered.held()) {
             record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
@@ -138,12 +141,6 @@ public final class MessagePass {
         }
         final List<String> bounced = new BounceDelivery().deliver(mailbox);
         return new Report(taken, filtered, dispatched, sent, delivered, bounced);
-    }
-
-    private String idOf(final Path message) throws IOException {
-        // Read after the move, from where it now lies: the id is what makes the next copy of this
-        // message a duplicate, so the record has to carry it even though nothing else here does.
-        return Files.isRegularFile(message) ? MessageFile.id(message) : "";
     }
 
     private List<String> queues(final Mailbox mailbox) throws IOException {

@@ -116,6 +116,26 @@ public final class ProjectReader {
     }
 
     /**
+     * Reads a peer's optional {@code per_day}.
+     *
+     * @param peer The peer's mapping.
+     * @param name Its name, for error messages.
+     * @param origin Name used in error messages.
+     * @return What it declared, or the default.
+     */
+    private static int perDay(Map<?, ?> peer, String name, String origin) {
+        final Object value = peer.get("per_day");
+        if (value == null) {
+            return Mail.Peer.DEFAULT_PER_DAY;
+        }
+        if (!(value instanceof Number number)) {
+            throw new ProjectException(origin + ": 'mail.peers." + name
+                    + ".per_day' is a number of messages a day");
+        }
+        return number.intValue();
+    }
+
+    /**
      * Reads the optional {@code mail} section, which names the peers a task may address.
      *
      * @param root The whole document.
@@ -148,7 +168,8 @@ public final class ProjectReader {
                     // Vouched is the narrower promise - it skips the check on the way in - so an
                     // omitted trust level is the wider one rather than the convenient one.
                     text(peer.get("trust")).isEmpty() ? Mail.Peer.EXTERNAL
-                            : text(peer.get("trust"))));
+                            : text(peer.get("trust")),
+                    perDay(peer, name, origin)));
         }
         return new Mail(java.util.List.copyOf(read));
     }

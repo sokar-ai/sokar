@@ -55,13 +55,24 @@ public final class MessageDelivery {
     }
 
     /**
+     * One message handed to the agent.
+     *
+     * @param message File name.
+     * @param id Its message id, or "" when it carried none.
+     * @param peer The peer whose key signed it.
+     */
+    public record Delivered(String message, String id, String peer) {
+    }
+
+    /**
      * What one pass did.
      *
      * @param delivered Messages handed to the agent.
      * @param held Messages that reached no task.
      * @param duplicates Messages carrying an id this task has already been handed.
      */
-    public record Outcome(List<String> delivered, List<Held> held, List<Repeat> duplicates) {
+    public record Outcome(List<Delivered> delivered, List<Held> held,
+            List<Repeat> duplicates) {
     }
 
     /**
@@ -103,7 +114,25 @@ public final class MessageDelivery {
      */
     public Outcome deliver(final Mailbox mailbox, final List<Peer> peers, final Set<String> seen,
             final @org.jspecify.annotations.Nullable InboundCheck check) throws IOException {
-        final List<String> delivered = new ArrayList<>();
+        return deliver(mailbox, peers, seen, check, null);
+    }
+
+    /**
+     * Delivers what can be attributed, what the filter passed and what is within the day's budget.
+     *
+     * @param mailbox The task's mailbox.
+     * @param peers The peers this task may hear from, with the keys allowed for each.
+     * @param seen Ids this task has already been handed, from its record.
+     * @param check What reads an external peer's message before an agent does, or {@code null}.
+     * @param budget How much this task and a peer may say to each other, or {@code null} for no
+     *        limit.
+     * @return What was delivered, what was held and what was a repeat.
+     * @throws IOException Reading or moving failed.
+     */
+    public Outcome deliver(final Mailbox mailbox, final List<Peer> peers, final Set<String> seen,
+            final @org.jspecify.annotations.Nullable InboundCheck check,
+            final @org.jspecify.annotations.Nullable MessageBudget budget) throws IOException {
+        final List<Delivered> delivered = new ArrayList<>();
         final List<Held> held = new ArrayList<>();
         final List<Repeat> duplicates = new ArrayList<>();
         final Set<String> already = new LinkedHashSet<>(seen);
@@ -144,6 +173,15 @@ public final class MessageDelivery {
                 continue;
             }
 
+            final String full = budget == null ? "" : budget.inbound(peer.name());
+            if (!full.isEmpty()) {
+                // Held rather than refused back: this machine is the one that is full, and the
+                // message itself is nobody's fault.
+                hold(mailbox, message, signature);
+                held.add(new Held(name, full));
+                continue;
+            }
+
             // After attribution and after the repeat check: there is no point reading a message
             // nobody can attribute, and none in reading the same one twice.
             final String refused = check == null ? "" : check.refuse(mailbox, message, peer.name());
@@ -162,7 +200,7 @@ public final class MessageDelivery {
             // container has no key to check it with anyway.
             Files.move(signature, mailbox.record().resolve(name + ".sig"),
                     StandardCopyOption.REPLACE_EXISTING);
-            delivered.add(name);
+            delivered.add(new Delivered(name, id, peer.name()));
         }
         return new Outcome(delivered, held, duplicates);
     }

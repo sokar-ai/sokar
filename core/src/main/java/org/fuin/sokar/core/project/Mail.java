@@ -23,8 +23,30 @@ public record Mail(List<Peer> peers) {
      *        that carries it, and the rest is that transport's business.
      * @param trust {@code vouched} for one of the operator's own machines, {@code external} for
      *        anybody else. It decides whether what arrives is checked again here.
+     * @param perDay How many messages a day a task may exchange with this peer, each way. The
+     *        work a message causes is paid for by whoever receives it, so the limit is a promise
+     *        in both directions rather than a throttle on sending.
      */
-    public record Peer(String name, String address, String trust) {
+    public record Peer(String name, String address, String trust, int perDay) {
+
+        /**
+         * What a peer that names no limit gets.
+         * <p>
+         * High enough not to interrupt a conversation anybody actually has, low enough that two
+         * agents answering each other in a loop stop within a day rather than filling a disk.
+         */
+        public static final int DEFAULT_PER_DAY = 200;
+
+        /**
+         * Constructor for a peer with the default limit.
+         *
+         * @param name Peer name.
+         * @param address Transport and its address.
+         * @param trust Trust level.
+         */
+        public Peer(String name, String address, String trust) {
+            this(name, address, trust, DEFAULT_PER_DAY);
+        }
 
         /** A peer this machine vouches for: its content was checked where it was written. */
         public static final String VOUCHED = "vouched";
@@ -67,6 +89,9 @@ public record Mail(List<Peer> peers) {
             if (!VOUCHED.equals(trust) && !EXTERNAL.equals(trust)) {
                 throw new ProjectException("A peer is '" + VOUCHED + "' or '" + EXTERNAL
                         + "', got: " + trust);
+            }
+            if (perDay < 1) {
+                throw new ProjectException("A peer's 'per_day' is at least 1, got: " + perDay);
             }
         }
 

@@ -73,7 +73,8 @@ class MessagePassTest {
                         List.of(new MessageDelivery.Peer("reviewer", List.of(peerKey.keyBlob()))));
 
         assertThat(report.filtered().ran()).isFalse();
-        assertThat(report.delivered().delivered()).containsExactly("in-1.json");
+        assertThat(report.delivered().delivered())
+                .extracting(MessageDelivery.Delivered::message).containsExactly("in-1.json");
         assertThat(mailbox.inboxNew().resolve("in-1.json")).exists();
     }
 

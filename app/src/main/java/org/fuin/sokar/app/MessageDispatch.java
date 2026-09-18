@@ -33,7 +33,8 @@ public final class MessageDispatch {
      * @param queued Message file name to the transport it was queued for.
      * @param held Messages that reached no queue, with why.
      */
-    public record Outcome(Map<String, String> queued, List<MessageDelivery.Held> held) {
+    public record Outcome(Map<String, String> queued, List<MessageDelivery.Held> held,
+            Map<String, String> peers) {
     }
 
     /**
@@ -45,7 +46,7 @@ public final class MessageDispatch {
      * @throws IOException Reading or moving failed.
      */
     public Outcome dispatch(final Mailbox mailbox, final Mail mail) throws IOException {
-        return dispatch(mailbox, mail, new Moderation(mailbox));
+        return dispatch(mailbox, mail, new Moderation(mailbox), null);
     }
 
     /**
@@ -59,7 +60,24 @@ public final class MessageDispatch {
      */
     public Outcome dispatch(final Mailbox mailbox, final Mail mail, final Moderation moderation)
             throws IOException {
+        return dispatch(mailbox, mail, moderation, null);
+    }
+
+    /**
+     * Queues every accepted message whose peer a person has not held and whose budget holds.
+     *
+     * @param mailbox The task's mailbox.
+     * @param mail The project's peers.
+     * @param moderation What a person decided about each of them.
+     * @param budget How much this task and a peer may say to each other, or {@code null} for no
+     *        limit.
+     * @return What was queued and what was held.
+     * @throws IOException Reading or moving failed.
+     */
+    public Outcome dispatch(final Mailbox mailbox, final Mail mail, final Moderation moderation,
+            final @org.jspecify.annotations.Nullable MessageBudget budget) throws IOException {
         final Map<String, String> queued = new LinkedHashMap<>();
+        final Map<String, String> addressedTo = new LinkedHashMap<>();
         final List<MessageDelivery.Held> held = new ArrayList<>();
         for (final Path message : accepted(mailbox.accepted())) {
             final String name = message.getFileName().toString();
@@ -89,6 +107,12 @@ public final class MessageDispatch {
                 held.add(new MessageDelivery.Held(name, waiting));
                 continue;
             }
+            final String full = budget == null ? "" : budget.outbound(addressed.get(0));
+            if (!full.isEmpty()) {
+                hold(mailbox, message, name);
+                held.add(new MessageDelivery.Held(name, full));
+                continue;
+            }
             final Path active = mailbox.queueActive(peer.transport());
             Files.createDirectories(active);
             // The destination is written down here rather than resolved again at send time: the
@@ -99,8 +123,9 @@ public final class MessageDispatch {
             move(mailbox.accepted().resolve(name + ".sig"), active.resolve(name + ".sig"));
             Files.move(message, active.resolve(name), StandardCopyOption.ATOMIC_MOVE);
             queued.put(name, peer.transport());
+            addressedTo.put(name, peer.name());
         }
-        return new Outcome(queued, held);
+        return new Outcome(queued, held, addressedTo);
     }
 
     private List<String> addressees(final Path message) throws IOException {
