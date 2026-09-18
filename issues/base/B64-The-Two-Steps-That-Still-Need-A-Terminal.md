@@ -39,9 +39,35 @@ runs as - and only the third carries a decision.
 - **A machine that is half-prepared says so.** `sokar doctor` should answer "there is no vault here
   yet" as a state, not leave an interface to infer it from an empty credential list.
 
-## The decision this issue carries
+## The decision, made on 2026-09-19
 
-**Where the first passphrase is typed.** Three shapes, and they are not equally honest:
+**The wizard opens an interactive ssh terminal and lets the person type the passphrase into it**,
+then closes it. The operator decided this, and it is better than what this file recommended before:
+the passphrase reaches no program of the interface's at all. It travels from the keyboard through
+the terminal to ssh to `sokar` on the far machine, and the wizard never holds it, never buffers it
+and never has to promise not to log it.
+
+It also needs nothing new in Sokar, and it carries the other two steps in the same session:
+`systemctl --user enable --now sokard`, `sokar setup`, `sokar vault init`, `sokar doctor` - one
+window the person watches.
+
+**Measured on 2026-09-19 over `ssh -tt` against the Ubuntu VM**, because a prompt that needs a
+terminal is exactly the kind of thing that works until it is run the way it will really be run:
+
+| | |
+|---|---|
+| a passphrase typed twice | vault created, and it opens with what was typed |
+| the two do not match | *"the two did not match - no vault was created"*, exit 70, nothing written |
+| a vault is already there | refused with what to do instead, exit 70 |
+| **no terminal at all** (`ssh` without `-t`) | *"No passphrase available, tried: prompt"*, exit 70 |
+
+**The last line is the one the interface has to act on: without a PTY there is no prompt.** A wizard
+that runs the command over a plain ssh channel gets a refusal that looks like a Sokar problem and is
+a missing `-t`.
+
+### What was considered instead
+
+Three shapes, and they are not equally honest:
 
 | | What it costs |
 |---|---|
@@ -49,13 +75,16 @@ runs as - and only the third carries a decision.
 | **A `Tasks1` method that creates a vault from a passphrase sent over the socket** | The passphrase travels. The socket is a unix socket owned by that user and forwarded over ssh, so it is not travelling far - but "the daemon never receives a passphrase" stops being true, and every later argument that relies on it has to be re-read. |
 | **A vault whose first and only way in is a device** | No passphrase anywhere, and no recovery: keyslot 0 is the passphrase precisely so that losing every device is survivable ([doc/vault-keyslots.md](../../doc/vault-keyslots.md)). It would have to be paired with something else recoverable, which is a larger design than this gap deserves. |
 
-The first is the recommendation. It is the only one that adds no new path for a secret, and the
-capability it needs is one the wizard already exercises with root.
+The first was the recommendation and is what the decision above refines: running the command is not
+enough on its own, because a wizard that *collects* the passphrase and pipes it to the command has
+put a secret through its own process after all. An interactive terminal is what keeps that from
+happening.
 
 ## Acceptance
 
 - A machine prepared by `sokar-setup.sh` reaches "ready for a device to be enrolled" **without a
-  person typing a command**, by whatever route is chosen.
+  person composing a command**. They may type a passphrase - that is the one thing nothing else may
+  do for them - but not work out what to run or where.
 - `sokar doctor` names the missing vault as its own state, with what to do about it.
 - The route is written down in one place, and the interface's agent builds against that rather than
   against a description of it.
