@@ -1,7 +1,19 @@
 # B62 — Preparing A Machine Before There Is A Daemon
 
-**Status:** open, asked for on 2026-09-18 by the interface's agent (QF18 on the channel), who is
-building a wizard that prepares a newly rented machine end to end.
+**Status:** built on 2026-09-18, the same day it was asked for (QF18 on the channel).
+`dist-setup/sokar-setup.sh`, published by CI beside the packages as
+`sokar-dist-deb/setup/sokar-setup-<version>.sh` and `-latest.sh`.
+
+**Measured on the Ubuntu VM, twice in a row:** the first run configured the repository, installed
+`sokar` from it, made the `agents` user with linger, found the subuid and subgid ranges `useradd`
+had already allocated, and checked dnsmasq for nftset support. The second run changed nothing and
+said so on every line. An unsupported system is refused with exit 3 and one sentence naming what it
+found, measured against a fabricated `/etc/os-release`.
+
+**What is not done:** nothing here installs the message filter or the local transport, because
+neither is packaged yet (the filter's repository, issue 009). The script says so in its closing
+output rather than leaving a machine that quietly cannot message. Fedora's half is written from
+`doc/getting-started-fedora.md` and **has not been run on a Fedora machine**.
 
 Everything Sokar knows how to do, it does through the daemon. **Preparing a machine is the one thing
 that cannot**, because the machine being prepared has no daemon yet, no packages, and no work user
