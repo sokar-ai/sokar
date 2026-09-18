@@ -1,403 +1,319 @@
 # B14 — Talking Between Tasks, design
 
 How [B14](B14-Talking-Between-Tasks.md) would be built. **Nothing here exists yet**: every class,
-path, method, ref and file named below is a proposal, and nothing in it has been measured. Where a
+path, method, verb and file named below is a proposal, and nothing in it has been measured. Where a
 fact about the running system is quoted it comes from reading the code and the documentation; where a
-fact about a third-party product is quoted it comes from that product's documentation, read on
-2026-09-13, and is marked as such.
+fact about a third-party format is quoted it comes from that format's specification, read on the date
+given.
 
 **In short:**
 
-- Tasks talk through **a git repository, one branch per group**, served to each task by its gate.
-- **Every check runs on the machine that writes the message**, before the push. The repository that
-  distributes runs nothing: it stores branches and hands them out.
-- **What a message contains is checked by a tool of its own**, the message sluice — the narrowed
-  schema, encoded payloads, credentials, personal data, and a payload spread over several messages.
-  It is deterministic and carries no model.
-- **The distributing repository is a bare repository on the same machine** when every agent is on one
-  machine, and a remote — a hosted forge included — when they are not. One address, two arrangements.
-- **A message arrives by polling**: one timer per machine, a minute by default.
-
-## Scope of the first version
-
-**One talk repository. One branch per group. One group per task. Any number of machines of the same
-operator. A person watching.**
-
-Out of scope, deliberately: a key inside a task container for any purpose, editing a held message,
-a classifier or any other model in the deciding path, checking on the way in what the sending
-machine already checked, and separating groups from machines that share the repository — a branch
-separates writing, not reading, so anything that must be kept from the operator's other machines
-gets its own repository.
-
-## The shape
+- A task has **a mailbox**, mounted at `/run/sokar/mail`, shaped like a mail client's. Two verbs:
+  write into `outbox/tmp/` and rename into `outbox/new/`; read `inbox/new/` and rename into
+  `inbox/cur/`.
+- The host is shaped like **a mail server**: queues whose directory names are the states, the filter
+  between them, and one adapter per transport.
+- **Transports are packages.** The first carries a message between mailboxes on one machine by moving
+  a file; git between machines is a later extension.
+- **A message is a narrowed A2A message with a detached signature over its exact bytes**, made on the
+  host with the key the daemon's user already has.
+- **The message sluice decides what a message may contain**, before anything is queued, and carries
+  no model.
 
 ```
- machine A                                            distributing repository
- ┌────────────────────────────────────────────┐       ┌───────────────────────┐
- │ task            gate (host)                │       │ bare repo, no hooks   │
- │  talk/ clone ──▶ token → task              │       │ groups/<name>         │
- │  push, pull  ◀── policy                    │──push▶│                       │
- │                  message sluice  ─ refuse ─┤       │ local path when every │
- │                  own commit, SSH signature │       │ agent is on one       │
- │                  watch, or timer every 60s │◀fetch─│ machine; ssh remote   │
- │                                            │       │ or forge when not     │
- └────────────────────────────────────────────┘       └───────────────────────┘
-                                                              ▲   │
-                                                        push  │   │  fetch
-                                                              │   ▼
-                                                        machine B, the same way
+ task container                     host
+ ┌───────────────────────────┐      ┌──────────────────────────────────────────────────────┐
+ │ agent                     │      │  incoming/ ─▶ message sluice ─▶ queue/<transport>/   │
+ │  reads  /run/sokar/mail/  │      │      ▲            │ refuses            │             │
+ │         inbox/new,cur     │◀─────┤      │            ▼                    ▼             │
+ │  writes /run/sokar/mail/  │      │  deliver/     rejected/        transport adapter     │
+ │         outbox/tmp→new    ├─────▶│                                  (own user,          │
+ └───────────────────────────┘      │  inbound/  ◀── adapter  ───────   own credential)    │
+     no network, no credential      └──────────────────────────────────────────────────────┘
 ```
 
-Nothing but a gate ever reaches the distributing repository, and a task never reaches it at all.
-Where every agent is on one machine, that repository is a bare repo on the same disk and no packet
-leaves the host.
+## Why the mail shape
 
-## The talk repository
+A mail client and a mail server already split this problem, and the reasons transfer:
 
-**One repository, one branch per group, `groups/<name>`.** Linear history, no merges, no force
-pushes, no deletions. A gate never force-pushes and never deletes; where the remote can refuse both
-itself — a forge's branch rules, which it runs itself — that is configured as well, because a rule
-kept only by the clients is kept only by the clients.
+| Mail | Here |
+|---|---|
+| The client never speaks SMTP to the world; it writes to a spool | The agent never speaks a transport; it writes to a directory |
+| Maildir's `tmp` → `new` rename | A message is complete when it is renamed, so no reader sees half of one |
+| The queue's directory name is the state | Same: a state change is a rename, so a crash cannot leave it half done |
+| A bounce is an ordinary message in the inbox | A refusal is an ordinary message in the inbox |
+| The index is rebuildable; the messages are the truth | The rule the sluice states for its own index |
 
-**One file per message**, at `messages/<task>/<seq>.json`, where `<task>` is the container name and
-`<seq>` is assigned by the gate. Every writer writes into its own directory, so two messages never
-conflict; a rejected fast-forward is resolved by rebasing onto the new tip, never by a merge. **The
-order of messages is the order of commits on the branch**, not the timestamps inside them.
+mbox is the one thing not borrowed: a single appended file needs locking, and a crash mid-write
+corrupts it. One file per message is what makes every operation a rename.
 
-**`group.yml` at the root of the branch is the group's control state**: its member projects, the
-machine signing keys allowed to write for them, its mode, whether it is held or closed, its turn
-budget and its text limit. Only a commit signed by an operator key may change it. The operator keys
-themselves are configured in every gate, never in the repository, so the repository cannot vouch for
-itself.
+## Inside the container
 
-**Every commit the gate makes carries trailers**:
+**Maildir-shaped minimum** — the rename, without flags and without folders. It stays
+filename-compatible with Maildir, so flags can be added later without moving anything.
 
 ```
-Sokar-Task: sokar-a1b2
-Sokar-Project: sokar
-Sokar-Author: task
+/run/sokar/mail/                  bind-mounted, one per task
+├─ inbox/  tmp/ new/ cur/         the host writes into tmp/ and renames into new/
+├─ outbox/ tmp/ new/              the agent writes into tmp/ and renames into new/
+├─ sent/                          the exact bytes that were sent, written back by the host
+└─ agent-card.json                the peers this task may address, and what it may do
 ```
 
-`Sokar-Author` is `task` or `operator`. The trailers are the gate's statement; the signature is what
-makes the statement checkable by somebody who was not on that machine.
+`sent/` matters more here than in a mail client: the mailbox outlives the container, so it is how a
+restarted agent reads its own half of the conversation.
 
-## The message format
+**The agent never sees an address.** A recipient is a **peer name**; what `reviewer` resolves to is
+on the host and cannot be reached from inside. **The agent definition gains one field**, reported
+through `describe`: `messaging: maildir` or `messaging: none`. Sokar branches on the field, never on
+the agent, and `AgentIsolationTest` fails the build if that is got wrong.
 
-**An [A2A](https://a2a-protocol.org/latest/specification/) message, narrowed.** A2A is used as a file
-format only, not as a protocol: an agent already speaking A2A needs no adapter later, it costs nothing
-at runtime, and it commits to no server. A2A carries its own mechanism for this — a message lists the
-URIs of the extensions present in it — so the narrowing is declared as a Sokar extension and every
-message stays valid A2A.
+## On the host
+
+```
+<task state>/mail/                durable, per task, survives every restart
+├─ incoming/                      taken from outbox/new, unchanged
+├─ filter/  feedback/ rejected/ error/ .index/
+├─ queue/<transport>/ active/ deferred/
+├─ hold/                          waiting for a person, or unattributable on arrival
+├─ sent/                          handed over, with the signature and the delivery record
+├─ inbound/                       what a transport delivered, before it reaches the container
+└─ record/                        the hash-chained log
+```
+
+Every hop is a rename, so a crash leaves the message in the earlier state: at worst something is
+answered twice, never swallowed.
+
+**The mailbox is created with the task and destroyed with it**, and nothing in between touches it —
+stop, start and a machine restart leave the conversation where it was. It is in the task's durable
+state, never under `$XDG_RUNTIME_DIR`, which the system clears at boot: that is what makes a mailbox
+different from the sockets a task cannot come back to after a reboot today.
+
+**Removal refuses while something is in flight.** A message in `outbox/new/`, or queued and deferred,
+is the same shape as commits that never reached the gate: `--rescue` hands them over first and waits,
+`--force` removes regardless.
+
+## The message
+
+**A2A 1.0, narrowed.** Verified against `specification/a2a.proto` at tag `v1.0.1`, read 2026-09-16: a
+part carries exactly one of `text`, `raw`, `url` or `data` in a `oneof`, plus `metadata`, `filename`
+and `media_type`; a message carries `message_id`, `context_id`, `task_id`, `role`, `parts`,
+`metadata`, `extensions` and `reference_task_ids`; the roles are `ROLE_UNSPECIFIED`, `ROLE_USER` and
+`ROLE_AGENT`. There is no `kind` discriminator — it was removed in 1.0 — so a file carrying one is
+from 0.3.x and is refused rather than converted. ProtoJSON is the JSON mapping, so a file spells them
+`mediaType`, `messageId`, `contextId`.
 
 What the narrowed schema allows, and nothing else:
 
 | A2A field | Allowed |
 |---|---|
-| `messageId` | Required. Unique within the group. |
-| `role` | `agent` when a task writes, `user` when a person does. Must agree with `Sokar-Author`. |
-| `contextId` | Required, and equal to the group's name. |
-| `taskId`, `referenceTaskIds` | Absent. |
-| `extensions` | Exactly the Sokar talk extension's URI. |
-| `metadata` | Exactly one key, `kind`: `question`, `answer`, `review-request`, `status` or `handover`. |
-| `parts` | Exactly one text part, within the group's text limit (proposed default 4 KiB of UTF-8), and at most one data part whose schema is fixed by `kind`. **No file, raw or url part.** |
+| `messageId` | Required, unique for the sender |
+| `role` | `agent` when a task writes, `user` when a person does |
+| `contextId` | Required; the conversation this belongs to |
+| `taskId`, `referenceTaskIds` | Absent |
+| `extensions` | Exactly the Sokar messaging extension's URI |
+| `metadata` | `kind`, `to`, `from`, `thread` — and nothing else |
+| `parts` | Exactly one text part within the peer's text limit, and at most one data part whose schema is fixed by `kind`. **No file, raw or url part.** |
 
 | `kind` | Data part |
 |---|---|
 | `question` | none |
-| `answer` | `in_reply_to`: the commit of the message answered — A2A's message has no reply field |
+| `answer` | `in_reply_to`: the id of the message answered |
 | `review-request`, `handover` | `repository`, `ref`, `commit` — work is named by commit and travels through the gate, never inside a message |
 | `status` | `state`: `started`, `blocked`, `done` or `abandoned` |
 
 Every object is closed: a property the schema does not name is a refusal, not something ignored.
-Commit ids are 40 or 64 lowercase hex characters.
 
-**The field names are verified**, against `specification/a2a.proto` at tag `v1.0.1`, read 2026-09-16:
-a part carries exactly one of `text`, `raw`, `url` or `data` in a `oneof`, plus `metadata`, `filename`
-and `media_type`; a message carries `message_id`, `context_id`, `task_id`, `role`, `parts`,
-`metadata`, `extensions` and `reference_task_ids`; the roles are `ROLE_UNSPECIFIED`, `ROLE_USER` and
-`ROLE_AGENT`. There is no `kind` discriminator anywhere — it was removed in 1.0 — so a file carrying
-one is from 0.3.x and is refused rather than converted. ProtoJSON is the JSON mapping, so the wire
-names are `mediaType`, `messageId`, `contextId` and so on.
+## The signature
 
-**What the schema buys, stated exactly.** It bounds how much a message can carry and what shape it
-has — and with the turn budget, how much a whole group can carry — without a model deciding anything.
-It does not bound what the text means: the one text part carries whatever is written into it, which
-is why the text limit, the budget and a person's hold are the controls.
+**A detached SSHSIG over the message's exact bytes**, made on the host when it takes a message out of
+`outbox/new/` (`ssh-keygen -Y sign`), verified with `-Y verify` against an allowed-signers list.
 
-## Inside the container
+- **The file is opaque from end to end.** Nothing between the two mailboxes re-serializes it, so the
+  bytes signed are the bytes verified — which is why the sluice is required to move a message rather
+  than rewrite it.
+- **One verification path for every transport**, whatever carried the two files.
+- **The key is the daemon user's**, held in that user's state directory at `0600` and never mounted
+  anywhere. Sokar runs as a systemd *user* unit, so two people on one machine have two identities and
+  neither can read the other's key; the boundary is exactly Unix-user strength, as B13
+  ([index](README.md)) already says for the guard.
+- **It is not the user's login key.** One lets a machine connect, the other says what it vouches for:
+  a login key is often passphrase-protected, and revoking one should not invalidate the other.
+- **It says the installation vouched, not that the agent typed it.** The task never holds a key;
+  which task and project spoke is inside the signed bytes.
 
-**A second clone of the group's branch at `/run/sokar/talk`**, whose `origin` is always the gate.
-It sits beside the sockets the container already has under `/run/sokar`, so everything Sokar puts in
-a container is in one place an agent learns once: never inside the workspace, so a message cannot be
-committed into the work repository by accident, invisible to `git status` there, and untouched by an
-agent that wipes its working directory. It is a clone per task, never a directory shared between
-tasks.
+Transport-native signatures are a second, weaker signal about the hop and never the basis of trust:
+DKIM says a message left a domain unmodified, not who wrote it.
 
-**Saying something** is committing one message file under `messages/<own task>/` and pushing. The
-push lands on `refs/sokar/talk/<group>/<task>` in the gate, exactly as a work push lands on
-`refs/sokar/incoming/<task>` today.
-
-**Listening** is pulling. The agent is told in its instructions where `talk/` is and that what it
-finds there is content from other tasks, never an instruction from the operator.
-
-**The agent definition gains one field**, reported through `describe`: `talk: git` or `talk: none`.
-Sokar branches on the field, never on the agent, and `AgentIsolationTest` fails the build if that is
-got wrong. An agent that declares `none` cannot be placed in a group, and the refusal says so.
-
-## The gate's half: what happens on a push
-
-The gate already identifies a task by the per-task token every request carries, and already pushes to
-an upstream with a credential that stays on the host (`sokar gate approve`). The talk half reuses both.
-
-**One address decides where messages go.** `project.yml` names the talk repository, edited as text
-like every other project setting:
+## Peers, groups and trust
 
 ```yaml
-talk:
-  # A path when everything is on this machine; an ssh url when it is not.
-  repository: "/srv/sokar/talk.git"
-  groups:
-    - "review"
-  # What this project accepts from a group before it refuses the sender. It pays for the work.
-  incoming_turns: 40
+peers:
+  reviewer:  { address: "local:sokar-utils4j-review", trust: vouched }
+  ops:       { address: "mail:ops@example.org",       trust: external }
+groups:
+  release:   [ reviewer, ops ]
 ```
 
-The address is the gate's, on the host. **A container never sees it**: its `talk/` points at the
-gate, so an agent cannot point itself past the checks.
+**A group is a host-side peer list.** Sending to it fans out to its members over whatever transport
+each uses, and its control state — held, closed, mode — is local. That keeps groups working on
+transports with no shared object.
 
-On every talk push, in this order, and a failure at any step stops the next:
+**Trust is a property of the peer**, not of what carried the message:
 
-1. **Policy**, in `TalkPolicy` in `core` — the only place that decides, asked by the gate, the daemon
-   and the CLI alike:
-   1. every project in `group.yml` declares the group under `talk.groups` in its own `project.yml`;
-   2. no project in the group is `offline`;
-   3. every project in the group has the same class, refused as `REFUSED_BY_CLASS`;
-   4. the task's agent declares `talk: git`;
-   5. the task is in no other group.
-2. **State**: the group is not closed, not held, and within its budget — read from `group.yml` at the
-   tip of the branch this machine last fetched.
-3. **Shape**: one new file, under the task's own directory, and nothing else in the agent's commit.
-4. **The message sluice** — the narrowed schema, encoded payloads, credentials, personal data, and
-   what earlier messages of this group already carried. Its refusal is what the task is shown.
-5. **The gate's own commit.** The message file is taken out of the agent's commit and written into a
-   new commit on the current tip of the group's branch, with the trailers above. The agent's author,
-   dates, parents and any other file it committed are discarded rather than validated.
-6. **Signed on the host**, with an SSH key under the state directory, `0600`, never mounted anywhere
-   (`gpg.format ssh`).
-7. **Pushed to the distributing repository** with the host's credential for it. A refusal is recorded
-   on the gate as `refs/sokar/talk-refused/<group>/<task>/<seq>` — git again, no journal written for
-   it — and the sender is told why on its push.
+| Arrival | What the host does |
+|---|---|
+| Signed by a key listed for a **vouched** peer | Attribution checked; content not re-checked - that machine already did |
+| Signed by a key listed for an **external** peer | Attribution checked, and the content put through the sluice on the way in |
+| Unsigned, or signed by a key not listed for that peer | **Never delivered**: held, and the operator told |
 
-**Serving a task only its group.** The gate keeps one bare mirror per group, holding only that
-group's branch, and serves a task only the mirror of its own group. Not one mirror with the other
-refs hidden: git documents that its fetch and push protocols are not designed to stop one side from
-obtaining objects the other did not mean to share, and `gitnamespaces(7)` says so in its security
-section. A task can only get what is not there to be got.
+**Inside the group, keys come from a signed directory.** One `allowed_signers` file mapping a
+principal to its key, changed only by an operator-signed commit and distributed with the group's
+other configuration. Each host pins one thing out of band: the operator key that signs it. Once there
+is a git transport (`sokar-message-sluice` 003), that repository is what distributes it; until then it
+is a local file, because a single machine has nothing to distribute to.
 
-**Across a resume** nothing needs replaying: the mirror and the branch outlive the task, and the
-resumed task's `talk/` is cloned again from the gate.
+**A certificate authority is left open deliberately.** `cert-authority` is a line in the same
+`allowed_signers` file, so switching later is configuration rather than redesign. It would then need
+certificate expiry, renewal, a revocation list that reaches every host, and a CA key whose loss forges
+every identity in the group.
+
+**Outside the group, a person confirms once.** The first message signed by an unknown key waits in
+`hold/` with its fingerprint shown; one confirmation writes it into that peer's entry. A key that
+changes is held again with both fingerprints, because a rotation and an impersonation are identical to
+software.
+
+**Fail closed.** An unreachable directory means verifying against the last fetched copy and holding
+what cannot be verified — never accepting because the list could not be read.
+
+## What the host promises
+
+- **One promise about sending: accepted for delivery.** The receipt says the message was handed to its
+  transport and nothing stronger. Anything a transport genuinely knows beyond that arrives as an extra
+  labelled fact.
+- **No order is promised**, and a message whose id was already delivered to that mailbox is dropped
+  and logged, so a retry cannot make an agent act twice on one instruction.
+- **Limits are per task, per peer, in both directions.** Beyond them a sender is refused with a reason
+  rather than queued. Size limits come from the transport's `describe`.
+
+## The adapter contract
+
+Packages install into a directory Sokar scans, and each describes itself rather than being registered:
+
+```
+/usr/libexec/sokar/transports/sokar-message-transport-local
+```
+
+| Verb | What it does |
+|---|---|
+| `describe` | Its scheme, whether it can poll, what it can confirm, its size limit, the credentials it needs and **which hosts it reaches** |
+| `check` | Validates configuration and credential without sending anything, for `sokar doctor` |
+| `send <file> <sig>` | Takes one message from its queue. Exit 0 handed over, 75 temporary (stays in `deferred/`), anything else refuses it back to the sender |
+| `poll` | Fetches what arrived into `inbound/`, atomically. A transport that needs no polling says so |
+| `receipt` | Optional: what became of a message it sent |
+
+**Where it runs**: on the host, as its own unprivileged user, credential from the vault through the
+same proxy a task uses — never in a task container, never in the same process as the sluice. Its
+declared hosts are what the egress configuration permits it to reach.
+
+**What it may not do**: change a message's bytes, decide whether a message may be sent, read another
+transport's queue, or write into the container's mount. It carries; it does not judge.
+
+**The first one is local** (`sokar-message-sluice` 002): it moves a file into the recipient's
+`inbound/` on the same machine. No network, no credential, no history — and on a developer's machine
+that is the whole of what is needed. **The git transport** (`sokar-message-sluice` 003) is designed
+and not built: it is what adds distribution across machines, a shared ordered record, and a way to
+distribute the key directory.
 
 ## The content check is its own tool
 
-**`sokar-message-sluice`, in a repository of its own**, where its requirement and its design are
-issue 001. Sokar decides *who* may say something to *whom*; the sluice decides *what* a message may
-contain.
+`sokar-message-sluice`, in a repository of its own, where its requirement and design are issue 001.
+Sokar decides *who* may say something to *whom*; the sluice decides *what* a message may contain: the
+narrowed schema, encoded payloads (caught by asking whether the text obeys the statistics of English),
+credentials and personal data (a catalogue of pattern, context and checksum), and a payload spread over
+several messages.
 
-**It is not an agent and carries no model.** Fixed rules over files, the same verdict every time for
-the same input, and every refusal traceable to one rule with a part index and an offset. A checker
-that asked a model would be open to the same manipulation as the task it checks, through exactly the
-text it is reading.
+It is a content filter in the delivery path, not a mail server: no queue, no timer, no retry, no
+address, and no knowledge that any transport exists. It runs **before anything is queued**, so nothing
+sits in a transport's queue unchecked, and its refusal is delivered as a bounce into the sender's own
+inbox.
 
-What it decides, beyond the narrowed schema: **encoded payloads** (base64 and its relatives, hex,
-quoted-printable, PEM, ciphertext) caught by asking whether the text obeys the statistics of English
-rather than by a list of encodings; **credentials and personal data** by a catalogue of pattern,
-surrounding context and checksum; and **a payload spread over several messages**, by correlating
-against everything this machine already let through for that group.
+**Its corpus is the task's own sent messages**, which live and die with the mailbox. The accepted gap:
+a payload spread over two tasks the same operator started is seen by neither.
 
-**Its file contract, and how the gate drives it:**
+**It never rewrites a message** — the signature is over the exact bytes.
 
-| The sluice's directory | What it is here |
-|---|---|
-| `inbox/` | where the gate writes the message it took out of the task's push, before it signs anything |
-| `approved/` | **the gate's clone of the group's branch.** The gate commits, signs and pushes what lands there — the push is the delivery, and nothing is ever removed, so it is also the corpus the chunking check reads |
-| `feedback/` | the answer: a receipt, or a refusal naming every reason with nothing a rule matched in clear text. The gate returns it to the task on its push |
-| `rejected/`, `error/` | the originals, which hold the secret in clear text. They stay on the host, are never pushed, and **must lie outside the clone's work tree** — the sluice refuses to start otherwise |
+## The record
 
-**It runs on the writing machine only**, and its corpus is **the group's whole branch**: the
-`approved/` directory *is* the gate's clone, so after a poll it holds every member's messages, not
-only this machine's. A payload split across machines is then refused by whichever machine sends the
-piece that crosses the threshold. Two gaps stay, and are not closed by anything here: a sender can
-beat the corpus by less than one fetch interval, and a piece refused or held on another machine was
-never on the branch to count.
+**A hash-chained log per host**, in `record/`: one line per state change — arrived, filtered, queued,
+sent, deferred, refused, delivered — each line's hash including the previous line's, beside the signed
+messages. Tamper-evident locally, identical for every transport, verifiable without a network.
 
-**What it does not catch**, stated here rather than discovered later: a secret described in words
-instead of written out, steganography in word choice, and anything that is not English prose. No
-model would catch them reliably either — which is why a group's mode, its text limit and its turn
-budget are the controls that bound what a conversation can carry.
+**Anchorable later, anchored to nothing today.** If the record ever has to convince somebody who does
+not trust the operator, the head hash can be published where the operator does not control it —
+OpenTimestamps, or a transparency log. That is a publishing step, not a redesign, and no content ever
+leaves: only a root hash. A blockchain is the expensive way to buy the same property, and it brings one
+that is actively wrong here: nothing published can be withdrawn.
 
-## No classifier in the first version
+## At rest
 
-A prompt-injection classifier — a small model scoring the text before the push — was designed in and
-is **not built**. It could only ever hold a message, never release one, so nothing it would catch is
-left unguarded by leaving it out: the sluice's rules decide, the group's mode, text limit and turn
-budget bound what a conversation can carry, and a person holds what a `guarded` project sends.
+`0700` directories owned by the account that runs Sokar — the same protection the workspace and the
+task logs already have. **Refused originals live as long as the task**, with no timer: one lifetime for
+everything a task owns, and `task remove` takes them with the rest.
 
-What it would have cost is the reason: a container per push, a model runtime parsing attacker text,
-an unread licence, an unmeasured threshold and an unproven path from Java — four unknowns in the
-critical path of a feature that works without them.
-
-**If it returns**, it returns as its own requirement, with the same shape this design gave it: a
-rootless container per push, `--network none`, read-only root filesystem, `--cap-drop all`,
-`no-new-privileges`, resource limits, no mount but the model, the text on standard input and one
-number on standard output — and *hold* for anything that is not a score in bounds, including a
-container that does not start, times out or dies. A generative reviewer in its place would be an
-agent, and would need the same container and a stricter answer format.
-
-## Polling, and what a fetching gate decides
-
-**The daemon binds no network interface**, in this arrangement as in every other, so nothing can be
-pushed to it. A message arrives because the gate goes and looks.
-
-- **One timer per machine**, `talk.poll_interval` in the daemon's configuration, default 60 s. One
-  fetch updates every group mirror on the machine, whether or not a task is running, so a message is
-  waiting when a task starts rather than arriving only because one did.
-- **On one machine there is no interval.** Where the distributing repository is a path on this host —
-  the default arrangement — the gate watches its refs and updates the mirrors as a push lands, so a
-  reply costs what git costs rather than a tick. The timer stays as the fallback for a remote, which
-  cannot be watched over ssh.
-- **A fetch never runs the content checks.** The machine that wrote a message checked it; running the
-  catalogue again here would double the cost and still not protect against a machine that skipped it.
-- **What it does decide is whether a message can be attributed**: the signature verifies against a key
-  `group.yml` allows for that group at that commit, the trailers agree with the signature, and the
-  file is a valid narrowed message. A message failing any of those is **not delivered to any task**,
-  is recorded as `UNATTRIBUTED` with the reason, and shows up in `sokar talk` and in the stream for
-  the operator. It stays on the branch: not delivering is not hiding.
-- **And whether it was allowed to exist.** The gate reads `group.yml` as it stood at the commit each
-  new message builds on and asks whether the group was open, not held and within budget then. One
-  that should not have been written is not delivered either, and is reported as `RULE_BROKEN` naming
-  the machine whose key signed it. Prevention stays with the writing machine; this is how the others
-  find out without waiting for somebody to run `verify`.
-- **Delivery to a task is its own pull.** The task's `talk/` fetches from the gate's mirror, so a
-  task sees what the gate accepted and nothing else.
-
-## Modes, holding, closing, budget
-
-**Modes are the four `clearance` already uses**, set in `group.yml`:
-
-| Mode | Effect on the writing machine |
-|---|---|
-| `prompt` | Every message is held until a person releases it. |
-| `allow` | Pushed if every rule passes. |
-| `deny` | Every message is refused. |
-| `off` | Pushed if every rule passes, **and** no model check ever runs for this group — including one added later. Today it behaves exactly as `allow`; it is kept because it is a state a group declares about itself, readable back, and not the widest setting. |
-
-**Each machine enforces this for its own tasks.** There is no hook upstream, so the control state is
-a rule the operator's machines keep, not a wall — the same limit B13 ([index](README.md)) already
-names for the owner of a machine. What a machine cannot do is hide having broken it: the commits are
-signed, the branch is the record, and **every other gate checks the state a message was written under
-as it fetches**, so a message from a held or closed group reaches no reader anywhere and the operator
-is told which machine wrote it.
-
-**A held message is released or refused, never edited.** A release is a new commit by the person,
-carrying the message unchanged with `Sokar-Released-By` and `Sokar-Held: <commit>` trailers, signed
-with the person's key; the held commit stays on `refs/sokar/held/<group>/<id>` on that machine. So the
-record shows both what the task said and who let it through, and never a sentence no task wrote.
-
-**A `guarded` project's groups are `prompt` unless the project opts in.** The class promises that a
-person reads what leaves, and `allow` or `off` lets a message leave that nobody read. The opt-in is
-one setting, proposed as `gate.unreviewed_may_leave: true` in `project.yml`, shared with B13's review
-branch on a forge; `TalkPolicy` refuses a `group.yml` mode of `allow` or `off` for a group with a
-`guarded` member that has not set it. An `online` project already lets unreviewed work leave, and its
-groups may use any mode.
-
-**A group is `open`, `held` or `closed`**, also in `group.yml`. Held accepts nothing onto the branch
-and tells each sender it was held. Closed is final: a further push is refused rather than queued.
-
-**Two budgets, because they protect different people.** The group's turn budget is a count in
-`group.yml`; the check counts message commits since the commit that set it and refuses the one that
-would exceed it with `OVER_BUDGET`, and the group is then closed by an operator-signed commit that
-says why. The receiver's `incoming_turns` is the other: a project declares what it accepts from a
-group, and beyond it a message is refused to its sender with `RECEIVER_FULL` rather than queued —
-the work a message causes is paid for by the receiving project's provider and credential.
-
-## The record, and verifying it
-
-**The branch is the record.** Every commit hashes its parent, so an entry changed or removed after the
-fact stops verifying, and a force push that would hide it is refused by every gate and, where it can
-be, by the remote. What was refused on a machine is on that machine's gate under
-`refs/sokar/talk-refused/`, and what is held is under `refs/sokar/held/`.
-
-**`sokar talk verify <group>`** walks the branch, verifies every commit's signature against the keys
-`group.yml` allowed at that commit, checks every `group.yml` change against the operator keys, checks
-the history is linear, and names the first commit that fails. It is also how a machine that ignored
-the group's state is found, after the fact.
+**The exposure, stated:** `rejected/` is the one directory whose contents are secret *because* the
+filter worked, so a long-lived task accumulates every refused secret for its life, behind file
+permissions and nothing else — the same protection the workspace beside it has. **What would change the
+answer:** tasks living for months, or a `rejected/` too large for anybody to read.
 
 ## The daemon's interface
 
-Additions to `org.fuin.sokar.Tasks1`, which only ever grows. `InterfaceDescriptionTest` fails the
-build if any of this is registered without appearing in the file, or appears without being
-registered.
+Additions to `org.fuin.sokar.Tasks1`, which only ever grows. `InterfaceDescriptionTest` fails the build
+if any of this is registered without appearing in the file, or appears without being registered.
 
 ```
-type Group (
+type Peer (
   name: string,
-  projects: []string,
-  # prompt, allow, deny or off.
-  mode: string,
-  # open, held or closed.
-  state: string,
-  turns: int,
-  budget: int,
-  # When this machine last fetched the branch.
-  fetched: string
+  # local, git, mail, ... - whatever the adapter's scheme is.
+  transport: string,
+  # vouched or external.
+  trust: string
 )
 
 type Message (
-  group: string,
-  # The commit on the group's branch. Pass it back unchanged.
-  commit: string,
-  # Container name of the writing task, or "" when the author is the person.
+  # The message's own id. Pass it back unchanged.
+  id: string,
   task: string,
-  project: string,
-  # "task" or "operator".
-  author: string,
+  peer: string,
   # question, answer, review-request, status or handover.
   kind: string,
+  # sent, delivered, held, refused or unattributed.
+  state: string,
   at: string,
-  text: string,
-  # held, delivered, refused or unattributed.
-  state: string
+  text: string
 )
 
 type TalkOutcome (
-  ACCEPTED, HELD, NOT_DECLARED, REFUSED_BY_CLASS, NO_TALK, REFUSED_BY_RULE, CLOSED, OVER_BUDGET,
-  RECEIVER_FULL, ALREADY_IN_A_GROUP, UNATTRIBUTED, RULE_BROKEN, UPSTREAM_UNREACHABLE
+  ACCEPTED, HELD, NOT_DECLARED, REFUSED_BY_CLASS, NO_MESSAGING, REFUSED_BY_RULE, CLOSED,
+  OVER_BUDGET, RECEIVER_FULL, UNATTRIBUTED, RULE_BROKEN, TRANSPORT_UNREACHABLE
 )
 
-# Every group the projects on this machine belong to.
-method Groups() -> (groups: []Group)
+# Every peer the projects on this machine may address.
+method Peers() -> (peers: []Peer)
 
-# Every message in every group, as the gate fetches it - including groups joined after the call,
-# and including what was not delivered, so nothing is lost by refusing to deliver it.
-# Streaming only, exactly as Prompts works.
+# Every message in every mailbox on this machine, as it moves. Streaming only, as Prompts works.
 method Talk() -> Message
 
-# The person writes into a group, signed with their key. The author is set here, never by the caller.
-method Say(group: string, kind: string, text: string) -> (message: ?Message, outcome: TalkOutcome)
+# The person writes into a conversation, signed with their key. The author is set here.
+method Say(peer: string, kind: string, text: string) -> (message: ?Message, outcome: TalkOutcome)
 
-# Releases or refuses one held message. It is never edited.
-method Release(group: string, commit: string, allow: ?bool) -> (message: Message)
+# Releases or refuses one held message, or confirms the key of an unknown sender.
+method Release(id: string, allow: ?bool, trustKey: ?bool) -> (message: Message)
 
-# Changes the mode, or holds or releases the whole group: an operator-signed commit to group.yml.
-method Moderate(group: string, held: ?bool, mode: ?string) -> (group: Group)
+# Holds or releases a whole peer or group, or changes its mode.
+method Moderate(name: string, held: ?bool, mode: ?string) -> (peer: Peer)
 
-# Fetches now instead of waiting for the timer.
-method Fetch(group: ?string) -> (groups: []Group)
-
-# Ends it. A further message is refused rather than queued.
-method Close(group: string, reason: ?string) -> (group: Group)
-
-error NoSuchGroup(group: string)
+error NoSuchPeer(name: string)
 ```
 
 ## The command line
@@ -406,93 +322,73 @@ error NoSuchGroup(group: string)
 re-decided.
 
 ```
-sokar talk groups
-sokar talk log <group> [--follow]
-sokar talk say <group> [--kind question]   # text on stdin, never in argv
-sokar talk held <group>
-sokar talk release <group> <commit> [--refuse]
-sokar talk hold <group> [--release]
-sokar talk fetch [<group>]                 # now, rather than at the next tick
-sokar talk close <group> [--reason ...]
-sokar talk verify <group>
+sokar talk peers
+sokar talk log [<peer>] [--follow]
+sokar talk say <peer> [--kind question]    # text on stdin, never in argv
+sokar talk held
+sokar talk release <id> [--refuse] [--trust-key]
+sokar talk hold <peer> [--release]
+sokar talk verify [<task>]
 ```
 
 **`say` reads the text from standard input**, the way `vault put` does: a process list is
-world-readable and nobody can promise what an operator will paste into a message to an agent.
+world-readable, and nobody can promise what an operator will paste into a message to an agent.
 
 ## Lifecycle
 
 | Event | What happens |
 |---|---|
-| `task start` | If the project declares a group, the gate's mirror for it is fetched and the task's `talk/` is cloned from the gate. No talk helper, no extra socket. |
-| A message | Policy, state, shape, sluice, the gate's commit, the host signature, the push. A failure at any step stops the next. |
-| Every tick | The gate fetches every group branch, verifies what is new, and feeds the daemon's `Talk` stream. Tasks see it on their next pull. |
-| `task stop` | Nothing to reap. The branch keeps everything the task said. |
-| `task resume` | `talk/` is cloned again from the gate; nothing is replayed. |
-| `sokar panic` | Stops the tasks with everything else; the gate pushes nothing more; the record stays. |
-| A machine key is retired | Its `valid-before` is set in `group.yml` by an operator-signed commit; what it signed before stays verifiable. |
-| The distributing repository is unreachable | Nothing is delivered and nothing is fetched; the sender is told on its push, and the next tick tries again. |
+| `task start` | The mailbox is created if it does not exist and bind-mounted; what is waiting in `inbound/` is delivered |
+| A message | Policy, the sluice, the host's signature, the transport queue, the adapter. A failure at any step stops the next |
+| `task stop` | Nothing to reap. The mailbox stays as it is |
+| `task resume` | The same mailbox is mounted again; `inbox/cur/` and `sent/` are still there |
+| A machine restart | The mailbox is in durable state, so it survives; the queues resume where they were |
+| `sokar panic` | Tasks stop with everything else; nothing is handed to a transport; the record stays |
+| `task remove` | Refused while something is in flight; otherwise the mailbox goes with the task |
 
 ## Failure modes, and what each must do
 
 | When | What must happen | Why it is listed |
 |---|---|---|
-| The distributing repository cannot be reached | Nothing is delivered; the sender is told on its push. | A message waiting silently reads as ignored. |
-| The sluice cannot start or cannot run | The push is refused. | Fail closed: an unchecked message is the thing this exists to prevent. |
-| An agent commits a file outside its own directory | The gate refuses before signing. | Otherwise one task could write in another's name. |
-| An agent commits more than the message | Only the message file reaches the gate's commit. | The agent's commit is an assertion, not a record. |
-| A message carries a file part, an unknown property or an unknown kind | Refused by the gate. | A closed schema that ignores what it does not know is an open one. |
-| A fetched commit is unsigned, signed by a key not in the group, or malformed | Not delivered to any task, recorded as `UNATTRIBUTED`, shown to the operator. | A task must not act on something nobody can attribute. |
-| The group is held or closed | Refused with that state as the reason. | An agent told nothing retries. |
-| Either budget runs out | Refused, and the group's budget closes the group with a reason. | A warning nobody is watching is not a control. |
-| A task tries to fetch another group | There is nothing to fetch: its gate mirror holds one branch. | Hidden refs are not access control. |
-| A machine ignores the group's state | Its messages are not delivered by any other gate, and the operator is told which key signed them. Prevention was never possible off that machine. | Detection that waits for somebody to look is not detection. |
+| The sluice cannot start or cannot run | Nothing is queued. | Fail closed: an unchecked message is what this exists to prevent |
+| A transport cannot reach its destination | The message stays in `deferred/` and the sender is told on its receipt | A message waiting silently reads as ignored |
+| A transport's destination does not exist | Refused back to the sender, not retried | Retrying forever is how a queue dies |
+| An adapter alters a message's bytes | Verification fails at the far side | The signature is the only thing that can catch it |
+| An arrival cannot be attributed | Held, never delivered, operator told | A task must not act on something nobody can attribute |
+| A message arrives twice | Delivered once | Acting twice on one handover is the expensive failure |
+| A task is removed with mail in flight | Refused, unless `--rescue` or `--force` | The same rule as unpushed commits |
 
 ## What must be proven to fail
 
-- A group not declared by every member project **must** be refused — assert that no commit reaches
-  the branch, not on the wording of the refusal.
-- An `offline` member, and a `guarded`-with-`online` group, **must** be refused. Mutate the class in
-  the fixture and watch each break.
-- A task already in one group **must** be refused a second.
-- A `group.yml` mode of `allow` or `off` for a group with a `guarded` member that has not opted in
-  **must** be refused, and accepted once it has. Remove the setting in the fixture and watch it break.
-- A message the sluice refuses **must not** reach the branch, and the refusal the task is shown
-  **must not** contain what the rule matched.
-- A sluice that cannot be started **must** stop the push, not pass it.
-- An unsigned commit, a commit signed by a key not in the group, and a `group.yml` change signed by a
-  machine key **must** each be refused — on the way out by the gate that would write it, and on the
-  way in by every gate that fetches it, which is what `UNATTRIBUTED` is for.
-- A commit whose `Sokar-Task` names another task's directory **must** be refused.
-- A file part, an extra property at any depth, an unknown `kind`, a `role` that disagrees with
-  `Sokar-Author`, and a text part one byte over the limit **must** each be refused.
-- `sokar talk verify` **must** fail when a commit is edited and when one is removed — both, because
-  removal is the case a naive per-commit check misses.
-- A task's `talk/` **must** contain no object of another group: clone it and search for a known blob
-  of the other group, rather than listing refs.
-- A held group **must** deliver nothing: assert a peer's pull brings nothing new, not that the state
-  field says `held`.
-- A message pushed while its group was held, closed or over budget **must not** be delivered by a
-  peer's gate, even though that peer runs no content check — assert on what reaches the peer's task,
-  not on what the record says.
-- A payload split across **two machines** into pieces that are each unremarkable **must** be refused
-  on the machine that sends the piece crossing the threshold, with both senders' messages named.
-- With the distributing repository unreachable, a push **must** fail loudly and the next tick **must**
-  deliver what was missed.
-- No key file appears anywhere a task container can read.
+- A message the sluice refuses **must not** reach any transport queue, and the refusal the agent is
+  shown **must not** contain what the rule matched.
+- An accepted message **must** reach the peer byte for byte: hash it in `outbox/new/` and again at the
+  far end.
+- A message with a file, raw or url part, an unknown property at any depth, an unknown `kind`, or a
+  text part one byte over the limit **must** each be refused.
+- An unsigned message, and one signed by a key not listed for its peer, **must** each be held rather
+  than delivered — asserted on what reaches the task, not on a state field.
+- A key change for a known peer **must** hold the message and ask again.
+- A duplicate id **must** be delivered once; a crash between queueing and the receipt **must not**
+  produce two.
+- A removal with something in flight **must** refuse; with `--rescue` it **must** hand over first.
+- A task's mailbox **must** survive `stop`, `start` and a machine restart with `inbox/cur/` and `sent/`
+  intact, asserted on a real restart rather than a simulated one.
+- **No key file appears anywhere a task container can read**, and no adapter runs inside one.
+- A partially written message **must never** be visible in `new/`: write a large one while a reader
+  lists the directory in a loop.
 
-Anything needing podman, ssh or a remote belongs in the acceptance suite, not in surefire.
+Anything needing podman, a second user or a real restart belongs in the acceptance suite, not in
+surefire.
 
 ## Alternatives considered
 
 | Option | Why not |
 |---|---|
-| **A self-hosted filter between every machine and the forge**, plain git over ssh with the check as its `pre-receive` hook | A host of its own, a system user, a forced ssh command, a forwarding hook and a forge credential nobody else may hold — to run the same code that already runs where the message is written. It bought one thing the local check does not: a machine could not skip it. That is worth a great deal against somebody else's machines and almost nothing against the operator's own, which is the case here. |
-| **A model reviewer on every machine** | A hosted free model is a place every conversation leaks to, and a model that reads every project's messages becomes a bridge between them. The sluice is rules; a model, if one is ever added, may hold a message and never release one. |
-| **A socket helper**: a `talk serve` helper per task with a socket mounted at `/run/sokar/talk.sock`, a `Talk1` varlink interface, a hash-chained journal under the state directory, and the daemon as hub | Sound on one machine and widened nothing. It had to invent what git and the gate already provide — a wire, an inbox in agents that have none, a journal and its verifier — and across machines it needed a client carrying frames between daemons, with two records and no shared clock. |
-| **[FINOS GitProxy](https://github.com/finos/git-proxy)** (Apache-2.0, FINOS graduated) | A push interceptor with approval and forwarding, in TypeScript on Node with MongoDB or NeDB, bringing its own UI and user model. It is the centralized shape that was dropped; worth revisiting only if people outside Sokar have to approve messages in a browser. |
-| **[Gerrit](https://gerrit-review.googlesource.com/Documentation/config-validation.html)** | A whole code-review server with its own users and UI, to run for a message filter. Worth taking if messages ever need real review with several reviewers. |
-| **[Llama Guard](https://huggingface.co/meta-llama/Llama-Guard-4-12B)** | Classifies content against a list of harms — violence, weapons, self-harm. Neither exfiltration nor prompt injection is on it; a workspace in base64 is harmless by its categories. |
-| **[NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails)** | A Python orchestration framework with its own rule language, not a detector: the detection comes from what it calls, which can be called directly. It would bring back the Python this project is removing from its build. |
-| [NATS](https://nats.io/about/) + JetStream, [Matrix](https://spec.matrix.org/latest/) via [continuwuity](https://continuwuity.org/introduction), [Prosody](https://prosody.im/) | Brokers and chat servers take transport and storage off the pile, and leave the policy, the hold and a verifiable record to be built on top — beside a daemon with its own authentication database. They would also put a service where a bare repository is enough. |
-| [Rekor](https://github.com/sigstore/rekor), [immudb](https://immudb.io/) | A transparency log proves more than a signed linear branch, and runs as another service. Worth revisiting if the record has to satisfy somebody who trusts neither the operator nor the forge. |
+| **A git repository as the channel itself**, as this requirement was first designed | It is a transport, and a good one between machines: it becomes `sokar-message-sluice` 003 rather than the shape of the whole feature. As the only channel it put a clone, a push and a second repository inside every container, and made the record depend on the route |
+| **A socket helper per task**, with a varlink interface and a journal | Sound on one machine, and it had to invent an inbox for agents that have none, a wire, a journal and its verifier. A directory needs none of that, and every agent already knows how to write a file |
+| **A model reviewer on every machine** | A hosted model is a place every conversation leaks to, and one that reads every project's messages becomes a bridge between them. The sluice is rules; a model, if ever added, may hold and never release |
+| **[Llama Guard](https://huggingface.co/meta-llama/Llama-Guard-4-12B)** | Classifies content against a list of harms; neither exfiltration nor prompt injection is on it |
+| **A blockchain, or blockchain-addressed mail** | Buys ordering and timestamps that mutually distrusting parties believe; the parties here are the operator's own machines. It brings a funded key, an RPC endpoint on the host's egress, block latency, and publication that cannot be withdrawn |
+| [NATS](https://nats.io/about/), [Matrix](https://spec.matrix.org/latest/), [Prosody](https://prosody.im/) | Brokers and chat servers take transport and storage off the pile and leave the policy, the hold and the record to be built on top — beside a daemon with its own authentication database. They are candidates for an adapter, not for the shape |
+| [Rekor](https://github.com/sigstore/rekor), [immudb](https://immudb.io/) | A transparency log proves more than a hash-chained local log and runs as another service. This is what "anchorable later" keeps the door open for |

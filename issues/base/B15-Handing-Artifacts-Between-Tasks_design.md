@@ -5,7 +5,7 @@ class, path, method and file below is a proposal, and none of it has been measur
 running system are quoted from the code and marked where it matters.
 
 It shares its policy with [B14](B14-Talking-Between-Tasks.md)'s design, deliberately. Its record is its
-own: B14 records in a git repository.
+own: B14 records in a hash-chained log on each host.
 Where that is so, this document points there rather than restating it — two versions of one decision
 is the failure `TaskInventory` and `TaskControl` exist to prevent.
 

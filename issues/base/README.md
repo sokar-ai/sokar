@@ -80,7 +80,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 |---|---|---|---|---|---|---|
 | B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | open | - | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have | |
 | B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | open | - | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | three, and one is a one-line fix | |
-| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | decided | - | Tasks in a group can talk through a git repository, one branch per group, every message a strictly narrowed A2A message checked on the machine that writes it - its content judged by a tool of its own that carries no model - signed on the host, pushed to a repository that only distributes, and fetched back on a timer; declared by every project in the group, refused across security classes, holdable while it runs, and widening nothing a container may reach. | none | [note](#b14) |
+| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | decided | - | A task has a mailbox: it writes a strictly narrowed A2A message into a directory and reads what arrives there, while the host decides what may leave - judged by a tool of its own that carries no model - signs it on the way out and hands it to a transport package, with trust a property of the peer, refusals arriving as bounces, and nothing widening what a container may reach. | none | [note](#b14) |
 | B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | open | - | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 | |
 | B37 | [The Build That Runs Somewhere Else](B37-The-Build-That-Runs-Somewhere-Else.md) | open | - | A task learns the verdict and the reason for the build its own work triggered, without reaching the forge and without holding a forge credential. | seven, and the first may end it | [note](#b37) |
 | B38 | [How Far Something That Got Through Can Get](B38-How-Far-Something-That-Got-Through-Can-Get.md) | open | sokar-frontend F32 | How far a convinced agent can get is bounded where it can be, named where it cannot, and the reviewer sees what matters before what is merely large. | six, and one may have no answer | [note](#b38) |
@@ -183,9 +183,9 @@ cheapest of the three new ones, and the gap is total - there is no way to hand a
 task today except pasting into a terminal. B37 is its first consumer rather than its reason.
 
 <a id="b14"></a>**B14 carries B15 with it.** They are the same question twice, and B15 reuses
-B14's policy, so settling B14 settles most of both. It is decided and ready to start: every check
-runs on the machine that writes a message, nothing runs upstream, and the repository that
-distributes stores branches rather than gating them.
+B14's policy, so settling B14 settles most of both. It is decided and ready to start: a task writes
+into a mailbox and never speaks a transport, everything is checked on the machine that writes it, and
+carrying a message is a package - the first one moving a file between mailboxes on one machine.
 
 <a id="b37"></a>**B37 is in Later because its first question may end it.** In `guarded` the forge
 does not build a task's push until a person approves it, so what looks like watching a build may

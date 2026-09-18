@@ -160,7 +160,7 @@ the record is hash-chained and written before the other side can see anything.
 **The relationship to [B14](B14-Talking-Between-Tasks.md).** Same policy shape, same refusals, same
 class rules. If B14 is built, this is largely its `TalkPolicy` reused with a different payload, and
 the two should share it rather than growing two versions of one decision. The record is not
-shared: B14 records in a git repository served by the gate, and this journal stands on its own
+shared: B14 records in a hash-chained log on each host, and this journal stands on its own
 unless this requirement moves to the same construction, which is worth deciding before either is
 scheduled.
 
