@@ -81,7 +81,8 @@ public final class ProjectReader {
                 text(project.get("upstream")).isEmpty() ? null : text(project.get("upstream")),
                 limits(root, origin),
                 egress(root, origin),
-                packageSources(image, origin));
+                packageSources(image, origin),
+                mail(root, origin));
     }
 
     /**
@@ -105,6 +106,44 @@ public final class ProjectReader {
             throw new ProjectException(origin + ": 'image.package_sources' is a list of URLs");
         }
         return list.stream().map(ProjectReader::text).toList();
+    }
+
+    /**
+     * Reads the optional {@code mail} section, which names the peers a task may address.
+     *
+     * @param root The whole document.
+     * @param origin Name used in error messages.
+     * @return What the project declared, empty when it declared nothing.
+     */
+    private static Mail mail(Map<?, ?> root, String origin) {
+        final Object value = root.get("mail");
+        if (value == null) {
+            return Mail.none();
+        }
+        if (!(value instanceof Map<?, ?> mail)) {
+            throw new ProjectException(origin + ": 'mail' must be a mapping");
+        }
+        final Object peers = mail.get("peers");
+        if (peers == null) {
+            return Mail.none();
+        }
+        if (!(peers instanceof Map<?, ?> declared)) {
+            throw new ProjectException(origin + ": 'mail.peers' must be a mapping of name to peer");
+        }
+        final java.util.List<Mail.Peer> read = new java.util.ArrayList<>();
+        for (final Map.Entry<?, ?> entry : declared.entrySet()) {
+            final String name = String.valueOf(entry.getKey());
+            if (!(entry.getValue() instanceof Map<?, ?> peer)) {
+                throw new ProjectException(origin + ": 'mail.peers." + name
+                        + "' must be a mapping with 'address' and 'trust'");
+            }
+            read.add(new Mail.Peer(name, text(peer.get("address")),
+                    // Vouched is the narrower promise - it skips the check on the way in - so an
+                    // omitted trust level is the wider one rather than the convenient one.
+                    text(peer.get("trust")).isEmpty() ? Mail.Peer.EXTERNAL
+                            : text(peer.get("trust"))));
+        }
+        return new Mail(java.util.List.copyOf(read));
     }
 
     /**

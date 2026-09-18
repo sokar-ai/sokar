@@ -1,0 +1,2 @@
+title: "An accepted message is queued for the transport its peer uses and handed to that adapter: handed over moves it to sent with its receipt, a temporary failure waits in deferred and is tried again, and anything else is held rather than retried forever."
+type: added

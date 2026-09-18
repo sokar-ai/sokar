@@ -1,0 +1,2 @@
+title: "A project names the peers its tasks may address, each with the transport that carries a message there and whether it is vouched for, and a task never sees the address."
+type: added

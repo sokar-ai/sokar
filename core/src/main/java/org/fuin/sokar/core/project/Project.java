@@ -18,7 +18,31 @@ package org.fuin.sokar.core.project;
 public record Project(String name, String description, SecurityClass securityClass, String baseImage,
         @org.jspecify.annotations.Nullable String imageSnippet,
         @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
-        java.util.List<String> packageSources) {
+        java.util.List<String> packageSources, Mail mail) {
+
+    /**
+     * Constructor for a project that exchanges no messages.
+     * <p>
+     * Every caller that predates the mail section keeps working through this, and reads as what it
+     * is: a project whose tasks address nobody.
+     *
+     * @param name Project name.
+     * @param description What it is for.
+     * @param securityClass How contained its tasks are.
+     * @param baseImage Image its task image is built from.
+     * @param imageSnippet Extra build fragment, or {@code null}.
+     * @param upstream Where approved work goes, or {@code null}.
+     * @param limits What a task may use.
+     * @param egress What a task may reach.
+     * @param packageSources Where apt fetches from.
+     */
+    public Project(String name, String description, SecurityClass securityClass, String baseImage,
+            @org.jspecify.annotations.Nullable String imageSnippet,
+            @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
+            java.util.List<String> packageSources) {
+        this(name, description, securityClass, baseImage, imageSnippet, upstream, limits, egress,
+                packageSources, Mail.none());
+    }
 
     /**
      * Where apt fetches from, when a project names nothing.
