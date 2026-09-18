@@ -1,0 +1,2 @@
+title: "A message leaves a task signed over its exact bytes, and one that arrives reaches the agent only when its signature matches a key a peer is allowed to use; anything else is held rather than delivered or deleted."
+type: added
