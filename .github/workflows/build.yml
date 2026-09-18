@@ -203,8 +203,12 @@ jobs:
           # wizard fetches it with 'curl -L', shows it to the person, and runs it as root. Named
           # with the version so the script and the packages it configures cannot drift apart, and
           # 'latest' beside it for a caller that has no version yet.
-          VERSION="$(sed -n 's/^Version: //p' dist-deb/target/*/DEBIAN/control 2>/dev/null | head -1)"
-          VERSION="${VERSION:-$(basename dist-deb/target/*.deb | sed 's/^sokar_//; s/_amd64\.deb$//')}"
+          # Out of the package that was just built, with the tool that made it: the control
+          # directory jdeb works from is not left on disk, and a glob over target/ matches every
+          # .deb a machine has ever built there.
+          DEB="$(ls -t dist-deb/target/sokar_*.deb | head -1)"
+          VERSION="$(dpkg-deb -f "$DEB" Version)"
+          [ -n "$VERSION" ] || { echo "::error::no version in $DEB"; exit 1; }
           jf rt upload "dist-setup/sokar-setup.sh" "sokar-dist-deb/setup/sokar-setup-${VERSION}.sh" --flat=true
           jf rt upload "dist-setup/sokar-setup.sh" "sokar-dist-deb/setup/sokar-setup-latest.sh" --flat=true
 
