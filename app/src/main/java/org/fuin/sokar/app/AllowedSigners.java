@@ -38,9 +38,27 @@ public final class AllowedSigners {
         if (!Files.isRegularFile(file)) {
             return List.of();
         }
+        return parse(Files.readAllLines(file, StandardCharsets.UTF_8), file);
+    }
+
+    /**
+     * Reads lines in the {@code allowed_signers} format.
+     * <p>
+     * Separate from the file so that keys published elsewhere - one file per user, in a directory
+     * the users of a machine share - are read by exactly the same parser rather than by a second
+     * one that drifts.
+     *
+     * @param lines The lines.
+     * @param origin What to call them in an error.
+     * @return One peer per principal, with every key listed for it.
+     * @throws IOException If any line cannot be read.
+     */
+    static List<MessageDelivery.Peer> parse(final List<String> lines, final Path origin)
+            throws IOException {
+        final Path file = origin;
         final Map<String, List<byte[]>> byPrincipal = new LinkedHashMap<>();
         int number = 0;
-        for (final String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+        for (final String line : lines) {
             number++;
             final String trimmed = line.strip();
             if (trimmed.isEmpty() || trimmed.startsWith("#")) {

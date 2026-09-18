@@ -11,6 +11,10 @@
 #   --user <name>       The account tasks run as. Default: agents
 #   --distribution <d>  Which published distribution to install from. Default: snapshots
 #   --with <package>    Also install this package. May be given several times.
+#   --between-users on|off
+#                       Allows, or takes back, messaging between the Unix users of this machine.
+#                       Off by default and off until somebody says otherwise: two users are two
+#                       Sokar installations, and a message between them is carriage between hosts.
 #   --list              Print what this machine could install, install nothing, and stop
 #   --json              With --list: one JSON object on stdout, for a program rather than a person
 #   --show              Print every command and run none of them
@@ -36,6 +40,7 @@ DISTRIBUTION=snapshots
 SHOW=no
 LIST=no
 JSON=no
+BETWEEN=
 WITH=
 OS_RELEASE=/etc/os-release
 BASE=https://fuinorg.jfrog.io/artifactory
@@ -45,11 +50,12 @@ while [ $# -gt 0 ]; do
         --user) USER_NAME="${2:?--user needs a name}"; shift 2 ;;
         --distribution) DISTRIBUTION="${2:?--distribution needs a name}"; shift 2 ;;
         --with) WITH="$WITH ${2:?--with needs a package name}"; shift 2 ;;
+        --between-users) BETWEEN="${2:?--between-users needs 'on' or 'off'}"; shift 2 ;;
         --list) LIST=yes; shift ;;
         --json) JSON=yes; shift ;;
         --show) SHOW=yes; shift ;;
         --os-release) OS_RELEASE="${2:?--os-release needs a file}"; shift 2 ;;
-        --help) sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help) sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "sokar-setup: unexpected argument '$1'" >&2; exit 2 ;;
     esac
 done
@@ -331,6 +337,70 @@ elif [ "$SHOW" = yes ]; then
     printf '   $ %s\n' "usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $USER_NAME"
 else
     run usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$USER_NAME"
+fi
+
+# ---------------------------------------------------------------- messaging between users
+
+# Where a message crosses from one Unix user's installation to another's. Nothing here exists
+# unless somebody asked for it: the default is that another user's mailbox is refused, and a
+# machine where this was never run refuses every such send permanently.
+SPOOL=/var/spool/sokar
+GROUP=agents
+
+drop_for() { # user
+    install -d -m 1730 -o "$1" -g "$GROUP" "$SPOOL/drop/$1/tmp" "$SPOOL/drop/$1/new"
+    # The mode lets the group drop a file in without listing or reading the directory; the sticky
+    # bit stops one sender removing another's. The default ACL then hands each dropped file to the
+    # recipient alone - without it a file arrives readable by the whole group.
+    setfacl -d -m "user:$1:rw-" -m "group::---" -m "other::---" "$SPOOL/drop/$1/tmp" \
+        "$SPOOL/drop/$1/new"
+}
+
+if [ "$BETWEEN" = on ]; then
+    say "messaging between the users of this machine"
+    if ! command -v setfacl >/dev/null 2>&1; then
+        # Without a default ACL a dropped file is readable by every member of the group, which is
+        # the one thing this scheme must not allow. Refused rather than built wrong.
+        echo "sokar-setup: 'setfacl' is not installed, and without it a dropped message would be" >&2
+        echo "readable by every member of '$GROUP'. Install acl and run this again." >&2
+        exit 5
+    fi
+    getent group "$GROUP" >/dev/null 2>&1 || run groupadd "$GROUP"
+    run install -d -m 0755 -o root -g root "$SPOOL"
+    # Every member may publish their own key here; the sticky bit stops them replacing another's.
+    run install -d -m 1775 -o root -g "$GROUP" "$SPOOL/keys"
+    run install -d -m 0755 -o root -g root "$SPOOL/drop"
+    note "allowed. Each user publishes their key with 'sokar talk key --publish'."
+elif [ "$BETWEEN" = off ]; then
+    say "messaging between the users of this machine"
+    if [ -d "$SPOOL" ]; then
+        run rm -rf "$SPOOL"
+        note "taken back - every send between users is refused again"
+    else
+        note "was not allowed here"
+    fi
+elif [ -n "$BETWEEN" ]; then
+    echo "sokar-setup: --between-users takes 'on' or 'off', not '$BETWEEN'" >&2
+    exit 2
+fi
+
+if [ -d "$SPOOL/drop" ]; then
+    # Only where it was allowed: adding a user never turns this on, which is the difference
+    # between a deliberate step and a side effect.
+    say "this user's drop"
+    if id -nG "$USER_NAME" 2>/dev/null | tr ' ' '\n' | grep -qx "$GROUP"; then
+        note "$USER_NAME is already in '$GROUP'"
+    else
+        run usermod -a -G "$GROUP" "$USER_NAME"
+    fi
+    if [ -d "$SPOOL/drop/$USER_NAME/new" ]; then
+        note "$SPOOL/drop/$USER_NAME is already there"
+    elif [ "$SHOW" = yes ]; then
+        printf '   $ %s\n' "install -d -m 1730 -o $USER_NAME -g $GROUP $SPOOL/drop/$USER_NAME/{tmp,new}, with a default ACL"
+    else
+        drop_for "$USER_NAME"
+        note "wrote $SPOOL/drop/$USER_NAME"
+    fi
 fi
 
 # ---------------------------------------------------------------- what would fail silently

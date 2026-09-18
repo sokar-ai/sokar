@@ -231,7 +231,7 @@ Packages install into a directory Sokar scans, and each describes itself rather 
 
 | Verb | What it does |
 |---|---|
-| `describe` | Its scheme, whether it can poll, what it can confirm, its size limit, the credentials it needs and **which hosts it reaches** |
+| `describe` | Its scheme, whether it can poll, what it can confirm, its size limit, the credentials it needs, **which hosts it reaches** and **what it attests** |
 | `check` | Validates configuration and credential without sending anything, for `sokar doctor` |
 | `send <file> <sig>` | Takes one message from its queue. Exit 0 handed over, 75 temporary (stays in `deferred/`), anything else refuses it back to the sender |
 | `poll` | Fetches what arrived into `inbound/`, atomically. A transport that needs no polling says so |
@@ -239,7 +239,46 @@ Packages install into a directory Sokar scans, and each describes itself rather 
 
 **The wire, settled with the sluice's agent on 2026-09-18.** `describe` reads nothing and prints one
 JSON object - `scheme`, `poll`, `confirms` (`handover`, `receipt` or `read`), `max_bytes`,
-`credentials`, `hosts`. `check` prints its reason on stderr and exits 0 usable or 2 not.
+`credentials`, `hosts`, `attests`. `check` prints its reason on stderr and exits 0 usable or 2 not.
+
+### What a transport attests
+
+`attests` is a list of facts a transport proves about a message it hands over, from something it
+saw and the host cannot see afterwards. Empty for every transport that merely carries bytes - the
+local one answers `[]` - and it is the mechanism by which **one rule of this requirement can be
+lifted for one transport without being weakened anywhere else**.
+
+| Fact | What the transport must do | What the host then requires |
+|---|---|---|
+| `owner` | Write `<message>.owner` beside the pair in `inbound/`, one line `<uid> <name>`, read from the file's `st_uid` **before** it was moved | The file must be there; the name must equal the Unix user in the peer's address; the message's signature must still verify against a key listed for that peer |
+
+**Why a file and not a line of output.** The owner has to be read while the message is still where
+the sender left it: a spool directory and a home directory are usually different filesystems, so
+the move into `inbound/` copies rather than renames and the original owner is lost. And a file
+survives a crash between the transport finishing and the host reading, where a line on standard
+output does not.
+
+**Why it cannot be forged by a sender.** The `.owner` is written by the *recipient's* transport,
+running as the recipient, about a file the sender wrote. A sender who copies somebody else's validly
+signed message into a drop still owns the file they wrote, and the attestation says so.
+
+**Fail closed, both ways.** A transport that claims `owner` and hands over a message without one has
+its message **held**. A transport that claims nothing has an `.owner` file ignored, so it cannot
+gain trust by volunteering one.
+
+### Across Unix users on one machine
+
+**The default is unchanged: a mailbox owned by another Unix user is refused**, and the local
+transport refuses it always. Two users are two Sokar installations with two signing identities
+sharing only a kernel, and a file moved between them is carriage between hosts rather than a local
+delivery.
+
+**Where an operator has deliberately allowed it for a machine**, a transport that attests `owner`
+may carry between them - addressed `spool:<unix-user>`, so that the address itself names who the
+host must find the message to be owned by. Nothing is allowed by installing a package: the drop
+directories are made by a step where the machine is set up, and removing them refuses every such
+send again. Designed with the filter's agent as their issue 010, agreed on the channel on
+2026-09-18.
 `send <message> <signature> --to <address>` prints its receipt as one JSON object.
 `poll --into <dir>` writes pairs there and prints how many. **Nothing is ever read from standard
 input**: messages are files, and a transport that read stdin would tempt somebody to stream a message

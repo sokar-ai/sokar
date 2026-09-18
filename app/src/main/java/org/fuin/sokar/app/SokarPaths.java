@@ -190,6 +190,19 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns where the users of this machine publish their message keys to each other.
+     * <p>
+     * Outside any user's home, because it is shared, and made only where an operator has allowed
+     * messaging between users. A file here is believed only if it is owned by the user it is named
+     * after.
+     *
+     * @return The directory, which need not exist.
+     */
+    public Path sharedKeys() {
+        return Path.of("/var/spool/sokar/keys");
+    }
+
+    /**
      * Returns the directory podman reads hook descriptors from.
      *
      * @return Hook directory.

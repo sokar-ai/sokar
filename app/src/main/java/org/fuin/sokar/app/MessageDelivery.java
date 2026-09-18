@@ -28,6 +28,27 @@ import org.fuin.sokar.vault.SshSignature;
 public final class MessageDelivery {
 
     /**
+     * What a transport proved about who owned an arriving message.
+     * <p>
+     * A function rather than a flag, because whether anything is attested depends on the transport
+     * that carried each message, and only the caller knows which that was.
+     */
+    @FunctionalInterface
+    public interface Attested {
+
+        /**
+         * Says whether an arriving message may be delivered, as far as ownership goes.
+         *
+         * @param mailbox The task's mailbox.
+         * @param message The message, still in {@code inbound}.
+         * @param peer The peer whose key signed it.
+         * @return An empty string when it may go on, otherwise why it may not.
+         * @throws IOException Reading failed.
+         */
+        String refuse(Mailbox mailbox, java.nio.file.Path message, String peer) throws IOException;
+    }
+
+    /**
      * One peer, and the keys allowed to speak for it.
      *
      * @param name Peer name, as the host knows it.
@@ -132,6 +153,27 @@ public final class MessageDelivery {
     public Outcome deliver(final Mailbox mailbox, final List<Peer> peers, final Set<String> seen,
             final @org.jspecify.annotations.Nullable InboundCheck check,
             final @org.jspecify.annotations.Nullable MessageBudget budget) throws IOException {
+        return deliver(mailbox, peers, seen, check, budget, null);
+    }
+
+    /**
+     * Delivers what can be attributed, what a transport's attestation agrees with, what the filter
+     * passed and what is within the day's budget.
+     *
+     * @param mailbox The task's mailbox.
+     * @param peers The peers this task may hear from, with the keys allowed for each.
+     * @param seen Ids this task has already been handed, from its record.
+     * @param check What reads an external peer's message before an agent does, or {@code null}.
+     * @param budget How much this task and a peer may say to each other, or {@code null}.
+     * @param attested What a transport proved about who owned a message, or {@code null} when
+     *        nothing that carried into this mailbox attests anything.
+     * @return What was delivered, what was held and what was a repeat.
+     * @throws IOException Reading or moving failed.
+     */
+    public Outcome deliver(final Mailbox mailbox, final List<Peer> peers, final Set<String> seen,
+            final @org.jspecify.annotations.Nullable InboundCheck check,
+            final @org.jspecify.annotations.Nullable MessageBudget budget,
+            final @org.jspecify.annotations.Nullable Attested attested) throws IOException {
         final List<Delivered> delivered = new ArrayList<>();
         final List<Held> held = new ArrayList<>();
         final List<Repeat> duplicates = new ArrayList<>();
@@ -171,6 +213,16 @@ public final class MessageDelivery {
                 Files.delete(message);
                 Files.delete(signature);
                 duplicates.add(new Repeat(name, id));
+                continue;
+            }
+
+            // Before anything else about the message: who put it here is a fact that stops being
+            // knowable once it has been moved, and it is the one the peer table can disagree with.
+            final String owner = attested == null ? ""
+                    : attested.refuse(mailbox, message, peer.name());
+            if (!owner.isEmpty()) {
+                hold(mailbox, message, signature);
+                held.add(new Held(name, owner));
                 continue;
             }
 

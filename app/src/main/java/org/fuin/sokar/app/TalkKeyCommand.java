@@ -23,6 +23,11 @@ public class TalkKeyCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "What to call this machine in the line. Default: sokar@<hostname>")
     private String principal;
 
+    @Option(names = "--publish",
+            description = "Also writes the line to this machine's shared key directory, so the"
+                    + " other users here can verify what this account sends.")
+    private boolean publish;
+
     @Spec
     private CommandSpec spec;
 
@@ -40,9 +45,59 @@ public class TalkKeyCommand implements Callable<Integer>, SokarFactory.ContextAw
         // Created on first use rather than demanded: a machine that has never sent a message has no
         // reason to have been asked for a key, and this is often the first thing anybody asks for.
         final var key = HostKey.loadOrCreate(context.paths().messageKey(), name);
-        out.println(HostKey.allowedSignersLine(key, name));
+        final String line = HostKey.allowedSignersLine(key, name);
+        out.println(line);
+        if (publish) {
+            final int code = publish(line, out, spec.commandLine().getErr());
+            out.flush();
+            return code;
+        }
         out.flush();
         return 0;
+    }
+
+    /**
+     * Writes this account's key where the other users of this machine can read it.
+     * <p>
+     * <strong>Each account publishes its own, and that is the point.</strong> The file is owned by
+     * the user it is named after, and a reader checks that before believing it - so somebody else
+     * creating {@code bob.pub} produces a file owned by them, which is refused. Root could not do
+     * this on anybody's behalf anyway: a signing key is made on first use, in that user's own state
+     * directory.
+     *
+     * @param line The allowed_signers line to publish.
+     * @param out Where progress goes.
+     * @param err Where a refusal goes.
+     * @return Exit code.
+     */
+    private int publish(final String line, final java.io.PrintWriter out,
+            final java.io.PrintWriter err) {
+        final java.nio.file.Path directory = context.paths().sharedKeys();
+        if (!java.nio.file.Files.isDirectory(directory)) {
+            err.println("sokar: " + directory + " does not exist, so messaging between the users of"
+                    + " this machine has not been allowed here.");
+            err.println("       ask an administrator for: sokar-setup.sh --between-users on");
+            err.flush();
+            return 1;
+        }
+        final String me = System.getProperty("user.name", "");
+        final java.nio.file.Path file = directory.resolve(me + ".pub");
+        try {
+            java.nio.file.Files.writeString(file, line + System.lineSeparator(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            out.println("published " + file);
+            return 0;
+        } catch (final java.io.IOException ex) {
+            // Most likely somebody else got there first: the directory is sticky, so a file that
+            // is not yours cannot be replaced. That is the protection working, not a fault.
+            err.println("sokar: cannot write " + file + " - " + ex.getMessage());
+            if (java.nio.file.Files.exists(file)) {
+                err.println("       it exists and is not yours, which is what stops one user"
+                        + " publishing a key in another's name");
+            }
+            err.flush();
+            return 1;
+        }
     }
 
     private String hostName() {
