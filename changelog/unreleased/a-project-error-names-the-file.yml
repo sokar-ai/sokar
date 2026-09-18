@@ -1,0 +1,2 @@
+title: "A project file that cannot be read is named by its absolute path, so the message says which project.yml it was."
+type: added

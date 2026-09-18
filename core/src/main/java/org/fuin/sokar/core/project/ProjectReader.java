@@ -40,7 +40,11 @@ public final class ProjectReader {
                     + ". Run 'sokar task run' in a terminal and it will offer to write one.");
         }
         try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-            return read(reader, file.toString());
+            // Absolute, because the message is read somewhere else than it was typed: "project.yml
+            // has no 'project' section" leaves a reader guessing which project.yml, and a person
+            // driving this over a socket or from a script has no working directory in front of
+            // them at all.
+            return read(reader, file.toAbsolutePath().toString());
         } catch (IOException ex) {
             throw new ProjectException("Cannot read " + file, ex);
         }
