@@ -1611,6 +1611,93 @@ method Decide(
   allow: ?bool
 ) -> (ok: bool)
 
+# ---------------------------------------------------------------------------- keyslots
+
+# What can open this machine's vault (B60).
+#
+# The vault's master key is stored only in wrapped form, once per credential allowed to open it.
+# Keyslot 0 is the passphrase and is recovery only; every other slot is one device, which keeps a
+# 32-byte share in its own platform's keystore. Adding a device adds a slot, removing one deletes a
+# slot, and neither re-keys anything nor disturbs another device.
+#
+# Readable while the vault is locked: a screen has to show which devices can open a vault before
+# anything opens it. Nothing here is secret.
+method Keyslots() -> (slots: []Keyslot)
+
+type Keyslot (
+  # Assigned by the node and kept by the device beside its share. Not derived from the share: the
+  # node discards that at enrollment and could derive nothing from it later.
+  id: string,
+  # What a person called this device. Shown in a list; never an identifier.
+  name: string,
+  # USER_SCOPED, APPLICATION_SCOPED, FIDO2 or TPM2, as the device declared it. Recorded, not
+  # verified - this machine cannot check what another one does with its own keystore.
+  storage: string,
+  enrolled: string,
+  # "" when it has not been used since it was enrolled.
+  lastUsed: string,
+  # True only for the slot whose share this machine is currently holding, so a list can mark
+  # "this device". About the session, not about the file.
+  self: bool,
+  # True for the passphrase, which is keyslot 0, is recovery only, and is not a device.
+  recovery: bool
+)
+
+# Lets a device open the vault from now on.
+#
+# The share arrives once, wraps the master key, and is discarded. It is never logged, never echoed
+# back and never written anywhere. What is left here is worth nothing without the device, and what
+# the device holds is worth nothing without this machine's vault file.
+method EnrollDevice(
+  # What to call the device in a list.
+  name: string,
+  # 32 random bytes, base64. The device generates them and keeps them in its platform's keystore.
+  share: string,
+  # USER_SCOPED, APPLICATION_SCOPED, FIDO2 or TPM2.
+  storage: string
+) -> (
+  # ENROLLED, ALREADY_ENROLLED, UNKNOWN_STORAGE, BAD_SHARE, VAULT_LOCKED,
+  # VAULT_WITHOUT_KEYSLOTS or FAILED.
+  outcome: string,
+  slot: ?Keyslot,
+  detail: string
+)
+
+# Takes a device's way in away.
+#
+# Deleting one wrapped blob and nothing else: no re-keying, no other device disturbed, no
+# passphrase rotated.
+method RevokeKeyslot(id: string) -> (
+  # REVOKED, NO_SUCH_SLOT, LAST_WAY_IN, VAULT_LOCKED, VAULT_WITHOUT_KEYSLOTS or FAILED.
+  outcome: string,
+  # What can still open the vault afterwards, so a screen can say it without asking again.
+  remaining: []Keyslot,
+  detail: string
+)
+
+# Opens the vault with a device's share, for a while.
+#
+# This is the one thing the daemon can do to the vault that it cannot do with a passphrase: a share
+# arrives from a device over this socket, where a passphrase would need a terminal the daemon does
+# not have.
+#
+# What is held afterwards is the share, in the kernel keyring, with the kernel enforcing the
+# timeout - not the unwrapped master key, which would be a secret on this machine that outlives
+# every revocation.
+method UnlockWithShare(
+  # The device's share, base64.
+  share: string,
+  # How long, in minutes. Absent means eight hours.
+  minutes: ?int
+) -> (
+  # UNLOCKED, SHARE_REJECTED, BAD_SHARE, VAULT_WITHOUT_KEYSLOTS or FAILED.
+  outcome: string,
+  # When the unlock runs out, RFC 3339, or "".
+  until: string,
+  slot: ?Keyslot,
+  detail: string
+)
+
 # What this machine could install, from its own package source.
 #
 # Nobody maintains a list: every agent package declares 'Provides: sokar-agent' and every transport

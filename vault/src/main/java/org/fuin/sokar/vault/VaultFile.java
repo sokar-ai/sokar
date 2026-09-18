@@ -136,6 +136,17 @@ public class VaultFile {
     }
 
     /**
+     * Reads and decrypts the vault with whatever opens it.
+     *
+     * @param opener The passphrase or a device's share.
+     * @return The entries, in the order they were written.
+     * @throws VaultException If the file is unreadable, malformed, or the opener is not a way in.
+     */
+    public Map<String, VaultEntry> read(Opener opener) {
+        return read(opened(opener));
+    }
+
+    /**
      * Returns every credential that can open this vault, without opening it.
      * <p>
      * Readable while locked on purpose: an interface has to show which devices can open a vault
@@ -236,6 +247,28 @@ public class VaultFile {
         }
         writeContent(read(opened(opener)), kept, opened.master());
         return kept.stream().map(VaultHeader.Slot::slot).toList();
+    }
+
+    /**
+     * Says whether one named slot takes a share.
+     * <p>
+     * For reporting which device just unlocked the vault, and for nothing else: it answers about
+     * one slot, so it cannot be used to walk a vault trying shares.
+     *
+     * @param id The slot.
+     * @param share The share.
+     * @return {@code true} when that slot opens with it.
+     */
+    public boolean takes(String id, byte[] share) {
+        if (!exists()) {
+            return false;
+        }
+        for (final VaultHeader.Slot slot : header().slots()) {
+            if (slot.slot().id().equals(id)) {
+                return takes(slot, Opener.share(share));
+            }
+        }
+        return false;
     }
 
     /**

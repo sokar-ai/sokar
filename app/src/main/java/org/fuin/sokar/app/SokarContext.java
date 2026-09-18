@@ -105,6 +105,25 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
     }
 
     /**
+     * Returns whatever can open this vault without asking anybody.
+     * <p>
+     * The passphrase first, because it is what most machines have; then a device's share, held in
+     * the keyring by an unlock that has not run out. Both are ways in with a timeout, and which
+     * one a machine has is not something a caller should have to know.
+     *
+     * @return An opener, or empty when the vault is shut.
+     */
+    public java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> opener() {
+        final java.util.Optional<char[]> passphrase = new org.fuin.sokar.vault.PassphraseTiers(
+                org.fuin.sokar.vault.KernelKeyring.source(paths.vaultKeyringKey())).passphrase();
+        if (passphrase.isPresent()) {
+            return java.util.Optional.of(
+                    org.fuin.sokar.vault.VaultFile.Opener.passphrase(passphrase.get()));
+        }
+        return VaultShare.held(paths).map(org.fuin.sokar.vault.VaultFile.Opener::share);
+    }
+
+    /**
      * Returns the credentials the vault holds, keyed by agent name.
      * <p>
      * Empty when there is no vault or it cannot be unlocked without asking. A task that needs no
@@ -137,13 +156,12 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
         if (!vault.exists()) {
             return java.util.Optional.of(java.util.Map.of());
         }
-        final java.util.Optional<char[]> passphrase = new org.fuin.sokar.vault.PassphraseTiers(
-                org.fuin.sokar.vault.KernelKeyring.source(paths.vaultKeyringKey())).passphrase();
-        if (passphrase.isEmpty()) {
+        final java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> opener = opener();
+        if (opener.isEmpty()) {
             return java.util.Optional.empty();
         }
         try {
-            return java.util.Optional.of(vault.read(passphrase.get()));
+            return java.util.Optional.of(vault.read(opener.get()));
         } catch (org.fuin.sokar.vault.VaultException ex) {
             // A wrong passphrase or a damaged file. Unreadable rather than empty: the operator
             // has something to fix either way, and reporting it as empty hides it.

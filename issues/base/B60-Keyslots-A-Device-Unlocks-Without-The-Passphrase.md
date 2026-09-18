@@ -72,11 +72,24 @@ stored at all: derived at unlock time from a FIDO2 token's `hmac-secret`, or fro
 behind a PIN, so that releasing it needs a physical touch or a PIN which same-user code cannot supply.
 That is available on Linux today.
 
-## The contract, proposed rather than decided
+## The contract, now on the wire
 
-Written down because the interface is building four screens against it (`sokar-frontend` F38 to F41)
-and only the last mapping onto the wire should change when it is built. **Nothing of this is on
-`Tasks1` yet.**
+Proposed on 2026-09-18 so the interface could build four screens against it (`sokar-frontend` F38 to
+F41), and **registered on `Tasks1` the same day**, with the field names and outcomes unchanged. Two
+things were added rather than altered: `BAD_SHARE` is also an unlock outcome, and
+`VAULT_WITHOUT_KEYSLOTS` is also a revoke outcome - both are states a screen can reach and neither
+had a name.
+
+**Where an unlock is held.** `UnlockWithShare` keeps **the share** in the kernel keyring for the
+time asked, not the unwrapped master key. A cached master key would be a secret on this machine that
+outlives every revocation: a slot can be deleted, but a key somebody already holds opens the vault
+for good. A share stops working the moment its keyslot is removed, and it is no more than what the
+passphrase cache already is.
+
+**And the daemon can now open the vault, where before it could not.** Its own comment said a daemon
+"can shut the vault but can never open it" because it has no terminal to ask at. A share needs no
+terminal - it arrives from a device over the socket - so B60 supersedes that, deliberately and in
+one direction only: by share, never by passphrase.
 
 ```
 type Keyslot (

@@ -811,6 +811,52 @@ public final class SokarDaemon {
             }
         });
 
+        // B60's four verbs. The daemon can open the vault with a share where it cannot with a
+        // passphrase: a share arrives from a device over this socket, and a passphrase would need
+        // a terminal the daemon does not have.
+        server.method("Keyslots", (parameters, replies) -> {
+            final org.fuin.sokar.app.Keyslots keyslots = new org.fuin.sokar.app.Keyslots(context);
+            replies.last(Map.of("slots", keyslots.list().stream()
+                    .map(slot -> slotAsMap(slot, context)).toList()));
+        });
+
+        server.method("EnrollDevice", (parameters, replies) -> {
+            final org.fuin.sokar.app.Keyslots.Enrollment result =
+                    new org.fuin.sokar.app.Keyslots(context).enroll(text(parameters, "name"),
+                            text(parameters, "share"), text(parameters, "storage"));
+            final Map<String, Object> answer = new java.util.LinkedHashMap<>();
+            answer.put("outcome", result.outcome().name());
+            answer.put("detail", result.detail());
+            if (result.slot() != null) {
+                answer.put("slot", slotAsMap(result.slot(), context));
+            }
+            replies.last(answer);
+        });
+
+        server.method("RevokeKeyslot", (parameters, replies) -> {
+            final org.fuin.sokar.app.Keyslots.Revocation result =
+                    new org.fuin.sokar.app.Keyslots(context).revoke(text(parameters, "id"));
+            replies.last(Map.of("outcome", result.outcome().name(),
+                    "remaining", result.remaining().stream()
+                            .map(slot -> slotAsMap(slot, context)).toList(),
+                    "detail", result.detail()));
+        });
+
+        server.method("UnlockWithShare", (parameters, replies) -> {
+            final org.fuin.sokar.app.Keyslots.Unlock result =
+                    new org.fuin.sokar.app.Keyslots(context).unlock(text(parameters, "share"),
+                            parameters.get("minutes") instanceof Number minutes
+                                    ? minutes.intValue() : null);
+            final Map<String, Object> answer = new java.util.LinkedHashMap<>();
+            answer.put("outcome", result.outcome().name());
+            answer.put("until", result.until());
+            answer.put("detail", result.detail());
+            if (result.slot() != null) {
+                answer.put("slot", slotAsMap(result.slot(), context));
+            }
+            replies.last(answer);
+        });
+
         server.method("Installable", (parameters, replies) -> {
             // Asked of this machine's own package source, never of a list kept here: every agent
             // package declares it provides 'sokar-agent' and every transport 'sokar-transport',
@@ -1262,6 +1308,28 @@ public final class SokarDaemon {
             throw new VarlinkException(INTERFACE + ".NoSuchTask", Map.of("task", task));
         }
         return mailbox;
+    }
+
+    /**
+     * Renders a keyslot for the wire.
+     * <p>
+     * {@code self} is the one field the vault does not know: it is about this session, not about
+     * the file. It is true for the slot whose share is the one currently held here, which is what
+     * lets a list mark "this device".
+     *
+     * @param slot The slot.
+     * @param context The machine.
+     * @return The object an interface reads.
+     */
+    private static Map<String, Object> slotAsMap(org.fuin.sokar.vault.Keyslot slot,
+            SokarContext context) {
+        final java.util.Optional<byte[]> held =
+                org.fuin.sokar.app.VaultShare.held(context.paths());
+        final boolean self = !slot.recovery() && held.isPresent()
+                && context.vault().takes(slot.id(), held.get());
+        return Map.of("id", slot.id(), "name", slot.name(), "storage", slot.storage(),
+                "enrolled", slot.enrolled(), "lastUsed", slot.lastUsed(),
+                "self", self, "recovery", slot.recovery());
     }
 
     private static TaskLaunch.Request request(Map<String, Object> parameters) {

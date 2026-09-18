@@ -176,6 +176,20 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the keyring description under which a device's share is cached.
+     * <p>
+     * Its own entry, never the passphrase's. They are different secrets with different lifetimes -
+     * revoking a device must not disturb a cached passphrase, and forgetting the passphrase must
+     * not silently keep a device's way in - and one name for both would make each of those a
+     * surprise.
+     *
+     * @return Keyring description.
+     */
+    public String vaultShareKeyringKey() {
+        return vaultKeyringKey() + ":share";
+    }
+
+    /**
      * Returns the directory podman reads hook descriptors from.
      *
      * @return Hook directory.
