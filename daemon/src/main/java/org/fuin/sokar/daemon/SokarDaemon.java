@@ -1358,9 +1358,16 @@ public final class SokarDaemon {
         // the network on its own, and nothing in a test should do that by existing.
         final java.time.Duration every =
                 org.fuin.sokar.app.UpstreamWatch.interval(System::getenv);
+        // Messages move because this goes and looks: the daemon binds no network interface, so
+        // nothing can be pushed to it. Started here for the same reason as the upstream watch -
+        // nothing in a test should walk a machine's mailboxes by existing.
+        final java.time.Duration messages =
+                org.fuin.sokar.app.MessageWatch.interval(System::getenv);
         try (VarlinkServer server = serving(context, socket);
                 org.fuin.sokar.app.UpstreamWatch upstream =
-                        new org.fuin.sokar.app.UpstreamWatch(context, every)) {
+                        new org.fuin.sokar.app.UpstreamWatch(context, every);
+                org.fuin.sokar.app.MessageWatch mail =
+                        new org.fuin.sokar.app.MessageWatch(context, messages)) {
             // try-with-resources does not run for a signal, and a signal is how a daemon normally
             // ends - systemctl stop, a kill, a terminal closing. Without this the socket file
             // outlived the process that bound it, and an interface met a name that answers
@@ -1369,7 +1376,12 @@ public final class SokarDaemon {
             // socket it has proved nobody is listening on.
             Runtime.getRuntime().addShutdownHook(new Thread(server::close, "sokard-shutdown"));
             upstream.start();
+            mail.start();
             System.out.println("sokard listening on " + socket);
+            System.out.println(messages.isZero() || messages.isNegative()
+                    ? "not moving messages (" + org.fuin.sokar.app.MessageWatch.INTERVAL_VARIABLE
+                            + "=0)"
+                    : "moving every mailbox along every " + messages.toSeconds() + " seconds");
             System.out.println(every.isZero() || every.isNegative()
                     ? "not measuring how far projects are behind upstream ("
                             + org.fuin.sokar.app.UpstreamWatch.INTERVAL_VARIABLE + "=0)"

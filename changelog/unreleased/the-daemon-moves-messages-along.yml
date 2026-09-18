@@ -1,0 +1,2 @@
+title: "The daemon moves every mailbox on the machine along once a minute, configurable with SOKAR_MESSAGE_SECONDS and switchable off, so a message no longer waits for somebody to run a command."
+type: added
