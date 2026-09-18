@@ -1031,7 +1031,7 @@ facts above this section were all measured here, on the versions this build pins
 
 ## Rules the five repositories share
 
-Sokar and the message sluice are worked on here; the interface and the three agent repositories by
+Sokar is worked on here; the interface, the three agent repositories and the message sluice by
 other agents. These hold in all five. They are written in one wording on purpose: five paraphrases
 of one rule become five rules.
 
