@@ -174,12 +174,12 @@ public final class MessagePass {
             final Mail mail) {
         return (mailbox, message, peer) -> {
             final String carrier = polled.arrivals().get(message.getFileName().toString());
-            if (carrier == null) {
-                // Nothing fetched it in this pass: it was put here by something that does not
-                // poll, and nothing was promised about it.
-                return "";
-            }
-            final Path adapter = transports.find(carrier);
+            // Nothing fetched it in this pass means nothing was promised about it - not that
+            // nothing is known. An attestation lying beside it is still read, because reading one
+            // can only hold a message and never admit one. Measured on the VM on 2026-09-18: with
+            // this short-circuited, a message fetched in an earlier pass reached the agent with a
+            // contradicting owner file unread beside it.
+            final Path adapter = carrier == null ? null : transports.find(carrier);
             final boolean attesting = adapter != null
                     && TransportDescription.of(runner, adapter).attestsOwner();
             return OwnerAttestation.refuse(mailbox, message, peer, mail, attesting);

@@ -97,4 +97,37 @@ class PollingArrivalTest {
         assertThat(report.delivered().held()).singleElement().satisfies(held ->
                 assertThat(held.reason()).contains("written by the user 'carol'"));
     }
+
+    /**
+     * The failure the VM found: a message that was already in the inbound when the pass started -
+     * fetched earlier, or put there by something the host did not watch - was delivered with its
+     * owner file lying unread beside it, because no transport had promised anything in this pass.
+     */
+    @Test
+    void a_message_that_arrived_before_this_pass_is_still_judged_by_its_owner(
+            @TempDir final Path dir) throws IOException {
+        // An adapter that polls and finds nothing: what is in the inbound got there earlier.
+        final Path transports = spool(dir, "1004 bob");
+        Files.writeString(transports.resolve(TransportDirectory.PREFIX + "spool"), "#!/bin/sh\n"
+                + "case \"$1\" in\n"
+                + "  describe) echo '{\"scheme\":\"spool\",\"poll\":true,\"attests\":[\"owner\"]}' ;;\n"
+                + "  poll) echo '{\"received\":0}' ;;\n"
+                + "esac\n");
+        Files.setPosixFilePermissions(transports.resolve(TransportDirectory.PREFIX + "spool"),
+                PosixFilePermissions.fromString("rwx------"));
+        final Mailbox mailbox = new Mailbox(dir.resolve("sokar-p-t"));
+        mailbox.create();
+        // Already there, and contradicting: nothing in this pass fetches it.
+        Files.copy(dir.resolve("m-1.json"), mailbox.inbound().resolve("m-1.json"));
+        Files.copy(dir.resolve("m-1.json.sig"), mailbox.inbound().resolve("m-1.json.sig"));
+        Files.writeString(mailbox.inbound().resolve("m-1.json.owner"), "1009 carol");
+
+        final MessagePass.Report report = new MessagePass(new ProcessCommandRunner(), hostKey, null,
+                new TransportDirectory(List.of(transports))).run(mailbox, mail,
+                        List.of(new MessageDelivery.Peer("bob", List.of(peerKey.keyBlob()))));
+
+        assertThat(report.delivered().delivered()).isEmpty();
+        assertThat(report.delivered().held()).anySatisfy(held ->
+                assertThat(held.reason()).contains("written by the user 'carol'"));
+    }
 }
