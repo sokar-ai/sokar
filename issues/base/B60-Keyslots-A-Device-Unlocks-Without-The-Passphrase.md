@@ -65,6 +65,62 @@ stored at all: derived at unlock time from a FIDO2 token's `hmac-secret`, or fro
 behind a PIN, so that releasing it needs a physical touch or a PIN which same-user code cannot supply.
 That is available on Linux today.
 
+## The contract, proposed rather than decided
+
+Written down because the interface is building four screens against it (`sokar-frontend` F38 to F41)
+and only the last mapping onto the wire should change when it is built. **Nothing of this is on
+`Tasks1` yet.**
+
+```
+type Keyslot (
+  # Assigned by the node and kept by the device beside its share. Not derived from the share:
+  # the node discards that at enrollment and could not derive anything from it later.
+  id: string,
+  # What a person called this device. Shown in a list; never an identifier.
+  name: string,
+  # USER_SCOPED, APPLICATION_SCOPED, FIDO2 or TPM2, as the device declared it.
+  storage: string,
+  enrolled: string,
+  # "" when it has not been used since it was enrolled.
+  lastUsed: string,
+  # True only for the slot this session unlocked with, so a list can mark "this device".
+  self: bool,
+  # True for the passphrase, which is keyslot 0, is recovery only, and is not a device.
+  recovery: bool
+)
+
+# The share arrives once, wraps the master key, and is discarded. It is never logged, never
+# echoed back and never written anywhere.
+method EnrollDevice(name: string, share: string, storage: string) -> (
+  # ENROLLED, ALREADY_ENROLLED, UNKNOWN_STORAGE, BAD_SHARE, VAULT_LOCKED,
+  # VAULT_WITHOUT_KEYSLOTS or FAILED.
+  outcome: string, slot: ?Keyslot, detail: string)
+
+method Keyslots() -> (slots: []Keyslot)
+
+method RevokeKeyslot(id: string) -> (
+  # REVOKED, NO_SUCH_SLOT, LAST_WAY_IN, VAULT_LOCKED or FAILED.
+  outcome: string,
+  # What can still open the vault afterwards, so a screen can say it without asking again.
+  remaining: []Keyslot, detail: string)
+
+method UnlockWithShare(share: string, slot: ?string, minutes: ?int) -> (
+  # UNLOCKED, SHARE_REJECTED, ALREADY_OPEN, VAULT_WITHOUT_KEYSLOTS or FAILED.
+  outcome: string, until: string, slot: ?Keyslot, detail: string)
+```
+
+Four properties of that shape are deliberate:
+
+- **The share is base64 of 32 random bytes and appears in no reply, no log line and no error
+  message.** The only thing that comes back is which slot it opened.
+- **`slot` is optional at unlock.** The node tries each wrapped blob until one authenticates, which
+  costs a key derivation per slot, so a device that lost its id still works and nothing has to be
+  recovered. Sending the id only saves that.
+- **"Already enrolled" is decided without storing anything**: the share the node was just given
+  derives a wrapping key, and if an existing blob unwraps with it, that device is already a slot.
+- **An unknown storage class is refused rather than recorded.** A list that cannot say what a device
+  is worth is worse than one that refuses to show it.
+
 ## To be checked
 
 - **Whether enrollment needs a second channel.** The first share arrives from a device the node has
