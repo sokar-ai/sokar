@@ -1477,11 +1477,17 @@ public final class SokarDaemon {
             Runtime.getRuntime().addShutdownHook(new Thread(server::close, "sokard-shutdown"));
             upstream.start();
             mail.start();
+            // Both: the watch answers at once where a message is already on this machine, and the
+            // timer still goes and asks, because a watch can miss things and a transport that
+            // fetches from elsewhere has to be asked rather than waited on.
+            final boolean noticing = mail.startNotices();
             System.out.println("sokard listening on " + socket);
             System.out.println(messages.isZero() || messages.isNegative()
                     ? "not moving messages (" + org.fuin.sokar.app.MessageWatch.INTERVAL_VARIABLE
                             + "=0)"
-                    : "moving every mailbox along every " + messages.toSeconds() + " seconds");
+                    : "moving every mailbox along every " + messages.toSeconds() + " seconds"
+                            + (noticing ? ", and at once when one lands here"
+                                    : " (this machine cannot watch directories)"));
             System.out.println(every.isZero() || every.isNegative()
                     ? "not measuring how far projects are behind upstream ("
                             + org.fuin.sokar.app.UpstreamWatch.INTERVAL_VARIABLE + "=0)"

@@ -24,6 +24,13 @@ import org.fuin.sokar.core.project.Project;
  * task that is stopped still has messages delivered into it - and finds them when it comes back.
  * That is the whole reason the mailbox is not in the runtime directory.
  * <p>
+ * <strong>And a timer is not the only thing that starts a pass.</strong> Where both halves of a
+ * conversation are on one machine - which is the ordinary case for somebody running several agents
+ * on their laptop - waiting up to a minute for an answer that is already lying in a directory is a
+ * delay with no cause. So the mailboxes are also watched, and a message that lands is noticed at
+ * once. The timer stays, because a watch can miss things and a transport that fetches from
+ * elsewhere still has to be gone and asked.
+ * <p>
  * <strong>One mailbox's failure is not another's.</strong> A project file that has been deleted, a
  * filter that will not start, a transport whose destination is gone: each stops that mailbox's pass
  * and no other, and the next tick tries again.
@@ -40,7 +47,16 @@ public final class MessageWatch implements AutoCloseable {
 
     private final Duration interval;
 
+    /** How long to wait after a change, so a burst of files becomes one pass rather than ten. */
+    private static final Duration SETTLE = Duration.ofMillis(250);
+
     private volatile boolean running = true;
+
+    // One pass at a time. The timer and the watch would otherwise walk the same mailbox at once,
+    // and two passes moving the same file is a race that ends with a message in neither place.
+    private final Object passing = new Object();
+
+    private java.nio.file.@org.jspecify.annotations.Nullable WatchService watcher;
 
     /**
      * Constructor.
@@ -85,6 +101,12 @@ public final class MessageWatch implements AutoCloseable {
      * @return How many mailboxes were moved along.
      */
     public int passOnce() {
+        synchronized (passing) {
+            return pass();
+        }
+    }
+
+    private int pass() {
         final List<Path> mailboxes = mailboxes();
         if (mailboxes.isEmpty()) {
             return 0;
@@ -139,9 +161,106 @@ public final class MessageWatch implements AutoCloseable {
         });
     }
 
+    /**
+     * Starts noticing, on a thread of its own.
+     * <p>
+     * What is watched is the two directories a message appears in without anybody being told: the
+     * agent's outbox, and the inbound directory a local transport delivers into. The mail root is
+     * watched too, so a mailbox made after this started is picked up rather than being the one
+     * that stays slow.
+     *
+     * @return {@code true} when the machine can watch directories at all. A machine that cannot
+     *         still has the timer, which is why this reports rather than throws.
+     */
+    public boolean startNotices() {
+        final Path root = context.paths().mailbox("x").getParent();
+        if (root == null || !Files.isDirectory(root)) {
+            return false;
+        }
+        try {
+            watcher = root.getFileSystem().newWatchService();
+            register(root);
+            for (final Path mailbox : mailboxes()) {
+                watch(mailbox);
+            }
+        } catch (final IOException | RuntimeException ex) {
+            watcher = null;
+            return false;
+        }
+        Thread.ofVirtual().name("sokar-message-notices").start(this::notices);
+        return true;
+    }
+
+    private void notices() {
+        final java.nio.file.WatchService service = watcher;
+        if (service == null) {
+            return;
+        }
+        while (running) {
+            final java.nio.file.WatchKey key;
+            try {
+                key = service.take();
+            } catch (final InterruptedException | java.nio.file.ClosedWatchServiceException ex) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            // A new mailbox brings two more directories to watch, and nothing else here would
+            // ever look at it again.
+            for (final java.nio.file.WatchEvent<?> event : key.pollEvents()) {
+                if (key.watchable() instanceof Path directory
+                        && event.context() instanceof Path name
+                        && Files.isDirectory(directory.resolve(name))) {
+                    watch(directory.resolve(name));
+                }
+            }
+            key.reset();
+            try {
+                // Let the rest of a burst arrive: an agent writing five messages should cause one
+                // pass, not five, and a file being renamed into place arrives as two events.
+                Thread.sleep(SETTLE);
+            } catch (final InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (running) {
+                passOnce();
+            }
+        }
+    }
+
+    private void watch(final Path mailbox) {
+        final Mailbox box = new Mailbox(mailbox);
+        for (final Path directory : List.of(box.outboxNew(), box.inbound())) {
+            try {
+                register(directory);
+            } catch (final IOException | RuntimeException ex) {
+                // A mailbox that cannot be watched is one the timer still reaches. Refusing to
+                // watch anything because one directory is missing would be worse.
+                continue;
+            }
+        }
+    }
+
+    private void register(final Path directory) throws IOException {
+        final java.nio.file.WatchService service = watcher;
+        if (service != null && Files.isDirectory(directory)) {
+            directory.register(service, java.nio.file.StandardWatchEventKinds.ENTRY_CREATE);
+        }
+    }
+
     @Override
     public void close() {
         running = false;
+        final java.nio.file.WatchService service = watcher;
+        if (service != null) {
+            try {
+                service.close();
+            } catch (final IOException ex) {
+                // Closing a watch service that is already gone is not a failure worth reporting:
+                // the daemon is stopping either way.
+                watcher = null;
+            }
+        }
     }
 
     private Mail peersOf(final String container) {
