@@ -94,6 +94,22 @@ class InboundCheckTest {
      * message whose text is full of base64 would be delivered with the finding in a receipt
      * nobody here reads.
      */
+    /**
+     * Found on the VM: the daemon walks every mailbox and cannot always find the project one
+     * belongs to. It then knows no peers, and "not listed" must not mean "delivered unchecked".
+     */
+    @Test
+    void a_peer_the_project_does_not_list_is_checked_too(@TempDir final Path dir)
+            throws IOException {
+        final Mailbox mailbox = arrived(dir, "m-1.json");
+
+        final String refused = new InboundCheck(filterThat(mailbox, false), filter,
+                org.fuin.sokar.core.project.Mail.none())
+                .refuse(mailbox, mailbox.inbound().resolve("m-1.json"), "a-stranger");
+
+        assertThat(refused).contains("refused it on the way in");
+    }
+
     @Test
     void the_filter_is_asked_to_block_on_the_way_in(@TempDir final Path dir) throws IOException {
         final Mailbox mailbox = arrived(dir, "m-1.json");

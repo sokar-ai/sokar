@@ -58,7 +58,12 @@ class MessageWatchTest {
 
     /**
      * The reason the mailbox is not in the runtime directory: a stopped task still receives, and
-     * finds its messages when it comes back.
+     * finds its post when it comes back.
+     * <p>
+     * Where in the mailbox it finds it depends on what the host can say about the sender. Here
+     * there is no project, so the host cannot say the peer is one it vouches for - and an unvouched
+     * peer's message is checked before an agent reads it. With no filter installed either, it waits
+     * in {@code hold/}. What this test is about is that it arrived and was not lost.
      */
     @Test
     void a_stopped_task_still_has_its_post_delivered(@TempDir final Path dir) throws IOException {
@@ -77,8 +82,10 @@ class MessageWatchTest {
         final int moved = new MessageWatch(context, Duration.ofSeconds(60)).passOnce();
 
         assertThat(moved).isEqualTo(1);
-        assertThat(mailbox.inboxNew().resolve("in-1.json"))
-                .as("waiting for the task to come back").exists();
+        assertThat(mailbox.inbound().resolve("in-1.json")).as("it was taken in").doesNotExist();
+        assertThat(mailbox.hold().resolve("in-1.json"))
+                .as("waiting for the task to come back, and for somebody to vouch for the sender")
+                .exists();
     }
 
     /**

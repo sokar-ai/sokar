@@ -17,9 +17,10 @@ import org.fuin.sokar.core.project.Mail;
  * <p>
  * Trust is a property of the peer. A <strong>vouched</strong> peer is a machine that runs this same
  * filter on the way out, and checking its messages again would be doing twice what was already done.
- * An <strong>external</strong> peer is anybody else, and "anybody else" is exactly the case the
- * filter exists for - so the message is checked here, before it reaches the agent, with the same
- * program and the same rules that check what leaves.
+ * Everybody else is checked here, before the message reaches the agent, with the same program and
+ * the same rules that check what leaves - and <strong>"everybody else" includes a peer this project
+ * does not list at all</strong>, because not knowing whether to trust somebody is not a reason to
+ * trust them.
  * <p>
  * <strong>Fail closed, again.</strong> No filter installed means a message from an external peer is
  * held, not delivered. A machine that cannot check is not a machine that may skip checking.
@@ -72,13 +73,19 @@ public final class InboundCheck {
     public String refuse(final Mailbox mailbox, final Path message, final String peer)
             throws IOException {
         final Mail.Peer known = mail.peer(peer);
-        if (known == null || !known.external()) {
-            // Either the project does not list it - attribution already decided that is allowed -
-            // or it is vouched, and a vouched peer's machine has already done this.
+        if (known != null && !known.external()) {
+            // Vouched, and a vouched peer's machine has already done this.
             return "";
         }
+        // A peer the project does not list is checked, not waved through. Measured on the VM on
+        // 2026-09-18: the daemon walks every mailbox on the machine and cannot always find the
+        // project a mailbox belongs to - a project file that moved, a task older than its project.
+        // It then knows no peers at all, and "not listed" meant "not external" meant "delivered
+        // unchecked". Not knowing whether to trust somebody is not a reason to trust them, and
+        // B14 already says an omitted trust level reads as external.
         if (filter == null) {
-            return "it is from an external peer and no message filter is installed to check it";
+            return "it is from a peer this machine does not vouch for, and no message filter is"
+                    + " installed to check it";
         }
 
         final String name = message.getFileName().toString();
