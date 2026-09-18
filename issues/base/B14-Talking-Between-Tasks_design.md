@@ -233,9 +233,19 @@ Packages install into a directory Sokar scans, and each describes itself rather 
 |---|---|
 | `describe` | Its scheme, whether it can poll, what it can confirm, its size limit, the credentials it needs, **which hosts it reaches** and **what it attests** |
 | `check` | Validates configuration and credential without sending anything, for `sokar doctor` |
-| `send <file> <sig>` | Takes one message from its queue. Exit 0 handed over, 75 temporary (stays in `deferred/`), anything else refuses it back to the sender |
-| `poll` | Fetches what arrived into `inbound/`, atomically. A transport that needs no polling says so |
+| `send <file> <sig> --to <rest>` | Takes one message from its queue. `<rest>` is the peer's address after the colon, **never a path the host invented**. Exit 0 handed over, 75 temporary (stays in `deferred/`), anything else refuses it back to the sender |
+| `poll --into <inbound>` | Fetches what arrived into that directory, atomically. A transport that needs no polling says so |
 | `receipt` | Optional: what became of a message it sent |
+
+**What `--to` carries, and why it is not a path.** The host passes the peer's address with the
+scheme removed and nothing else: `local:/some/inbound` gives `/some/inbound`, and `spool:bob` gives
+`bob`. What that string means is the transport's business - a path for one, an account name for
+another, a branch for a third - and a host that turned `bob` into
+`/var/spool/sokar/drop/bob` would be encoding a layout it does not own and cannot keep in step.
+The same applies on the way in: `poll` is told **where to put things**, not where to find them,
+because where a transport keeps its own arrivals is the transport's layout too. A transport that
+wants a `--from` for its own tests may have one, as long as it works without it: the host does not
+pass it.
 
 **The wire, settled with the sluice's agent on 2026-09-18.** `describe` reads nothing and prints one
 JSON object - `scheme`, `poll`, `confirms` (`handover`, `receipt` or `read`), `max_bytes`,
