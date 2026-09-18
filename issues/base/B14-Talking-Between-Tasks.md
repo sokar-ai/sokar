@@ -17,6 +17,12 @@ another machine** is `sokar-message-sluice` 003 (git) and deliberately later. Un
 "another machine" is untested by construction - what has run is two mailboxes on one machine, on
 this laptop and on the Ubuntu VM.
 
+**One thing is built and does not currently work end to end:** `sokar talk say` writes `ROLE_USER`,
+because B14 asks that a person be distinguishable from an agent, and the sluice's filter refuses any
+outgoing message whose role is not `ROLE_AGENT`. Measured on the VM on 2026-09-18: the message is
+refused and the person gets the refusal. Which side moves is with the filter's agent (QS10); until
+it is answered, a person's message reaches the filter and stops there.
+
 **The default is the strict one.** A peer nobody has decided about is in `prompt`, so nothing a
 person has not released leaves the machine. `allow` and `off` need `unread_work_may_leave: true` in
 a project that is not `online` - the same setting B13 ([index](README.md)) asks before unreviewed
