@@ -476,4 +476,41 @@ class ReconcileTest {
         assertThat(verified.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
         assertThat(without.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
     }
+
+    @Test
+    void a_declared_repository_need_not_exist_for_the_follow_to_apply(@TempDir final Path dir)
+            throws IOException {
+        final SokarContext context = context(dir);
+        final Path repo = dir.resolve("published");
+        Files.createDirectories(repo);
+        git(repo, "init", "-q", "-b", "main", ".");
+        git(repo, "config", "user.email", "operator@example.org");
+        git(repo, "config", "user.name", "Operator");
+        // A second repository pointing at a forge nobody can reach from here.
+        Files.writeString(repo.resolve("project.yml"), """
+                project:
+                  name: demo
+                  security_class: guarded
+                image:
+                  base_image: ubuntu:24.04
+                repositories:
+                  backend:
+                    upstream: "git@nowhere.invalid:acme/backend.git"
+                """);
+        git(repo, "add", "project.yml");
+        git(repo, "commit", "-q", "--no-gpg-sign", "-m", "two repositories");
+
+        final Reconcile.Result result = new Reconcile(context).run(
+                new FollowedProjects.Followed("demo", repo.toString(), "", "", "", "",
+                        "", "", true));
+
+        // Following reads the project file and checks what THIS machine can answer about it - the
+        // egress sets it has, the name it is followed under. It reaches no work repository: a
+        // mirror is made when a task is started for one, and a project may name a repository that
+        // does not exist yet, which is what a project still being planned looks like.
+        assertThat(result.outcome()).as(result.detail()).isEqualTo(Reconcile.Outcome.APPLIED);
+        assertThat(org.fuin.sokar.core.project.ProjectReader.read(
+                        context.paths().followedClone("demo").resolve("project.yml"))
+                .repositoryNames()).containsExactly("demo", "backend");
+    }
 }
