@@ -250,6 +250,19 @@ else
     sed -n '1,8p' "$WORK/follow.log"
 fi
 
+# HERE, before anything has run. Measured on a rented machine by the interface's own leg: a
+# project was followed, the follow applied, and the project list came back empty - because the
+# list was assembled from mirrors, tasks and the registry, and a project that has done none of
+# those three is in none of them. Placed at this line and not later on purpose: once a task has
+# started, a mirror exists and this passes for the wrong reason.
+LIST_LOG="$WORK/project-list.log"
+if "$SOKAR" project list > "$LIST_LOG" 2>&1 && grep -q "$PROJECT" "$LIST_LOG"; then
+    pass "a project that is only followed is already in the list"
+else
+    fail "a followed project is not in the list, so nothing can be started in it"
+    sed -n '1,8p' "$LIST_LOG"
+fi
+
 # ------------------------------------------------------------------ the image
 echo
 echo "-- image build --"

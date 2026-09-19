@@ -370,4 +370,76 @@ class ProjectInventoryTest {
                 .containsOnly("project");
         assertThat(own.limits().memory()).isEqualTo("16g");
     }
+
+    /** A project this machine follows, with the file its verified clone holds. */
+    private void followed(final SokarContext context, final String name, final String content)
+            throws IOException {
+        new FollowedProjects(context.paths().followed()).write(
+                new FollowedProjects.Followed(name, "git@example.com:x/" + name + ".git",
+                        "a1b2c3", "2026-09-19T00:00:00Z", "APPLIED", ""));
+        final Path clone = context.paths().followedClone(name);
+        Files.createDirectories(clone);
+        Files.writeString(clone.resolve("project.yml"), content);
+    }
+
+    @Test
+    void listsAProjectItFollowsBeforeAnythingHasRun(@TempDir Path dir) throws IOException {
+
+        // Measured by Agent Frontend on a rented machine: their dialog followed a project, the
+        // follow applied, and 'Projects()' answered nothing - so the only way into a project
+        // ended at the dialog that took it. The listing was assembled from mirrors, tasks and the
+        // registry, and a project that has done none of those three is in none of them. A project
+        // exists here by being followed, so this is the case, not an edge of it.
+        final SokarContext context = context(dir);
+        followed(context, "e2e-follow", """
+                project:
+                  name: "e2e-follow"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                repositories:
+                  backend:
+                    upstream: "git@nowhere.invalid:acme/backend.git"
+                """);
+
+        final var projects = new ProjectInventory(context).projects();
+
+        assertThat(projects).extracting(ProjectInventory.Summary::name)
+                .containsExactly("e2e-follow");
+        // With the file its clone holds, which is what every gate call over the socket takes.
+        assertThat(projects.get(0).file())
+                .isEqualTo(context.paths().followedClone("e2e-follow").resolve("project.yml")
+                        .toString());
+        // And with the repositories that file names, so the interface can offer the choice a
+        // task start demands.
+        assertThat(projects.get(0).repositories())
+                .extracting(ProjectInventory.RepositorySummary::name)
+                .containsExactly("e2e-follow", "backend");
+        assertThat(projects.get(0).following()).isNotNull()
+                .satisfies(one -> assertThat(one.outcome()).isEqualTo("APPLIED"));
+    }
+
+    @Test
+    void namesTheVerifiedCloneRatherThanWhereATaskLastRanFromIt(@TempDir Path dir)
+            throws IOException {
+
+        // The two can differ, and only one of them was checked against a pinned key.
+        final SokarContext context = context(dir);
+        final Path local = dir.resolve("somewhere-else.yml");
+        final String file = """
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                """;
+        Files.writeString(local, file);
+        registry(dir, "uc", local);
+        followed(context, "uc", file);
+
+        assertThat(new ProjectInventory(context).projects()).singleElement()
+                .satisfies(project -> assertThat(project.file())
+                        .isEqualTo(context.paths().followedClone("uc").resolve("project.yml")
+                                .toString()));
+    }
 }

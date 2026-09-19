@@ -12,13 +12,16 @@ import org.fuin.sokar.gate.GitGate;
 import org.jspecify.annotations.Nullable;
 
 /**
- * What projects this machine knows about, from three sources that each know part of it.
+ * What projects this machine knows about, from four sources that each know part of it.
  * <p>
  * The CLI renders this and the daemon serializes it, so "what projects are there" is answered
  * once. Nothing here is a store of its own: a project is not something Sokar creates, it is
  * somebody's directory with a {@code project.yml} in it, and this reports what has been seen of
  * one rather than pretending to own it.
  * <ul>
+ * <li>The <strong>follow records</strong> say which projects this machine follows. A project
+ *     exists here by being followed, so this is the only source that can name one on a machine
+ *     where nothing has run yet - which is every machine on its first day.</li>
  * <li>The <strong>mirrors directory</strong> holds one repository per project that has ever used
  *     the gate. It outlives every task and is the only durable list of names there is.</li>
  * <li>The <strong>tasks</strong> that exist say which project each belongs to and how it is
@@ -203,12 +206,28 @@ public final class ProjectInventory {
      */
     public List<Summary> projects() {
 
+        // Read first, because a followed project is in this list from the moment the follow is
+        // taken - before any mirror, task or registry entry exists. Found by Agent Frontend:
+        // their dialog followed a project, the follow applied, and the tree stayed empty.
+        final Map<String, FollowedProjects.Followed> followed = new LinkedHashMap<>();
+        try {
+            new FollowedProjects(context.paths().followed()).all()
+                    .forEach(one -> followed.put(one.name(), one));
+        } catch (final java.io.IOException ex) {
+            // A listing is not the place to fail over the follow record. Every project then
+            // answers "not followed", which reads as what it is rather than as an error here.
+            followed.clear();
+        }
+
         final Map<String, String> files = new ProjectRegistry(context.paths().projectRegistry())
                 .all();
         final Map<String, Summary> found = new LinkedHashMap<>();
 
+        for (final String name : followed.keySet()) {
+            found.put(name, new Summary(name, null, fileOf(name), null, 0, 0, 0));
+        }
         for (final String name : mirroredNames()) {
-            found.put(name, new Summary(name, null, fileOf(files, name),
+            found.put(name, new Summary(name, null, fileOf(name),
                     mirrorOf(name).toString(), pendingIn(name), 0, 0));
         }
         for (final TaskInventory.Task task : new TaskInventory(context).tasks()) {
@@ -220,7 +239,7 @@ public final class ProjectInventory {
             found.put(task.project(), new Summary(task.project(),
                     task.securityClass() == null && known != null ? known.securityClass()
                             : task.securityClass(),
-                    fileOf(files, task.project()),
+                    fileOf(task.project()),
                     known == null ? null : known.mirror(),
                     known == null ? 0 : known.pending(),
                     (known == null ? 0 : known.tasks()) + 1,
@@ -229,7 +248,7 @@ public final class ProjectInventory {
         // A project whose file was recorded but that has neither a mirror nor a task: it ran once
         // and everything was removed. Still worth showing - the file is what an interface acts on.
         files.keySet().stream().filter(name -> !found.containsKey(name)).forEach(name ->
-                found.put(name, new Summary(name, null, fileOf(files, name), null, 0, 0, 0)));
+                found.put(name, new Summary(name, null, fileOf(name), null, 0, 0, 0)));
 
         // Asked once for every project rather than once per project: 'podman image exists' is a
         // subprocess, and this list is re-read after every task start and every approval.
@@ -238,18 +257,6 @@ public final class ProjectInventory {
         // every task start and every approval. What is read here was measured on a timer and
         // carries the moment it was taken.
         final UpstreamRecords upstream = new UpstreamRecords(context.paths().upstreamRecords());
-        // Read once for the whole listing rather than per project. A project this account does not
-        // follow simply has no entry, which is the ordinary case and not a fault.
-        final Map<String, FollowedProjects.Followed> followed = new LinkedHashMap<>();
-        try {
-            new FollowedProjects(context.paths().followed()).all()
-                    .forEach(one -> followed.put(one.name(), one));
-        } catch (final java.io.IOException ex) {
-            // A listing is not the place to fail over the follow record. Every project then
-            // answers "not followed", which reads as what it is rather than as an error here.
-            followed.clear();
-        }
-
         return found.values().stream()
                 .sorted(java.util.Comparator.comparing(Summary::name))
                 .map(summary -> {
@@ -571,16 +578,19 @@ public final class ProjectInventory {
     }
 
     /**
-     * Returns the path of a project's file, when one was recorded and is still there.
+     * Returns the path of a project's file, when there is one and it is still there.
      * <p>
-     * A file that has moved is reported as absent rather than as a path nothing can read: an
-     * interface that called a gate method with it would be refused for a reason that looks like a
-     * bug in the daemon.
+     * Asked of {@link ProjectSource}, which is the single answer to where a project's file comes
+     * from: a followed project's verified clone beats whatever a task last recorded, and a
+     * followed project with nothing in force has no file at all rather than a stale one. A file
+     * that has moved is reported as absent rather than as a path nothing can read - an interface
+     * that called a gate method with it would be refused for a reason that looks like a bug in
+     * the daemon.
      */
     @Nullable
-    private static String fileOf(Map<String, String> files, String name) {
-        final String path = files.get(name);
-        return path != null && Files.isRegularFile(Path.of(path)) ? path : null;
+    private String fileOf(final String name) {
+        final Path file = ProjectSource.resolve(context, name).file();
+        return file == null ? null : file.toString();
     }
 
     private Path mirrorOf(String name) {
