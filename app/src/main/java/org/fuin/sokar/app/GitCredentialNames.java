@@ -129,6 +129,28 @@ public final class GitCredentialNames {
     }
 
     /**
+     * Returns the name to store a credential under for a destination, when nobody said one.
+     * <p>
+     * The same name the fallback already looks in, so a credential declared without a name and one
+     * stored without a declaration are the same entry rather than two that shadow each other.
+     *
+     * @param kind What the destination wants.
+     * @param match The destination, normalised.
+     * @return The name, or {@code null} when the destination names no host to build one from.
+     */
+    public static @Nullable String impliedName(final Kind kind, final String match) {
+        final String host = hostOf(match);
+        if (host == null) {
+            return null;
+        }
+        return switch (kind) {
+            case KEY -> SSH + "." + host;
+            case TOKEN -> TOKEN + "." + host;
+            case NONE -> null;
+        };
+    }
+
+    /**
      * Tells whether a name is one of these rather than a provider's.
      *
      * @param name An entry name.

@@ -74,4 +74,25 @@ class GitCredentialNamesTest {
         assertThat(GitCredentialNames.isOne("ssh.default")).isTrue();
         assertThat(GitCredentialNames.isOne("anthropic")).isFalse();
     }
+
+    @Test
+    void namesACredentialNobodyNamed() {
+
+        // A client that says "vault" and no name means "you name it". Writing "" instead produced
+        // a record nothing could store into - 'sokar vault put' with no argument - and a
+        // 'sokar vault remove ' with nothing after it. Found by Agent Frontend through the
+        // interface's own declare.
+        assertThat(GitCredentialNames.impliedName(GitCredentialNames.Kind.KEY,
+                "ssh://github.com/acme/x.git")).isEqualTo("git.ssh.github.com");
+        assertThat(GitCredentialNames.impliedName(GitCredentialNames.Kind.TOKEN,
+                "https://gitlab.example/acme/")).isEqualTo("git.token.gitlab.example");
+        // And it is the SAME name the fallback looks in, so a credential declared without a name
+        // and one stored without a declaration are one entry rather than two that shadow.
+        assertThat(GitCredentialNames.candidatesFor("git@github.com:acme/x.git"))
+                .contains(GitCredentialNames.impliedName(GitCredentialNames.Kind.KEY,
+                        "ssh://github.com/acme/x.git"));
+        // A destination with no host cannot be named after one, and is refused rather than
+        // recorded namelessly.
+        assertThat(GitCredentialNames.impliedName(GitCredentialNames.Kind.KEY, "/a/path")).isNull();
+    }
 }

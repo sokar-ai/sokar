@@ -209,6 +209,7 @@ public final class ProjectDeletion {
             // parent and stays findable rather than being orphaned under a deleted path.
             Files.deleteIfExists(context.paths().xdg().data().resolve("mirrors").resolve(project));
             deleteTree(context.paths().buildContext(project));
+            deleteTree(context.paths().followedClone(project));
             Files.deleteIfExists(context.paths().projectRegistry().resolve(project));
             Files.deleteIfExists(context.paths().upstreamRecords().resolve(project));
         } catch (IOException | RuntimeException ex) {
@@ -237,6 +238,15 @@ public final class ProjectDeletion {
         if (Files.isRegularFile(context.paths().upstreamRecords().resolve(project))) {
             removes.add(new Removal("UPSTREAM_RECORD",
                     context.paths().upstreamRecords().resolve(project).toString()));
+        }
+        // The verified clone. Named here, and removed below, because BOTH ways of ending a
+        // project have to take it: the terminal removed it by hand afterwards and the socket did
+        // not, so a project unfollowed from an interface left its clone on the machine. The
+        // contract said the clone goes, and one of the two paths quietly did not. Found by Agent
+        // Frontend (QF43).
+        if (Files.isDirectory(context.paths().followedClone(project))) {
+            removes.add(new Removal("FOLLOWED_CLONE",
+                    context.paths().followedClone(project).toString()));
         }
         tasks.forEach(task -> removes.add(new Removal("TASK", task.name())));
         return removes;

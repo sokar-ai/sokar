@@ -674,6 +674,11 @@ type Connection (
 method CredentialDeclare(
   # What the secret is called. For VAULT the entry name; for FILE the path; for ENVIRONMENT the
   # variable. Omitted for AGENT.
+  #
+  # Omitted for VAULT too, which means "you name it": the name becomes the one this machine
+  # already looks in for that destination - git.ssh.<host> or git.token.<host> - so a credential
+  # declared without a name and one stored without a declaration are the same entry. A destination
+  # that names no host is refused rather than recorded namelessly.
   id: ?string,
   kind: string,
   match: string,

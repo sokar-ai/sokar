@@ -134,4 +134,28 @@ class ProjectUnfollowCommandTest {
         assertThat(refused.err()).contains("holds work nobody has reviewed");
         assertThat(mirror).exists();
     }
+
+    @Test
+    void takes_the_verified_clone_with_the_rest(@TempDir final Path dir) throws IOException {
+
+        // It did not, over the socket: the terminal removed the clone by hand AFTER the deletion
+        // and the daemon never did, so a project unfollowed from an interface left its verified
+        // clone on the machine - while the contract said the clone goes. Found by Agent Frontend.
+        // Removed through ProjectDeletion now, which is the one thing both ways call, and it is
+        // named in the preview for the same reason.
+        final SokarContext context = context(dir);
+        unfollowedProject("uc");
+        final Path clone = context.paths().followedClone("uc");
+        Files.createDirectories(clone);
+        Files.writeString(clone.resolve("project.yml"), "project:\n  name: \"uc\"\n",
+                StandardCharsets.UTF_8);
+
+        final Run previewed = run(context, "uc", "--dry-run");
+        assertThat(previewed.out()).contains(clone.toString());
+        assertThat(clone).exists();
+
+        run(context, "uc");
+
+        assertThat(clone).doesNotExist();
+    }
 }

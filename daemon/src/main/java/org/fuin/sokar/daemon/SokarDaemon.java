@@ -977,9 +977,27 @@ public final class SokarDaemon {
                         Map.of("message", "a credential has to say which destinations it covers"));
             }
             final String purpose = text(parameters, "purpose");
+            final String normalised =
+                    org.fuin.sokar.core.credential.CredentialRegistry.normalise(match);
+            String id = text(parameters, "id");
+            if (id.isEmpty() && source != org.fuin.sokar.core.credential.Credential.Source.AGENT) {
+                // 'id' is optional in the contract, and a client that leaves it out for the vault
+                // means "you name it". Naming it with what the fallback already looks for keeps a
+                // credential declared without a name and one stored without a declaration the
+                // same entry. Writing "" instead produced a record nothing could store into and a
+                // 'sokar vault remove ' with no name - found by Agent Frontend (QF43).
+                final String implied = org.fuin.sokar.app.GitCredentialNames.impliedName(
+                        kind == org.fuin.sokar.core.credential.Credential.Kind.SSH_KEY
+                                ? org.fuin.sokar.app.GitCredentialNames.Kind.KEY
+                                : org.fuin.sokar.app.GitCredentialNames.Kind.TOKEN, normalised);
+                if (implied == null) {
+                    throw new VarlinkException(INTERFACE + ".Failed", Map.of("message",
+                            "'" + match + "' names no host to build a name from, so say 'id'"));
+                }
+                id = implied;
+            }
             final org.fuin.sokar.core.credential.Credential declared =
-                    new org.fuin.sokar.core.credential.Credential(text(parameters, "id"), kind,
-                            org.fuin.sokar.core.credential.CredentialRegistry.normalise(match),
+                    new org.fuin.sokar.core.credential.Credential(id, kind, normalised,
                             text(parameters, "user").isEmpty() ? null : text(parameters, "user"),
                             purpose.isEmpty()
                                     ? org.fuin.sokar.core.credential.Credential.ANY : purpose,

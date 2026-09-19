@@ -142,22 +142,12 @@ public class ProjectUnfollowCommand
             out.flush();
             return 0;
         }
-        deleteTree(context.paths().followedClone(name));
+        // The clone goes with the rest, through ProjectDeletion, so the terminal and the socket
+        // remove the same things. Doing it here as well was what hid that the socket did not.
         projects.unfollow(name);
         out.println("no longer following " + followed.url());
         out.flush();
         return 0;
     }
 
-    private static void deleteTree(final java.nio.file.Path root) throws java.io.IOException {
-        if (!java.nio.file.Files.exists(root)) {
-            return;
-        }
-        try (var tree = java.nio.file.Files.walk(root)) {
-            for (final java.nio.file.Path path
-                    : tree.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                java.nio.file.Files.deleteIfExists(path);
-            }
-        }
-    }
 }
