@@ -157,4 +157,38 @@ class CredentialDeclarationsTest {
         assertThat(check.outcome()).isEqualTo(CredentialDeclarations.Outcome.EXPIRED);
         assertThat(check.detail()).contains("nothing here can renew it without you");
     }
+
+    @Test
+    void namesARecordNobodyNamed_whicheverWayItWasDeclared(@TempDir final Path dir)
+            throws IOException {
+
+        // Fixed over the socket and not at the terminal, so 'credentials declare --vault ""'
+        // still wrote an empty name and still offered 'sokar vault put' with nothing after it.
+        // Found by running a PUBLISHED snapshot rather than by a test - so the naming lives in
+        // one place now, and this measures that place.
+        final SokarContext context = context(dir);
+
+        final Credential named = new CredentialDeclarations(context).declare(new Credential("",
+                Credential.Kind.TOKEN, "https://forge.invalid/", null, "git",
+                Credential.Source.VAULT));
+
+        assertThat(named.id()).isEqualTo("git.token.forge.invalid");
+        assertThat(CredentialDeclarations.storeCommandFor(named))
+                .isEqualTo("sokar vault put git.token.forge.invalid --type token");
+        // And what was written is what is read back.
+        assertThat(context.credentialRegistry().forUrl("git", "https://forge.invalid/x.git").id())
+                .isEqualTo("git.token.forge.invalid");
+    }
+
+    @Test
+    void refusesToNameADestinationWithNoHost(@TempDir final Path dir) {
+
+        // Nothing to build a name from, and a nameless record is the one thing that cannot be
+        // stored into, removed, or reported about.
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                new CredentialDeclarations(context(dir)).declare(new Credential("",
+                        Credential.Kind.TOKEN, "/a/path", null, "git", Credential.Source.VAULT)))
+                .isInstanceOf(org.fuin.sokar.core.credential.CredentialException.class)
+                .hasMessageContaining("names no host");
+    }
 }

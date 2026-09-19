@@ -979,29 +979,23 @@ public final class SokarDaemon {
             final String purpose = text(parameters, "purpose");
             final String normalised =
                     org.fuin.sokar.core.credential.CredentialRegistry.normalise(match);
-            String id = text(parameters, "id");
-            if (id.isEmpty() && source != org.fuin.sokar.core.credential.Credential.Source.AGENT) {
-                // 'id' is optional in the contract, and a client that leaves it out for the vault
-                // means "you name it". Naming it with what the fallback already looks for keeps a
-                // credential declared without a name and one stored without a declaration the
-                // same entry. Writing "" instead produced a record nothing could store into and a
-                // 'sokar vault remove ' with no name - found by Agent Frontend (QF43).
-                final String implied = org.fuin.sokar.app.GitCredentialNames.impliedName(
-                        kind == org.fuin.sokar.core.credential.Credential.Kind.SSH_KEY
-                                ? org.fuin.sokar.app.GitCredentialNames.Kind.KEY
-                                : org.fuin.sokar.app.GitCredentialNames.Kind.TOKEN, normalised);
-                if (implied == null) {
-                    throw new VarlinkException(INTERFACE + ".Failed", Map.of("message",
-                            "'" + match + "' names no host to build a name from, so say 'id'"));
-                }
-                id = implied;
+            final String id = text(parameters, "id");
+            // 'id' is optional in the contract, and a client that leaves it out for the vault
+            // means "you name it". Named by CredentialDeclarations, which is the one place that
+            // does it - the terminal path had its own copy of this and did not have the fix.
+            final org.fuin.sokar.core.credential.Credential declared;
+            try {
+                declared = org.fuin.sokar.app.CredentialDeclarations.named(
+                        new org.fuin.sokar.core.credential.Credential(id, kind, normalised,
+                                text(parameters, "user").isEmpty()
+                                        ? null : text(parameters, "user"),
+                                purpose.isEmpty()
+                                        ? org.fuin.sokar.core.credential.Credential.ANY : purpose,
+                                source));
+            } catch (org.fuin.sokar.core.credential.CredentialException ex) {
+                throw new VarlinkException(INTERFACE + ".Failed",
+                        Map.of("message", String.valueOf(ex.getMessage())));
             }
-            final org.fuin.sokar.core.credential.Credential declared =
-                    new org.fuin.sokar.core.credential.Credential(id, kind, normalised,
-                            text(parameters, "user").isEmpty() ? null : text(parameters, "user"),
-                            purpose.isEmpty()
-                                    ? org.fuin.sokar.core.credential.Credential.ANY : purpose,
-                            source);
             final org.fuin.sokar.app.CredentialDeclarations declarations =
                     new org.fuin.sokar.app.CredentialDeclarations(context);
             // Declaring twice is not an error: a wizard run again has to land in the same place.

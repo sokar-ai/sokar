@@ -99,13 +99,20 @@ public class CredentialsDeclareCommand implements Callable<Integer>, SokarFactor
         final Credential.Source source = agent ? Credential.Source.AGENT
                 : file != null ? Credential.Source.FILE
                 : variable != null ? Credential.Source.ENVIRONMENT : Credential.Source.VAULT;
+        // Blank rather than refused: a vault record with no name means "you name it", the same as
+        // over the socket, and it is named from the destination below.
         final String id = agent ? "" : file != null ? file
-                : variable != null ? variable : vaultEntry;
+                : variable != null ? variable : vaultEntry == null ? "" : vaultEntry;
 
-        final Credential credential = new Credential(id, chosen,
-                CredentialRegistry.normalise(match), user, purpose, source);
+        final Credential credential;
         try {
+            credential = CredentialDeclarations.named(new Credential(id, chosen,
+                    CredentialRegistry.normalise(match), user, purpose, source));
             new CredentialDeclarations(context).declare(credential);
+        } catch (final org.fuin.sokar.core.credential.CredentialException ex) {
+            err.println("sokar: " + ex.getMessage());
+            err.flush();
+            return 64;
         } catch (final java.io.IOException ex) {
             err.println("sokar: cannot write the record: " + ex.getMessage());
             err.flush();

@@ -208,13 +208,47 @@ public final class CredentialDeclarations {
     }
 
     /**
+     * Returns this credential with a name, when whoever declared it gave none.
+     * <p>
+     * <strong>One place, because it was two.</strong> A nameless declaration was fixed over the
+     * socket and not at the terminal, so {@code credentials declare --vault ""} still wrote an
+     * empty name and still offered {@code sokar vault put} with nothing after it - the same
+     * defect, on the half nobody had looked at, on the very commit that fixed the other half.
+     * Found by reading a published snapshot rather than by a test, which is the lesson.
+     *
+     * @param credential What was declared.
+     * @return The same credential, named after the destination when it had no name.
+     * @throws org.fuin.sokar.core.credential.CredentialException When no name can be built and
+     *         none was given.
+     */
+    public static Credential named(final Credential credential) {
+        if (!credential.id().isBlank()
+                || credential.source() == Credential.Source.AGENT) {
+            return credential;
+        }
+        final String implied = GitCredentialNames.impliedName(
+                credential.kind() == Credential.Kind.SSH_KEY
+                        ? GitCredentialNames.Kind.KEY : GitCredentialNames.Kind.TOKEN,
+                credential.match());
+        if (implied == null) {
+            throw new org.fuin.sokar.core.credential.CredentialException("'" + credential.match()
+                    + "' names no host to build a name from, so say where the value lives");
+        }
+        return new Credential(implied, credential.kind(), credential.match(), credential.user(),
+                credential.purpose(), credential.source(), credential.expires());
+    }
+
+    /**
      * Writes a record down, replacing one for the same destination.
      *
      * @param credential What to record.
      * @return What was written.
      * @throws IOException If the file cannot be written.
      */
-    public Credential declare(final Credential credential) throws IOException {
+    public Credential declare(final Credential given) throws IOException {
+        // Named here, so every way in gets it: a nameless record is the one thing that cannot be
+        // stored into, removed, or reported about.
+        final Credential credential = named(given);
         final List<Credential> kept = new ArrayList<>();
         for (final Credential existing : context.credentialRegistry().all()) {
             if (!existing.match().equals(credential.match())
