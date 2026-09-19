@@ -28,7 +28,26 @@ public record XdgPaths(Path config, Path data, Path state, Path runtime, Path ho
      * @return Paths for this user.
      */
     public static XdgPaths current() {
-        return of(System::getenv, Path.of(System.getProperty("user.home")));
+        return of(System::getenv, home(System::getenv));
+    }
+
+    /**
+     * Returns this account's home directory, from the environment first.
+     * <p>
+     * <strong>{@code $HOME} before {@code user.home}.</strong> Java reads {@code user.home} from
+     * the password database rather than from the environment, and a native image reads it once -
+     * so a command run with a different {@code HOME} still answered about the real account. Every
+     * other path here follows the environment, and one that did not made a listing of *this
+     * machine's* ssh keys answer about somebody else's: measured 2026-09-19, where it listed the
+     * operator's own keys while running against a throwaway home.
+     *
+     * @param environment Where to look, so this can be tested without touching the real one.
+     * @return The home directory.
+     */
+    public static Path home(final java.util.function.Function<String, String> environment) {
+        final String said = environment.apply("HOME");
+        return said == null || said.isBlank()
+                ? Path.of(System.getProperty("user.home")) : Path.of(said);
     }
 
     /**

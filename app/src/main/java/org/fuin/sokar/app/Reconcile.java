@@ -261,7 +261,8 @@ public final class Reconcile {
                                     + "'. What git said: " + fetched.standardError().strip());
                 }
                 return new Result(Outcome.UNREACHABLE, followed.commit(),
-                        "cannot fetch " + followed.url() + ": " + fetched.standardError().strip());
+                        "cannot fetch " + followed.url() + ": " + fetched.standardError().strip()
+                                + identityHint(followed.url()));
             }
 
             final ConfigurationGate.Verdict verdict = gate.verify(clone, "FETCH_HEAD");
@@ -304,6 +305,34 @@ public final class Reconcile {
         } catch (final IOException | RuntimeException ex) {
             return new Result(Outcome.FAILED, followed.commit(), String.valueOf(ex.getMessage()));
         }
+    }
+
+    /**
+     * Returns who this machine logs in as at that host, when a fetch over ssh was refused.
+     * <p>
+     * The asking itself is {@link ForgeIdentity}, because the better moment to ask is when
+     * somebody DECLARES a credential rather than when a fetch has already failed - and a question
+     * asked at two moments belongs in neither of them.
+     *
+     * @param url What could not be fetched.
+     * @return A sentence beginning with a space, or "".
+     */
+    private String identityHint(final String url) {
+        if (GitCredentialNames.kindOf(url) != GitCredentialNames.Kind.KEY) {
+            return "";
+        }
+        final StringBuilder said = new StringBuilder();
+        if (ForgeIdentity.userIn(url) == null) {
+            final String host = GitCredentialNames.hostOf(url);
+            said.append(" The address names no user, so ssh logs in as this account;")
+                    .append(" a forge expects git@").append(host == null ? "the host" : host)
+                    .append('.');
+        }
+        final String greeting = ForgeIdentity.of(context, url, "identity");
+        if (greeting != null) {
+            said.append(" That host says: \"").append(greeting).append("\"");
+        }
+        return said.toString();
     }
 
     /**

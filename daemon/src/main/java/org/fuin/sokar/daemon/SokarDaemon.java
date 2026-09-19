@@ -992,12 +992,43 @@ public final class SokarDaemon {
                                 purpose.isEmpty()
                                         ? org.fuin.sokar.core.credential.Credential.ANY : purpose,
                                 source));
+                if (!flag(parameters, "dryRun")) {
+                    // A dry run ANSWERS a refusal rather than raising it: being told what would
+                    // be turned away is the whole reason it is asked. Raising here meant the one
+                    // call that exists to report refusals was the one that could not.
+                    org.fuin.sokar.app.CredentialDeclarations.checkPossible(declared);
+                }
             } catch (org.fuin.sokar.core.credential.CredentialException ex) {
                 throw new VarlinkException(INTERFACE + ".Failed",
                         Map.of("message", String.valueOf(ex.getMessage())));
             }
             final org.fuin.sokar.app.CredentialDeclarations declarations =
                     new org.fuin.sokar.app.CredentialDeclarations(context);
+            final String fromFile = text(parameters, "fromFile");
+            if (flag(parameters, "dryRun")) {
+                // Nothing is written. Every refusal a real declaration gives, plus - for a key -
+                // who the forge thinks we are, which catches a key that is for another account or
+                // another repository at the moment somebody chooses it rather than at the first
+                // fetch. Agent Frontend's idea, and the better moment by a mile.
+                final org.fuin.sokar.app.CredentialDeclarations.Check would =
+                        declarations.wouldDeclare(declared);
+                final String greeting = would.credential() == null ? null
+                        : org.fuin.sokar.app.ForgeIdentity.of(context, declared.match(), "declare");
+                replies.last(Map.of("connection", would.credential() == null
+                                ? Map.<String, Object>of()
+                                : connectionAsMap(declarations, would.credential()),
+                        "outcome", would.outcome().name(),
+                        "storeCommand", org.fuin.sokar.app.CredentialDeclarations.argumentsOf(
+                                org.fuin.sokar.app.CredentialDeclarations.storeCommandFor(
+                                        would.credential() == null ? declared : would.credential(),
+                                        fromFile)),
+                        "storeStdin", "",
+                        "identity", greeting == null ? "" : greeting,
+                        "detail", would.detail(),
+                        "replaced", false,
+                        "recorded", false));
+                return;
+            }
             // Declaring twice is not an error: a wizard run again has to land in the same place.
             // Whether it replaced one is answered, so an interface can say "updated".
             final boolean replaced = context.credentialRegistry().all().stream()
@@ -1009,12 +1040,16 @@ public final class SokarDaemon {
                 throw new VarlinkException(INTERFACE + ".Failed",
                         Map.of("message", String.valueOf(ex.getMessage())));
             }
-            final String store =
-                    org.fuin.sokar.app.CredentialDeclarations.storeCommandFor(declared);
+            final String store = org.fuin.sokar.app.CredentialDeclarations.storeCommandFor(
+                    declared, fromFile);
             replies.last(Map.of("connection", connectionAsMap(declarations, declared),
                     "storeCommand", org.fuin.sokar.app.CredentialDeclarations.argumentsOf(store),
+                    // Nothing to pipe when the machine reads its own disk.
                     "storeStdin", store.contains("<") ? "the private key file" : "",
-                    "replaced", replaced));
+                    "identity", "",
+                    "detail", "",
+                    "replaced", replaced,
+                    "recorded", true));
         });
 
         server.method("CredentialForget", (parameters, replies) -> {
@@ -1030,6 +1065,23 @@ public final class SokarDaemon {
             // The secret is not removed: a key in somebody's own directory is theirs, and a vault
             // entry is removed by a person at the machine.
             replies.last(Map.of("forgotten", left != null, "leftBehind", left == null ? "" : left));
+        });
+
+        server.method("SshKeys", (parameters, replies) -> {
+            // Never a value: a private key is opened far enough to say what it is and whether a
+            // passphrase protects it, and is not copied, printed or returned. Deciding what is a
+            // key means reading files, which is why it is answered here rather than left to a
+            // client listing a home directory over ssh and guessing.
+            replies.last(Map.of("keys",
+                    new org.fuin.sokar.app.SshKeys(context.paths().xdg().home()).all().stream()
+                            .map(key -> {
+                                final Map<String, Object> row =
+                                        new java.util.LinkedHashMap<>(key.asMap());
+                                row.put("obstacle",
+                                        key.obstacle() == null ? "" : key.obstacle());
+                                return row;
+                            })
+                            .toList()));
         });
 
         server.method("CredentialCheck", (parameters, replies) -> {
@@ -1711,7 +1763,11 @@ public final class SokarDaemon {
                     row.put("purpose", credential.purpose());
                     row.put("source", credential.source().name());
                     row.put("protected", credential.protectedHere());
-                    row.put("present", true);
+                    // Asked, not assumed. This branch is for a record that is not in the file -
+                    // one found by the names a git URL implies, or one being dry-run before it
+                    // exists - and answering 'true' for both made a dry run say MISSING_VALUE
+                    // and 'present: true' in the same breath.
+                    row.put("present", declarations.holdsValue(credential));
                     row.put("expires", credential.expires() == null ? "" : credential.expires());
                     return row;
                 });

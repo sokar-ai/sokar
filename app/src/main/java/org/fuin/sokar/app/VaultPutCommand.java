@@ -35,6 +35,12 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
                     + " Stored with the entry, so no task has to repeat it.")
     private String type;
 
+    @picocli.CommandLine.Option(names = "--from-file", paramLabel = "<path>",
+            description = "Reads the value from this file ON THIS MACHINE, instead of from"
+                    + " standard input. For a key that is already here: nothing has to be sent,"
+                    + " and an interface can ask for this without ever holding the value.")
+    private String fromFile;
+
     @Spec
     private CommandSpec spec;
 
@@ -201,7 +207,28 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        String value = valueFrom(name, System.console(), System.in);
+        String value;
+        if (fromFile == null) {
+            value = valueFrom(name, System.console(), System.in);
+        } else {
+            // The machine reads its own disk. This is what lets an interface offer "use the key
+            // that is already here" without the value crossing a socket or a person retyping it.
+            try {
+                value = java.nio.file.Files.readString(java.nio.file.Path.of(fromFile));
+            } catch (final IOException ex) {
+                err.println("sokar: cannot read " + fromFile + ": " + ex.getMessage());
+                err.flush();
+                return 70;
+            }
+            if (fromFile.endsWith(".pub")) {
+                // The public half is not a credential. It is the commonest mistake there is here,
+                // and it fails silently later rather than now.
+                err.println("sokar: " + fromFile + " is a public key. A machine signs with the"
+                        + " private half - the same path without '.pub'.");
+                err.flush();
+                return 70;
+            }
+        }
         if (org.fuin.sokar.vault.OpenSshPrivateKey.looksLikeOne(value)) {
             // What a person has is the file their company assigned them; what the vault holds is
             // the 32-byte seed inside it. Converted here rather than refused, because "store your

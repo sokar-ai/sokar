@@ -192,4 +192,40 @@ class CredentialDeclarationsTest {
                 .hasMessageContaining("names no host")
                 .hasMessageContaining("give the credential a name");
     }
+
+    @Test
+    void refusesAKindThatCannotOpenThatDestination(@TempDir final Path dir) {
+
+        // git over https never asks an ssh agent anything, and an ssh destination never asks for
+        // a password - so these records could only ever fail, at the moment somebody is trying to
+        // get work done. Two of them were accepted onto a machine before this. The machine judges
+        // it, because an interface has no business working out which combinations are possible.
+        final CredentialDeclarations declarations = new CredentialDeclarations(context(dir));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                declarations.declare(new Credential("k", Credential.Kind.SSH_KEY,
+                        "https://github.com/acme/", null, "git", Credential.Source.FILE)))
+                .isInstanceOf(org.fuin.sokar.core.credential.CredentialException.class)
+                .hasMessageContaining("reached over https")
+                .hasMessageContaining("token, basic or oauth");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                declarations.declare(new Credential("t", Credential.Kind.TOKEN,
+                        "ssh://github.com", null, "git", Credential.Source.VAULT)))
+                .isInstanceOf(org.fuin.sokar.core.credential.CredentialException.class)
+                .hasMessageContaining("reached over ssh")
+                .hasMessageContaining("ssh-key");
+    }
+
+    @Test
+    void refusesACredentialForSomethingNothingConnectsTo(@TempDir final Path dir) {
+
+        // A path on this machine. A record for it would never be read by anything.
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                new CredentialDeclarations(context(dir)).declare(new Credential("k",
+                        Credential.Kind.SSH_KEY, "/home/me/git/acme", null, "git",
+                        Credential.Source.FILE)))
+                .isInstanceOf(org.fuin.sokar.core.credential.CredentialException.class)
+                .hasMessageContaining("nothing authenticates to");
+    }
 }

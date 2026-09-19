@@ -228,8 +228,8 @@ public final class FollowCredential implements AutoCloseable {
         return new FollowCredential(Map.of("SOKAR_GIT_CREDENTIAL_CONFIG",
                 "credential.https://" + host + ".helper=" + SokarBinary.path()
                         + " vault credential " + option + " " + where
-                        + (credential.user() == null ? ""
-                                : " --username " + credential.user())),
+                        + (userOf(credential) == null ? ""
+                                : " --username " + userOf(credential))),
                 null, null, false);
     }
 
@@ -288,6 +288,29 @@ public final class FollowCredential implements AutoCloseable {
         return GitCredentialNames.kindOf(url) != GitCredentialNames.Kind.NONE;
     }
 
+    /**
+     * Returns the username to send, reading it from the environment when it names a variable.
+     * <p>
+     * One field and one rule: a {@code user} that begins with {@code $} is read from this
+     * machine's environment, and anything else is the name itself. A username is not a secret, but
+     * on a CI runner it arrives the same way the token does - and a second field for it would be
+     * one more thing to keep in step.
+     *
+     * @param credential The record.
+     * @return The username, or {@code null} when there is none or the variable is not set.
+     */
+    private static @Nullable String userOf(final Credential credential) {
+        final String said = credential.user();
+        if (said == null || said.isBlank()) {
+            return null;
+        }
+        if (!said.startsWith("$")) {
+            return said;
+        }
+        final String value = System.getenv(said.substring(1));
+        return value == null || value.isBlank() ? null : value;
+    }
+
     private static Path socketFor(final SokarContext context, final String label) {
         // In the runtime directory, because a unix socket path is short by nature and a state
         // directory nested under a home directory runs out of room at 108 characters.
@@ -295,7 +318,19 @@ public final class FollowCredential implements AutoCloseable {
     }
 
     private static Path knownHosts(final SokarContext context) {
-        return context.paths().xdg().state().resolve("sokar").resolve("known_hosts");
+        // state() is ALREADY '<XDG_STATE_HOME>/sokar', so resolving 'sokar' onto it wrote
+        // '.../state/sokar/sokar/known_hosts' - a directory nothing creates, so ssh warned
+        // "Failed to add the host to the list of known hosts" on every single fetch and learned
+        // nothing from one fetch to the next. Found by Agent Frontend, who read the warning
+        // instead of skipping past it.
+        final Path file = context.paths().xdg().state().resolve("known_hosts");
+        try {
+            Files.createDirectories(file.getParent());
+        } catch (final IOException ex) {
+            // ssh will say it could not write; that is its message to give, not ours to guess at.
+            return file;
+        }
+        return file;
     }
 
     @Override

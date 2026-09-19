@@ -50,9 +50,14 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
      * @return Absolute path.
      */
     static Path expand(String path) {
-        return path.startsWith("~")
-                ? Path.of(System.getProperty("user.home"), path.substring(1))
-                : Path.of(path);
+        if (!path.startsWith("~")) {
+            return Path.of(path);
+        }
+        // '~' alone, '~/' and '~/x' all have to work: the old form leaned on Path.of ignoring a
+        // leading slash in its second argument, and taking substring(2) of "~" would throw.
+        final String rest = path.substring(1).replaceFirst("^/+", "");
+        final Path home = org.fuin.sokar.core.config.XdgPaths.home(System::getenv);
+        return rest.isEmpty() ? home : home.resolve(rest);
     }
 
     /**

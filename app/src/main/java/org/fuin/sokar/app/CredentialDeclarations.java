@@ -197,14 +197,65 @@ public final class CredentialDeclarations {
      * @return The command, or "" when the value is not this machine's to store.
      */
     public static String storeCommandFor(final Credential credential) {
+        return storeCommandFor(credential, null);
+    }
+
+    /**
+     * Returns what to type on this machine to give a record its value.
+     *
+     * @param credential The record.
+     * @param fromFile A file ON THAT MACHINE the value is in, or {@code null}. When it is given,
+     *        nothing has to be piped or typed: the machine reads its own disk. That is what makes
+     *        "use the key that is already here" one command a client runs unchanged, rather than a
+     *        vault name a client had to compose - and the name only exists once somebody has said
+     *        what the key is for, which is here.
+     * @return The command, or "" when the value is not this machine's to store.
+     */
+    public static String storeCommandFor(final Credential credential,
+            final @Nullable String fromFile) {
         if (credential.source() != Credential.Source.VAULT) {
             // It is already somewhere. Telling somebody to store it would be telling them to make
             // the copy they declared this record to avoid.
             return "";
         }
+        if (fromFile != null && !fromFile.isBlank()) {
+            return "sokar vault put " + credential.id() + " --from-file " + fromFile;
+        }
         return "sokar vault put " + credential.id()
                 + (credential.kind() == Credential.Kind.SSH_KEY ? " < <the private key file>" : "")
                 + (credential.kind() == Credential.Kind.TOKEN ? " --type token" : "");
+    }
+
+    /**
+     * Says what declaring this would do, and writes nothing.
+     * <p>
+     * Every refusal a real declaration gives - a kind that cannot open that destination, a public
+     * key, a value that is not there, a shut vault - asked before the record exists. The last step
+     * of a wizard, where somebody is about to rely on it.
+     *
+     * @param given What would be declared.
+     * @return What it would be, and what is in the way.
+     */
+    public Check wouldDeclare(final Credential given) {
+        final Credential credential;
+        try {
+            credential = named(given);
+            checkPossible(credential);
+        } catch (final org.fuin.sokar.core.credential.CredentialException ex) {
+            return new Check(Outcome.NO_CREDENTIAL, null, "", String.valueOf(ex.getMessage()));
+        }
+        // The same question the check asks of a destination, asked of the record as it would be:
+        // is the value actually there. One implementation, so a dry run cannot answer differently
+        // from the thing it stands for.
+        final Check about = check(credential.match(), credential.purpose());
+        if (about.outcome() == Outcome.READY || about.credential() == null) {
+            return new Check(present(credential) ? Outcome.READY : Outcome.MISSING_VALUE,
+                    credential, storeCommandFor(credential),
+                    present(credential) ? "it would be used for " + credential.match()
+                            : "nothing holds its value yet");
+        }
+        return new Check(present(credential) ? Outcome.READY : about.outcome(), credential,
+                storeCommandFor(credential), about.detail());
     }
 
     /**
@@ -221,6 +272,51 @@ public final class CredentialDeclarations {
      * @throws org.fuin.sokar.core.credential.CredentialException When no name can be built and
      *         none was given.
      */
+    /**
+     * Refuses a credential that cannot possibly open the destination it names.
+     * <p>
+     * <strong>The machine judges this, not a client.</strong> git over https never asks an ssh
+     * agent anything, and an ssh destination never asks for a password - so an ssh key declared
+     * for {@code https://} is a record that can only ever fail, at the moment somebody is trying
+     * to get work done. It was accepted, and an interface had no business working out which
+     * combinations are possible. Asked for by Agent Frontend (QF45), who had two of them on a
+     * machine.
+     *
+     * @param credential What was declared.
+     * @throws org.fuin.sokar.core.credential.CredentialException When the kind cannot open that
+     *         destination, saying which kind can.
+     */
+    public static void checkPossible(final Credential credential) {
+        final GitCredentialNames.Kind wants = GitCredentialNames.kindOf(credential.match());
+        if (wants == GitCredentialNames.Kind.NONE) {
+            // A path on this machine. Nothing authenticates to it, so a credential for it is a
+            // record that will never be read.
+            throw new org.fuin.sokar.core.credential.CredentialException("nothing authenticates to"
+                    + " '" + credential.match() + "' - it is a path on this machine, not an"
+                    + " address something connects to");
+        }
+        if (credential.source() == Credential.Source.FILE && credential.id().endsWith(".pub")) {
+            // The public half is not a credential, and a machine can tell. Declared cleanly with
+            // 'present: true', it would have failed at the first fetch instead - which is the
+            // mistake anybody makes once and nobody enjoys finding.
+            throw new org.fuin.sokar.core.credential.CredentialException(credential.id()
+                    + " is a public key. A machine signs with the private half - the same path"
+                    + " without '.pub'.");
+        }
+        final boolean key = credential.kind() == Credential.Kind.SSH_KEY;
+        if (wants == GitCredentialNames.Kind.KEY && !key) {
+            throw new org.fuin.sokar.core.credential.CredentialException("'" + credential.match()
+                    + "' is reached over ssh, which asks for a key and never for a token or a"
+                    + " password. Declare it as ssh-key, or name an https address.");
+        }
+        if (wants == GitCredentialNames.Kind.TOKEN && key) {
+            throw new org.fuin.sokar.core.credential.CredentialException("'" + credential.match()
+                    + "' is reached over https, which asks for a token or a username and password"
+                    + " and never for an ssh key. Declare it as token, basic or oauth, or name an"
+                    + " ssh address.");
+        }
+    }
+
     public static Credential named(final Credential credential) {
         if (!credential.id().isBlank()
                 || credential.source() == Credential.Source.AGENT) {
@@ -249,6 +345,7 @@ public final class CredentialDeclarations {
         // Named here, so every way in gets it: a nameless record is the one thing that cannot be
         // stored into, removed, or reported about.
         final Credential credential = named(given);
+        checkPossible(credential);
         final List<Credential> kept = new ArrayList<>();
         for (final Credential existing : context.credentialRegistry().all()) {
             if (!existing.match().equals(credential.match())
@@ -352,6 +449,18 @@ public final class CredentialDeclarations {
             rows.add(row);
         }
         return rows;
+    }
+
+    /**
+     * Tells whether the value of a record is actually there right now.
+     * <p>
+     * Asked of a record that may not be in the file yet, which is what a dry run is about.
+     *
+     * @param credential The record.
+     * @return {@code true} when something holds its value.
+     */
+    public boolean holdsValue(final Credential credential) {
+        return present(credential);
     }
 
     private boolean present(final Credential credential) {

@@ -43,6 +43,68 @@ public final class OpenSshPrivateKey {
     }
 
     /**
+     * What a private key file is, without opening it.
+     *
+     * @param type The algorithm, such as {@code ssh-ed25519}, or "" when it cannot be read.
+     * @param encrypted Whether a passphrase protects it. An encrypted key says nothing else about
+     *        itself: its type is inside the part that is encrypted.
+     */
+    public record Described(String type, boolean encrypted) {
+
+        /**
+         * Tells whether this machine can sign with it as it stands.
+         *
+         * @return {@code true} for an unencrypted Ed25519 key.
+         */
+        public boolean usable() {
+            return !encrypted && "ssh-ed25519".equals(type);
+        }
+    }
+
+    /**
+     * Says what a private key file is, without failing on one this cannot use.
+     * <p>
+     * Separate from {@link #seedBase64(String)} because listing what a machine has and storing one
+     * of them are different questions: a list that threw on the first RSA key in somebody's
+     * {@code ~/.ssh} would be a list nobody could see.
+     *
+     * @param text The whole file.
+     * @return What it is, or {@code null} when it is not an OpenSSH private key at all.
+     */
+    public static @org.jspecify.annotations.Nullable Described describe(final String text) {
+        if (!looksLikeOne(text)) {
+            return null;
+        }
+        final int begins = text.indexOf(BEGIN);
+        final int ends = text.indexOf(END);
+        if (ends < begins) {
+            return null;
+        }
+        try {
+            final byte[] blob = Base64.getMimeDecoder().decode(
+                    text.substring(begins + BEGIN.length(), ends));
+            final Reader reader = new Reader(blob);
+            reader.expect(MAGIC, "not an OpenSSH private key");
+            final String cipher = reader.string();
+            reader.string();
+            reader.bytes();
+            if (!"none".equals(cipher)) {
+                // The type lives inside the encrypted part. Saying "" is the truth; guessing from
+                // the public half would report a type this cannot confirm.
+                return new Described("", true);
+            }
+            reader.int32();
+            reader.bytes();
+            final Reader secret = new Reader(reader.bytes());
+            secret.int32();
+            secret.int32();
+            return new Described(secret.string(), false);
+        } catch (final IllegalArgumentException | VaultException ex) {
+            return null;
+        }
+    }
+
+    /**
      * Returns the seed to store, given the contents of a private key file.
      *
      * @param text The whole file, armour and all.

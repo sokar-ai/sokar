@@ -685,7 +685,18 @@ method CredentialDeclare(
   user: ?string,
   purpose: ?string,
   # VAULT (the default), FILE, ENVIRONMENT or AGENT.
-  source: ?string
+  source: ?string,
+  # A file ON THAT MACHINE the value is in. Only with source VAULT, and only a convenience: the
+  # answer's storeCommand then reads that file instead of asking for the value to be piped or
+  # typed, so "use the key that is already here" is one command a client runs unchanged. Nothing
+  # is read here - the command does it, when somebody runs it.
+  fromFile: ?string,
+  # Says what declaring this would do, and writes NOTHING. Every refusal a real declaration gives:
+  # a kind that cannot open that destination, a public key, a value that is not there, a shut
+  # vault. For an ssh key it also asks the forge who that key logs in as - see 'identity' - which
+  # catches a key belonging to another account or another repository at the moment somebody
+  # chooses it, rather than at the first fetch.
+  dryRun: ?bool
 ) -> (
   # The record as it was written.
   connection: Connection,
@@ -700,7 +711,18 @@ method CredentialDeclare(
   # Whether this replaced a record that was already there for the same destination and purpose.
   # Declaring twice is not an error - a wizard run again must land in the same place - so this is
   # how an interface says "updated" rather than "added".
-  replaced: bool
+  replaced: bool,
+  # Whether anything was written. False for a dry run.
+  recorded: bool,
+  # READY or the reason it would not work, for a dry run. "" for a real declaration, which either
+  # succeeds or fails with an error.
+  outcome: string,
+  # Who the forge says this key logs in as, for a dry run of an SSH_KEY - "Hi fuinorg/utils4j!" -
+  # or "". A key that reaches a different account or a single other repository looks perfectly
+  # good until the first fetch, and only the machine can ask.
+  identity: string,
+  # One sentence for a person, for a dry run. "" otherwise.
+  detail: string
 )
 
 # Forgets a credential record. The secret is NOT removed: a key in ~/.ssh is the person's, and a
@@ -714,6 +736,42 @@ method CredentialForget(
   # What still holds a value, so an interface can offer the second step rather than implying the
   # secret is gone. "" when nothing does.
   leftBehind: string
+)
+
+# One ssh key this account has, described without its value.
+type SshKey (
+  # Where it is. This is what a FILE credential names.
+  path: string,
+  # The algorithm, or "" when a passphrase hides it - an encrypted key says nothing about itself.
+  type: string,
+  # SHA256:... of the public half, or "" when it cannot be worked out.
+  fingerprint: string,
+  # What the public half calls it, usually an address. Often the only thing that tells two keys
+  # apart to the person who made them.
+  comment: string,
+  # Whether a passphrase protects it.
+  encrypted: bool,
+  # Whether the PRIVATE half is there. False means only a .pub was found - which is not a
+  # credential, and is the mistake anybody makes once.
+  privateHalf: bool,
+  # Whether this machine can sign with it as it stands.
+  usable: bool,
+  # DIRECTORY (found in ~/.ssh) or CONFIGURED (named by an IdentityFile line in ~/.ssh/config).
+  found: string,
+  # Why it cannot be used as it stands, with what to do about it, or "".
+  obstacle: string
+)
+
+# The ssh keys this account already has.
+#
+# So that "use the key that is already here" is a choice from a list rather than a path typed from
+# memory. NO VALUE is ever read out of here: a key is opened far enough to say what it is and
+# whether a passphrase protects it.
+#
+# Deciding what is a private key means reading files, which is why this is answered by the machine
+# rather than by a client listing a home directory over ssh.
+method SshKeys() -> (
+  keys: []SshKey
 )
 
 # Which credential a destination would use, and whether it would work - before anything is tried.
@@ -742,6 +800,10 @@ method CredentialCheck(
   # One sentence for a person.
   detail: string
 )
+
+# The purposes a credential may serve: "git" and "any". "git" is the only one anything reads
+# today; a record with another is kept and used by nothing. When a second consumer appears it will
+# be named here.
 
 # ---------------------------------------------------------------------------- running tasks
 

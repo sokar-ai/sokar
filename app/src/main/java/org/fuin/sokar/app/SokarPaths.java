@@ -62,7 +62,8 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
      */
     public static SokarPaths current() {
         return new SokarPaths(XdgPaths.current(), hookBinaries(
-                Path.of(System.getProperty("user.home"), ".local", "bin"), PACKAGED_HOOKS));
+                org.fuin.sokar.core.config.XdgPaths.home(System::getenv)
+                        .resolve(".local").resolve("bin"), PACKAGED_HOOKS));
     }
 
     /**
