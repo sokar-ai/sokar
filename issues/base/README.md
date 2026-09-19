@@ -37,6 +37,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
+| B75 | [A Login Nobody Measures Is A Login That Does Not Work](B75-A-Login-Nobody-Measures-Is-A-Login-That-Does-Not-Work.md) | open | sokar-claude-code (a stub that fakes a login) | The build runs an agent login end to end and fails when it stops storing, using an agent that fakes one - no account, no network. | two, and the first is whether the stub can carry it | [note](#b75) |
 | B53 | [The Build In One Language](B53-The-Build-In-One-Language.md) | open | sokar-claude-code 012, 013, 014; sokar-pi 010, 011, 012; sokar-omp 010, 011, 012 | The Java repositories build, check, update and test in Java and Maven, and every non-Java file that remains says why it cannot be Java. | two, and the first is the order | [note](#b53) |
 | B54 | [Stopping The Daemon Stops The Tasks It Started](B54-Stopping-The-Daemon-Stops-The-Tasks-It-Started.md) | decided | sokar-frontend F33 | Stopping, restarting or losing the daemon does not stop a task; a task ends when something asks that task to end. | one - whether removing a task reaps helpers in its scope | [note](#b54) |
 | B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | sokar-claude-code 009, sokar-pi 007, sokar-omp 007 | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | three, and the first is what an agent declares as "reached work" | [note](#b52) |
@@ -163,7 +164,15 @@ changes what gets built rather than only how:
 Only the placements that are not obvious from the files themselves. Ranking is a property of the
 set, so it lives here and nowhere else.
 
-<a id="b53"></a>**B53 leads, by the operator's decision of 2026-09-13.** The Java repositories carry
+<a id="b75"></a>**B75 leads, by the operator's decision of 2026-09-19, made the hour it was
+found.** `sokar vault login` had never stored anything, for any agent, and the pipeline had no way
+to notice: no unit test can see the shape of a `podman cp`, no scenario logs in, and the rented
+legs have no account. It survived behind its own error message - *"it may have been cancelled"* -
+which blamed the person and was believed three times in one afternoon. Everything else in **Now**
+is work that is known to be missing; this is the one row about work that was believed to be
+present.
+
+<a id="b53"></a>**B53 is second, by the operator's decision of 2026-09-13.** The Java repositories carry
 about 6,300 lines of Python and shell, and most of the Python is the same tools copied into three
 repositories - two still byte-identical, three already drifted apart, and none of it tested. The
 shared tool has to exist in Sokar before an agent repository can drop its copies, which is why
