@@ -65,7 +65,7 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
             err.flush();
             return 64;
         }
-        if (signedBy != null) {
+        if (signedBy != null && !SignedBy.isFingerprint(signedBy)) {
             try {
                 // The key comes from the PERSON, in the same command - which is a different
                 // channel from the repository, and that is the whole of what an anchor is.
@@ -93,7 +93,37 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
         }
         // Once, now, rather than at the next tick: somebody who typed this wants to know whether it
         // works, and a refusal an hour later is a refusal nobody connects to what they did.
-        final Reconcile.Result result = new Reconcile(context).run(projects.find(name));
+        Reconcile.Result result = new Reconcile(context).run(projects.find(name));
+
+        // A fingerprint rather than a whole key: the refusal names the fingerprint, so this is the
+        // string a person actually has in front of them. The key itself is read out of the commit
+        // that was just turned away - and only once its fingerprint is the one they named, which
+        // is what keeps the anchor coming from the person rather than from the repository.
+        if (SignedBy.isFingerprint(signedBy) && result.signer().equals(signedBy.strip())) {
+            final String key = SignedBy.keyOf(context.runner(),
+                    context.paths().followedClone(name), "FETCH_HEAD");
+            if (key == null || !signedBy.strip().equals(SignedBy.fingerprintOf(key))) {
+                err.println("sokar: could not read the key that signed " + result.refused()
+                        + " out of the commit, so there is nothing to pin.");
+                err.flush();
+                return 70;
+            }
+            try {
+                pin(name, key);
+            } catch (final java.io.IOException ex) {
+                err.println("sokar: cannot pin the key: " + ex.getMessage());
+                err.flush();
+                return 70;
+            }
+            out.println("pinned     " + signedBy.strip());
+            result = new Reconcile(context).run(projects.find(name));
+        } else if (SignedBy.isFingerprint(signedBy) && !result.signer().isEmpty()) {
+            err.println("sokar: " + name + " is signed by " + result.signer()
+                    + ", not by " + signedBy.strip() + ". Nothing was pinned.");
+            err.flush();
+            return 70;
+        }
+
         projects.write(Reconcile.after(projects.find(name), result));
 
         out.println("following  " + name + "  " + url

@@ -1790,6 +1790,12 @@ method Follow(
   # Pins it for this project and follows in one command. The key must come from the PERSON - a
   # colleague, a wiki, the team lead - and NEVER out of the repository it verifies: an anchor that
   # travels with the thing it authenticates authenticates nothing.
+  #
+  # A FINGERPRINT is accepted here too, as "SHA256:...". That is the string a refusal names, so it
+  # is the one a person has in front of them. The key itself is then read out of the commit that
+  # was turned away - and only once its fingerprint is the one they typed, which is what keeps the
+  # anchor coming from the person. A commit signed by any other key is refused and nothing is
+  # pinned.
   signedBy: ?string,
   # Follows without an anchor. Nothing is checked, and 'unverified' says so from then on.
   #

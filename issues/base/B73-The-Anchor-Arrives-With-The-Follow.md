@@ -46,6 +46,17 @@ and on `Projects().following.unverified`.
 **`--unverified` with `--signed-by` is refused.** Both is not a stricter setting; it is two
 different instructions, and letting one quietly win would be the wrong kind of helpful.
 
+**A fingerprint is accepted, and it is not a way around the anchor.** The refusal names a
+fingerprint, so that is the string a person has - and requiring the whole key meant the refusal
+pointed at one thing and the cure needed another. The key's bytes are read out of the commit's own
+signature, which is where they already are; what makes it safe is that the person says which
+fingerprint they expect, and anything else is refused. Reading a key from the repository *without*
+that confirmation would make the signature decoration, which is the one rule with no exception.
+
+**The armor caught me.** The first line of the header is `gpgsig -----BEGIN SSH SIGNATURE-----`, so
+looking for a line that *starts* with the marker found nothing. The test found it; reading the
+format did not.
+
 **Unverified skips the check, not the reading.** A file that is not a project is still `UNUSABLE`:
 nobody checked *who* wrote it, which is not the same as anything goes. Found by writing that test
 rather than by reasoning about it.
@@ -55,7 +66,9 @@ rather than by reasoning about it.
 - Following with `--signed-by` pins and follows in one command, and a second follow of the same
   project with a different key is refused rather than repointing it quietly. **Met.**
 - A follow with no anchor names the key's fingerprint, and repeating it with that fingerprint
-  succeeds.
+  succeeds. **Met.** `--signed-by SHA256:...` reads the key out of the commit that was turned away
+  and pins it, but only once its fingerprint is the one the person typed; any other key is refused
+  and nothing is pinned.
 - `--unverified` follows, applies, and reports itself as unverified in every place the project's
   state is shown. **Met.**
 - A project followed unverified beside one followed with an anchor does not change what is reported
