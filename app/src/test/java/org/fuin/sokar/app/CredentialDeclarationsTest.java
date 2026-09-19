@@ -189,6 +189,7 @@ class CredentialDeclarationsTest {
                 new CredentialDeclarations(context(dir)).declare(new Credential("",
                         Credential.Kind.TOKEN, "/a/path", null, "git", Credential.Source.VAULT)))
                 .isInstanceOf(org.fuin.sokar.core.credential.CredentialException.class)
-                .hasMessageContaining("names no host");
+                .hasMessageContaining("names no host")
+                .hasMessageContaining("give the credential a name");
     }
 }

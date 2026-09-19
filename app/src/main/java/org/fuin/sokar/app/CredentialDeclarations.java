@@ -232,7 +232,7 @@ public final class CredentialDeclarations {
                 credential.match());
         if (implied == null) {
             throw new org.fuin.sokar.core.credential.CredentialException("'" + credential.match()
-                    + "' names no host to build a name from, so say where the value lives");
+                    + "' names no host to build a name from, so give the credential a name");
         }
         return new Credential(implied, credential.kind(), credential.match(), credential.user(),
                 credential.purpose(), credential.source(), credential.expires());

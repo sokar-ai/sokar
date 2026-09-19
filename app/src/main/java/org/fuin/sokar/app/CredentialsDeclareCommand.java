@@ -118,9 +118,12 @@ public class CredentialsDeclareCommand implements Callable<Integer>, SokarFactor
             err.flush();
             return 70;
         }
+        // From the record, not from what was typed: when nobody gave a name, one was chosen here
+        // and this is where a person sees it. Reading it off the typed value printed "from vault"
+        // with no name, while the line below named it - two answers to "what is it called".
         out.println("declared   " + credential.match() + "  " + chosen.name()
                 + "  from " + source.name().toLowerCase(Locale.ROOT)
-                + (id.isEmpty() ? "" : " '" + id + "'"));
+                + (credential.id().isEmpty() ? "" : " '" + credential.id() + "'"));
         if (!credential.protectedHere()) {
             out.println("           this machine does not protect it - it is as safe as what"
                     + " holds it");
