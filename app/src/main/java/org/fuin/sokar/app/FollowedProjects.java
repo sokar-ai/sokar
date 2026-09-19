@@ -101,6 +101,23 @@ public final class FollowedProjects {
                 String detail, String refused, String signer) {
             this(name, url, commit, at, outcome, detail, refused, signer, false);
         }
+
+        /**
+         * Returns this record with nothing in force any more.
+         * <p>
+         * What accepting a rewrite is: the next reconcile has nothing to descend from and applies
+         * what it verifies. Everything else about the follow is kept - <strong>including whether
+         * it was taken without an anchor</strong>, which is the field this used to lose. Both
+         * callers rebuilt the record by hand through a constructor that defaults the flag, so
+         * accepting a rewrite quietly turned an unverified follow into one that claims a
+         * signature was checked. A method, so the next field that is added cannot be forgotten
+         * in two places at once.
+         *
+         * @return A copy with no commit in force.
+         */
+        public Followed forgettingWhatIsInForce() {
+            return new Followed(name, url, "", at, outcome, detail, refused, signer, unverified);
+        }
     }
 
     private final Path directory;

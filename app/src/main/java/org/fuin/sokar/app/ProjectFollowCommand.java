@@ -87,9 +87,7 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
         if (acceptRewrite) {
             // Forgetting what is in force is the whole of accepting: the next reconcile then has
             // nothing to descend from and applies what it verifies.
-            final FollowedProjects.Followed known = projects.find(name);
-            projects.write(new FollowedProjects.Followed(known.name(), known.url(), "",
-                    known.at(), known.outcome(), known.detail()));
+            projects.write(projects.find(name).forgettingWhatIsInForce());
         }
         // Once, now, rather than at the next tick: somebody who typed this wants to know whether it
         // works, and a refusal an hour later is a refusal nobody connects to what they did.

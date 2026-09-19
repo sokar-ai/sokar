@@ -375,8 +375,13 @@ public final class Reconcile {
      */
     public static FollowedProjects.Followed after(final FollowedProjects.Followed followed,
             final Result result) {
+        // 'unverified' is carried, not defaulted. It was dropped here: a follow written with the
+        // flag was rewritten by this method one line later, so a project taken WITHOUT an anchor
+        // reported itself as one whose signature had been checked - the single field that tells a
+        // person that whoever can push there decides what this machine runs. Found by Agent
+        // Frontend, whose dialog shows it on every project.
         return new FollowedProjects.Followed(followed.name(), followed.url(), result.commit(),
                 Instant.now().toString(), result.outcome().name(), result.detail(),
-                result.refused(), result.signer());
+                result.refused(), result.signer(), followed.unverified());
     }
 }

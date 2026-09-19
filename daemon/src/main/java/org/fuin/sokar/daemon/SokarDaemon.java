@@ -891,9 +891,7 @@ public final class SokarDaemon {
                 // has nothing to descend from and applies what it verifies. The same two lines the
                 // CLI runs, because a rewrite accepted over the socket and one accepted at the
                 // machine have to mean the same thing.
-                final org.fuin.sokar.app.FollowedProjects.Followed known = projects.find(name);
-                projects.write(new org.fuin.sokar.app.FollowedProjects.Followed(known.name(),
-                        known.url(), "", known.at(), known.outcome(), known.detail()));
+                projects.write(projects.find(name).forgettingWhatIsInForce());
             }
             // Once, now: somebody who asked for this wants to know whether it works, and a refusal
             // at the next tick is one nobody connects to what they did.

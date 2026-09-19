@@ -513,4 +513,47 @@ class ReconcileTest {
                         context.paths().followedClone("demo").resolve("project.yml"))
                 .repositoryNames()).containsExactly("demo", "backend");
     }
+
+    @Test
+    void an_unverified_follow_is_still_unverified_in_the_record_it_writes(@TempDir final Path dir)
+            throws IOException {
+
+        // Where it was lost. Every follow ends by writing 'after(known, result)', and that method
+        // rebuilt the record through a constructor that defaults the flag - so the follow wrote
+        // "unverified" and the next line wrote it away again. The outcome was right, the clone was
+        // right, and the one field that says WHO DECIDES read as though a signature had been
+        // checked. Found by Agent Frontend, whose dialog shows that field on every project.
+        final SokarContext context = context(dir);
+        final Path repo = published(dir, null, "demo");
+        final FollowedProjects.Followed taken = new FollowedProjects.Followed("demo",
+                repo.toString(), "", "", "", "", "", "", true);
+
+        final FollowedProjects.Followed written =
+                Reconcile.after(taken, new Reconcile(context).run(taken));
+
+        assertThat(written.outcome()).isEqualTo("APPLIED");
+        assertThat(written.unverified()).isTrue();
+    }
+
+    @Test
+    void accepting_a_rewrite_forgets_the_commit_and_nothing_else(@TempDir final Path dir)
+            throws IOException {
+
+        // The same field, lost the same way in the other two writers: both rebuilt the record by
+        // hand to clear the commit. Accepting a rewrite must not quietly promote an unverified
+        // follow to one that claims a signature was checked.
+        final FollowedProjects projects = new FollowedProjects(dir.resolve("followed"));
+        projects.write(new FollowedProjects.Followed("demo", "git@example.com:x/demo.git",
+                "a1b2c3", "2026-09-19T00:00:00Z", "REWRITTEN", "history was rewritten",
+                "d4e5f6", "SHA256:whoever", true));
+
+        projects.write(projects.find("demo").forgettingWhatIsInForce());
+
+        final FollowedProjects.Followed after = projects.find("demo");
+        assertThat(after.commit()).isEmpty();
+        assertThat(after.unverified()).isTrue();
+        assertThat(after.url()).isEqualTo("git@example.com:x/demo.git");
+        assertThat(after.refused()).isEqualTo("d4e5f6");
+        assertThat(after.signer()).isEqualTo("SHA256:whoever");
+    }
 }

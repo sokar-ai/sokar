@@ -85,6 +85,15 @@ public class ProjectsCommand implements Callable<Integer>, SokarFactory.ContextA
                                                 ? " (" + repository.pending() + " waiting)" : ""))
                                 .collect(java.util.stream.Collectors.joining(", ")));
             }
+            if (project.following() != null && project.following().unverified()) {
+                // On the listing and not only under 'project following'. This is the one line that
+                // says who decides what tasks here may reach: with no anchor it is whoever can
+                // push to that repository, rather than whoever holds the signing key. Somebody
+                // reading a list of projects is choosing one to work in, which is exactly the
+                // moment that matters.
+                out.printf("%-" + width + "s  unverified - whoever can push there decides what"
+                        + " tasks here may reach%n", "");
+            }
             if (project.pending() > 0 || project.tasks() > 0) {
                 // Only when there is something to act on: a line of zeroes under every project is
                 // a line nobody reads.

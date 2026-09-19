@@ -263,6 +263,27 @@ else
     sed -n '1,8p' "$LIST_LOG"
 fi
 
+# This script follows WITHOUT an anchor, so the listing has to say so. It is the one line that
+# says who decides what a task here may reach - with no signature checked it is whoever can push
+# to that repository - and it read as though a key had been checked, because the flag was written
+# and then overwritten by the record the same follow wrote next.
+if grep -q "unverified" "$LIST_LOG"; then
+    pass "a project followed without an anchor is marked in the list"
+else
+    fail "an unverified follow is not marked, so it reads as though a signature was checked"
+    sed -n '1,8p' "$LIST_LOG"
+fi
+
+# And over the socket's own record, which is what an interface reads.
+FOLLOWING_LOG="$WORK/project-following.log"
+if "$SOKAR" project following > "$FOLLOWING_LOG" 2>&1 \
+        && grep -q "unverified" "$FOLLOWING_LOG"; then
+    pass "the follow record itself keeps that it was taken without an anchor"
+else
+    fail "the follow record lost the unverified flag"
+    sed -n '1,8p' "$FOLLOWING_LOG"
+fi
+
 # ------------------------------------------------------------------ the image
 echo
 echo "-- image build --"
