@@ -25,7 +25,7 @@ Feature: What a task is after the machine restarts
     Given a script runs "sokar task remove sokar-restarted-shell --force"
     And a project called "restarted" with a file in it
     And a terminal on the machine
-    When I run "cd ~/restarted && sokar task start --repository restarted --agent stub --attach shell"
+    When I run "sokar task start --project restarted --repository restarted --agent stub --attach shell"
     And I wait for the shell inside the container
     And I run "exit"
     And the machine restarts
@@ -36,7 +36,7 @@ Feature: What a task is after the machine restarts
     Given a terminal on the machine
     When I run "sokar task list"
     And the machine restarts
-    Then a script running "cd ~/restarted && sokar task start --repository restarted --agent stub --detach" mentions "before this machine restarted"
+    Then a script running "sokar task start --project restarted --repository restarted --agent stub --detach" mentions "before this machine restarted"
 
   Scenario: its logs say the machine restarted rather than that nothing was written
     Then a script running "sokar task logs $(sokar task list | grep -o 'sokar-restarted[^ ]*' | head -1)" mentions "machine has restarted"

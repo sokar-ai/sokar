@@ -59,9 +59,11 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | B63 | [A Share That Is Not Stored At All](B63-A-Share-That-Is-Not-Stored-At-All.md) | open | - | On a desktop a keyslot's share sits in a keystore any process running as that user can read, so a device is worth no more than the account it runs under until the share is derived from a token rather than stored. | three | |
 | B64 | [The Two Steps That Still Need A Terminal](B64-The-Two-Steps-That-Still-Need-A-Terminal.md) | open | - | A freshly prepared machine needs its daemon started and its vault created, and neither can be done from an interface - so a wizard that exists to avoid a shell has to open one twice. | two | |
 | B65 | [A Gate For Configuration Coming In](B65-A-Gate-For-Configuration-Coming-In.md) | built | - | A machine applies configuration only when it is signed by a key it was given out of band, because reconciliation lets a git repository decide what a task may reach. | two | |
-| B66 | [A Machine Follows Each Project's Repository](B66-A-Machine-Follows-Each-Projects-Repository.md) | built | - | A project's configuration lives in its own repository beside its planning, a machine reconciles itself against every project it was told to follow, and what a person held or a task is doing is never reconciled. | four | |
-| B67 | [A Project Is More Than One Repository](B67-A-Project-Is-More-Than-One-Repository.md) | built | - | A project is a unit of work over one or more repositories rather than a second name for one; a task works on exactly one of them, and the agents of a project address each other without a peer list. | three | |
-| B68 | [What One Repository's Work Needs](B68-What-One-Repositorys-Work-Needs.md) | built | - | A repository of a project declares the egress and the limits its own work needs - egress added to the project's, a limit replacing it key by key - and a remembered connection widens only the repository it came from. | one | [note](#b68) |
+| B69 | [Why A Machine Is Not Following](B69-Why-A-Machine-Is-Not-Following.md) | built | sokar-frontend QF26 | A machine that is not applying a project's configuration says why as a named reason and about which commit, so a refused signature is a state on the project rather than a line somebody has to read. | none | |
+| B70 | [The Clone Is What A Task Gets](B70-The-Clone-Is-What-A-Task-Gets.md) | built | - | A task of a followed project runs against the project file the machine verified, rather than one left in a directory that nothing checked. | none | [note](#b70) |
+| B71 | [A Project Is Named, Not Pointed At](B71-A-Project-Is-Named-Not-Pointed-At.md) | built | sokar-frontend | A command names a project instead of pointing at a file, so which project a task belongs to no longer depends on which directory somebody stood in. | none | |
+| B72 | [A Project Exists By Being Followed](B72-A-Project-Exists-By-Being-Followed.md) | built | sokar-frontend QF27 | The only way a project comes to be on a machine is that the machine follows its repository; Sokar writes no project file anywhere, and the checks move to where the file arrives. | none | |
+| B73 | [The Anchor Arrives With The Follow](B73-The-Anchor-Arrives-With-The-Follow.md) | built | - | The key a project's configuration is signed with is given in the same command that follows it, and a machine may follow without an anchor as long as it says so everywhere the project is shown. | none | |
 | B55 | [The Changelog Entry A Change Has To Bring](B55-The-Changelog-Entry-A-Change-Has-To-Bring.md) | open | - | A change to what ships or builds brings a changelog entry, or says on purpose that it does not, and the build checks it. | three, and the first is what logchange's maintainers want | [note](#b55) |
 | B57 | [Names Asked Past The Resolver](B57-Names-Asked-Past-The-Resolver.md) | open | - | Port 53 out of a task is open to Sokar's resolver and nothing else in the task, so an undeclared name gets no answer from anywhere. | three, and the first is measuring it | [note](#b57) |
 | B58 | [The Upstream The Checkout Already Names](B58-The-Upstream-The-Checkout-Already-Names.md) | open | - | Starting in a checkout that already names its upstream never makes a person type that URL again, and never copies a credential out of it. | three, and the first is where the seed comes from | [note](#b58) |
@@ -252,12 +254,12 @@ through query names, which the documentation claimed was closed and now says is 
 because nothing reads from it, and above the rest of Soon because the likely fix is small and it
 touches a stated guarantee. Placed here by Agent Discuss on 2026-09-14; the operator re-ranks.
 
-<a id="b68"></a>**B68 is in Soon, under B67, because it corrects B67 and B67 is built.** It was
-found the first time a real project was written down: Sokar's own covers seven repositories, five
-of them Maven and one of them Flutter, and one egress for all of them is the union of what any of
-them needs - so a task on the core repository may reach a package registry nothing explains. It is
-not urgent, because the union works and is merely wider than it should be, and it is not in Later,
-because every project file written meanwhile is written against the wrong shape.
+<a id="b70"></a>**B70 is first of the four, because the other three assume it.** Following a
+project repository today verifies a commit, resets a clone and then uses none of it: a task reads
+the project file out of the working directory. So every promise that rests on reconciliation is
+currently true of a directory nobody reads, and naming a project or removing the local file would
+both be changes to a path that leads nowhere. Found on 2026-09-18 while answering whether
+`CreateProject` should exist.
 
 <a id="b58"></a>**B58 is in Soon, under B57, because it is met on the first day and breaks nothing.**
 Everyone who presses Enter through the wizard in a cloned repository ends up with a project whose

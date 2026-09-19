@@ -68,6 +68,17 @@ public record Sidecar(int version, String project, String securityClass,
     public static final String REPOSITORY_LABEL = "org.fuin.sokar.repository";
 
     /**
+     * Label carrying the commit the task's configuration was verified at, or "" when nothing
+     * verified it. See {@link #PROJECT_LABEL}.
+     * <p>
+     * On the container because the project moves on. <em>"What was this task actually running
+     * under"</em> is asked after something has gone wrong, by which time the followed clone holds
+     * something newer - and a question about a task must not be answered from a file that has
+     * changed since.
+     */
+    public static final String COMMIT_LABEL = "org.fuin.sokar.commit";
+
+    /**
      * Constructor with all data.
      *
      * @param version Schema version.

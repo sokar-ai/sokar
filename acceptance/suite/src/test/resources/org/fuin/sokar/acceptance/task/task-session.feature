@@ -16,7 +16,7 @@ Feature: Leaving a task and coming back to it
   Scenario: work carries on while nobody is attached, and is still there on return
     Given a project called "session" with a file in it
     And a terminal on the machine
-    When I run "cd ~/session && sokar task start --repository session --agent stub --attach shell --detach"
+    When I run "sokar task start --project session --repository session --agent stub --attach shell --detach"
     And I run "sokar task attach $(sokar task list | grep -o 'sokar-session[^ ]*' | head -1)"
     And I wait for the session inside the container
     And I run "echo MARKER-BEFORE-LEAVING"

@@ -63,7 +63,7 @@ final class EgressEdit {
      * <strong>Why a repository's block and not the project's.</strong> A connection a task made is
      * a fact about the repository that task works on. Remembering it at project level would widen
      * every other repository of that project for a reason none of them can see - which is exactly
-     * what B68 exists to end.
+     * what a per-repository declaration exists to end.
      * <p>
      * <strong>The project's own repository is not in here.</strong> It has no entry under
      * {@code repositories:}; its egress is the project's, so a caller asking about it passes

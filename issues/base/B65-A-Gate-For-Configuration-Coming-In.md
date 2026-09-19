@@ -1,6 +1,6 @@
 # B65 — A Gate For Configuration Coming In
 
-**Status:** built on 2026-09-19. B66 applies what this verifies, so every criterion below now has
+**Status:** built on 2026-09-19. Reconciliation applies what this verifies, so every criterion below now has
 something behind it. What is built: the pinned anchor
 (`config/configuration_signers`, `allowed_signers` format, the same shape and the same reader as the
 message keyring), the verdict over a commit, and `sokar doctor` reporting a machine that has nothing
@@ -17,7 +17,8 @@ reproducing that canonicalisation here would be a second implementation of somet
 does exactly.
 
 Decided on 2026-09-19 that a project's configuration comes from its own repository,
-which the machine pulls and reconciles itself against (B66). This is the check that must exist
+which the machine pulls and reconciles itself against - see
+[reconciliation](../../doc/glossary.md#reconciliation). This is the check that must exist
 **before** it does.
 
 Everything Sokar protects today is about work going **out**: the gate holds what an agent wrote
@@ -43,7 +44,7 @@ Sokar would be reachable by a route that has no check in it at all.
 4. **What was applied is recorded** - which commit, when, and by which signature - so "why is this
    machine like this" has an answer that does not require guessing from file timestamps.
 5. **A verified change is still not a licence to do anything.** The boundary of what reconciliation
-   may touch is B66's, and this issue does not widen it.
+   may touch is reconciliation's, and this issue does not widen it.
 
 ## What it buys beyond the obvious
 
@@ -89,6 +90,7 @@ wrong, because configuration is what decides what the containment is.
 obvious candidate, `git verify-commit` against an allowed-signers file, has the same shape as the
 message signatures already built (`doc/` and B14) but has not been run for this purpose.
 
-**It is deliberately first.** B66 is more useful and this is the one that is hard to add afterwards:
+**It is deliberately first.** Reconciliation is more useful and this is the one that is hard to add
+afterwards:
 a reconciliation loop that runs unverified for a while teaches everybody that configuration arrives
 without a check, and the check then breaks machines that were fine yesterday.

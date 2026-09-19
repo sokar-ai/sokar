@@ -226,6 +226,12 @@ the same list the command prints when you get the name wrong, so the two cannot 
 `shell`, not `sokar-utils4j-shell` — so the container names the other verbs offer would be the
 wrong list there. It completes its options and nothing else.
 
+**A command names a project, it does not point at a file.** `--project` takes the name
+`sokar project list` prints, not a path to a `project.yml`. Which project a task belongs to must
+not depend on which directory somebody was standing in, and a name resolves through what this
+machine knows: the verified clone of a project it follows first, then where a task last read one.
+A name this machine does not have is refused with the names it does have.
+
 **A task always names its repository.** `sokar task start shell --repository backend` says which of
 the project's repositories the work is for. There is no default, not even for a project that has
 exactly one: naming it is one word, and a default would mean a project that grew a second

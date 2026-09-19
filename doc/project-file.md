@@ -2,9 +2,10 @@
 
 Everything `project.yml` can say, in one file, with what each key is for.
 
-**You do not have to write this.** `sokar task start` in a directory without one offers to write a
-working file for you, and the wizard asks only what it cannot work out. This page is for when you
-want to know what else is possible, or why the wizard chose what it chose.
+**You write this once, in the project's own git repository, and commit it.** A machine gets it by
+following that repository - `sokar project follow <name> <url>` - and Sokar writes one nowhere. What
+is wrong with it comes back from that command, named: an egress set this machine does not have, a
+name that could not become an image tag, a file that does not read as a project at all.
 
 **Only `project.name`, `project.security_class` and `image.base_image` are required.** Everything
 else has a default, and the defaults are the ones most projects want.

@@ -202,29 +202,6 @@ public final class TaskLaunch {
         }
     }
 
-    /**
-     * Asks for a project file and writes it, reading the answers without closing standard input.
-     * <p>
-     * <strong>Never closed.</strong> The session this start attaches afterwards reads the same
-     * standard input. Closing a reader over it closed descriptor 0, the attached session was left
-     * reading {@code /dev/null}, and nothing typed reached it - while the terminal's answers to its
-     * queries surfaced at the shell prompt once it was left.
-     *
-     * @param stdin Standard input.
-     * @param out Where the questions are asked.
-     * @return 0 when a project file was written, 2 otherwise.
-     */
-    int runWizard(java.io.InputStream stdin, PrintWriter out) {
-        final java.io.BufferedReader in = new java.io.BufferedReader(
-                new java.io.InputStreamReader(stdin, java.nio.charset.StandardCharsets.UTF_8));
-        if (!ProjectWizard.create(context, request.projectFile(), in, out)) {
-            out.flush();
-            return 2;
-        }
-        out.println();
-        out.flush();
-        return 0;
-    }
 
     /**
      * A task that was already there, and what bringing it back came to.
@@ -321,25 +298,39 @@ public final class TaskLaunch {
      */
     public int launch(PrintWriter out, PrintWriter err, AfterStart after) {
 
-        // Nobody should have to write a file by hand before their first task: every field has
-        // a defensible default and the name follows from the directory. Only when someone is
-        // there to answer - a script that lands here with no project file is more likely in the
-        // wrong directory than wanting one written, and the message below says what to do.
-        if (!java.nio.file.Files.exists(request.projectFile()) && System.console() != null) {
-            final int wizard = runWizard(System.in, out);
-            if (wizard != 0) {
-                return wizard;
-            }
-        }
-
-        final Project project;
+        Project project;
+        java.nio.file.Path projectFile = request.projectFile();
         try {
-            project = ProjectReader.read(request.projectFile());
+            project = ProjectReader.read(projectFile);
+
+            // If this machine FOLLOWS a project of that name, the file it verified wins - and the
+            // one in the directory is not consulted at all, not preferred and not merged.
+            // Following checks a signature against a key pinned out of band; reading anything
+            // else afterwards throws that check away, and two sources is how a machine comes to
+            // run something nobody chose.
+            final ProjectSource.Found found = ProjectSource.resolve(context, project.name());
+            if (found.outcome() == ProjectSource.Outcome.FOLLOWED) {
+                if (found.file() == null) {
+                    // Followed and nothing in force: refused, unreachable, nothing pinned. Falling
+                    // back to the local file would run the very thing the machine declined to
+                    // apply, which is worse than not starting.
+                    err.println("sokar: '" + project.name() + "' is followed and nothing of it is"
+                            + " in force, so there is no configuration to start a task with."
+                            + " 'sokar project following' says why.");
+                    err.flush();
+                    return 2;
+                }
+                projectFile = found.file();
+                verifiedAt = found.commit();
+                project = ProjectReader.read(projectFile);
+                out.println("source         " + verifiedAt + " (followed, verified)");
+            }
+
             // Where this project's file is, for an interface that has no filesystem on this
             // machine to find it in. Recorded on every start rather than by a registration step
             // nobody would run.
             new ProjectRegistry(context.paths().projectRegistry())
-                    .remember(project.name(), request.projectFile().toAbsolutePath());
+                    .remember(project.name(), projectFile.toAbsolutePath());
         } catch (ProjectException ex) {
             // A bad project file is the user's problem to fix, not a defect: report it as one
             // line, not as a stack trace.
@@ -588,8 +579,8 @@ public final class TaskLaunch {
             // The port is decided before this, so the firewall rule can name it; the gate itself
             // starts afterwards, because its log lives in the state directory that start()
             // creates. Starting it first silently failed to spawn at all.
-            runner.start(project, repository, container, layers, environmentCache, domains,
-                    wiring, out);
+            runner.start(project, repository, verifiedAt, container, layers, environmentCache,
+                    domains, wiring, out);
 
             if (needsRelay && plumbing != null) {
                 wiring().startRelay(runner, container, plumbing.socket(), out, err);
@@ -1127,6 +1118,14 @@ public final class TaskLaunch {
         }
         return clearanceWiring;
     }
+
+    /**
+     * The commit this task's configuration was verified at, or "" when nothing verified it.
+     * <p>
+     * A field rather than a local, because the start that labels the container happens inside a
+     * scope that captures it - and it is written once, where the project is resolved.
+     */
+    private String verifiedAt = "";
 
     /** What this run started on the host, written out so a later start can bring them back. */
     private final java.util.List<TaskHelpers.Helper> startedHelpers = new java.util.ArrayList<>();

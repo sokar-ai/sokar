@@ -315,4 +315,59 @@ class ProjectInventoryTest {
         assertThat(new ProjectInventory(context).projects())
                 .allSatisfy(project -> assertThat(project.running()).isZero());
     }
+
+    @Test
+    void sayingWhatEachRepositoryReachesAndMayUse(@TempDir Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        mirror("uc");
+        final Path file = dir.resolve("project.yml");
+        Files.writeString(file, """
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                limits:
+                  memory: "16g"
+                  pids: 4096
+                egress:
+                  sets: [maven]
+                repositories:
+                  frontend:
+                    egress:
+                      sets: [flutter]
+                      domains: ["pub.dev"]
+                    limits:
+                      memory: "32g"
+                """);
+        registry(dir, "uc", file);
+
+        final var repositories = new ProjectInventory(context).projects().get(0).repositories();
+        final var frontend = repositories.stream()
+                .filter(one -> one.name().equals("frontend")).findFirst().orElseThrow();
+
+        // One list with a source on each entry: a repository's grants are ADDED, so a screen
+        // showing both halves should not have to subtract one list from another.
+        assertThat(frontend.egress()).extracting(ProjectInventory.Grant::value,
+                        ProjectInventory.Grant::from)
+                .containsExactly(org.assertj.core.api.Assertions.tuple("maven", "project"),
+                        org.assertj.core.api.Assertions.tuple("flutter", "repository"),
+                        org.assertj.core.api.Assertions.tuple("pub.dev", "repository"));
+
+        // A limit REPLACES key by key, so what matters is which key it replaced.
+        assertThat(frontend.limits().memory()).isEqualTo("32g");
+        assertThat(frontend.limits().memoryFrom()).isEqualTo("repository");
+        // And the keys it said nothing about are the project's - not the defaults. The project
+        // raised both away from 8g and 2048 so that a fallback would fail this.
+        assertThat(frontend.limits().pids()).isEqualTo(4096);
+        assertThat(frontend.limits().pidsFrom()).isEqualTo("project");
+
+        // The project's own repository adds nothing, and says so.
+        final var own = repositories.stream()
+                .filter(ProjectInventory.RepositorySummary::own).findFirst().orElseThrow();
+        assertThat(own.egress()).extracting(ProjectInventory.Grant::from)
+                .containsOnly("project");
+        assertThat(own.limits().memory()).isEqualTo("16g");
+    }
 }

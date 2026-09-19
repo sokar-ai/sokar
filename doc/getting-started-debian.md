@@ -341,7 +341,7 @@ limits:                     # optional; these are the defaults
 
 ### What the build may reach
 
-**Nothing that is not named here.** The block the wizard writes is the whole mechanism:
+**Nothing that is not named here.** The `egress` block is the whole mechanism:
 
 ```yaml
 egress:
@@ -379,7 +379,7 @@ egress:
 Four things worth knowing before you widen it:
 
 - **The package set follows the base image, not your machine.** A Fedora node running a task on
-  `ubuntu:24.04` needs `os-packages-debian`; the wizard picks the right one from the base image
+  `ubuntu:24.04` needs `os-packages-debian`; name the one that matches your base image
   you chose.
 - **Ports 80 and 443 only.** A declared name opens web ports at the addresses it resolves to,
   not the host. Declaring `git-hosting` does not open ssh, so it does not hand an agent a
@@ -478,13 +478,21 @@ To add your own tooling to the image, see [your tooling](your-tooling.md).
 ## 5. Run a task
 
 ```
-sokar task start --repository <project>
+sokar project follow <project> <git-url> --signed-by "ssh-ed25519 AAAA..."
+sokar task start --project <project> --repository <project>
 ```
 
-`--repository` says which of the project's repositories the work is for. A project
-made here has one - its own, named after the project - so that name is what goes in.
-A project can name more later, and a task still works on exactly one of them. Leave
-the flag out and Sokar refuses rather than picking, printing the line to type.
+**The first command is how the project comes to be here.** Somebody wrote `project.yml` in that
+repository and committed it; this machine fetches it, checks the signature against the key you
+just gave, and only then applies it. Sokar writes no project file anywhere.
+
+`--signed-by` must come from a person - a colleague, a wiki - and never out of the repository it
+verifies. Without an anchor, `--unverified` follows anyway and says so wherever that project is
+shown.
+
+`--repository` says which of the project's repositories the work is for. A project with only its
+own has one, named after the project. Leave the flag out and Sokar refuses rather than picking,
+printing the line to type.
 
 By default it starts the agent for you and leaves a shell behind when the agent
 exits, so the workspace is still there to look at and its work can still be pushed

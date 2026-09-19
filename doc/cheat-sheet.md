@@ -45,8 +45,12 @@ for a passphrase they never used to be asked for.
 
 ## Describe a project
 
-`project.yml` sits beside your code, in the directory you start tasks from. `sokar task start`
-offers to write it when it is missing, and takes Enter for every default.
+`project.yml` lives in the project's own git repository. You write it once and commit it; a machine
+gets it by following that repository, and Sokar writes one nowhere.
+
+```
+sokar project follow myproject <git-url> --signed-by "ssh-ed25519 AAAA..."
+```
 
 ```yaml
 project:
@@ -73,11 +77,14 @@ key it can carry is in [the project file](project-file.md).
 # --repository says which of the project's repositories the work is for. It is always
 # named: the project's own repository is called after the project, so that is what a
 # project with only its own takes. 'sokar project list' says what a project has.
-sokar task start -r myproject                     # interactive shell; creates it or brings it back
-sokar task start -r backend --attach agent        # start the agent, shell when it exits
-sokar task start -r backend --prompt "fix the failing test"  # unattended, no terminal
-sokar task start -r myproject --detach            # start it and keep your prompt
-sokar task start -r myproject --rm                # throw the container away when you leave
+# -p names the PROJECT and -r the repository in it. Both are names, never paths:
+# which project a task belongs to must not depend on the directory you stand in.
+# 'sokar project list' prints what this machine has.
+sokar task start -p myproject -r myproject        # interactive shell; creates it or brings it back
+sokar task start -p myproject -r backend --attach agent   # start the agent, shell when it exits
+sokar task start -p myproject -r backend --prompt "fix the failing test"  # unattended
+sokar task start -p myproject -r myproject --detach       # start it and keep your prompt
+sokar task start -p myproject -r myproject --rm           # throw the container away when you leave
 sokar task prepare                                # build the image without starting a task
 ```
 

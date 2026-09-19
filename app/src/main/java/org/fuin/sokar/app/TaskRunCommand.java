@@ -45,9 +45,9 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Name of the task. Defaults to an interactive shell.")
     private String task = "shell";
 
-    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
-            description = "Project file. Default: ${DEFAULT-VALUE}")
-    private Path projectFile = Path.of("project.yml");
+    @Option(names = { "-p", "--project" }, paramLabel = "<name>", required = true,
+            description = "Project name, as 'sokar project list' prints it.")
+    private String projectName;
 
     @Option(names = "--agent", paramLabel = "<name>",
             description = "Agent to install in the image. Default: the only one installed.")
@@ -174,6 +174,18 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                     + " image is built.");
             err.flush();
             return 64;
+        }
+
+        final Path projectFile;
+        try {
+            // A name, not a path: which project a task belongs to must not depend on which
+            // directory somebody was standing in. Where the file comes from is ProjectSource's
+            // answer, and it prefers the one this machine verified.
+            projectFile = ProjectSource.require(context, projectName);
+        } catch (final ProjectException ex) {
+            err.println("sokar: " + ex.getMessage());
+            err.flush();
+            return 2;
         }
 
         // Starting the task is the domain's job; what this class adds is the terminal. The

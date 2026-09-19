@@ -93,6 +93,13 @@ class SokarDaemonTest {
         return context;
     }
 
+    /**
+     * Writes a project file and records where it is.
+     *
+     * <p>Calls carry a project NAME now - a client cannot see this machine's filesystem and has no
+     * path to invent - so a fixture has to make the machine able to resolve that name. {@link
+     * #PROJECT} is what the calls send.
+     */
     private Path projectFile(Path dir) throws IOException {
         final Path file = dir.resolve("project.yml");
         Files.writeString(file, """
@@ -102,6 +109,26 @@ class SokarDaemonTest {
                 image:
                   base_image: "ubuntu:24.04"
                 """);
+        Files.createDirectories(dir.resolve("data/sokar/projects"));
+        Files.writeString(dir.resolve("data/sokar/projects").resolve(PROJECT),
+                file.toAbsolutePath() + "\n");
+        return file;
+    }
+
+    /** The name the fixture's project answers to. */
+    private static final String PROJECT = "uc";
+
+    /**
+     * Records where a project file is, so the machine can resolve its name.
+     *
+     * @param dir The test's directory.
+     * @param file The file that was written.
+     * @return The same file, so it can be used inline.
+     */
+    private Path record(Path dir, Path file) throws IOException {
+        Files.createDirectories(dir.resolve("data/sokar/projects"));
+        Files.writeString(dir.resolve("data/sokar/projects").resolve(PROJECT),
+                file.toAbsolutePath() + "\n");
         return file;
     }
 
@@ -121,7 +148,7 @@ class SokarDaemonTest {
         servingContext(context, dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
                 final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Start",
-                        Map.of("project", project.toString(), "task", "shell"));
+                        Map.of("project", PROJECT, "task", "shell"));
 
                 assertThat(((Number) reply.get("exitCode")).intValue()).isEqualTo(69);
                 assertThat(reply).containsEntry("container", "sokar-uc-shell");
@@ -153,7 +180,7 @@ class SokarDaemonTest {
         servingContext(context, dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
                 final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Start",
-                        Map.of("project", project.toString(), "task", "sokar-uc-shell"));
+                        Map.of("project", PROJECT, "task", "sokar-uc-shell"));
 
                 // The existing task was reached - here it predates a restart, so it is refused
                 // with that reason - and no second one was begun beside it.
@@ -179,7 +206,7 @@ class SokarDaemonTest {
         servingContext(context, dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
                 final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Start",
-                        Map.of("project", project.toString(), "task", "shell"));
+                        Map.of("project", PROJECT, "task", "shell"));
 
                 assertThat(((Number) reply.get("exitCode")).intValue()).isEqualTo(65);
                 @SuppressWarnings("unchecked")
@@ -202,7 +229,7 @@ class SokarDaemonTest {
             try (VarlinkClient client = new VarlinkClient(socket)) {
                 for (final boolean dryRun : new boolean[] { false, true }) {
                     final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Start",
-                            Map.of("project", project.toString(), "task", "Foo Bar",
+                            Map.of("project", PROJECT, "task", "Foo Bar",
                                     "dryRun", dryRun));
 
                     assertThat(((Number) reply.get("exitCode")).intValue()).as("dryRun " + dryRun)
@@ -214,11 +241,11 @@ class SokarDaemonTest {
                 }
 
                 final Map<String, Object> check = client.call(SokarDaemon.INTERFACE + ".CanStart",
-                        Map.of("project", project.toString(), "task", "Foo Bar"));
+                        Map.of("project", PROJECT, "task", "Foo Bar"));
                 assertThat(check).containsEntry("outcome", "BAD_TASK_NAME")
                         .containsEntry("ready", false);
                 assertThat(client.call(SokarDaemon.INTERFACE + ".CanStart",
-                        Map.of("project", project.toString(), "task", "shell")))
+                        Map.of("project", PROJECT, "task", "shell")))
                         .doesNotContainEntry("outcome", "BAD_TASK_NAME");
             }
         });
@@ -507,23 +534,23 @@ class SokarDaemonTest {
         Files.createDirectories(sets);
         Files.writeString(sets.resolve("maven.yaml"),
                 "name: maven\nlabel: Maven\ndomains:\n  - repo.maven.apache.org\n");
-        final Path projectFile = Files.writeString(dir.resolve("project.yml"), """
+        final Path projectFile = record(dir, Files.writeString(dir.resolve("project.yml"), """
                 project:
                   name: "uc"
                   security_class: "guarded"
                 image:
                   base_image: "ubuntu:24.04"
-                """);
+                """));
 
         serving(dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
 
                 assertThat((List<?>) client.call(SokarDaemon.INTERFACE + ".Egress",
-                        Map.of("project", projectFile.toString())).get("hosts")).isEmpty();
+                        Map.of("project", PROJECT)).get("hosts")).isEmpty();
 
                 final Map<String, Object> preview = client.call(
                         SokarDaemon.INTERFACE + ".SetEgress",
-                        Map.of("project", projectFile.toString(),
+                        Map.of("project", PROJECT,
                                 "addSets", List.of("maven"), "dryRun", true));
                 assertThat(preview.get("outcome")).isEqualTo("PREVIEWED");
                 assertThat(String.valueOf(preview.get("opens")))
@@ -533,12 +560,12 @@ class SokarDaemonTest {
                 assertThat(Files.readString(projectFile)).doesNotContain("egress");
 
                 assertThat(client.call(SokarDaemon.INTERFACE + ".SetEgress",
-                        Map.of("project", projectFile.toString(), "addSets", List.of("maven")))
+                        Map.of("project", PROJECT, "addSets", List.of("maven")))
                         .get("outcome")).isEqualTo("CHANGED");
                 assertThat(Files.readString(projectFile)).contains("sets: [maven]");
 
                 assertThat((List<?>) client.call(SokarDaemon.INTERFACE + ".Egress",
-                        Map.of("project", projectFile.toString())).get("hosts")).hasSize(1);
+                        Map.of("project", PROJECT)).get("hosts")).hasSize(1);
             }
         });
     }
@@ -548,19 +575,19 @@ class SokarDaemonTest {
 
         // Written, the file would name something no task on this machine could resolve, and every
         // run would fail on it rather than this one call.
-        final Path projectFile = Files.writeString(dir.resolve("project.yml"), """
+        final Path projectFile = record(dir, Files.writeString(dir.resolve("project.yml"), """
                 project:
                   name: "uc"
                   security_class: "guarded"
                 image:
                   base_image: "ubuntu:24.04"
-                """);
+                """));
 
         serving(dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
                 final Map<String, Object> answer = client.call(
                         SokarDaemon.INTERFACE + ".SetEgress",
-                        Map.of("project", projectFile.toString(),
+                        Map.of("project", PROJECT,
                                 "addSets", List.of("nonesuch")));
 
                 assertThat(answer.get("outcome")).isEqualTo("NO_SUCH_SET");
@@ -1659,15 +1686,18 @@ class SokarDaemonTest {
     }
 
     @Test
-    void canStartNamesTheProjectFileItCouldNotRead(@TempDir Path dir) throws Exception {
+    void canStartNamesTheProjectItDoesNotHave(@TempDir Path dir) throws Exception {
 
         serving(dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
+                // An answer, not an error. Asking whether work can start is a question a client is
+                // entitled to ask about a project that turns out not to exist, and throwing would
+                // hand it an exception for asking.
                 final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".CanStart",
-                        Map.of("project", dir.resolve("nowhere.yml").toString()));
+                        Map.of("project", "nowhere"));
 
                 assertThat(reply).containsEntry("outcome", "NO_PROJECT_FILE");
-                assertThat(String.valueOf(reply.get("detail"))).contains("nowhere.yml");
+                assertThat(String.valueOf(reply.get("detail"))).contains("nowhere");
             }
         });
     }

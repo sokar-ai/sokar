@@ -164,7 +164,28 @@ public class TaskRunner {
      * @throws IOException If a file cannot be written.
      */
     public void start(Project project, org.fuin.sokar.core.project.Repository repository,
-            String container,
+            String container, org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment,
+            java.util.List<String> allowedDomains,
+            TaskWiring wiring, PrintWriter out) throws IOException {
+        start(project, repository, "", container, layers, environment, allowedDomains, wiring, out);
+    }
+
+    /**
+     * Starts a task, naming the repository it works on.
+     *
+     * @param project The project.
+     * @param repository Which of its repositories this task works on.
+     * @param container Container name.
+     * @param layers What the image is built from.
+     * @param environment What the container is given.
+     * @param allowedDomains What its resolver may answer.
+     * @param wiring Host-side endpoints this container is attached to.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, org.fuin.sokar.core.project.Repository repository,
+            String commit, String container,
             org.fuin.sokar.runtime.ImageLayers layers,
             java.util.Map<String, String> environment,
             java.util.List<String> allowedDomains,
@@ -212,7 +233,10 @@ public class TaskRunner {
                 // Which repository the agent has open. A task works on exactly one, fixed when the
                 // task is created, so it belongs on the container rather than being worked out
                 // again later from something that may have changed underneath it.
-                .label(Sidecar.REPOSITORY_LABEL, repository.name());
+                .label(Sidecar.REPOSITORY_LABEL, repository.name())
+                // What this task's configuration was verified at, so the question survives the
+                // project moving on. "" for a project nothing verified.
+                .label(Sidecar.COMMIT_LABEL, commit);
         final org.fuin.sokar.core.project.Limits limits = project.limitsFor(repository);
         out.println("limits    " + (limits.memory() == null ? "no memory cap"
                 : limits.memory() + " memory")

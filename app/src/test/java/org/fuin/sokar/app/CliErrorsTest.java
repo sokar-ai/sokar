@@ -174,7 +174,8 @@ class CliErrorsTest {
         final CommandLine command = SokarCli.commandLine(SokarContext.real());
         command.setErr(new PrintWriter(new StringWriter()));
         final CommandLine.ParseResult parsed =
-                command.parseArgs("gate", "pending", "--upstream", "https://u:s3cret@example.com");
+                command.parseArgs("gate", "pending", "--project", "uc",
+                        "--upstream", "https://u:s3cret@example.com");
 
         CliErrors.failures(pathsIn(dir)).handleExecutionException(
                 new IllegalStateException("it broke"), command, parsed);

@@ -21,9 +21,11 @@ Feature: The gate commands
       | check    |
 
   Scenario Outline: acting on a push needs to say which one
+    # The project is named, so what is still missing is the push - which is what this is about.
+    # Without it the first thing missing would be the project, and that is a different sentence.
     Given a terminal on the machine
-    When I run "sokar gate <command>"
-    Then the terminal shows "missing required parameter"
+    When I run "sokar gate <command> --project nothing-here"
+    Then the terminal shows "issing required parameter"
 
     Examples:
       | command |

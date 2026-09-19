@@ -253,15 +253,26 @@ public class TerminalSteps {
     public void aProjectOfClass(String name, String securityClass) throws IOException {
         // Built by running the commands rather than by writing files from here: a fixture the
         // suite creates is a fixture that can be right while the product is wrong.
+        // Built by running the commands rather than by writing files from here: a fixture the
+        // suite creates is a fixture that can be right while the product is wrong.
+        //
+        // A project comes to be on a machine by that machine FOLLOWING its repository - nothing
+        // writes a project file any more. So the repository is made here, on the machine, and
+        // followed from a local path: a rented machine has no forge to push a fixture to, and a
+        // public one would be a dependency on somebody else's uptime.
+        //
+        // Followed unverified, or every fixture would have to sign its commits.
         final Machine machine = world.machine();
         machine.run("rm -rf ~/" + name + " && mkdir -p ~/" + name);
         machine.run("cd ~/" + name + " && git init -q -b main . "
                 + "&& git config user.email t@example.com && git config user.name T "
-                + "&& echo 'the project' > README.md && git add -A && git commit -q -m initial");
+                + "&& echo 'the project' > README.md");
         machine.run("cd ~/" + name + " && printf '%s\\n' "
                 + "'project:' '  name: \"" + name + "\"' '  security_class: \"" + securityClass
                 + "\"' "
                 + "'image:' '  base_image: \"ubuntu:24.04\"' > project.yml");
+        machine.run("cd ~/" + name + " && git add -A && git commit -q -m initial");
+        machine.run("sokar project follow " + name + " ~/" + name + " --unverified");
     }
 
     /**

@@ -141,9 +141,26 @@ public final class EgressControl {
      * @throws EgressSetException If it names a set this machine does not have.
      */
     public Map<String, String> reachable(Path projectFile, @Nullable String agentName) {
+        return reachable(projectFile, null, agentName);
+    }
+
+    /**
+     * Returns what a task on one repository may reach, host to the origin that grants it.
+     * <p>
+     * A repository's grants are <strong>added</strong> to the project's, so asking without one
+     * answers the project-level set - true of every repository - and asking with one answers that
+     * plus what it adds. Each host carries which of the two granted it.
+     *
+     * @param projectFile The project file.
+     * @param repository Which repository, or {@code null} for the project's own.
+     * @param agentName Agent to include, or {@code null} for the only one installed.
+     * @return Hosts and origins.
+     */
+    public Map<String, String> reachable(Path projectFile, @Nullable String repository,
+            @Nullable String agentName) {
         final Project project = ProjectReader.read(projectFile);
-        final Map<String, String> declared =
-                EgressReport.projectEgress(project, context.paths().egressSets());
+        final Map<String, String> declared = EgressReport.projectEgress(project,
+                GateSupport.repository(project, repository), context.paths().egressSets());
         try (InstalledAgents agents = context.agents()) {
             final InstalledAgent selected = TaskLaunch.select(agents, agentName);
             final SelectedProvider serving = selected == null ? null
@@ -183,7 +200,7 @@ public final class EgressControl {
     /**
      * Applies a change to one repository's declaration, or reports what it would do.
      * <p>
-     * <strong>Which block this writes into is the whole of B68's write-back.</strong> A connection
+     * <strong>Which block this writes into is the whole of the write-back.</strong> A connection
      * a task made is a fact about the repository that task works on, and remembering it in the
      * project's block would widen every other repository of that project for a reason none of them
      * can see. The project's own repository has no block of its own - its egress <em>is</em> the

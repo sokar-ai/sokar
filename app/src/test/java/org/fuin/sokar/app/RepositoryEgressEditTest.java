@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Writing a grant back into the repository it belongs to, rather than into the project.
  * <p>
- * <strong>This is the half of B68 that decides whether the rest of it is worth anything.</strong>
+ * <strong>This is what decides whether a repository's own egress is worth anything.</strong>
  * A repository may declare its own egress, but if allowing a blocked connection still remembers it
  * at project level, then every project drifts back to one wide grant the first time somebody
  * presses allow - and nothing on screen would say so.

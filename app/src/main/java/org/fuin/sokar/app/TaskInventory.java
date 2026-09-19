@@ -54,7 +54,8 @@ public final class TaskInventory {
             @Nullable String mode, @Nullable String prompt, @Nullable String branch,
             String since, Activity activity, @Nullable String waitingFor,
             @Nullable String clearance, @Nullable String label, int waiting,
-            String startAction, String startDetail, @Nullable String repository) {
+            String startAction, String startDetail, @Nullable String repository,
+            @Nullable String commit) {
 
         /**
          * Constructor for a task taken before the repository was known.
@@ -86,7 +87,7 @@ public final class TaskInventory {
                 String startAction, String startDetail) {
             this(name, project, securityClass, state, running, helpers, agent, mode, prompt,
                     branch, since, activity, waitingFor, clearance, label, waiting, startAction,
-                    startDetail, null);
+                    startDetail, null, null);
         }
 
         /**
@@ -104,6 +105,9 @@ public final class TaskInventory {
             // own repository and the only one there was. An interface renders the empty string as
             // the project's own rather than as "unknown".
             map.put("repository", repository == null ? "" : repository);
+            // What the task's configuration was verified at. "" when nothing verified it, which
+            // is every task of a project this machine does not follow.
+            map.put("commit", commit == null ? "" : commit);
             map.put("state", state);
             map.put("running", running);
             map.put("helpers", helpers);
@@ -298,7 +302,10 @@ public final class TaskInventory {
                 // same reason: it survives a reboot. There is no sidecar fallback because the
                 // sidecar predates repositories - a task without the label worked on the only
                 // repository its project had.
-                summary.repository());
+                summary.repository(),
+                // From the container's label, like the three above. The project moves on; this
+                // must not, or a question about a task is answered from a file that has changed.
+                summary.commit());
     }
 
     /**

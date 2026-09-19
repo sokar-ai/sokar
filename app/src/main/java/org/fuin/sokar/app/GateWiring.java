@@ -66,7 +66,10 @@ final class GateWiring {
         final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
                 SokarBinary.path(),
                 "gate", "serve",
-                "--project", projectFile.toAbsolutePath().toString(),
+                // The NAME, because that is what 'gate serve' takes now. It resolves on its own
+                // side, and by the time this runs the launch has recorded where the file is - so
+                // the gate and the task cannot end up reading two different files.
+                "--project", project.name(),
                 "--address", gateBind(gateAddress, err),
                 "--port", String.valueOf(workspace.port()),
                 "--pid-file", state.resolve("gate.pid").toString()));

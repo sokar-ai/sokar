@@ -68,8 +68,8 @@ You type `sokar task start` in your project directory. Then, in order:
 
 1. **Sokar reads `project.yml`** — the file beside your code that says which Linux to
    start from, how locked down this project is, and what the agent may reach on the
-   network. If the file is missing, Sokar offers to write one for you and Enter
-   accepts every default.
+   network. That file lives in the project's own git repository; a machine gets it by
+   following that repository, and Sokar writes one nowhere.
 2. **It builds the image** — the recipe for the room (see section 6).
 3. **It writes a firewall ruleset and a phone book for this one task**, derived from
    what `project.yml` declared.

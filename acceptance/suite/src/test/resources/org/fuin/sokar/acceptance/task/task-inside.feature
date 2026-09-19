@@ -22,7 +22,7 @@ Feature: Being inside a task, the way a person is
   Scenario: the workspace holds the project, not just a .git directory
     Given a project called "accept" with a file in it
     And a terminal on the machine
-    When I run "cd ~/accept && sokar task start --repository accept --agent stub --attach shell"
+    When I run "sokar task start --project accept --repository accept --agent stub --attach shell"
     And I wait for the shell inside the container
     And I run "ls -A /workspace"
     Then the terminal shows "README.md"
@@ -34,7 +34,7 @@ Feature: Being inside a task, the way a person is
   Scenario: the prompt inside a task says which task it is
     Given a project called "accept" with a file in it
     And a terminal on the machine
-    When I run "cd ~/accept && sokar task start --repository accept --agent stub --attach shell"
+    When I run "sokar task start --project accept --repository accept --agent stub --attach shell"
     And I wait for the shell inside the container
     Then the terminal shows "sokar[accept/shell]"
     When I run "exit"
@@ -44,7 +44,7 @@ Feature: Being inside a task, the way a person is
   Scenario: a bare push inside a task reaches the gate, not a branch in the mirror
     Given a project called "accept" with a file in it
     And a terminal on the machine
-    When I run "cd ~/accept && sokar task start --repository accept --agent stub --attach shell"
+    When I run "sokar task start --project accept --repository accept --agent stub --attach shell"
     And I wait for the shell inside the container
     And I run "cd /workspace && echo work > NEW.md && git add -A && git commit -q -m work && git push"
     Then the terminal shows "refs/sokar/incoming"
@@ -59,7 +59,7 @@ Feature: Being inside a task, the way a person is
   Scenario: leaving a shell with work in it keeps the task rather than discarding it
     Given a project called "accept" with a file in it
     And a terminal on the machine
-    When I run "cd ~/accept && sokar task start --repository accept --agent stub --attach shell --rm"
+    When I run "sokar task start --project accept --repository accept --agent stub --attach shell --rm"
     And I wait for the shell inside the container
     And I run "echo uncommitted >> /workspace/README.md"
     And I run "exit"

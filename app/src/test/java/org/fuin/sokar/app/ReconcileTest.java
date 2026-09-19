@@ -70,14 +70,27 @@ class ReconcileTest {
 
     private void commit(final Path repo, final Path signingKey, final String project)
             throws IOException {
+        commit(repo, signingKey, project, "Followed from a repository");
+    }
+
+    /**
+     * Commits a project file whose description says which version of it this is.
+     *
+     * <p>The NAME cannot be used to tell two commits apart any more: a file that calls itself
+     * something other than the name it is followed under is refused, because the machine would
+     * then hold a project whose containers and mirrors are named after the file and a follow
+     * record that resolves to none of them.
+     */
+    private void commit(final Path repo, final Path signingKey, final String project,
+            final String description) throws IOException {
         Files.writeString(repo.resolve("project.yml"), """
                 project:
                   name: %s
-                  description: Followed from a repository
+                  description: %s
                   security_class: guarded
                 image:
                   base_image: ubuntu:24.04
-                """.formatted(project));
+                """.formatted(project, description));
         git(repo, "add", "project.yml");
         if (signingKey == null) {
             git(repo, "commit", "-q", "--no-gpg-sign", "-m", "configuration");
@@ -134,7 +147,7 @@ class ReconcileTest {
 
         final Reconcile.Result second = new Reconcile(context).run(after);
 
-        assertThat(second.outcome()).isEqualTo(Reconcile.Outcome.REFUSED);
+        assertThat(second.outcome()).isEqualTo(Reconcile.Outcome.NOT_SIGNED);
         assertThat(second.commit()).as("what runs is still what was verified")
                 .isEqualTo(first.commit());
         assertThat(Files.readString(context.paths().followedClone("demo").resolve("project.yml")))
@@ -178,7 +191,7 @@ class ReconcileTest {
 
         final Reconcile.Result result = new Reconcile(context).run(followed(repo));
 
-        assertThat(result.outcome()).isEqualTo(Reconcile.Outcome.REFUSED);
+        assertThat(result.outcome()).isEqualTo(Reconcile.Outcome.NO_ANCHOR);
         assertThat(result.detail()).contains("no key is pinned");
     }
 
@@ -225,7 +238,7 @@ class ReconcileTest {
         // with different content - an identical tree and message with no parent would be the same
         // commit, because git names a commit by what is in it.
         git(repo, "checkout", "-q", "--orphan", "rewritten");
-        commit(repo, key, "rewritten-demo");
+        commit(repo, key, "demo", "rewritten");
         git(repo, "branch", "-q", "-M", "rewritten", "main");
 
         final Reconcile.Result second = reconcile.run(Reconcile.after(followed(repo), first));
@@ -247,12 +260,220 @@ class ReconcileTest {
         final Reconcile reconcile = new Reconcile(context);
         reconcile.run(followed(repo));
         git(repo, "checkout", "-q", "--orphan", "rewritten");
-        commit(repo, key, "rewritten-demo");
+        commit(repo, key, "demo", "rewritten");
         git(repo, "branch", "-q", "-M", "rewritten", "main");
 
         // followed(repo) carries no commit, which is what --accept-rewrite leaves behind.
         final Reconcile.Result accepted = reconcile.run(followed(repo));
 
-        assertThat(accepted.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+        assertThat(accepted.outcome()).as(accepted.detail()).isEqualTo(Reconcile.Outcome.APPLIED);
+    }
+
+    // ---------------------------------------------------------------- what a reconciliation may
+    // touch, and what it may not. What a reconciliation may
+    // release a held message or disturb a task is not reconciliation, it is remote control of
+    // somebody's machine by whoever can commit. Asserted rather than assumed - the property holds
+    // because Reconcile only ever moves the followed clone, and that is exactly the kind of thing
+    // that stays true until somebody adds one line.
+
+    @Test
+    void what_a_person_held_survives_a_reconciliation(@TempDir final Path dir) throws IOException {
+        final SokarContext context = context(dir);
+        final Path key = key(dir, "operator");
+        pin(context, "operator", key);
+        final Path repo = published(dir, key, "demo");
+
+        // A held message, the moderation file that holds a peer, and a running task's own state.
+        final Mailbox mailbox = new Mailbox(context.paths().mailbox("sokar-demo-shell"));
+        mailbox.create();
+        final Path held = mailbox.hold().resolve("m1.json");
+        Files.writeString(held, "{\"held\":\"by a person\"}");
+        final Path mode = mailbox.root().resolve("moderation.json");
+        Files.writeString(mode, "{\"reviewer\":\"prompt\"}");
+        final Path taskState = context.paths().containerState("sokar-demo-shell");
+        Files.createDirectories(taskState);
+        Files.writeString(taskState.resolve("gate.pid"), "4242");
+
+        assertThat(new Reconcile(context).run(followed(repo)).outcome())
+                .isEqualTo(Reconcile.Outcome.APPLIED);
+
+        assertThat(held).exists().content().isEqualTo("{\"held\":\"by a person\"}");
+        assertThat(mode).exists().content().isEqualTo("{\"reviewer\":\"prompt\"}");
+        assertThat(taskState.resolve("gate.pid")).exists().content().isEqualTo("4242");
+    }
+
+    @Test
+    void a_local_edit_to_a_reconciled_file_is_replaced_and_reported(@TempDir final Path dir)
+            throws IOException {
+        final SokarContext context = context(dir);
+        final Path key = key(dir, "operator");
+        pin(context, "operator", key);
+        final Path repo = published(dir, key, "demo");
+        final Reconcile.Result first = new Reconcile(context).run(followed(repo));
+        final Path clone = context.paths().followedClone("demo");
+
+        // Somebody edits the reconciled file on the machine, and drops a file of their own beside
+        // it. The repository wins for what it covers - and says so, rather than doing it quietly.
+        Files.writeString(clone.resolve("project.yml"), "project:\n  name: edited-by-hand\n");
+        Files.writeString(clone.resolve("notes.txt"), "mine");
+
+        commit(repo, key, "demo", "moved on");
+        final Reconcile.Result second =
+                new Reconcile(context).run(Reconcile.after(followed(repo), first));
+
+        assertThat(second.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+        assertThat(clone.resolve("project.yml")).content().contains("moved on");
+        // Reported. Without this the rule is real and invisible, which the rule refused to leave unsaid.
+        assertThat(second.detail()).contains("replaced").contains("project.yml");
+        // And a file the repository does not cover is left where it is.
+        assertThat(clone.resolve("notes.txt")).exists().content().isEqualTo("mine");
+        assertThat(second.detail()).doesNotContain("notes.txt");
+    }
+
+    @Test
+    void two_machines_at_the_same_commit_end_up_with_the_same_project(@TempDir final Path dir)
+            throws IOException {
+        final Path key = key(dir, "operator");
+        final Path repo = published(dir, key, "demo");
+
+        // Two accounts, two machines as far as this is concerned: separate XDG roots, nothing
+        // copied between them, the same repository and the same pinned key.
+        final SokarContext one = context(dir.resolve("machine-one"));
+        final SokarContext two = context(dir.resolve("machine-two"));
+        pin(one, "operator", key);
+        pin(two, "operator", key);
+
+        final Reconcile.Result first = new Reconcile(one).run(followed(repo));
+        final Reconcile.Result second = new Reconcile(two).run(followed(repo));
+
+        assertThat(first.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+        assertThat(second.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+        assertThat(first.commit()).isEqualTo(second.commit());
+        assertThat(Files.readString(one.paths().followedClone("demo").resolve("project.yml")))
+                .isEqualTo(Files.readString(
+                        two.paths().followedClone("demo").resolve("project.yml")));
+    }
+
+    @Test
+    void a_key_this_machine_was_never_given_is_its_own_outcome(@TempDir final Path dir)
+            throws IOException {
+        final SokarContext context = context(dir);
+        pin(context, "operator", key(dir, "operator"));
+
+        // Signed, and signed well - by somebody else's key. This is the case that belongs in front
+        // of a person: either a key that has moved, or somebody putting a project file past the
+        // machine. Reported as one refusal with an unsigned commit, the two were the same event.
+        final Path stranger = key(dir, "stranger");
+        final Path repo = published(dir, stranger, "demo");
+
+        final Reconcile.Result result = new Reconcile(context).run(followed(repo));
+
+        assertThat(result.outcome()).isEqualTo(Reconcile.Outcome.UNKNOWN_KEY);
+        // The commit turned away, which used to be discarded - the record kept only what was in
+        // force, so nothing could say what had been rejected.
+        assertThat(result.refused()).hasSize(40);
+        assertThat(result.commit()).isEmpty();
+        // And the fingerprint, so a person can compare it with the key they meant to pin.
+        assertThat(result.signer()).startsWith("SHA256:");
+        assertThat(result.needsAPerson()).isTrue();
+    }
+
+    @Test
+    void an_unsigned_commit_names_neither_a_key_nor_a_person_to_blame(@TempDir final Path dir)
+            throws IOException {
+        final SokarContext context = context(dir);
+        pin(context, "operator", key(dir, "operator"));
+        final Path repo = published(dir, null, "demo");
+
+        final Reconcile.Result result = new Reconcile(context).run(followed(repo));
+
+        // Different outcome from the one above, which is the whole point: somebody forgot to sign
+        // is not somebody signing with a key they should not have.
+        assertThat(result.outcome()).isEqualTo(Reconcile.Outcome.NOT_SIGNED);
+        assertThat(result.refused()).hasSize(40);
+        assertThat(result.signer()).isEmpty();
+    }
+
+    @Test
+    void a_machine_with_no_vault_is_unreachable_rather_than_locked(@TempDir final Path dir)
+            throws IOException {
+        final SokarContext context = context(dir);
+        pin(context, "operator", key(dir, "operator"));
+
+        // There is no vault here at all, so nothing is locked away and nothing about one explains
+        // the failed fetch. Saying "unlock your vault" would send somebody to a vault they have
+        // not made.
+        final Reconcile.Result result = new Reconcile(context).run(
+                new FollowedProjects.Followed("demo", dir.resolve("nowhere").toString(),
+                        "", "", "", ""));
+
+        assertThat(result.outcome()).isEqualTo(Reconcile.Outcome.UNREACHABLE);
+        assertThat(result.detail()).doesNotContain("vault");
+    }
+
+    @Test
+    void an_unverified_follow_applies_what_nobody_signed(@TempDir final Path dir)
+            throws IOException {
+        final SokarContext context = context(dir);
+        // Nothing pinned, and the commit is unsigned - which is NOT_SIGNED for an ordinary follow.
+        final Path repo = published(dir, null, "demo");
+
+        final Reconcile.Result result = new Reconcile(context).run(
+                new FollowedProjects.Followed("demo", repo.toString(), "", "", "", "",
+                        "", "", true));
+
+        // Somebody asked for this. The check is skipped; the reporting is not.
+        assertThat(result.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+        assertThat(result.commit()).hasSize(40);
+        assertThat(context.paths().followedClone("demo").resolve("project.yml")).exists();
+    }
+
+    @Test
+    void an_unverified_follow_still_refuses_a_file_that_is_not_a_project(@TempDir final Path dir)
+            throws IOException {
+        final SokarContext context = context(dir);
+        final Path repo = dir.resolve("published");
+        Files.createDirectories(repo);
+        git(repo, "init", "-q", "-b", "main", ".");
+        git(repo, "config", "user.email", "operator@example.org");
+        git(repo, "config", "user.name", "Operator");
+        Files.writeString(repo.resolve("project.yml"), "this: is not a project\n");
+        git(repo, "add", "project.yml");
+        git(repo, "commit", "-q", "--no-gpg-sign", "-m", "broken");
+
+        final Reconcile.Result result = new Reconcile(context).run(
+                new FollowedProjects.Followed("demo", repo.toString(), "", "", "", "",
+                        "", "", true));
+
+        // Unverified means nobody checked WHO wrote it - not that anything goes. A file that is
+        // not a project would fail at the first task start, which is somewhere else and later.
+        assertThat(result.outcome()).isEqualTo(Reconcile.Outcome.UNUSABLE);
+    }
+
+    @Test
+    void following_unverified_is_per_project(@TempDir final Path dir) throws IOException {
+        final SokarContext context = context(dir);
+        final Path key = key(dir, "operator");
+        pin(context, "operator", key);
+        final Path signed = published(dir, key, "demo");
+
+        final Reconcile.Result verified = new Reconcile(context).run(followed(signed));
+        // A second repository of its own, because a project file that calls itself something
+        // other than the name it is followed under is refused.
+        final Path other = dir.resolve("published-two");
+        Files.createDirectories(other);
+        git(other, "init", "-q", "-b", "main", ".");
+        git(other, "config", "user.email", "operator@example.org");
+        git(other, "config", "user.name", "Operator");
+        commit(other, null, "demo-two");
+
+        final Reconcile.Result without = new Reconcile(context).run(
+                new FollowedProjects.Followed("demo-two", other.toString(), "", "", "", "",
+                        "", "", true));
+
+        // One project without an anchor must not quieten another that has one: they are separate
+        // records and separate answers.
+        assertThat(verified.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+        assertThat(without.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
     }
 }

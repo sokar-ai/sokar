@@ -1,0 +1,2 @@
+title: "Reconciliation says which reconciled files it replaced a local edit to, rather than replacing them quietly. A file the repository does not cover is left alone and not reported as replaced."
+type: fixed

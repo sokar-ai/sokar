@@ -1,0 +1,2 @@
+title: "Commands and socket calls name a project instead of pointing at a project file. Which project a task belongs to no longer depends on which directory somebody was standing in, and a client that cannot see this machine's filesystem has no path to invent."
+type: changed

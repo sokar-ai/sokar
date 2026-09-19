@@ -156,6 +156,12 @@ type Task (
   # A task works on exactly one repository, fixed when the task was created. Carry it over when
   # offering to start a stopped task again, and pass it back as Start's 'repository'.
   repository: string,
+  # The commit this task's configuration was verified at, or "" when nothing verified it.
+  #
+  # A task of a followed project runs against the file the machine checked, and that file moves on.
+  # "What was this task actually running under" is asked after something went wrong, so it is kept
+  # with the task rather than read back out of the project.
+  commit: string,
   # offline, guarded or online - or "" when nothing recorded it.
   securityClass: string,
   # The container runtime's own words, such as "Up 4 minutes" or "Exited (143) 2 seconds ago".
@@ -445,6 +451,13 @@ type Project (
   # it stands now. A project that has never run answers false, which is a normal state and not a
   # fault - it means the first task here will spend minutes building before anything happens.
   prepared: bool,
+  # Where this account has got following this project's repository, or an empty object when it
+  # follows nothing here - which is the ordinary case.
+  #
+  # Here as well as on Following() because they answer different questions: "what does this account
+  # follow" and "is what I am showing in force". Both are rendered from the same values, so they
+  # cannot drift.
+  following: ?Followed,
   # The repositories this project has, its own first.
   #
   # Never empty for a project whose file can be read: every project has its own repository. Empty
@@ -628,7 +641,7 @@ method Credentials() -> (
 method Start(
   # Task name within the project. Default: "shell".
   task: ?string,
-  # Path to the project file, as the CLI takes it. Default: "project.yml".
+  # Project NAME, as Projects.name gives it. REQUIRED - there is no default directory any more.
   project: ?string,
   # Agent to run, by the name Agents reports. Default: the only one installed, or an error naming
   # them all when several are.
@@ -880,7 +893,9 @@ type StartOutcome (
 # What it CANNOT tell you: whether the credential is still valid at the provider. It answers that
 # something usable is stored under the name this run would look for, which is a different claim.
 method CanStart(
-  # Path to the project file, as Start takes it. Omitted, no project file is checked.
+  # Project NAME, as Start takes it. Omitted, no project is checked - which is how an interface
+  # asks about the machine before a project has been chosen. A name this machine does not have is
+  # an ANSWER here (NO_PROJECT_FILE, naming what it does have), not an error.
   project: ?string,
   # Which of the project's repositories the task would be for, exactly as Start takes it.
   # Omitted with a project given, the answer is NO_REPOSITORY_CHOSEN - because that is what Start
@@ -966,8 +981,15 @@ method Sets() -> (
 # is what a task will reach and half of it is not in the project file. Which agent that is
 # follows the same rule a run does: the one named, or the only one installed.
 method Egress(
-  # Path of the project file, from Projects.file.
+  # Project NAME, as Projects.name gives it.
   project: string,
+  # Which of its repositories to answer for. Default: the project's own.
+  #
+  # A repository's grants are ADDED to the project's, so without this you get the project-level
+  # set - true of every repository - and with it that set PLUS what the repository adds. Each host
+  # says which of the two granted it, in EgressHost.origin: "project", "set <name>", or
+  # "repository <name>".
+  repository: ?string,
   # Agent whose grants to include. Default: the only one installed.
   agent: ?string
 ) -> (
@@ -987,7 +1009,7 @@ method Egress(
 # Nothing here applies to a task that is already running: a container's ruleset and resolver are
 # built when it starts.
 method SetEgress(
-  # Path of the project file, from Projects.file.
+  # Project NAME, as Projects.name gives it.
   project: string,
   # Which of the project's repositories to declare this for. Default: the project's own.
   #
@@ -1155,42 +1177,14 @@ type DeleteOutcome (
   FAILED
 )
 
-# Removes what Sokar built for a project.
+# DeleteProject is gone; Unfollow is the whole of it.
 #
-# NOT "deleting the project". The project file is the operator's, in their own directory, and so
-# are the checkout and the real upstream - none is touched, and 'keeps' names them so a
-# confirmation can say so without the interface having to know which things are Sokar's. What goes
-# is the mirror, the image, the build directory, the registry entry, the recorded upstream
-# distance, and every task with its container, state and logs.
-#
-# Afterwards the project file is still there and running a task in that directory builds all of it
-# again. That is the sentence somebody needs before they press it, more than they need the list.
-#
-# It REFUSES rather than decides. Unreviewed pushes exist only in the mirror - nothing else has
-# them anywhere - and a running task is work cut off mid-flight. 'force' is how somebody says they
-# meant it.
-method DeleteProject(
-  # Project name, as Projects reports it.
-  project: string,
-  # Reports what would go, having removed nothing.
-  dryRun: ?bool,
-  # Proceeds despite unreviewed work or running tasks.
-  force: ?bool
-) -> (
-  outcome: DeleteOutcome,
-  # What goes, or went. Also filled for a refusal, so a confirmation can show the cost beside the
-  # reason it was stopped.
-  removes: []Removal,
-  # What is deliberately NOT touched, named.
-  keeps: []string,
-  # Refs nobody reviewed. Non-empty with HOLDS_WORK, and also under force - it is what force
-  # destroys.
-  unreviewed: []string,
-  # Tasks that are up. Non-empty with TASKS_RUNNING, and also under force.
-  running: []string,
-  # Why it was refused or what went wrong. "" otherwise.
-  detail: string
-)
+# A project exists on a machine because that machine follows its repository, so removing what Sokar
+# built while going on following it would only mean building it again at the next reconciliation.
+# Unfollow forgets the repository AND removes the mirrors, the image, the build directory, the
+# registry entry, the recorded distance, the followed clone and every task - with the same refusal
+# when work is held or a task is up, and the same --force past it.
+
 
 method Projects() -> (projects: []Project)
 
@@ -1211,54 +1205,16 @@ method Projects() -> (projects: []Project)
 # deadline.
 method WatchProjects() -> (projects: []Project)
 
-# What this node calls itself.
+# CreateProject is gone.
 #
-# GetInfo answers a vendor and a version, which says what a daemon is and never which one. This
-# answers which one - so a client can tell that two entries in a list of machines are the same
-# node reached two ways, which it cannot work out for itself: a hostname has many spellings, and
-# a socket somebody else forwarded looks nothing like your own tunnel to the same place.
+# A project comes to be on a machine by that machine following its repository, and nothing else.
+# Sokar writes no project.yml anywhere: a person writes one in their repository and commits it, and
+# what is wrong with it comes back from Follow as a named reason. A call that rendered and checked
+# one beforehand would be a second place the same question could be answered differently - and a
+# second way to have a project the machine never verified.
 #
-# The failure it prevents is not cosmetic. The same node listed twice delivers every clearance
-# question twice, and answering one leaves the other on screen until it expires.
-# Creates a project file, having checked the answers against this machine first.
-#
-# The checking is what a client cannot do for itself: whether a security class is spelled right,
-# whether an egress set exists on this machine, whether the name survives becoming an image tag
-# and an nftables set name. An answer accepted here and rejected at the first task start is
-# rejected far from where it was given.
-method CreateProject(
-  # Absolute path of the project.yml to write, or absent to let this machine choose.
-  #
-  # Absent is the ordinary case for an interface: it reaches this machine over a forwarded socket,
-  # cannot look at its filesystem, and must not invent a path - that would be this machine's layout
-  # written down a second time, where it could not be kept in step. The path chosen is answered in
-  # 'file', in 'dryRun' as well, so a person sees where it will go before anything is written.
-  file: ?string,
-  name: string,
-  # offline, guarded or online.
-  securityClass: string,
-  baseImage: string,
-  # Required by 'online', which pushes to it directly. Ignored by the other classes, which reach
-  # their upstream only through the gate.
-  upstream: ?string,
-  # Egress set names, checked against the sets this machine has.
-  sets: []string,
-  # Checks and renders, writing nothing.
-  dryRun: ?bool
-) -> (
-  # CREATED, PREVIEWED, ALREADY_EXISTS, INVALID or FAILED.
-  #
-  # ALREADY_EXISTS is a refusal and never an overwrite: the file may be somebody's whole
-  # configuration, and this is the one operation that would replace it with nothing to restore
-  # from.
-  outcome: string,
-  file: string,
-  # The file as it would be written, for review. Filled even on a refusal - seeing what was
-  # rejected is most of understanding why.
-  content: string,
-  problems: []Problem,
-  detail: string
-)
+# There is no replacement and no render-only form. Offer "follow this repository" instead.
+
 
 # Something wrong with one answer.
 type Problem (
@@ -1321,9 +1277,7 @@ method Prepare(
 # fetch and a timed one cannot disagree about how far behind a project is, and Projects shows
 # whichever ran last without being told.
 method SyncUpstream(
-  # Project NAME, as Projects reports it - not the path Prepare takes. A path answers as though
-  # the project were unknown, which on the screens these feed is a legitimate-looking answer
-  # rather than an error.
+  # Project NAME, as Projects.name gives it.
   project: string,
   # Which of the project's repositories to measure. Default: the project's own.
   #
@@ -1357,10 +1311,7 @@ method SyncUpstream(
 # Newest first. Empty is an ordinary answer: a project nobody has backed up, or one backed up by a
 # Sokar older than the record.
 method Backups(
-  # Project NAME, as Projects reports it - not the path Prepare takes. A path answers an empty
-  # list, and this list's empty case means "nothing is recorded for this project", which is
-  # deliberately NOT the same sentence as "no bundle exists". So a wrong argument arrives as a
-  # legitimate answer and somebody concludes their backups were never taken.
+  # Project NAME, as Projects.name gives it.
   project: string,
   # Which of the project's repositories the backups are of. Default: the project's own.
   #
@@ -1391,8 +1342,7 @@ type Backup (
 # overwriting one destroys the only copy. Same outcome name as DeleteProject and Stop, for the same
 # situation.
 method RestoreBackup(
-  # Project NAME, as Projects reports it - not the path Prepare takes. The bundle beside it is a
-  # path; the two arguments of this method are named the same way and are not the same kind.
+  # Project NAME, as Projects.name gives it.
   project: string,
   # Which of the project's repositories to restore INTO. Default: the project's own.
   #
@@ -1423,7 +1373,7 @@ method RestoreBackup(
 # path rather than an index - a list that shifted between reading it and acting on it would
 # otherwise delete a different backup than the one somebody chose.
 method DeleteBackup(
-  # Project NAME, as Projects reports it - not the path Prepare takes.
+  # Project NAME, as Projects.name gives it.
   project: string,
   # Absolute path, exactly as Backups reported it.
   bundle: string,
@@ -1611,8 +1561,12 @@ method Tail(
 
 # What is waiting at a project's gate.
 #
-# The gate methods take a project file rather than a task, because a gate belongs to a project
-# and one daemon serves every project the operator has.
+# The gate methods take a project NAME rather than a task, because a gate belongs to a project and
+# one daemon serves every project the operator has.
+#
+# A NAME and not a path: a client cannot see this machine's filesystem and has no path to invent,
+# and which project a call is about must not depend on a directory. The machine resolves it, and
+# prefers the file it verified - so a call and a task cannot end up reading two different files.
 #
 # Each of them also takes 'repository', because a gate belongs to ONE REPOSITORY of that project:
 # every repository has its own mirror, its own review branch and its own answer to "what is waiting
@@ -1620,7 +1574,7 @@ method Tail(
 # to - which is the only default in this interface that is not Sokar picking between equals.
 # Project.repositories lists the names.
 method Pending(
-  # Path to the project file.
+  # Project NAME, as Projects.name gives it.
   project: string,
   # Upstream to gate against. Default: the project's own.
   upstream: ?string,
@@ -1722,7 +1676,43 @@ type Repository (
   behindMeasured: string,
   # Why 'behind' is what it is. Same values as the project's.
   behindReason: string,
-  behindDetail: string
+  behindDetail: string,
+  # Everything a task on this repository may reach, each saying which block granted it.
+  #
+  # ONE list with a source per entry, not two to subtract from one another: a repository's grants
+  # are ADDED to the project's, and a screen showing both halves should not have to work out which
+  # is which.
+  egress: []Grant,
+  # What a task on this repository may consume, and where each key came from.
+  limits: ResolvedLimits
+)
+
+# One thing a repository may reach.
+type Grant (
+  # The set name or the host.
+  value: string,
+  # "set" or "domain".
+  kind: string,
+  # "project" or "repository" - which block declared it.
+  from: string
+)
+
+# What a task on one repository may consume, resolved.
+#
+# A repository's limits REPLACE the project's key by key, so the interesting part is which key it
+# replaced. The three '...From' fields say "repository" when that repository declared the key and
+# "project" otherwise - and "project" covers BOTH a value the project file wrote and Sokar's own
+# default, which this side cannot tell apart today. Do not render "project" as "written by hand".
+type ResolvedLimits (
+  # Memory limit, or "" for no limit.
+  memory: string,
+  # CPU limit, or "" for no limit.
+  cpus: string,
+  # Process limit.
+  pids: int,
+  memoryFrom: string,
+  cpusFrom: string,
+  pidsFrom: string
 )
 
 # ---------------------------------------------------------------- following a repository
@@ -1737,14 +1727,53 @@ type Followed (
   name: string,
   # Where its repository is.
   url: string,
-  # The last commit this machine verified and applied, or "" when none ever was.
+  # The last commit this machine verified and applied, or "" when none ever was. WHAT IS RUNNING.
   commit: string,
   # When it last tried, RFC 3339, or "".
   at: string,
-  # APPLIED, UNCHANGED, REFUSED, REWRITTEN, UNREACHABLE, UNUSABLE or FAILED. "" when it never
-  # tried. REWRITTEN stays until a person accepts it, so it is a state to show rather than a
-  # failure that will clear itself.
+  # Why this project is where it is. "" when it never tried. New values may appear; render an
+  # unrecognised one rather than throwing.
+  #
+  #   APPLIED       the commit below is in force
+  #   UNCHANGED     it already held that commit
+  #   NOT_SIGNED    the fetched commit carries no signature. Usually somebody forgot to sign
+  #   UNKNOWN_KEY   a GOOD signature by a key this machine was never given. Either a key that has
+  #                 moved or somebody putting a project file past the machine - this is the one
+  #                 that belongs in front of a person as a possible attempt
+  #   NO_ANCHOR     nothing is pinned here, so nothing can be verified
+  #   UNREADABLE    the commit or the repository could not be read
+  #   REWRITTEN     verified, and not a descendant of what is in force. Waits for acceptRewrite
+  #   UNREACHABLE   the repository could not be reached. Look at the network or the URL
+  #   VAULT_LOCKED  this account's vault is shut, so the credential a private repository needs is
+  #                 out of reach. NOT the same as UNREACHABLE: the action is to unlock, and
+  #                 nothing is wrong with the network or the URL
+  #   UNUSABLE      signed, and project.yml does not read as a project
+  #   FAILED        something else, said in detail
   outcome: string,
+  # The commit that was TURNED AWAY, or "" when nothing was.
+  #
+  # Never the same field as 'commit': what is running and what was rejected are different
+  # questions, and a screen asks both. A project goes on running what it had.
+  refused: string,
+  # The fingerprint of the key that signed the refused commit, or "" when there is none to name.
+  #
+  # Only the fingerprint, which is not a secret - it is what lets a person compare it with the key
+  # they meant to pin. Nothing else about the key is said, and nothing from the vault ever is.
+  signer: string,
+  # Whether nothing will change about this project until somebody acts.
+  #
+  # NOT the same as "it failed": an unreachable repository may answer on the next pass by itself,
+  # a refused signature never will. Derived from 'outcome' on this side, so a client never has to
+  # keep a list of which outcomes are stuck in step with ours - read this, not the outcome.
+  needsAPerson: bool,
+  # Whether this project is followed WITHOUT an anchor: what its repository says is applied with
+  # no signature checked at all.
+  #
+  # A state, not an error - somebody asked for it. But show it wherever this project is: without a
+  # signature the rule is "whoever may push there decides what tasks here may reach", rather than
+  # "whoever holds the signing key". It is per project; one unverified project says nothing about
+  # another.
+  unverified: bool,
   detail: string
 )
 
@@ -1756,6 +1785,16 @@ type Followed (
 method Follow(
   name: string,
   url: string,
+  # The public key this project's configuration is signed with, as "ssh-ed25519 AAAA...".
+  #
+  # Pins it for this project and follows in one command. The key must come from the PERSON - a
+  # colleague, a wiki, the team lead - and NEVER out of the repository it verifies: an anchor that
+  # travels with the thing it authenticates authenticates nothing.
+  signedBy: ?string,
+  # Follows without an anchor. Nothing is checked, and 'unverified' says so from then on.
+  #
+  # Mutually exclusive with signedBy, which is refused rather than one of them quietly winning.
+  unverified: ?bool,
   # Accepts a history rewrite: forgets the commit in force, so the next reconcile has nothing to
   # descend from and applies what it verifies.
   #
@@ -1771,9 +1810,18 @@ method Follow(
   #
   # REWRITTEN is the one that needs a person: 'detail' says what was found, and the only way past
   # it is calling again with acceptRewrite. Do not treat it as a transient failure.
+  #
+  # The full set is Followed.outcome's.
   outcome: string,
   commit: string,
-  detail: string
+  detail: string,
+  # The commit turned away, or "". Never the same as 'commit'.
+  refused: string,
+  # The fingerprint of the key that signed it, or "".
+  signer: string,
+  # Whether nothing will change until somebody acts. NOT the same as "it failed": an unreachable
+  # repository may answer on the next pass by itself, a refused signature never will.
+  needsAPerson: bool
 )
 
 # Stops following, and removes the project.
@@ -1793,6 +1841,13 @@ method Unfollow(
   unreviewed: []string,
   # Tasks that are up, with TASKS_RUNNING.
   running: []string,
+  # What goes: the mirrors, the task image, the build directory, the registry entry, the recorded
+  # distance, the followed clone and every task. Filled for a REFUSAL too, so the cost stands
+  # beside the reason.
+  removes: []Removal,
+  # What is deliberately NOT touched - the real upstream above all. Named so a confirmation never
+  # lists the operator's own things among the casualties.
+  keeps: []string,
   detail: string
 )
 

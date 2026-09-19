@@ -153,15 +153,14 @@ sokar doctor
 sokar vault unlock
 sokar vault login claude
 
-# Run one. With no project.yml here it offers to write one, taking the project
-# name from this directory - Enter accepts every default. What it writes includes an
-# 'egress' block: a task reaches only what the file names, so add 'maven', 'nodejs' or
-# whatever your build needs. 'sokar shield sets' lists them.
-#
-# -r names which of the project's repositories the work is for; a new project has one,
-# its own, named after the project. Sokar never picks, and says what to type if you
-# leave it out.
-sokar task start -r <project>
+# Follow the project's repository. A project exists on a machine because the machine
+# follows it - Sokar writes no project.yml anywhere. Somebody wrote that file in the
+# repository and committed it.
+sokar project follow <project> <git-url> --signed-by "ssh-ed25519 AAAA..."
+
+# Then start a task in one of the repositories that project declares. -p names the
+# project, -r the repository in it. Sokar never picks either.
+sokar task start -p <project> -r <project>
 ```
 
 **Fedora and RHEL**
@@ -208,15 +207,14 @@ sokar doctor
 sokar vault unlock
 sokar vault login claude
 
-# Run one. With no project.yml here it offers to write one, taking the project
-# name from this directory - Enter accepts every default. What it writes includes an
-# 'egress' block: a task reaches only what the file names, so add 'maven', 'nodejs' or
-# whatever your build needs. 'sokar shield sets' lists them.
-#
-# -r names which of the project's repositories the work is for; a new project has one,
-# its own, named after the project. Sokar never picks, and says what to type if you
-# leave it out.
-sokar task start -r <project>
+# Follow the project's repository. A project exists on a machine because the machine
+# follows it - Sokar writes no project.yml anywhere. Somebody wrote that file in the
+# repository and committed it.
+sokar project follow <project> <git-url> --signed-by "ssh-ed25519 AAAA..."
+
+# Then start a task in one of the repositories that project declares. -p names the
+# project, -r the repository in it. Sokar never picks either.
+sokar task start -p <project> -r <project>
 ```
 
 **No Claude Code on this host?** Then there is nothing to import, and the credential goes in
@@ -231,7 +229,8 @@ tree — and [commands](doc/commands.md) for the complete list with a line each.
 
 ## Everything a project file can say
 See [the project file](doc/project-file.md) — one annotated example with every key, what it is
-for, and what is deliberately not in it. The wizard writes a working file for you; this is for
+for, and what is deliberately not in it. You write the file once in the project's repository; this
+is for
 when you want to know what else is possible.
 
 ## What each security class actually does

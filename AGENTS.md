@@ -1103,6 +1103,10 @@ The same text in `sokar`, `sokar-frontend`, the three agent repositories and
   the repository and the number, so nobody discovers it by starting.
 - **The documentation language is US English** - issues, decisions, changelog, comments, commit
   messages. The channel too.
+- **Do not refer to feature numbers in commit messages.** Just state what the feature is. A commit
+  says *"Start work in a chosen repository"*, not *"B67"* - the number means nothing to somebody
+  reading the history without the index beside it, and the index outlives the requirement by being
+  deleted when it is finished.
 - **Dot files and directories are not checked in.** `.gitignore` ignores `.*` and names only the
   exceptions a build needs. Anything true of one machine goes in `.AGENTS.md`, which that rule
   ignores by itself.

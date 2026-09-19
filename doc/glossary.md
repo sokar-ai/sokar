@@ -11,8 +11,11 @@ disagree with.
 | [Node](#node) | A running `sokard` and the state it owns — one per OS user, not one per machine. |
 | [Operator](#operator) | The person who owns a node — the only one who can unlock its vault or approve at its gate. |
 | [Client](#client) | Software that talks to one or more nodes and decides nothing itself. |
+| [Team](#team) | Optional, one level above a project: who the people are and which projects they work on. |
+| [Member](#member) | A person, which on a machine is a Unix account with its own Sokar. |
 | [Project](#project) | A body of work over one or more repositories, with one security class and one set of destinations. |
 | [Repository](#repository) | One git repository of a project. A task works on exactly one. |
+| [Reconciliation](#reconciliation) | A machine pulling its project's repository and bringing itself into line with it. |
 | [Task](#task) | One run of one agent on one project, in its own container. |
 | [Mode](#mode) | How a person is meant to be involved in a task. |
 | [Agent](#agent) | The tool that does the work, declared by a manifest rather than known to Sokar. |
@@ -95,6 +98,26 @@ applies its own policy and keeps its own state. This is the only thing that span
 worth being exact about, because "one client, several nodes" is the shape people mistake for a
 cluster.
 
+## Team
+
+**Optional, and one level above a project**: who the people are, which projects they work on, where
+things live, possibly their public keys. A person may belong to several and picks one in an
+interface.
+
+**Nothing in Sokar is a team yet.** A project repository must exist; a team repository need not, and
+nothing today needs one. It is worth having when somebody belongs to several teams and wants to
+choose between them, or when who-may-sign-what has to be stated in one place rather than per
+project - and not before.
+
+## Member
+
+**A person.** On a machine that is a Unix account with its own Sokar, its own signing key and its
+own mailbox.
+
+**A member cannot be created by a commit.** The daemon runs unprivileged, and making an account, its
+linger and its subuid ranges needs root. A commit may *describe* a member; only a person with root
+makes one.
+
 ## Project
 
 **A directory with a `project.yml` in it.** The file declares a name, a description, a security
@@ -125,6 +148,49 @@ tasks of one project can address each other by task name without anybody writing
 
 The project's own repository is named after the project, which is why a declared repository may not
 take that name.
+
+## Reconciliation
+
+**A machine pulling the repository of a project it follows, and bringing itself into line with what
+that repository says.** It pulls; nothing pushes to it, because the daemon binds no network
+interface. One project failing to fetch does not stop the others.
+
+**What may be reconciled is a short list, and everything else is out of bounds:**
+
+| reconciled | never reconciled |
+|---|---|
+| what a project declares about itself | the vault, its keyslots and anything in it |
+| egress sets | what a **person** decided: a held peer, a held message, a mode |
+| which agents should be installed | running tasks - a commit starts nothing and stops nothing |
+
+**The right-hand column is the point.** A reconciliation that may release a held message or start a
+task is not reconciliation; it is remote control of somebody's machine by whoever can commit.
+
+**A task of a followed project runs against the file the machine verified**, from the clone, whatever
+directory the command was run in. A `project.yml` somewhere else is not consulted - not preferred,
+not merged - because two sources is how a machine comes to run something nobody chose. The commit it
+was verified at is kept with the task, since the project moves on and *"what was this running
+under"* is asked afterwards.
+
+**A followed project with nothing in force starts no task.** Refused, unreachable, nothing pinned:
+falling back to a local file would run exactly what the machine declined to apply.
+
+**Drift has one rule, and it is stated rather than discovered.** The repository wins for what it
+covers: a local edit to something reconciled is replaced, and the machine says it replaced it
+rather than doing it quietly. A file the repository does not cover is left alone.
+
+**Nothing is applied that is not signed by a key the machine was given out of band**, and a signed
+commit that is not a descendant of the one in force is refused rather than applied - somebody
+without the key can still re-serve an older signed configuration to put back a rule that was taken
+away, and from the machine the two are indistinguishable.
+
+**Which projects a machine follows is decided by a person**, one command per project. Nothing
+discovers projects and no commit adds one: a configuration source that can enrol further
+configuration sources is a source that grows where nobody is looking.
+
+**It is per account, not per machine.** Two people on one machine follow different projects and
+reach their own vaults for the credential a private repository needs - so after a restart a machine
+resumes as each person opens their vault, and is never simply "reconciling again".
 
 ## Task
 

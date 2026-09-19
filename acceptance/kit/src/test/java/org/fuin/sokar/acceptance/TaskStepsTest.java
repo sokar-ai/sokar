@@ -14,12 +14,12 @@ import org.junit.jupiter.api.Test;
 class TaskStepsTest {
 
     @Test
-    void leavesTheHomeShortcutWhereTheShellCanSeeIt() {
-        // Quoting it would send 'cd ~/nocred' as a literal path and fail with "no such file or
-        // directory" naming a tilde.
-        assertThat(TaskSteps.startCommand("nocred", "omp")).startsWith("cd ~/nocred &&");
-        assertThat(TaskSteps.startCommand("nocred", "omp")).doesNotContain("'~/");
-        assertThat(TaskSteps.startCommand("nocred", "omp")).doesNotContain("$HOME");
+    void namesTheProjectAndStandsNowhere() {
+        // A project is named, not pointed at: which directory the step runs in means nothing, and
+        // a scenario that cd'd somewhere would be describing a rule that no longer exists.
+        assertThat(TaskSteps.startCommand("nocred", "omp")).startsWith("sokar task start ");
+        assertThat(TaskSteps.startCommand("nocred", "omp")).doesNotContain("cd ");
+        assertThat(TaskSteps.startCommand("nocred", "omp")).contains("--project 'nocred'");
     }
 
     @Test
@@ -27,15 +27,15 @@ class TaskStepsTest {
         // A prompt is what makes a run unattended, and only an unattended run is refused for a
         // missing credential rather than warned about.
         assertThat(TaskSteps.startCommand("nocred", "omp"))
-                .isEqualTo("cd ~/nocred && sokar task start --agent 'omp' --repository 'nocred'"
-                        + " --prompt 'hello'");
+                .isEqualTo("sokar task start --project 'nocred' --agent 'omp'"
+                        + " --repository 'nocred' --prompt 'hello'");
     }
 
     @Test
     void asksWhatWouldHappenWithoutDoingIt() {
         assertThat(TaskSteps.planCommand("noask", "claude"))
-                .isEqualTo("cd ~/noask && sokar task start --agent 'claude' --repository 'noask'"
-                        + " --dry-run --detach");
+                .isEqualTo("sokar task start --project 'noask' --agent 'claude'"
+                        + " --repository 'noask' --dry-run --detach");
     }
 
     @Test
@@ -44,9 +44,10 @@ class TaskStepsTest {
     }
 
     @Test
-    void refusesAProjectNameItWouldHaveToLeaveUnquoted() {
-        // The name goes into a shell command bare so the tilde expands, so anything that is not a
-        // name is refused here rather than becoming shell.
+    void refusesSomethingNoProjectCouldBeCalled() {
+        // The name is quoted where it goes now, so this is not what stands between a fixture and a
+        // shell. It stops a scenario naming something no project could be called, which would
+        // otherwise fail deep inside a start with a message about a project nobody has.
         assertThatThrownBy(() -> TaskSteps.startCommand("p; rm -rf ~", "omp"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Not a project name");

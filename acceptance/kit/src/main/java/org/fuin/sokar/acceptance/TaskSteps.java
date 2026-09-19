@@ -86,8 +86,9 @@ public class TaskSteps {
     static String startCommand(String project, String agent) {
         // The repository is always named: a project's own repository is called after the project,
         // and these fixtures have only that one. Sokar never picks, not even then.
-        return inProject(project) + " && sokar task start --agent " + Shell.quote(agent)
-                + " --repository " + Shell.quote(project)
+        return "sokar task start --project " + Shell.quote(aName(project))
+                + " --agent " + Shell.quote(agent)
+                + " --repository " + Shell.quote(aName(project))
                 + " --prompt " + Shell.quote(PROMPT);
     }
 
@@ -114,31 +115,30 @@ public class TaskSteps {
      * @return The command.
      */
     static String planCommand(String project, String agent) {
-        return inProject(project) + " && sokar task start --agent " + Shell.quote(agent)
-                + " --repository " + Shell.quote(project)
+        return "sokar task start --project " + Shell.quote(aName(project))
+                + " --agent " + Shell.quote(agent)
+                + " --repository " + Shell.quote(aName(project))
                 + " --dry-run --detach";
     }
 
     /**
-     * Returns a change into a project in the operator's home.
+     * Refuses a project name that is not one.
      * <p>
-     * <strong>Not quoted, and that is the point.</strong> {@code Shell.quote("$HOME/p")} produces
-     * {@code '$HOME/p'}, which the far shell does not expand - so the command fails with "no such
-     * file or directory" naming a path with a dollar sign in it, on a rented machine, minutes into
-     * a run. A tilde has to be left bare to mean anything, so the name is checked instead of
-     * quoted.
+     * The name is quoted where it goes now, so this is no longer what stands between a fixture and
+     * a shell - it is what stops a scenario naming something no project could be called, which
+     * would otherwise fail deep inside a start with a message about a project nobody has.
      *
      * @param project The project.
-     * @return A cd into it.
+     * @return The same name.
      */
-    private static String inProject(String project) {
+    private static String aName(String project) {
         if (!project.matches("[A-Za-z0-9._-]+")) {
-            throw new IllegalArgumentException("Not a project name this step will put in a shell "
-                    + "command unquoted: '" + project + "'. Letters, digits, dot, dash and "
-                    + "underscore only.");
+            throw new IllegalArgumentException("Not a project name: '" + project
+                    + "'. Letters, digits, dot, dash and underscore only.");
         }
-        return "cd ~/" + project;
+        return project;
     }
+
 
     /**
      * Reads the vault exactly as it lies on disk.

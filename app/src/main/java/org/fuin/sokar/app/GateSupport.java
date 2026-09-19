@@ -33,6 +33,35 @@ public final class GateSupport {
         return ProjectReader.read(projectFile);
     }
 
+    /**
+     * Reads a project by name.
+     * <p>
+     * A name rather than a path: which project a command is about must not depend on which
+     * directory somebody was standing in, and a client that cannot see this machine's filesystem
+     * has no path to send. Where the file comes from is {@link ProjectSource}'s answer, and it
+     * prefers the one this machine verified.
+     *
+     * @param name The project's name.
+     * @return The project.
+     * @throws org.fuin.sokar.core.project.ProjectException If this machine has no project of that
+     *         name. The message names what it has.
+     */
+    public static Project byName(String name) {
+        return byName(SokarContext.real(), name);
+    }
+
+    /**
+     * Reads a project by name, on a given machine.
+     *
+     * @param context The machine.
+     * @param name The project's name.
+     * @return The project.
+     * @throws org.fuin.sokar.core.project.ProjectException If there is no such project.
+     */
+    public static Project byName(SokarContext context, String name) {
+        return ProjectReader.read(ProjectSource.require(context, name));
+    }
+
     static Path mirror(Project project) {
         return mirror(project, project.ownRepository());
     }

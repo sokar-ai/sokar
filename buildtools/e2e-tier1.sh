@@ -210,6 +210,22 @@ egress:
   sets: [maven, git-hosting]
 EOF
 
+# A project comes to be on this machine by the machine FOLLOWING its repository - nothing writes a
+# project file for you any more. So the file that was just written is committed into a repository
+# here and followed from a local path: a rented machine has no forge to push a fixture to, and a
+# public one would be a dependency on somebody else's uptime.
+#
+# Unverified, because signing every fixture's commits would put a key in this script.
+follow_project() {
+    local dir="$1" name="$2"
+    git -C "$dir" init -q -b main . >/dev/null 2>&1 || true
+    git -C "$dir" config user.email e2e@example.com
+    git -C "$dir" config user.name "End To End"
+    git -C "$dir" add -A >/dev/null
+    git -C "$dir" commit -q --no-gpg-sign -m "configuration" >/dev/null
+    "$SOKAR" project follow "$name" "$dir" --unverified
+}
+
 # The sets a project names have to exist somewhere sokar looks. A packaged install puts them in
 # /usr/share/sokar/egress; this script usually runs against a BUILD TREE, where nothing has been
 # installed - so they are staged into the operator's own location, which is the other place
@@ -222,6 +238,16 @@ if ! ls /usr/share/sokar/egress/*.yaml >/dev/null 2>&1; then
         echo "no curated sets in $ROOT/egress and none installed"
         exit 2
     }
+fi
+
+# The project itself. From here on this is the ONLY way one exists - and it has to happen after
+# the egress sets are staged, because following checks them: a project naming a set this machine
+# does not have is refused there rather than at the first task start.
+if follow_project "$WORK" "$PROJECT" > "$WORK/follow.log" 2>&1; then
+    pass "following a local repository makes the project"
+else
+    fail "could not follow the project"
+    sed -n '1,8p' "$WORK/follow.log"
 fi
 
 # ------------------------------------------------------------------ the image
@@ -237,7 +263,7 @@ START_LOG="$WORK/start.log"
 # one. The refusal has to name what there is to choose from, or somebody reads "say which" and has
 # nowhere to look.
 NO_REPO_LOG="$WORK/no-repository.log"
-if (cd "$WORK" && "$SOKAR" task start --agent "$AGENT_NAME" --detach --clearance deny \
+if ("$SOKAR" task start --project "$PROJECT" --agent "$AGENT_NAME" --detach --clearance deny \
         > "$NO_REPO_LOG" 2>&1); then
     fail "a task start that named no repository was accepted"
 elif grep -q -- "--repository" "$NO_REPO_LOG" && grep -q "$PROJECT" "$NO_REPO_LOG"; then
@@ -251,7 +277,7 @@ fi
 # reports without one is the project-level plan - true of every repository, and what an interface
 # shows when it asks what a project would open.
 DRY_LOG="$WORK/dry-no-repository.log"
-if (cd "$WORK" && "$SOKAR" task start --agent "$AGENT_NAME" --dry-run \
+if ("$SOKAR" task start --project "$PROJECT" --agent "$AGENT_NAME" --dry-run \
         > "$DRY_LOG" 2>&1); then
     pass "a dry run needs no repository, because it starts nothing"
 else
@@ -259,7 +285,7 @@ else
     sed -n '1,5p' "$DRY_LOG"
 fi
 
-if (cd "$WORK" && "$SOKAR" task start --agent "$AGENT_NAME" --repository "$PROJECT" \
+if ("$SOKAR" task start --project "$PROJECT" --agent "$AGENT_NAME" --repository "$PROJECT" \
         --detach --clearance deny > "$START_LOG" 2>&1); then
     pass "task start built the image and started the container"
 else
@@ -553,7 +579,9 @@ else
     fail "sokar shield sets found nothing"
 fi
 
-# A typo must stop the run before an image is built, not resolve to nothing.
+# A typo must stop at FOLLOW, which is where the file arrives - not at the first task start,
+# which is minutes later and somewhere else, and would read as a broken build rather than as a
+# project file naming something this machine has never had.
 mkdir -p "$WORK/typo"
 cat > "$WORK/typo/project.yml" <<EOF
 project:
@@ -564,10 +592,9 @@ image:
 egress:
   sets: [mvn]
 EOF
-if (cd "$WORK/typo" && "$SOKAR" task start --agent "$AGENT_NAME" \
-        --repository "$PROJECT-typo" --dry-run 2>&1 || true) \
-        | grep -q "Unknown egress set"; then
-    pass "an unknown set name stops the run"
+if (follow_project "$WORK/typo" "$PROJECT-typo" 2>&1 || true) \
+        | grep -qi "egress set"; then
+    pass "an unknown set name stops the follow"
 else
     fail "an unknown set name did not stop the run"
 fi
@@ -641,7 +668,7 @@ echo "-- widening and narrowing a live run --"
 if podman exec "$CONTAINER" getent hosts pypi.org >/dev/null 2>&1; then
     fail "pypi.org resolved before anything widened it, so this check proves nothing"
 else
-    (cd "$WORK" && "$SOKAR" shield egress --task "$CONTAINER" --add-domain pypi.org) \
+    ("$SOKAR" shield egress --task "$CONTAINER" --add-domain pypi.org) \
         > "$WORK/widen.log" 2>&1 || true
 
     if podman exec "$CONTAINER" getent hosts pypi.org >/dev/null 2>&1; then
@@ -664,7 +691,7 @@ else
 fi
 
 # The dry run first: it must report what it would take back and change nothing.
-(cd "$WORK" && "$SOKAR" shield egress --task "$CONTAINER" --remove-domain pypi.org --dry-run) \
+("$SOKAR" shield egress --task "$CONTAINER" --remove-domain pypi.org --dry-run) \
     > "$WORK/narrow-dry.log" 2>&1 || true
 if podman exec "$CONTAINER" getent hosts pypi.org >/dev/null 2>&1; then
     pass "a dry run changed nothing - the name still resolves"
@@ -672,7 +699,7 @@ else
     fail "a dry run took the name away; see $WORK/narrow-dry.log"
 fi
 
-(cd "$WORK" && "$SOKAR" shield egress --task "$CONTAINER" --remove-domain pypi.org) \
+("$SOKAR" shield egress --task "$CONTAINER" --remove-domain pypi.org) \
     > "$WORK/narrow.log" 2>&1 || true
 
 if podman exec "$CONTAINER" getent hosts pypi.org >/dev/null 2>&1; then
@@ -804,7 +831,7 @@ if podman exec "$CONTAINER" sh -c 'test -d /workspace/.git' 2>/dev/null; then
     fi
 
     if [ "$PUSHED" -eq 0 ]; then
-        if (cd "$WORK" && "$SOKAR" gate pending 2>/dev/null) \
+        if ("$SOKAR" gate pending --project "$PROJECT" 2>/dev/null) \
                 | grep -q "e2e: work from the agent"; then
             pass "the pushed work is waiting for review on the host"
         else
@@ -835,7 +862,9 @@ image:
   base_image: "sokar-no-such-base-image:0"
 EOF
 
-if (cd "$FAIL_DIR" && "$SOKAR" task start --agent "$AGENT_NAME" \
+follow_project "$FAIL_DIR" "$FAIL_PROJECT" >/dev/null 2>&1
+
+if ("$SOKAR" task start --project "$FAIL_PROJECT" --agent "$AGENT_NAME" \
         --repository "$FAIL_PROJECT" --detach --clearance deny \
         > "$FAIL_DIR/start.log" 2>&1); then
     fail "a task with an unbuildable image reported success"
@@ -922,7 +951,7 @@ RUN_LOG="$WORK/unattended.log"
 
 # Same project, so the image is the one already built; a second project would rebuild every layer
 # for nothing.
-if (cd "$WORK" && "$SOKAR" task start headless --agent "$AGENT_NAME" \
+if ("$SOKAR" task start headless --project "$PROJECT" --agent "$AGENT_NAME" \
         --repository "$PROJECT" --clearance deny \
         -P "say hello and stop" > "$RUN_LOG" 2>&1); then
     :
@@ -973,7 +1002,7 @@ else
         # all four inputs to be real at once.
         canstart() {
             printf '{"method":"org.fuin.sokar.Tasks1.CanStart","parameters":{"project":"%s","agent":"%s","repository":"%s"}}\0' \
-                "$WORK/project.yml" "$AGENT_NAME" "$PROJECT" \
+                "$PROJECT" "$AGENT_NAME" "$PROJECT" \
                 | "$SOKAR" daemon connect 2>/dev/null | tr '\0' '\n' | grep -m1 outcome
         }
 
@@ -982,7 +1011,7 @@ else
         # else first: being told to choose a repository means nothing else is in the way, and a
         # check that reported it before the credential would hide a locked vault behind it.
         if printf '{"method":"org.fuin.sokar.Tasks1.CanStart","parameters":{"project":"%s","agent":"%s"}}\0' \
-                "$WORK/project.yml" "$AGENT_NAME" \
+                "$PROJECT" "$AGENT_NAME" \
                 | "$SOKAR" daemon connect 2>/dev/null | tr '\0' '\n' \
                 | grep -q '"outcome":"NO_REPOSITORY_CHOSEN"'; then
             pass "CanStart with no repository asks for one, and only once nothing else is missing"
@@ -1055,7 +1084,7 @@ else
         # One varlink call, framed the way the wire frames it, through the bridge that exists for
         # exactly this: no client library in a shell script.
         printf '{"method":"org.fuin.sokar.Tasks1.Start","parameters":{"task":"viadaemon","project":"%s","agent":"%s","repository":"%s","prompt":"say hello and stop","clearance":"deny","keep":true}}\0' \
-            "$WORK/project.yml" "$AGENT_NAME" "$PROJECT" \
+            "$PROJECT" "$AGENT_NAME" "$PROJECT" \
             | "$SOKAR" daemon connect > "$WORK/daemon-start.json" 2>"$WORK/daemon-start.err"
 
         DAEMON_REPLY="$(tr '\0' '\n' < "$WORK/daemon-start.json" | grep -m1 'exitCode' || true)"
@@ -1095,13 +1124,15 @@ echo "-- an unattended run with a locked vault --"
 REFUSED_PROJECT="$PROJECT-nocred"
 REFUSED_MIRROR="${XDG_DATA_HOME:-$HOME/.local/share}/sokar/mirrors/$REFUSED_PROJECT.git"
 
-cat > "$WORK/nocred-project.yml" <<EOF
+mkdir -p "$WORK/nocred"
+cat > "$WORK/nocred/project.yml" <<EOF
 project:
   name: "$REFUSED_PROJECT"
   security_class: "guarded"
 image:
   base_image: "ubuntu:24.04"
 EOF
+follow_project "$WORK/nocred" "$REFUSED_PROJECT" >/dev/null 2>&1
 
 # A project of its own, so "nothing was created" is a question about a name nothing has touched.
 rm -rf "$REFUSED_MIRROR"
@@ -1113,7 +1144,7 @@ rm -rf "$REFUSED_MIRROR"
 
 REFUSED_LOG="$WORK/nocred-run.log"
 REFUSED_CODE=0
-(cd "$WORK" && "$SOKAR" task start nocredrun --project nocred-project.yml \
+("$SOKAR" task start nocredrun --project "$REFUSED_PROJECT" \
         --agent "$AGENT_NAME" --repository "$REFUSED_PROJECT" \
         --clearance deny -P "say hello and stop" > "$REFUSED_LOG" 2>&1) || REFUSED_CODE=$?
 

@@ -27,7 +27,7 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
 
     @Option(names = { "-p", "--project" }, paramLabel = "<file>",
             description = "Project file, for the peers. Default: project.yml")
-    private Path projectFile = Path.of("project.yml");
+    private String projectName;
 
     @Spec
     private CommandSpec spec;
@@ -53,7 +53,7 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
                 HostKey.loadOrCreate(context.paths().messageKey(), "sokar@" + hostName()),
                 context.paths().messageFilter(), context.paths().transportDirectory());
         final MessagePass.Report report = pass.run(mailbox,
-                ProjectReader.read(projectFile).mail(),
+                GateSupport.byName(context, projectName).mail(),
                 KnownPeers.of(context));
 
         report.polled().failures().forEach((transport, why) ->

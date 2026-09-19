@@ -20,9 +20,9 @@ import picocli.CommandLine.Spec;
         description = "Builds this project's task image without starting a task.")
 public class TaskPrepareCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
-    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
-            description = "Project file. Default: ${DEFAULT-VALUE}")
-    private Path projectFile = Path.of("project.yml");
+    @Option(names = { "-p", "--project" }, paramLabel = "<name>", required = true,
+            description = "Project name, as 'sokar project list' prints it.")
+    private String projectName;
 
     @Option(names = "--agent", paramLabel = "<name>",
             description = "Whose tooling to install. Default: the only one installed.")
@@ -52,7 +52,8 @@ public class TaskPrepareCommand implements Callable<Integer>, SokarFactory.Conte
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        final Preparation.Result result = Preparation.prepare(context, projectFile, agentName,
+        final Preparation.Result result = Preparation.prepare(context,
+                ProjectSource.require(context, projectName), agentName,
                 rebuild, dryRun, out);
         out.flush();
 

@@ -118,11 +118,32 @@ public final class ConfigurationGate {
         // have different cures - somebody forgot to sign, or somebody who may not sign did - and
         // an operator should not have to tell them apart from the same sentence.
         if (said.contains("No principal matched") || said.contains("Good \"git\" signature with")) {
-            return new Verdict(Outcome.UNKNOWN_KEY, commit, "",
-                    "signed by a key that is not pinned on this machine, so it is not applied");
+            // The fingerprint, because it is what turns "signed by a key you were not given" into
+            // something a person can act on: they compare it with the one they meant to pin. A
+            // public key's fingerprint is not a secret, and nothing else about the key is said.
+            final String fingerprint = fingerprintIn(said);
+            return new Verdict(Outcome.UNKNOWN_KEY, commit, fingerprint,
+                    "signed by a key that is not pinned on this machine, so it is not applied"
+                            + (fingerprint.isEmpty() ? "" : ": " + fingerprint));
         }
         return new Verdict(Outcome.NOT_SIGNED, commit, "",
                 "carries no signature, so it is not applied");
+    }
+
+    /**
+     * Reads the key's fingerprint out of git's own sentence.
+     * <p>
+     * git prints {@code Good "git" signature with ED25519 key SHA256:<base64>} for a signature it
+     * could check but not attribute. Taken by its shape rather than by position, so a git that
+     * words the rest of the line differently still gives up the fingerprint.
+     *
+     * @param said What git wrote.
+     * @return The fingerprint, or "" when there is none in there.
+     */
+    private static String fingerprintIn(final String said) {
+        final java.util.regex.Matcher found =
+                java.util.regex.Pattern.compile("SHA256:[A-Za-z0-9+/]{43}").matcher(said);
+        return found.find() ? found.group() : "";
     }
 
     private String commitOf(final Path repository, final String ref) {

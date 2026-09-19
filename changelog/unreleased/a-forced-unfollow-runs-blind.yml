@@ -1,0 +1,2 @@
+title: "'project unfollow --force' sweeps whatever is there and succeeds when there is nothing, so a cleanup trap can run it after a failure without guarding it - which is exactly when nobody knows how far the setup got."
+type: fixed

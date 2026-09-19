@@ -1,0 +1,2 @@
+title: "A task of a project this machine follows runs against the project file the machine verified, from its clone, rather than one left in the working directory - which until now was read instead, so following changed nothing about what a task did. A followed project with nothing in force starts no task."
+type: fixed

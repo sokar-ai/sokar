@@ -36,9 +36,71 @@ public final class FollowedProjects {
      * @param at When it last tried, RFC 3339, or "" when it never has.
      * @param outcome What that attempt was, or "" when it never has.
      * @param detail What to tell an operator about that attempt, or "".
+     * @param refused The commit that attempt turned away, or "" when it turned nothing away. Not
+     *        the same as {@code commit}, which is what is in force.
+     * @param signer The fingerprint of the key that signed the refused commit, or "".
+     * @param unverified Whether this project is followed <strong>without an anchor</strong>: what
+     *        it says is applied without any signature being checked.
+     *        <p>
+     *        A state rather than an error. Access to a git repository is already authenticated and
+     *        people do apply what an authenticated clone gives them - but without a signature the
+     *        rule is <em>whoever may push here decides what tasks on this machine may reach</em>,
+     *        rather than <em>whoever holds the signing key</em>, and that belongs on screen
+     *        wherever this project is.
      */
     public record Followed(String name, String url, String commit, String at, String outcome,
-            String detail) {
+            String detail, String refused, String signer, boolean unverified) {
+
+        /**
+         * Constructor for a record that turned nothing away.
+         *
+         * @param name Project name.
+         * @param url Where its repository is.
+         * @param commit The commit in force, or "".
+         * @param at When it was last tried, or "".
+         * @param outcome What happened, or "".
+         * @param detail What to tell an operator, or "".
+         */
+        public Followed(String name, String url, String commit, String at, String outcome,
+                String detail) {
+            this(name, url, commit, at, outcome, detail, "", "", false);
+        }
+
+        /**
+         * Tells whether nothing will change about this project until somebody acts.
+         * <p>
+         * <strong>Derived from the outcome, never stored.</strong> Two fields that must agree are
+         * two fields that can disagree, and this one would rot the first time an outcome was
+         * added. Which outcomes need a person is knowledge this side has - an unreachable
+         * repository may answer on the next pass by itself, a refused signature never will - and
+         * an interface asking it should not have to keep a list of them in step with ours.
+         *
+         * @return {@code true} when it is stuck until a person does something.
+         */
+        public boolean needsAPerson() {
+            return switch (outcome) {
+                case "NOT_SIGNED", "UNKNOWN_KEY", "NO_ANCHOR", "REWRITTEN", "UNUSABLE",
+                        "VAULT_LOCKED" -> true;
+                default -> false;
+            };
+        }
+
+        /**
+         * Constructor for a record from before unverified following existed.
+         *
+         * @param name Project name.
+         * @param url Where its repository is.
+         * @param commit The commit in force, or "".
+         * @param at When it was last tried, or "".
+         * @param outcome What happened, or "".
+         * @param detail What to tell an operator, or "".
+         * @param refused The commit turned away, or "".
+         * @param signer The fingerprint that signed it, or "".
+         */
+        public Followed(String name, String url, String commit, String at, String outcome,
+                String detail, String refused, String signer) {
+            this(name, url, commit, at, outcome, detail, refused, signer, false);
+        }
     }
 
     private final Path directory;
@@ -62,6 +124,21 @@ public final class FollowedProjects {
      * @throws IllegalArgumentException If the name is not one a project may have.
      */
     public Followed follow(final String name, final String url) throws IOException {
+        return follow(name, url, false);
+    }
+
+    /**
+     * Starts following a project, with or without an anchor.
+     *
+     * @param name The project's name.
+     * @param url Its repository.
+     * @param unverified Whether to apply what it says without checking a signature.
+     * @return What is now recorded.
+     * @throws IOException Writing failed.
+     * @throws IllegalArgumentException If the name is not one a project may have.
+     */
+    public Followed follow(final String name, final String url, final boolean unverified)
+            throws IOException {
         if (!NAME.matcher(name).matches()) {
             throw new IllegalArgumentException("A project name is lower-case letters, digits and"
                     + " hyphens, starting with a letter or digit: " + name);
@@ -77,8 +154,11 @@ public final class FollowedProjects {
             throw new IllegalArgumentException("'" + name + "' already follows " + existing.url()
                     + ". Stop following it first if you mean to point it somewhere else.");
         }
-        final Followed followed = existing != null ? existing
-                : new Followed(name, url, "", "", "", "");
+        final Followed followed = existing != null
+                ? new Followed(existing.name(), existing.url(), existing.commit(), existing.at(),
+                        existing.outcome(), existing.detail(), existing.refused(),
+                        existing.signer(), unverified)
+                : new Followed(name, url, "", "", "", "", "", "", unverified);
         write(followed);
         return followed;
     }
@@ -97,6 +177,11 @@ public final class FollowedProjects {
         document.put("at", followed.at());
         document.put("outcome", followed.outcome());
         document.put("detail", followed.detail());
+        // Kept, because a refusal outlives the pass that found it: the project goes on running
+        // what it had, and a person coming back tomorrow still has to see what was turned away.
+        document.put("refused", followed.refused());
+        document.put("signer", followed.signer());
+        document.put("unverified", followed.unverified());
         Files.createDirectories(directory);
         final Path file = directory.resolve(followed.name() + ".json");
         final Path staged = directory.resolve("." + followed.name() + ".json.tmp");
@@ -179,7 +264,9 @@ public final class FollowedProjects {
             return null;
         }
         return new Followed(name, url, text(document, "commit"), text(document, "at"),
-                text(document, "outcome"), text(document, "detail"));
+                text(document, "outcome"), text(document, "detail"),
+                text(document, "refused"), text(document, "signer"),
+                Boolean.TRUE.equals(document.get("unverified")));
     }
 
     private static String text(final Map<?, ?> document, final String key) {

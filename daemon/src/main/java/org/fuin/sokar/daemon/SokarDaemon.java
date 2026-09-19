@@ -271,22 +271,27 @@ public final class SokarDaemon {
         });
 
         server.method("Egress", (parameters, replies) -> {
-            final Path file = projectFile(parameters);
+            final Path file = projectFile(parameters, context);
             final EgressControl egress = new EgressControl(context);
+            // Which repository's view of it. A repository's grants are ADDED to the project's, so
+            // asking without one answers the project-level set - true of every repository - and
+            // asking with one answers that plus what it adds.
+            final String repository = text(parameters, "repository");
             // Absent, not empty: a ?string that was not sent arrives as "" here, and an empty
             // agent name is not a request for the default - it is a request for an agent called
             // nothing, which is refused. Measured over the wire on the first call.
             final String agent = text(parameters, "agent");
             final String named = agent.isEmpty() ? null : agent;
             final Map<String, Object> answer = new LinkedHashMap<>();
-            answer.put("hosts", hosts(egress.reachable(file, named)));
+            answer.put("hosts", hosts(egress.reachable(file,
+                    repository.isEmpty() ? null : repository, named)));
             answer.put("refused", egress.refused(named));
             replies.last(answer);
         });
 
         server.method("SetEgress", (parameters, replies) -> {
             final EgressControl.Effect effect = new EgressControl(context).apply(
-                    projectFile(parameters),
+                    projectFile(parameters, context),
                     // Which block it lands in. A repository's grants are added to the project's,
                     // so this never takes anything away from the repository it names.
                     empty(parameters, "repository"),
@@ -347,40 +352,12 @@ public final class SokarDaemon {
             replies.last(answer);
         });
 
-        server.method("DeleteProject", (parameters, replies) -> {
-            // Refuses rather than decides, and force is the only way past it. The list of what
-            // would go is filled even for a refusal, so a confirmation can show the cost beside
-            // the reason it was stopped rather than asking twice.
-            replies.last(new org.fuin.sokar.app.ProjectDeletion(context).delete(
-                    text(parameters, "project"), flag(parameters, "dryRun"),
-                    flag(parameters, "force")).asMap());
-        });
-
         server.method("Projects", (parameters, replies) -> {
             // The path in each answer is the one thing a client cannot work out: over a forwarded
             // socket there is no filesystem on this side to look in, and every gate method takes
             // one.
             replies.last(Map.of("projects", new ProjectInventory(context).projects().stream()
                     .map(ProjectInventory.Summary::asMap).toList()));
-        });
-
-        server.method("CreateProject", (parameters, replies) -> {
-            final org.fuin.sokar.app.ProjectCreation.Result result =
-                    org.fuin.sokar.app.ProjectCreation.create(context,
-                            // Absent means "you choose": the daemon knows where projects live on
-                            // this machine and an interface across a socket cannot.
-                            absent(parameters, "file") == null ? null
-                                    : java.nio.file.Path.of(text(parameters, "file")),
-                            text(parameters, "name"), text(parameters, "securityClass"),
-                            text(parameters, "baseImage"), absent(parameters, "upstream"),
-                            strings(parameters, "sets"), flag(parameters, "dryRun"));
-            replies.last(Map.of("outcome", result.outcome().name(), "file", result.file(),
-                    "content", result.content(),
-                    "problems", result.problems().stream()
-                            .map(problem -> Map.<String, Object>of("field", problem.field(),
-                                    "what", problem.detail(), "fatal", problem.fatal()))
-                            .toList(),
-                    "detail", result.detail()));
         });
 
         server.method("Prepare", (parameters, replies) -> {
@@ -645,8 +622,24 @@ public final class SokarDaemon {
             // different conclusions. That was the whole argument for a method over a reply field -
             // the rule needs four inputs and a client has one of them.
             final String project = text(parameters, "project");
+            // A name this machine does not have is an ANSWER here, not an error: asking whether
+            // work can start is a question a client is entitled to ask about a project that turns
+            // out not to exist, and making it throw would hand it an exception for asking.
+            final java.nio.file.Path named = project.isEmpty() ? null
+                    : org.fuin.sokar.app.ProjectSource.resolve(context, project).file();
+            if (!project.isEmpty() && named == null) {
+                replies.last(Map.of("ready", false, "outcome", "NO_PROJECT_FILE",
+                        "agent", "", "provider", "", "credential", "",
+                        "detail", "no project '" + project + "' here. This machine has: "
+                                + String.join(", ",
+                                        org.fuin.sokar.app.ProjectSource.names(context))));
+                return;
+            }
             replies.last(org.fuin.sokar.app.StartCheck.check(context,
-                    project.isEmpty() ? null : Path.of(project), empty(parameters, "task"),
+                    // A name, as everything else takes now. Left out, no project is checked -
+                    // which is how an interface asks about the machine before one is chosen.
+                    named,
+                    empty(parameters, "task"),
                     empty(parameters, "agent"), empty(parameters, "provider"),
                     empty(parameters, "credentialType"), empty(parameters, "repository"),
                     // A run with no gate works on no repository, so there is nothing for it to
@@ -689,7 +682,7 @@ public final class SokarDaemon {
         // what the CLI drives too, so an approval means the same thing from either.
 
         server.method("Pending", (parameters, replies) -> {
-            final GitGate gate = gate(parameters);
+            final GitGate gate = gate(parameters, context);
             final java.time.Instant now = java.time.Instant.now();
             final List<Map<String, Object>> waiting = gate.pendingDetail().stream().map(push -> {
                 final Map<String, Object> row = new LinkedHashMap<>();
@@ -707,7 +700,7 @@ public final class SokarDaemon {
         });
 
         server.method("Review", (parameters, replies) -> {
-            final GitGate gate = gate(parameters);
+            final GitGate gate = gate(parameters, context);
             final String name = text(parameters, "name");
             final String against = text(parameters, "against");
             replies.last(Map.of("diff", gate.review(name, against.isEmpty() ? null : against),
@@ -716,7 +709,7 @@ public final class SokarDaemon {
 
         server.method("Approve", (parameters, replies) -> {
             // The single call that sends anything anywhere, and it makes the caller name where.
-            final GitGate gate = gate(parameters);
+            final GitGate gate = gate(parameters, context);
             final String branch = text(parameters, "branch");
             if (branch.isEmpty()) {
                 throw new VarlinkException(INTERFACE + ".BranchRequired",
@@ -727,7 +720,7 @@ public final class SokarDaemon {
         });
 
         server.method("Reject", (parameters, replies) -> {
-            final GitGate gate = gate(parameters);
+            final GitGate gate = gate(parameters, context);
             gate.reject(text(parameters, "name"));
             replies.last(Map.of("rejected", text(parameters, "name")));
         });
@@ -760,7 +753,7 @@ public final class SokarDaemon {
 
             final java.util.concurrent.atomic.AtomicReference<String> started =
                     new java.util.concurrent.atomic.AtomicReference<>("");
-            final TaskLaunch launch = new TaskLaunch(context, request(parameters));
+            final TaskLaunch launch = new TaskLaunch(context, request(parameters, context));
             // A task that already exists is brought back, not created again - the same call the
             // CLI makes first, so a stopped task answers the same over the socket as at a terminal.
             final TaskLaunch.Existing existing = launch.startExisting(sink, sink);
@@ -878,10 +871,7 @@ public final class SokarDaemon {
         server.method("Following", (parameters, replies) -> {
             replies.last(Map.of("projects",
                     new org.fuin.sokar.app.FollowedProjects(context.paths().followed()).all()
-                            .stream().map(one -> Map.<String, Object>of(
-                                    "name", one.name(), "url", one.url(),
-                                    "commit", one.commit(), "at", one.at(),
-                                    "outcome", one.outcome(), "detail", one.detail()))
+                            .stream().map(org.fuin.sokar.app.ProjectInventory::followAsMap)
                             .toList()));
         });
 
@@ -890,7 +880,8 @@ public final class SokarDaemon {
                     new org.fuin.sokar.app.FollowedProjects(context.paths().followed());
             final String name = text(parameters, "name");
             try {
-                projects.follow(name, text(parameters, "url"));
+                projects.follow(name, text(parameters, "url"),
+                        flag(parameters, "unverified"));
             } catch (IllegalArgumentException ex) {
                 throw new VarlinkException(INTERFACE + ".Failed",
                         Map.of("message", String.valueOf(ex.getMessage())));
@@ -910,7 +901,8 @@ public final class SokarDaemon {
                     new org.fuin.sokar.app.Reconcile(context).run(projects.find(name));
             projects.write(org.fuin.sokar.app.Reconcile.after(projects.find(name), result));
             replies.last(Map.of("outcome", result.outcome().name(), "commit", result.commit(),
-                    "detail", result.detail()));
+                    "detail", result.detail(), "refused", result.refused(),
+                    "signer", result.signer(), "needsAPerson", result.needsAPerson()));
         });
 
         server.method("Unfollow", (parameters, replies) -> {
@@ -935,6 +927,14 @@ public final class SokarDaemon {
             }
             replies.last(Map.of("outcome", deleted.outcome().name(),
                     "unreviewed", deleted.unreviewed(), "running", deleted.running(),
+                    // What goes and what is deliberately left alone, filled for a refusal too, so
+                    // the cost stands beside the reason. The call this replaced answered both, and
+                    // a removal that cannot say what it takes is weaker than the one it replaced.
+                    "removes", deleted.removes().stream()
+                            .map(removal -> Map.<String, Object>of("kind", removal.kind(),
+                                    "what", removal.what()))
+                            .toList(),
+                    "keeps", deleted.keeps(),
                     "detail", deleted.detail() == null ? "" : deleted.detail()));
         });
 
@@ -959,7 +959,7 @@ public final class SokarDaemon {
             final java.util.List<Map<String, Object>> peers = new java.util.ArrayList<>();
             for (final org.fuin.sokar.core.project.Mail.Peer peer
                     : org.fuin.sokar.core.project.ProjectReader.read(
-                            projectFile(parameters)).mail().peers()) {
+                            projectFile(parameters, context)).mail().peers()) {
                 final org.fuin.sokar.app.Moderation.Peer state = moderation.peer(peer.name());
                 peers.add(Map.of("name", peer.name(), "address", peer.address(),
                         "trust", peer.trust(), "perDay", peer.perDay(),
@@ -1027,7 +1027,7 @@ public final class SokarDaemon {
                             parameters.get("held") instanceof Boolean held ? held : null,
                             empty(parameters, "mode"),
                             org.fuin.sokar.core.project.ProjectReader.read(
-                                    projectFile(parameters)));
+                                    projectFile(parameters, context)));
             if (change.peer() == null) {
                 throw new VarlinkException(INTERFACE + ".Failed",
                         Map.of("message", change.refused()));
@@ -1112,18 +1112,25 @@ public final class SokarDaemon {
     /**
      * Returns the project file a call names, refusing a call that names none.
      * <p>
-     * The same rule the gate methods follow: a path the caller gives, which it got from
-     * {@code Projects} rather than invented.
+     * <strong>A name, not a path.</strong> A client cannot see this machine's filesystem, so it
+     * has no path to invent - and which project a call is about must not depend on a directory.
+     * Where the file comes from is the machine's answer, and it prefers the one it verified.
      *
      * @param parameters What the call carried.
+     * @param context The machine.
      * @return The project file.
      */
-    private static Path projectFile(Map<String, Object> parameters) {
-        final String file = text(parameters, "project");
-        if (file.isEmpty()) {
+    private static Path projectFile(Map<String, Object> parameters, SokarContext context) {
+        final String name = text(parameters, "project");
+        if (name.isEmpty()) {
             throw new VarlinkException(INTERFACE + ".ProjectRequired", Map.of());
         }
-        return Path.of(file);
+        try {
+            return org.fuin.sokar.app.ProjectSource.require(context, name);
+        } catch (final org.fuin.sokar.core.project.ProjectException ex) {
+            throw new VarlinkException(INTERFACE + ".Failed",
+                    Map.of("message", String.valueOf(ex.getMessage())));
+        }
     }
 
     /**
@@ -1136,12 +1143,8 @@ public final class SokarDaemon {
      * @param parameters The call's parameters.
      * @return The gate, initialized.
      */
-    private static GitGate gate(Map<String, Object> parameters) {
-        final String file = text(parameters, "project");
-        if (file.isEmpty()) {
-            throw new VarlinkException(INTERFACE + ".ProjectRequired", Map.of());
-        }
-        final Project project = GateSupport.project(Path.of(file));
+    private static GitGate gate(Map<String, Object> parameters, SokarContext context) {
+        final Project project = GateSupport.project(projectFile(parameters, context));
         final String upstream = text(parameters, "upstream");
         final GitGate gate = GateSupport.gate(project,
                 GateSupport.repository(project, text(parameters, "repository")),
@@ -1415,12 +1418,14 @@ public final class SokarDaemon {
                 "self", self, "recovery", slot.recovery());
     }
 
-    private static TaskLaunch.Request request(Map<String, Object> parameters) {
+    private static TaskLaunch.Request request(Map<String, Object> parameters,
+            SokarContext context) {
         final String task = text(parameters, "task");
-        final String project = text(parameters, "project");
         return new TaskLaunch.Request(
                 task.isEmpty() ? "shell" : task,
-                Path.of(project.isEmpty() ? "project.yml" : project),
+                // A name, resolved here rather than taken as a path. The machine prefers the file
+                // it verified; a client has no filesystem here to point at one.
+                projectFile(parameters, context),
                 empty(parameters, "agent"), empty(parameters, "provider"),
                 empty(parameters, "credentialType"),
                 parameters.get("tokenHours") instanceof Number hours ? hours.intValue() : 8,

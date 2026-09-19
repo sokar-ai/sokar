@@ -26,9 +26,9 @@ public class GateRestoreCommand implements Callable<Integer> {
     @Parameters(index = "0", paramLabel = "<file>", description = "Bundle to restore from.")
     private Path bundle;
 
-    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
-            description = "Project file. Default: ${DEFAULT-VALUE}")
-    private Path projectFile = Path.of("project.yml");
+    @Option(names = { "-p", "--project" }, paramLabel = "<name>", required = true,
+            description = "Project name, as 'sokar project list' prints it.")
+    private String projectName;
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories. Default: the project's own.")
@@ -44,7 +44,7 @@ public class GateRestoreCommand implements Callable<Integer> {
         final PrintWriter err = spec.commandLine().getErr();
 
         try {
-            final Project project = GateSupport.project(projectFile);
+            final Project project = GateSupport.byName(projectName);
             final GitGate gate = GateSupport.gate(project,
                     GateSupport.repository(project, repository), null, null);
             gate.restore(bundle);

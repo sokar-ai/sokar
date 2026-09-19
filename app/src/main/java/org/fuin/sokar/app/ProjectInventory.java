@@ -50,7 +50,8 @@ public final class ProjectInventory {
     public record Summary(String name, @Nullable String securityClass, @Nullable String file,
             @Nullable String mirror, int pending, int tasks, int running, boolean prepared,
             Readiness readiness, org.fuin.sokar.gate.UpstreamDistance.Distance behind,
-            List<RepositorySummary> repositories) {
+            List<RepositorySummary> repositories,
+            FollowedProjects.@Nullable Followed following) {
 
         /**
          * Constructor for a project whose image has not been looked for yet.
@@ -67,7 +68,7 @@ public final class ProjectInventory {
                 @Nullable String mirror, int pending, int tasks, int running) {
             this(name, securityClass, file, mirror, pending, tasks, running, false,
                     Readiness.ABSENT,
-                    org.fuin.sokar.gate.UpstreamDistance.Distance.neverChecked(), List.of());
+                    org.fuin.sokar.gate.UpstreamDistance.Distance.neverChecked(), List.of(), null);
         }
 
         /**
@@ -88,7 +89,7 @@ public final class ProjectInventory {
                 @Nullable String mirror, int pending, int tasks, int running, boolean prepared,
                 Readiness readiness, org.fuin.sokar.gate.UpstreamDistance.Distance behind) {
             this(name, securityClass, file, mirror, pending, tasks, running, prepared, readiness,
-                    behind, List.of());
+                    behind, List.of(), null);
         }
 
         /**
@@ -99,7 +100,7 @@ public final class ProjectInventory {
          */
         Summary prepared(boolean built, Readiness state) {
             return new Summary(name, securityClass, file, mirror, pending, tasks, running, built,
-                    state, behind, repositories);
+                    state, behind, repositories, following);
         }
 
         /**
@@ -114,7 +115,18 @@ public final class ProjectInventory {
          */
         Summary repositories(List<RepositorySummary> named) {
             return new Summary(name, securityClass, file, mirror, pending, tasks, running,
-                    prepared, readiness, behind, named);
+                    prepared, readiness, behind, named, following);
+        }
+
+        /**
+         * Returns this project with its follow state filled in.
+         *
+         * @param state What this account recorded, or {@code null} when it follows nothing here.
+         * @return A copy.
+         */
+        Summary following(FollowedProjects.@Nullable Followed state) {
+            return new Summary(name, securityClass, file, mirror, pending, tasks, running,
+                    prepared, readiness, behind, repositories, state);
         }
 
         /**
@@ -160,6 +172,10 @@ public final class ProjectInventory {
             // choice at task start needs the names, and a project view needs each one's own
             // mirror, pending count and distance. A number would send it back to read the file.
             map.put("repositories", repositories.stream().map(RepositorySummary::asMap).toList());
+            // Empty for a project this machine does not follow, which is the ordinary case. A
+            // project view reads its follow state from here rather than joining a second call.
+            map.put("following", following == null ? Map.<String, Object>of()
+                    : followAsMap(following));
             return map;
         }
     }
@@ -222,6 +238,17 @@ public final class ProjectInventory {
         // every task start and every approval. What is read here was measured on a timer and
         // carries the moment it was taken.
         final UpstreamRecords upstream = new UpstreamRecords(context.paths().upstreamRecords());
+        // Read once for the whole listing rather than per project. A project this account does not
+        // follow simply has no entry, which is the ordinary case and not a fault.
+        final Map<String, FollowedProjects.Followed> followed = new LinkedHashMap<>();
+        try {
+            new FollowedProjects(context.paths().followed()).all()
+                    .forEach(one -> followed.put(one.name(), one));
+        } catch (final java.io.IOException ex) {
+            // A listing is not the place to fail over the follow record. Every project then
+            // answers "not followed", which reads as what it is rather than as an error here.
+            followed.clear();
+        }
 
         return found.values().stream()
                 .sorted(java.util.Comparator.comparing(Summary::name))
@@ -230,7 +257,8 @@ public final class ProjectInventory {
                     return summary.prepared(built, readiness(context, summary.name(),
                             summary.file() == null ? null : java.nio.file.Path.of(summary.file()),
                             built)).behind(upstream.get(summary.name()))
-                            .repositories(repositoriesOf(summary, upstream));
+                            .repositories(repositoriesOf(summary, upstream))
+                            .following(followed.get(summary.name()));
                 })
                 .toList();
     }
@@ -253,7 +281,24 @@ public final class ProjectInventory {
      * @param behind How far this repository is from its upstream, as last measured.
      */
     public record RepositorySummary(String name, boolean own, String upstream, String mirror,
-            int pending, org.fuin.sokar.gate.UpstreamDistance.Distance behind) {
+            int pending, org.fuin.sokar.gate.UpstreamDistance.Distance behind,
+            List<Grant> egress, ResolvedLimits limits) {
+
+        /**
+         * Constructor for a repository reported before its egress and limits were.
+         *
+         * @param name Repository name.
+         * @param own Whether it is the project's own.
+         * @param upstream Where approved work goes, or "".
+         * @param mirror Its mirror, or "".
+         * @param pending Pushes waiting for review.
+         * @param behind Last measured distance from its upstream.
+         */
+        RepositorySummary(String name, boolean own, String upstream, String mirror, int pending,
+                org.fuin.sokar.gate.UpstreamDistance.Distance behind) {
+            this(name, own, upstream, mirror, pending, behind, List.of(),
+                    new ResolvedLimits("", "", 0, "", "", ""));
+        }
 
         /**
          * Returns this as plain values, for a caller that has to put it on a wire.
@@ -274,6 +319,8 @@ public final class ProjectInventory {
                     behind.measured() == null ? "" : behind.measured().toString());
             map.put("behindReason", behind.reason().name());
             map.put("behindDetail", behind.detail() == null ? "" : behind.detail());
+            map.put("egress", egress.stream().map(Grant::asMap).toList());
+            map.put("limits", limits.asMap());
             return map;
         }
     }
@@ -305,9 +352,52 @@ public final class ProjectInventory {
                     repository.upstream() == null ? "" : repository.upstream(),
                     Files.isDirectory(mirror) ? mirror.toString() : "",
                     pendingInMirror(mirror),
-                    upstream.get(UpstreamRecords.key(project.name(), repository.name()))));
+                    upstream.get(UpstreamRecords.key(project.name(), repository.name())),
+                    grantsOf(project, repository), limitsOf(project, repository)));
         }
         return List.copyOf(found);
+    }
+
+    /**
+     * Returns everything a task on one repository may reach, each saying which block granted it.
+     *
+     * @param project The project.
+     * @param repository One of its repositories.
+     * @return The grants, the project's first.
+     */
+    private static List<Grant> grantsOf(final org.fuin.sokar.core.project.Project project,
+            final org.fuin.sokar.core.project.Repository repository) {
+        final List<Grant> grants = new java.util.ArrayList<>();
+        final org.fuin.sokar.core.project.Egress effective = project.egressFor(repository);
+        for (final String set : effective.sets()) {
+            grants.add(new Grant(set, "set",
+                    project.egress().sets().contains(set) ? "project" : "repository"));
+        }
+        for (final String domain : effective.domains()) {
+            grants.add(new Grant(domain, "domain",
+                    project.egress().domains().contains(domain) ? "project" : "repository"));
+        }
+        return List.copyOf(grants);
+    }
+
+    /**
+     * Returns what a task on one repository may consume, and where each key came from.
+     *
+     * @param project The project.
+     * @param repository One of its repositories.
+     * @return The limits in force for it.
+     */
+    private static ResolvedLimits limitsOf(final org.fuin.sokar.core.project.Project project,
+            final org.fuin.sokar.core.project.Repository repository) {
+        final org.fuin.sokar.core.project.Limits limits = project.limitsFor(repository);
+        final org.fuin.sokar.core.project.Limits.Declared own = repository.limits();
+        return new ResolvedLimits(
+                limits.memory() == null ? "" : limits.memory(),
+                limits.cpus() == null ? "" : limits.cpus(),
+                limits.pids(),
+                own.memory() == null ? "project" : "repository",
+                own.cpus() == null ? "project" : "repository",
+                own.pids() == null ? "project" : "repository");
     }
 
     /**
@@ -326,6 +416,96 @@ public final class ProjectInventory {
         } catch (RuntimeException ex) {
             return 0;
         }
+    }
+
+    /**
+     * One thing a repository may reach, and which block granted it.
+     * <p>
+     * One list with a source on each entry rather than two lists to subtract from one another: a
+     * repository's grants are <em>added</em> to the project's, and a screen showing both halves
+     * should not have to work out which is which.
+     *
+     * @param value The set name or the host.
+     * @param kind {@code set} or {@code domain}.
+     * @param from {@code project} or {@code repository}.
+     */
+    public record Grant(String value, String kind, String from) {
+
+        /**
+         * Returns this as plain values.
+         *
+         * @return The grant.
+         */
+        public Map<String, Object> asMap() {
+            return Map.of("value", value, "kind", kind, "from", from);
+        }
+    }
+
+    /**
+     * What a task on one repository may consume, and where each key came from.
+     * <p>
+     * A repository's limits <em>replace</em> the project's key by key, so the interesting part is
+     * which key it replaced. {@code memoryFrom} and its two siblings say {@code repository} when
+     * that repository declared the key and {@code project} otherwise - and {@code project} covers
+     * both a value the project file wrote and Sokar's own default, which this side cannot tell
+     * apart today.
+     *
+     * @param memory Value for the memory limit, or "" for no limit.
+     * @param cpus Value for the CPU limit, or "" for no limit.
+     * @param pids Process limit.
+     * @param memoryFrom Which block the memory limit came from.
+     * @param cpusFrom Which block the CPU limit came from.
+     * @param pidsFrom Which block the process limit came from.
+     */
+    public record ResolvedLimits(String memory, String cpus, int pids, String memoryFrom,
+            String cpusFrom, String pidsFrom) {
+
+        /**
+         * Returns this as plain values.
+         *
+         * @return The limits.
+         */
+        public Map<String, Object> asMap() {
+            final Map<String, Object> map = new LinkedHashMap<>();
+            map.put("memory", memory);
+            map.put("cpus", cpus);
+            map.put("pids", pids);
+            map.put("memoryFrom", memoryFrom);
+            map.put("cpusFrom", cpusFrom);
+            map.put("pidsFrom", pidsFrom);
+            return map;
+        }
+    }
+
+    /**
+     * Returns one project's follow state as plain values, for a caller that has to put it on a
+     * wire.
+     * <p>
+     * <strong>One rendering, used by both `Following` and `Projects`.</strong> A project view
+     * asking "is what I am showing in force" and an account's list of what it follows are
+     * different questions, and they must not answer them from two mappings that can drift.
+     *
+     * @param followed What was recorded.
+     * @return The state.
+     */
+    public static Map<String, Object> followAsMap(final FollowedProjects.Followed followed) {
+        final Map<String, Object> map = new LinkedHashMap<>();
+        map.put("name", followed.name());
+        map.put("url", followed.url());
+        map.put("commit", followed.commit());
+        map.put("at", followed.at());
+        map.put("outcome", followed.outcome());
+        map.put("detail", followed.detail());
+        map.put("refused", followed.refused());
+        map.put("signer", followed.signer());
+        // Reported wherever the project is, because it is a state rather than an error: without an
+        // anchor, whoever may push to that repository decides what tasks here may reach.
+        map.put("unverified", followed.unverified());
+        // Derived from the outcome rather than stored, so the two cannot come to disagree - and
+        // so an interface does not have to keep a list of which outcomes are stuck in step with
+        // ours.
+        map.put("needsAPerson", followed.needsAPerson());
+        return map;
     }
 
     /** What an interface can say about a project's task image. */

@@ -44,8 +44,18 @@ public class ProjectFollowingCommand implements Callable<Integer>, SokarFactory.
                     one.outcome().isEmpty() ? "never" : one.outcome().toLowerCase(
                             java.util.Locale.ROOT),
                     one.url());
+            if (one.unverified()) {
+                // Said on its own line rather than squeezed into a column: it is the one thing
+                // here that changes who decides what tasks on this machine may reach.
+                out.println("    unverified - whoever can push there decides what tasks here may"
+                        + " reach");
+            }
             if (!one.detail().isEmpty()) {
                 out.println("    " + one.detail());
+            }
+            if (!one.refused().isEmpty()) {
+                out.println("    refused    " + one.refused()
+                        + (one.signer().isEmpty() ? "" : "  signed by " + one.signer()));
             }
         }
         out.flush();

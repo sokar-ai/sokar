@@ -27,9 +27,9 @@ import picocli.CommandLine.Spec;
         description = "Runs the container's DNS resolver, answering only for allowed domains.")
 public class ShieldDnsCommand implements Callable<Integer> {
 
-    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
-            description = "Project file. Default: ${DEFAULT-VALUE}")
-    private Path projectFile = Path.of("project.yml");
+    @Option(names = { "-p", "--project" }, paramLabel = "<name>", required = true,
+            description = "Project name, as 'sokar project list' prints it.")
+    private String projectName;
 
     @Option(names = "--pid", paramLabel = "<n>", required = true,
             description = "Host process id of the container's init process.")
@@ -56,7 +56,7 @@ public class ShieldDnsCommand implements Callable<Integer> {
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        final Project project = ProjectReader.read(projectFile);
+        final Project project = GateSupport.byName(projectName);
 
         final DnsPolicy policy = new DnsPolicy(project.securityClass());
         allowed.forEach(policy::allow);

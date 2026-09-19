@@ -49,10 +49,22 @@ public class ProjectUnfollowCommand implements Callable<Integer>, SokarFactory.C
         final PrintWriter err = spec.commandLine().getErr();
         final FollowedProjects projects = new FollowedProjects(context.paths().followed());
         final FollowedProjects.Followed followed = projects.find(name);
-        if (followed == null) {
+        if (followed == null && !force) {
             err.println("sokar: this account does not follow a project called '" + name + "'");
             err.flush();
             return 70;
+        }
+        if (followed == null) {
+            // With --force this is the one command a cleanup trap can run blind: a trap fires
+            // after a failure, which is exactly when nobody knows how far the setup got. Removing
+            // nothing is a success, not an error - anything else makes a script guard a command
+            // whose whole purpose is to be the guard.
+            final ProjectDeletion.Result swept =
+                    new ProjectDeletion(context).delete(name, dryRun, true);
+            swept.removes().forEach(removal -> out.println("removed  " + removal));
+            out.println("nothing of " + name + " was followed here");
+            out.flush();
+            return 0;
         }
 
         // The project first, because that is the part that can refuse. Forgetting the repository

@@ -206,11 +206,29 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
             }
         }
         if (behind.isEmpty()) {
-            return Probe.ok(name, followed.size() + " project(s), all up to date");
+            // Named with the commit each is in force at, because that is what a task of that
+            // project actually runs against - and "up to date" without it says nothing a person
+            // could check against the repository.
+            final String said = followed.stream()
+                    .map(one -> one.name() + " at "
+                            + (one.commit().isEmpty() ? "nothing"
+                                    : one.commit().substring(0, Math.min(8, one.commit().length())))
+                            + (one.unverified() ? " (unverified)" : ""))
+                    .collect(java.util.stream.Collectors.joining(", "));
+            if (followed.stream().anyMatch(FollowedProjects.Followed::unverified)) {
+                // Not a fault - somebody asked for it - but not something to leave unsaid either:
+                // for those projects, whoever may push decides what tasks here may reach.
+                return Probe.degraded(name, said + " - an unverified project applies whatever its"
+                        + " repository says, unchecked", "sokar project following");
+            }
+            return Probe.ok(name, said);
         }
-        final boolean shut = context.opener().isEmpty();
+        // Read from the outcome rather than worked out again here: a shut vault is its own outcome
+        // now, and a second rule beside it is how two answers about one machine come to differ.
+        final boolean shut = followed.stream()
+                .anyMatch(one -> "VAULT_LOCKED".equals(one.outcome()));
         return Probe.degraded(name, String.join(", ", behind)
-                + (shut ? " - and this account's vault is shut, which is why a private repository"
+                + (shut ? " - this account's vault is shut, which is why a private repository"
                         + " cannot be fetched" : ""),
                 shut ? "unlock the vault: sokar vault unlock" : "sokar projects following");
     }

@@ -1,0 +1,2 @@
+title: "Following a project repository takes the key its configuration is signed with, in the same command, so no file is edited by hand - and can be told to follow without an anchor at all, which is then reported as a state wherever the project is shown."
+type: added

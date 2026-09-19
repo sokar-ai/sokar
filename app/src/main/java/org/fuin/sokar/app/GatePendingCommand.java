@@ -27,9 +27,9 @@ import picocli.CommandLine.Spec;
         description = "Lists what the agent pushed and how long it has been waiting.")
 public class GatePendingCommand implements Callable<Integer> {
 
-    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
-            description = "Project file. Default: ${DEFAULT-VALUE}")
-    private Path projectFile = Path.of("project.yml");
+    @Option(names = { "-p", "--project" }, paramLabel = "<name>", required = true,
+            description = "Project name, as 'sokar project list' prints it.")
+    private String projectName;
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories. Default: the project's own.")
@@ -53,7 +53,7 @@ public class GatePendingCommand implements Callable<Integer> {
         final PrintWriter err = spec.commandLine().getErr();
 
         try {
-            final Project project = GateSupport.project(projectFile);
+            final Project project = GateSupport.byName(projectName);
             final GitGate gate = GateSupport.gate(project,
                     GateSupport.repository(project, repository), upstream, null);
             gate.initialize();

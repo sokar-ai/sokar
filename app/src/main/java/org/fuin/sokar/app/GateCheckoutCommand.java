@@ -33,9 +33,9 @@ public class GateCheckoutCommand implements Callable<Integer>, SokarFactory.Cont
             description = "Waiting ref, as 'sokar gate pending' lists it.")
     private String name;
 
-    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
-            description = "Project file. Default: project.yml in this directory.")
-    private Path projectFile = Path.of("project.yml");
+    @Option(names = { "-p", "--project" }, paramLabel = "<name>", required = true,
+            description = "Project name, as 'sokar project list' prints it.")
+    private String projectName;
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories. Default: the project's own.")
@@ -63,7 +63,7 @@ public class GateCheckoutCommand implements Callable<Integer>, SokarFactory.Cont
 
         final Project project;
         try {
-            project = GateSupport.project(projectFile);
+            project = GateSupport.byName(projectName);
         } catch (RuntimeException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();

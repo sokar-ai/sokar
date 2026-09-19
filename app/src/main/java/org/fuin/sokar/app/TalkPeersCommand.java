@@ -24,9 +24,9 @@ import picocli.CommandLine.Spec;
         description = "Lists the peers this project's tasks may address.")
 public class TalkPeersCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
-    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
-            description = "Project file. Default: project.yml")
-    private Path projectFile = Path.of("project.yml");
+    @Option(names = { "-p", "--project" }, paramLabel = "<name>", required = true,
+            description = "Project name, as 'sokar project list' prints it.")
+    private String projectName;
 
     @Spec
     private CommandSpec spec;
@@ -41,7 +41,7 @@ public class TalkPeersCommand implements Callable<Integer>, SokarFactory.Context
     @Override
     public Integer call() {
         final PrintWriter out = spec.commandLine().getOut();
-        final Project project = ProjectReader.read(projectFile);
+        final Project project = GateSupport.byName(context, projectName);
         if (project.mail().peers().isEmpty()) {
             out.println("no peers - this project's tasks address nobody");
             out.flush();

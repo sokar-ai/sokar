@@ -25,7 +25,7 @@ import picocli.CommandLine.Spec;
 @Command(name = "project",
         aliases = { "projects" },
         mixinStandardHelpOptions = true,
-        subcommands = { ProjectListCommand.class, ProjectDeleteCommand.class,
+        subcommands = { ProjectListCommand.class,
                 ProjectFollowCommand.class, ProjectFollowingCommand.class,
                 ProjectUnfollowCommand.class },
         description = "Lists and removes the projects this machine has run tasks for.")
