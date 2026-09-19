@@ -55,10 +55,18 @@ public class SokarSteps {
             terminal.type("sokar vault unlock");
             terminal.await("passphrase");
             terminal.type(passphrase);
-            // 'await' matches literal text, not a pattern - so one word that only a successful
-            // unlock prints. A refusal ends as a timeout carrying the whole screen, which says
-            // more than a matched prefix would.
-            terminal.await("cached in the kernel keyring");
+            // 'await' matches literal text, not a pattern - so the SHORTEST text that only a
+            // successful unlock prints. A refusal ends as a timeout carrying the whole screen,
+            // which says more than a matched prefix would.
+            //
+            // Short on purpose, and this is the lesson rather than a detail. This waited for
+            // "cached in the kernel keyring"; the sentence was reworded to say WHERE the
+            // passphrase goes - "cached in this account's kernel keyring..." - and every agent
+            // repository's leg went red on an unlock that had worked, because a published kit
+            // runs against whatever sokar a machine has. A kit must not hold a sentence we may
+            // improve: it waits for the part that carries the meaning and would have to change
+            // for the wrong reason.
+            terminal.await("cached");
             // The whole point of the prompt: it must not appear on the screen it was typed at.
             assertThat(terminal.seen()).as("the passphrase was echoed").doesNotContain(passphrase);
         }
