@@ -211,6 +211,24 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns where this machine records what it connects out with.
+     * <p>
+     * <strong>Beside the vault, not inside it.</strong> It holds no secret - kinds, destinations,
+     * usernames, and where each value lives - and being readable with the vault shut is the point:
+     * only then can a machine tell <em>"a credential for this host is configured, unlock the
+     * vault"</em> from <em>"nothing is configured, store one"</em>, and those two send a person to
+     * opposite places.
+     * <p>
+     * In the configuration directory because it is a decision, like the pinned signers beside it.
+     *
+     * @return The file, which need not exist. A machine with none falls back to the names a git
+     *         URL implies.
+     */
+    public Path credentialRegistry() {
+        return xdg.config().resolve("credentials.yml");
+    }
+
+    /**
      * Returns where the users of this machine publish their message keys to each other.
      * <p>
      * Outside any user's home, because it is shared, and made only where an operator has allowed

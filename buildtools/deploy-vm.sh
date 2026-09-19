@@ -24,12 +24,48 @@ SSH_OPTS=(-o StrictHostKeyChecking=accept-new)
 
 say() { printf '\n\033[1m-- %s --\033[0m\n' "$1"; }
 
+# What run number to build with, so the package OUTRANKS the one the machine already has.
+#
+# The '+local.<stamp>' suffix alone does not do it: '0.1.0~snapshot.0+local...' sorts BELOW
+# '0.1.0~snapshot.162', because dpkg compares the run number first. A machine installed that way
+# accepts it only with --force-downgrade and then has 'unattended-upgrades' quietly replace it
+# with the published build within the hour - measured twice on 2026-09-19, the second time while
+# another agent was about to test against what was installed.
+#
+# So the number is asked of the machine itself and raised by a fraction: above what is there,
+# below the next CI build.
+# It is asked of APT, not only of what is installed: what overwrites a local build is whatever the
+# repository OFFERS, so that is the number to beat. Asking dpkg alone was not enough - a machine
+# already carrying a too-low local build would stay too low for ever, which happened here.
+RUN="${SOKAR_SNAPSHOT_RUN:-}"
+if [ -z "$RUN" ]; then
+    # LC_ALL=C, or apt answers in the machine's language and 'Candidate:' is 'Installationskandidat:'
+    # - which matched nothing and silently made every local build the lowest version there is.
+    # Found by asking the VM what it actually printed.
+    # The index is refreshed first, or the number beaten is whatever this machine last heard of.
+    # Measured on 2026-09-19: the VM offered 157 while 162 was published, so a build made to
+    # outrank 157 would have been replaced the moment anything ran 'apt update'.
+    ssh "${SSH_OPTS[@]}" "$VM" "sudo apt-get update -qq >/dev/null 2>&1 || true" || true
+    VERSIONS="$(ssh "${SSH_OPTS[@]}" "$VM" "
+        dpkg-query -W -f='\${Version}\n' sokar 2>/dev/null || true
+        LC_ALL=C apt-cache policy sokar 2>/dev/null | sed -n 's/.*Candidate: *//p' || true
+        LC_ALL=C apt-cache madison sokar 2>/dev/null | awk -F'|' '{print \$2}' || true
+    " 2>/dev/null || true)"
+    # '0.1.0~snapshot.162' or '0.1.0~snapshot.162.1+local...' - take the run numbers out and keep
+    # the highest, comparing them as version numbers rather than as text.
+    HIGHEST="$(printf '%s\n' "$VERSIONS" \
+        | sed -n 's/.*~snapshot\.\([0-9][0-9.]*\).*/\1/p' \
+        | sort -V | tail -1)"
+    RUN="${HIGHEST:-0}.1"
+fi
+say "building as ~snapshot.$RUN (above anything that machine has or is offered)"
+
 if [ "${1:-}" != "--skip-build" ]; then
     say "building here"
     # Same profiles CI uses, so what lands is what CI would publish. The local-package profile
-    # marks the version '+local.<stamp>' by itself, which sorts above the published build it was
-    # made from and below the next CI one - see sokar.snapshot.suffix in the root pom.
-    (cd "$ROOT" && ./mvnw -B -Pnative,dist verify -DskipTests)
+    # adds '+local.<stamp>' - see sokar.snapshot.suffix in the root pom - and the run number above
+    # is what actually puts it ahead of the installed package.
+    (cd "$ROOT" && ./mvnw -B -Pnative,dist verify -DskipTests -Dsokar.snapshot.run="$RUN")
 fi
 
 DEB="$(ls -t "$ROOT"/dist-deb/target/sokar_*.deb | head -1)"

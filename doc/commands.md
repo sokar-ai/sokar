@@ -219,7 +219,7 @@ completion directory is not the system one.
 **What it completes is read live, not baked in.** Subcommands and options come from the command
 tree, and names come from the machine — each command offering the names *it* can use, which is the
 point: `task attach`, `task logs`, `task status` and `task clearance` offer the tasks that are up,
-`task stop`, `task remove` and `task label` every task, and `project delete` the projects. It is
+`task stop`, `task remove` and `task label` every task, and `project unfollow` the projects. It is
 the same list the command prints when you get the name wrong, so the two cannot disagree.
 
 `task start` is the exception, and deliberately: its argument is a task name *within a project* —

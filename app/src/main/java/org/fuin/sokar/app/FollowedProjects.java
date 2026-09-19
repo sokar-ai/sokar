@@ -181,6 +181,33 @@ public final class FollowedProjects {
     }
 
     /**
+     * Removes a clone left by a follow that is being taken back.
+     * <p>
+     * A first follow that cannot apply leaves nothing behind, and the clone is the other half of
+     * "nothing": the record says whether the project is followed, and the directory is what a
+     * later reader would find. Failing to remove it is not worth failing over - the record is
+     * what decides - so this reports nothing.
+     *
+     * @param root The followed clone.
+     */
+    public static void forget(final Path root) {
+        if (!Files.exists(root)) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> entries = Files.walk(root)) {
+            entries.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (final IOException ex) {
+                    return;
+                }
+            });
+        } catch (final IOException ex) {
+            return;
+        }
+    }
+
+    /**
      * Records what an attempt to follow did.
      *
      * @param followed What is now known.

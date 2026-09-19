@@ -70,6 +70,14 @@ public final class Reconcile {
          */
         VAULT_LOCKED,
 
+        /**
+         * The fetch failed, this account's vault is open, and it holds no key for a repository
+         * that needs one. Told apart from {@code UNREACHABLE} because the two send a person to
+         * opposite places: one is <em>store a credential</em>, the other is <em>look at the
+         * network or the URL</em>. {@code detail} names the entry and the command that fills it.
+         */
+        NO_CREDENTIAL,
+
         /** The commit verifies and its project file does not read as a project. */
         UNUSABLE,
 
@@ -118,7 +126,8 @@ public final class Reconcile {
         public boolean needsAPerson() {
             return outcome == Outcome.UNKNOWN_KEY || outcome == Outcome.NOT_SIGNED
                     || outcome == Outcome.NO_ANCHOR || outcome == Outcome.REWRITTEN
-                    || outcome == Outcome.UNUSABLE || outcome == Outcome.VAULT_LOCKED;
+                    || outcome == Outcome.UNUSABLE || outcome == Outcome.VAULT_LOCKED
+                    || outcome == Outcome.NO_CREDENTIAL;
         }
     }
 
@@ -143,7 +152,59 @@ public final class Reconcile {
      * @return What this attempt did.
      */
     public Result run(final FollowedProjects.Followed followed) {
-        final Path clone = context.paths().followedClone(followed.name());
+        return run(followed, context.paths().followedClone(followed.name()));
+    }
+
+    /**
+     * Says what following this project would do, and does none of it.
+     * <p>
+     * <strong>Everything the real thing does, somewhere else.</strong> It fetches, verifies,
+     * reads the file and checks the egress sets - against a scratch clone that is deleted
+     * afterwards, so nothing this account follows moves and nothing is recorded. The answer is
+     * {@code APPLIED} when following would work, and otherwise the same named reason the real
+     * follow would give.
+     * <p>
+     * Asked before anything is written, because a follow that cannot apply used to leave a
+     * half-made project behind - the operator met one and had no way to want it gone.
+     *
+     * @param followed What would be followed. Its commit is ignored: a check answers "would this
+     *        work", not "would this be a change".
+     * @return What a follow would do.
+     */
+    public Result check(final FollowedProjects.Followed followed) {
+        Path scratch = null;
+        try {
+            scratch = Files.createTempDirectory("sokar-follow-check-");
+            return run(new FollowedProjects.Followed(followed.name(), followed.url(), "",
+                    followed.at(), followed.outcome(), followed.detail(), followed.refused(),
+                    followed.signer(), followed.unverified()), scratch.resolve("clone"));
+        } catch (final IOException ex) {
+            return new Result(Outcome.FAILED, followed.commit(),
+                    "cannot make a scratch clone to check with: " + ex.getMessage());
+        } finally {
+            if (scratch != null) {
+                deleteTree(scratch);
+            }
+        }
+    }
+
+    private static void deleteTree(final Path root) {
+        try (java.util.stream.Stream<Path> entries = Files.walk(root)) {
+            entries.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (final IOException ex) {
+                    // A scratch directory that will not go is not worth failing a check over.
+                    return;
+                }
+            });
+        } catch (final IOException ex) {
+            // Same.
+            return;
+        }
+    }
+
+    private Result run(final FollowedProjects.Followed followed, final Path clone) {
         final CommandRunner runner = context.runner();
         try {
             if (!Files.isDirectory(clone.resolve("HEAD")) && !Files.isDirectory(clone)) {
@@ -155,8 +216,24 @@ public final class Reconcile {
                             "cannot make " + clone + ": " + made.standardError().strip());
                 }
             }
-            final CommandResult fetched = runner.run(Command.of("git", "-C", clone.toString(),
-                    "fetch", "--quiet", followed.url(), "HEAD"));
+            final CommandResult fetched;
+            final boolean lent;
+            final boolean vaultShut;
+            // The key is lent for the length of the fetch and taken back, so a private repository
+            // is reachable by what the vault holds rather than by what the account happens to
+            // have lying in ~/.ssh.
+            try (FollowCredential credential =
+                    FollowCredential.open(context, followed.url(), followed.name())) {
+                lent = credential.lent();
+                vaultShut = credential.vaultShut();
+                final java.util.List<String> arguments = new java.util.ArrayList<>(
+                        java.util.List.of("git"));
+                arguments.addAll(credential.arguments());
+                arguments.addAll(java.util.List.of("-C", clone.toString(),
+                        "fetch", "--quiet", followed.url(), "HEAD"));
+                fetched = runner.run(Command.of(arguments)
+                        .withEnvironment(credential.environment()));
+            }
             if (!fetched.successful()) {
                 // Unreachable is not a fault of the project's and not a reason to stop: what was
                 // verified before is still what this machine runs.
@@ -167,11 +244,21 @@ public final class Reconcile {
                 // A vault that EXISTS and is shut. A machine with no vault at all has no
                 // credential locked away, so nothing about it explains a failed fetch - saying
                 // "unlock your vault" there would send somebody to a vault they have not made.
-                if (context.vault().exists() && context.opener().isEmpty()) {
+                if (vaultShut) {
                     return new Result(Outcome.VAULT_LOCKED, followed.commit(),
                             "cannot fetch " + followed.url() + " while this account's vault is"
                                     + " shut, so the credential a private repository needs is out"
                                     + " of reach: " + fetched.standardError().strip());
+                }
+                if (!lent && FollowCredential.needsACredential(followed.url())) {
+                    // The vault is open or absent and holds nothing for this host, and the URL is
+                    // one only a credential opens. Saying "unreachable" here sent people to look
+                    // at their network for a credential they had never stored.
+                    return new Result(Outcome.NO_CREDENTIAL, followed.commit(),
+                            "cannot fetch " + followed.url() + " and this account's vault holds no"
+                                    + " credential for it. Store one with: '"
+                                    + FollowCredential.storeCommand(followed.url())
+                                    + "'. What git said: " + fetched.standardError().strip());
                 }
                 return new Result(Outcome.UNREACHABLE, followed.commit(),
                         "cannot fetch " + followed.url() + ": " + fetched.standardError().strip());

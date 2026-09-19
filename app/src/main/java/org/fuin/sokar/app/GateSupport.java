@@ -128,9 +128,15 @@ public final class GateSupport {
         // The mode follows the project's security class, so an offline project cannot be talked
         // into forwarding by a command-line flag. The class describes the box, and the box does
         // not change with which repository is open in it.
+        // Attached here rather than at ten call sites: this is the factory that means "the gate
+        // on this machine", and every command that has one may end up forwarding through it. A
+        // repository that needs no credential - a local path, a public URL - takes nothing out of
+        // the vault, so this costs nothing where it is not needed.
         return new GitGate(new ProcessCommandRunner(), mirror(project, repository),
                 GateMode.of(project.securityClass()), forwardTo,
-                forwardTo != null ? forwardTo : seed);
+                forwardTo != null ? forwardTo : seed)
+                .using(new VaultGitCredentials(SokarContext.real(),
+                        project.name() + "-" + repository.name()));
     }
 
     /**

@@ -556,4 +556,82 @@ class ReconcileTest {
         assertThat(after.refused()).isEqualTo("d4e5f6");
         assertThat(after.signer()).isEqualTo("SHA256:whoever");
     }
+
+    @Test
+    void a_check_says_what_following_would_do_and_does_none_of_it(@TempDir final Path dir)
+            throws IOException {
+
+        // Asked before anything is written. A follow that cannot apply used to leave a project
+        // behind that was followed with nothing in force - the operator met one and had no verb
+        // to take it away.
+        final SokarContext context = context(dir);
+        final Path key = key(dir, "operator");
+        pin(context, "operator", key);
+        final Path repo = published(dir, key, "demo");
+
+        final Reconcile.Result would = new Reconcile(context).check(followed(repo));
+
+        assertThat(would.outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+        assertThat(would.commit()).hasSize(40);
+        // And nothing of this account moved: no clone, and nothing recorded.
+        assertThat(context.paths().followedClone("demo")).doesNotExist();
+    }
+
+    @Test
+    void a_check_gives_the_same_refusal_the_follow_would(@TempDir final Path dir)
+            throws IOException {
+
+        final SokarContext context = context(dir);
+        // Nothing pinned and nothing signed. What it answers matters less than that it answers
+        // the SAME as the follow: a check that disagreed with the thing it stands in for would
+        // send somebody to follow a project that then refuses, or stop them following one that
+        // would have worked.
+        final Path repo = published(dir, null, "demo");
+
+        final Reconcile.Result would = new Reconcile(context).check(followed(repo));
+
+        assertThat(would.needsAPerson()).isTrue();
+        // Nothing of this account moved while it was asked.
+        assertThat(context.paths().followedClone("demo")).doesNotExist();
+
+        final Reconcile.Result real = new Reconcile(context).run(followed(repo));
+        assertThat(would.outcome()).isEqualTo(real.outcome());
+        assertThat(would.detail()).isEqualTo(real.detail());
+    }
+
+    @Test
+    void a_repository_only_a_key_opens_says_the_key_is_missing_not_the_network(
+            @TempDir final Path dir) {
+
+        // The refusal the operator was given was "unlock your vault", for a vault that held
+        // nothing this path would have used - because the follow never asked the vault for
+        // anything. With no key stored, an ssh URL that cannot be fetched is a missing
+        // credential, and the answer names the entry and the command that fills it.
+        final SokarContext context = context(dir);
+
+        final Reconcile.Result result = new Reconcile(context).run(
+                new FollowedProjects.Followed("demo", "git@nowhere.invalid:acme/demo.git",
+                        "", "", "", ""));
+
+        assertThat(result.outcome()).isEqualTo(Reconcile.Outcome.NO_CREDENTIAL);
+        // Named by host, so a company forge and a public one are two credentials rather than
+        // one key offered to whatever host a project file happens to name.
+        assertThat(result.detail()).contains("sokar vault put git.ssh.nowhere.invalid");
+        assertThat(result.needsAPerson()).isTrue();
+    }
+
+    @Test
+    void a_local_repository_that_cannot_be_fetched_is_not_blamed_on_a_missing_key(
+            @TempDir final Path dir) {
+
+        // The other half of the same rule. A path is not opened by an ssh key, so sending
+        // somebody to store one would waste their time on a URL that is simply wrong.
+        final SokarContext context = context(dir);
+
+        final Reconcile.Result result = new Reconcile(context).run(
+                new FollowedProjects.Followed("demo", dir.resolve("nowhere").toString(),
+                        "", "", "", ""));
+
+        assertThat(result.outcome()).isEqualTo(Reconcile.Outcome.UNREACHABLE);
+    }
 }

@@ -243,6 +243,24 @@ fi
 # The project itself. From here on this is the ONLY way one exists - and it has to happen after
 # the egress sets are staged, because following checks them: a project naming a set this machine
 # does not have is refused there rather than at the first task start.
+# Asked BEFORE anything exists here. A check that records the project it was asked about would be
+# the very thing it exists to avoid, so what is measured is both halves: the answer, and that the
+# machine still follows nothing afterwards.
+git -C "$WORK" init -q -b main . >/dev/null 2>&1 || true
+git -C "$WORK" config user.email e2e@example.com
+git -C "$WORK" config user.name "End To End"
+git -C "$WORK" add -A >/dev/null
+git -C "$WORK" commit -q --no-gpg-sign -m "configuration" >/dev/null
+CHECK_LOG="$WORK/follow-check.log"
+if "$SOKAR" project follow "$PROJECT" "$WORK" --unverified --dry-run > "$CHECK_LOG" 2>&1 \
+        && grep -q "ready" "$CHECK_LOG" \
+        && ! "$SOKAR" project following 2>&1 | grep -q "$PROJECT"; then
+    pass "a check says following would work and records nothing"
+else
+    fail "the check either did not answer or left something behind"
+    sed -n '1,6p' "$CHECK_LOG"
+fi
+
 if follow_project "$WORK" "$PROJECT" > "$WORK/follow.log" 2>&1; then
     pass "following a local repository makes the project"
 else
@@ -272,6 +290,53 @@ if grep -q "unverified" "$LIST_LOG"; then
 else
     fail "an unverified follow is not marked, so it reads as though a signature was checked"
     sed -n '1,8p' "$LIST_LOG"
+fi
+
+# A name this machine does not list at all stays its own answer, and names what it does have.
+# The other half of that distinction - a project it lists but does not follow - has no fixture
+# here, because this script cannot make one any more: every project it makes is followed. It is
+# measured in ProjectUnfollowCommandTest instead, and this line is the half a real install can
+# still show.
+MISSING_LOG="$WORK/unfollow-missing.log"
+if ("$SOKAR" project unfollow not-a-project-here --dry-run > "$MISSING_LOG" 2>&1); then
+    fail "unfollowing a name this machine does not have was accepted"
+elif grep -q "no project called" "$MISSING_LOG" && grep -q "$PROJECT" "$MISSING_LOG"; then
+    pass "a name this machine does not list is refused, with the names it has"
+else
+    fail "the refusal did not name what this machine has"
+    sed -n '1,5p' "$MISSING_LOG"
+fi
+
+# The credential git is given for an https remote, asked through GIT ITSELF rather than through an
+# imitation of its protocol: 'git credential fill' runs the helper chain the same way a fetch does.
+# Measured against the installed binary, because the helper is a command git executes by path.
+CRED_LOG="$WORK/git-credential.log"
+printf 'a-token-for-the-e2e-run' | "$SOKAR" vault put git.token.forge.example --type token \
+    > "$WORK/token-put.log" 2>&1 || true
+if printf 'protocol=https\nhost=forge.example\n\n' \
+        | git -c credential.helper="$SOKAR vault credential --entry git.token.forge.example" \
+              credential fill > "$CRED_LOG" 2>&1 \
+        && grep -q "password=a-token-for-the-e2e-run" "$CRED_LOG"; then
+    pass "git gets the token for an https remote out of the vault"
+else
+    fail "git did not get the token from the vault"
+    sed -n '1,6p' "$CRED_LOG"
+fi
+
+# The record half, at the terminal: declare a destination, ask what it would use, forget it. No
+# value is involved at any point - which is the property that lets an interface do the same over a
+# socket no secret may cross.
+DECL_LOG="$WORK/credentials.log"
+if "$SOKAR" credentials declare "https://forge.example/acme/" --kind token \
+        --vault git.token.forge.example > "$DECL_LOG" 2>&1 \
+        && "$SOKAR" credentials check "https://forge.example/acme/x.git" >> "$DECL_LOG" 2>&1 \
+        && grep -q "ready" "$DECL_LOG" \
+        && "$SOKAR" credentials forget "https://forge.example/acme/" >> "$DECL_LOG" 2>&1 \
+        && grep -q "still in the vault" "$DECL_LOG"; then
+    pass "a credential is declared, checked and forgotten without its value"
+else
+    fail "the credential record did not survive declare, check and forget"
+    sed -n '1,10p' "$DECL_LOG"
 fi
 
 # And over the socket's own record, which is what an interface reads.

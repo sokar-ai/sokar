@@ -16,6 +16,7 @@ import picocli.CommandLine.Model.CommandSpec;
         versionProvider = SokarVersion.class,
         description = "Runs AI agent tasks inside hardened, rootless containers.",
         subcommands = { TaskCommand.class, ShieldCommand.class, VaultCommand.class,
+                CredentialsCommand.class,
                 GateCommand.class, AgentsCommand.class, ProvidersCommand.class, TalkCommand.class,
                 SetupCommand.class, DoctorCommand.class,
                 PanicCommand.class, DaemonCommand.class, ProjectsCommand.class,

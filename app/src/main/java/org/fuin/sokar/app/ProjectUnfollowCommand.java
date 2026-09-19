@@ -21,7 +21,22 @@ import picocli.CommandLine.Spec;
 @Command(name = "unfollow",
         mixinStandardHelpOptions = true,
         description = "Stops following a project's repository, and removes the project.")
-public class ProjectUnfollowCommand implements Callable<Integer>, SokarFactory.ContextAware {
+public class ProjectUnfollowCommand
+        implements Callable<Integer>, SokarFactory.ContextAware, Suggests {
+
+    @Override
+    public java.util.List<String> candidates() {
+        // Every project the machine LISTS, not only the followed ones - the same list the refusal
+        // prints, which is the rule completion follows everywhere here. A project that predates
+        // following is exactly the one somebody cannot remember the spelling of.
+        return new ProjectInventory(context).projects().stream()
+                .map(ProjectInventory.Summary::name).toList();
+    }
+
+    @Override
+    public String candidateLabel() {
+        return "projects";
+    }
 
     @Parameters(index = "0", paramLabel = "<name>", description = "The project.")
     private String name;
@@ -49,29 +64,38 @@ public class ProjectUnfollowCommand implements Callable<Integer>, SokarFactory.C
         final PrintWriter err = spec.commandLine().getErr();
         final FollowedProjects projects = new FollowedProjects(context.paths().followed());
         final FollowedProjects.Followed followed = projects.find(name);
-        if (followed == null && !force) {
-            err.println("sokar: this account does not follow a project called '" + name + "'");
-            err.flush();
-            return 70;
-        }
-        if (followed == null) {
-            // With --force this is the one command a cleanup trap can run blind: a trap fires
-            // after a failure, which is exactly when nobody knows how far the setup got. Removing
-            // nothing is a success, not an error - anything else makes a script guard a command
-            // whose whole purpose is to be the guard.
-            final ProjectDeletion.Result swept =
-                    new ProjectDeletion(context).delete(name, dryRun, true);
-            swept.removes().forEach(removal -> out.println("removed  " + removal));
-            out.println("nothing of " + name + " was followed here");
-            out.flush();
-            return 0;
-        }
 
+        // Asked for every project this machine LISTS, not only for the ones it follows. A project
+        // that came to be the old way - a task was started with a file - is in no follow record,
+        // and this used to refuse it outright: the project stayed in the listing, kept its mirror
+        // and its image, and no command ended it. Two of them were cleared by hand on a test
+        // machine, which is not a thing an interface can do. What is at risk is the same either
+        // way, so the checks are the same either way.
+        //
         // The project first, because that is the part that can refuse. Forgetting the repository
         // and then failing to remove the project would leave a project nothing updates any more -
         // the worst of both.
         final ProjectDeletion.Result deleted =
                 new ProjectDeletion(context).delete(name, dryRun, force);
+
+        if (followed == null && deleted.outcome() == ProjectDeletion.Outcome.NO_SUCH_PROJECT) {
+            if (force) {
+                // With --force this is the one command a cleanup trap can run blind: a trap fires
+                // after a failure, which is exactly when nobody knows how far the setup got.
+                // Removing nothing is a success, not an error - anything else makes a script
+                // guard a command whose whole purpose is to be the guard.
+                out.println("nothing of " + name + " is here");
+                out.flush();
+                return 0;
+            }
+            // A name this machine does not list at all. Kept distinct from "it is here but you do
+            // not follow it", because that distinction is the whole value of the answer.
+            final java.util.List<String> known = ProjectSource.names(context);
+            err.println("sokar: no project called '" + name + "' here." + (known.isEmpty()
+                    ? "" : " This machine has: " + String.join(", ", known)));
+            err.flush();
+            return 70;
+        }
         switch (deleted.outcome()) {
             case HOLDS_WORK -> {
                 err.println("sokar: " + name + " holds work nobody has reviewed:");
@@ -94,8 +118,14 @@ public class ProjectUnfollowCommand implements Callable<Integer>, SokarFactory.C
                 out.println("nothing of " + name + " was ever applied here");
             }
             case PREVIEWED -> {
-                out.println("would remove " + name + " and stop following " + followed.url());
+                out.println(followed == null
+                        ? "would remove " + name + ", which this account does not follow"
+                        : "would remove " + name + " and stop following " + followed.url());
                 deleted.removes().forEach(removal -> out.println("    " + removal));
+                // What survives, said as plainly as what goes. Somebody deciding whether to
+                // confirm is asking both questions at once, and the one nobody answers is the one
+                // they assume the worst about.
+                deleted.keeps().forEach(kept -> out.println("    kept: " + kept));
                 out.flush();
                 return 0;
             }
@@ -107,6 +137,11 @@ public class ProjectUnfollowCommand implements Callable<Integer>, SokarFactory.C
             }
         }
 
+        if (followed == null) {
+            out.println(name + " was not followed here; what Sokar built for it is gone");
+            out.flush();
+            return 0;
+        }
         deleteTree(context.paths().followedClone(name));
         projects.unfollow(name);
         out.println("no longer following " + followed.url());

@@ -73,6 +73,91 @@ secret that is written down and one that is not:
 `vault import` is the one worth knowing about, because it removes the retyping that invites a typo
 — and the commonest typo is storing the guide's placeholder rather than the key.
 
+## What this machine connects out with
+
+Sokar reaches other people's machines: the fetch that follows a project, the fetch that measures
+how far a mirror is behind, the push that forwards an approved change — and, in time, whatever
+else needs a credential. **Where the work came from does not change the answer.** An agent in a
+container, a person running `gate approve`, the daemon on a timer: the connection is made by this
+host, so it is answered here, once.
+
+**A credential is a record plus a secret, and they are kept apart.**
+
+    ~/.config/sokar/credentials.yml     kind, destination, username, where the value lives
+    ~/.local/share/sokar/vault.bin      the value, when this machine keeps it
+
+The record holds nothing secret, and being readable **with the vault shut** is the point: only then
+can a machine tell *"a credential for this host is configured, unlock the vault"* from *"nothing is
+configured, store one"* — and those send a person to opposite places. It is also what lets an
+interface write a record over a socket no secret may cross.
+
+```yaml
+credentials:
+  - match: "ssh://github.com"
+    kind: ssh-key
+    source: vault
+    vault: "github-work"
+  - match: "https://gitlab.company.example/acme/"
+    kind: token
+    source: env
+    env: "GITLAB_TOKEN"
+```
+
+**The kind is said, not guessed.** `https://` may be a token *or* a username and password, so
+reading the kind off the URL only ever worked while git was the only caller. Four kinds:
+`ssh-key`, `token`, `basic`, `oauth`.
+
+**The longest `match` wins.** A URL is normalised first — `git@host:path` becomes
+`ssh://host/path` — so one record covers both spellings, and a record for one group on a forge
+sits beside the one for the rest of it without an ordering rule nobody can remember.
+
+**Four sources, because not every secret is Sokar's to hold:**
+
+| `source` | Where the value is | Protected here |
+|---|---|---|
+| `vault` | this machine's vault, under `vault:` | **yes** — encrypted, and shut when the machine is idle |
+| `file` | a path, such as `~/.ssh/id_ed25519` | no |
+| `env` | an environment variable | no |
+| `agent` | the ssh-agent this account already runs | nothing is read at all |
+
+`file`, `env` and `agent` exist for the ordinary case of somebody working on their own computer:
+they already have a key in `~/.ssh` and no wish to keep a second copy of it. That is a state to
+**show**, not a fault to refuse — `sokar credentials list` says *this machine does not protect it*
+under every such record, and the interface shows the same.
+
+At the terminal:
+
+    sokar credentials declare "ssh://github.com" --kind ssh-key --vault github-work
+    sokar vault put github-work < ~/.ssh/id_ed25519      # the value, separately
+
+    sokar credentials declare "ssh://github.com" --kind ssh-key --agent      # or: use my own
+    sokar credentials check git@github.com:acme/x.git    # what would be used, without connecting
+
+**With no `credentials.yml` at all it still works.** A git URL falls back to vault entries named
+after its host — `git.ssh.<host>`, `git.token.<host>`, and the older `ssh.default` — so a machine
+needs no configuration for the ordinary case and nothing anybody already stored is lost.
+
+**A key goes in as the file you were assigned.** The vault holds the 32-byte signing seed inside
+it, and until 2026-09-19 that conversion did not exist: storing a key file kept its first line,
+warned that it "contains spaces", and failed days later with *illegal base64 character 2d* — an
+error about base64 for a problem about ssh keys. A key protected by a passphrase or of an
+algorithm this does not sign with is now refused by name, with what to do instead.
+
+**A key never leaves the vault.** Sokar serves an ssh-agent in its own process for the length of
+the command and points the tool at it, so git asks for a signature and holds nothing it could keep.
+A key from `file` is named to ssh with `-i` and never read here at all. A **token has to travel** —
+a bearer token *is* the secret — so it reaches git through git's own credential helper protocol,
+over a pipe, per command (`-c credential.https://host.helper=…`, nothing written to any config) and
+offered to that host alone. What goes on the command line is *where the value lives*;
+`/proc/<pid>/cmdline` is world-readable, so the value never does.
+
+**On `oauth`:** at the moment of use it is a token, so the lease is identical. What is different is
+expiry and renewal. Today the stored access token is used and one known to have expired is refused
+by name with what to run — rather than a 401 from the forge that reads like a revoked account.
+Renewing without a person is not built, and the record says `expires` so nothing has to pretend
+otherwise.
+Read-only is enough to follow a project.
+
 ## Doing it from somewhere else
 
 The rule is short: **no secret crosses the varlink socket.** `Credentials` answers names, kinds and

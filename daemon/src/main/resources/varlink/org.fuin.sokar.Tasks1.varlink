@@ -620,7 +620,122 @@ method Credentials() -> (
   # and an empty list from an empty vault are different things an interface must not conflate.
   # False means locked or undecryptable, and only then is there a passphrase to ask for. A vault
   # that does not exist yet is readable and empty: there is nothing to unlock.
-  readable: bool
+  readable: bool,
+  # What this machine is CONFIGURED to connect with, which is a different list from the one above.
+  # Readable with the vault shut, because it holds no secret - which is what lets an interface say
+  # "a credential for this host is configured, unlock the vault" instead of "nothing is here".
+  connections: []Connection
+)
+
+# ---------------------------------------------------------------------------- connecting out
+
+# One credential this machine may use to reach somewhere, described without its secret.
+#
+# The metadata is NOT secret: what exists, for what, of what kind, under which name. That is why an
+# interface may write these records (CredentialDeclare) while no value ever crosses this socket.
+type Connection (
+  # What the secret is called: a vault entry, a file path, or an environment variable, by source.
+  id: string,
+  # SSH_KEY, TOKEN, BASIC or OAUTH. Said, never inferred: https may be a token OR a username and
+  # password, so the URL cannot decide it.
+  kind: string,
+  # The destinations this covers, as a prefix of the normalised URL - "ssh://github.com" or
+  # "https://gitlab.example/acme/". git@host:path normalises to ssh://host/path. The LONGEST match
+  # wins, so one record covers a forge and another covers one group on it.
+  match: string,
+  # Username, for BASIC and for a token that needs one. "" when the caller's default is fine.
+  user: string,
+  # What it may be used for: "git", "registry", ... or "any".
+  purpose: string,
+  # VAULT, FILE, ENVIRONMENT or AGENT.
+  #
+  # FILE and ENVIRONMENT point at something this machine did not create and does not protect - a
+  # key in ~/.ssh, a token already exported - which is what somebody working on their own computer
+  # wants, and is a state to SHOW rather than a fault. AGENT reads nothing at all: the command
+  # inherits the account's own ssh-agent.
+  source: string,
+  # Whether the secret is somewhere this machine encrypts and can shut. False for FILE,
+  # ENVIRONMENT and AGENT. Show it; do not refuse it.
+  protected: bool,
+  # Whether the secret is actually there right now: an entry in the vault, a readable file, a set
+  # variable. False with a shut vault only tells you the vault is shut - read 'readable' too.
+  present: bool,
+  # When an OAUTH token stops working, RFC 3339, or "". A machine that knows this refuses first
+  # and says what to run, instead of letting the destination answer 401.
+  expires: string
+)
+
+# Records a credential this machine may use. NO SECRET CROSSES THIS SOCKET.
+#
+# What this writes is the readable half - kind, destination, username, where the value lives. The
+# value itself is typed on the machine, and 'storeCommand' says exactly what to type. For source
+# FILE, ENVIRONMENT or AGENT there is nothing to type: the value is already somewhere, and this
+# records where.
+method CredentialDeclare(
+  # What the secret is called. For VAULT the entry name; for FILE the path; for ENVIRONMENT the
+  # variable. Omitted for AGENT.
+  id: ?string,
+  kind: string,
+  match: string,
+  user: ?string,
+  purpose: ?string,
+  # VAULT (the default), FILE, ENVIRONMENT or AGENT.
+  source: ?string
+) -> (
+  # The record as it was written.
+  connection: Connection,
+  # What to run ON THAT MACHINE to store the value, as ARGUMENTS rather than a string: a client
+  # runs it over ssh and should never have to split a command line it did not write. Empty when
+  # there is nothing to store - FILE, ENVIRONMENT and AGENT already have their value somewhere.
+  storeCommand: []string,
+  # What that command needs on its standard input, in words, or "" when it prompts for the value
+  # itself. An ssh KEY is a file and cannot be typed at a prompt, so this says "the private key
+  # file" and the client arranges for it; a token is asked for, without echo, and this is "".
+  storeStdin: string,
+  # Whether this replaced a record that was already there for the same destination and purpose.
+  # Declaring twice is not an error - a wizard run again must land in the same place - so this is
+  # how an interface says "updated" rather than "added".
+  replaced: bool
+)
+
+# Forgets a credential record. The secret is NOT removed: a key in ~/.ssh is the person's, and a
+# vault entry is removed with 'sokar vault remove' by somebody at the machine.
+method CredentialForget(
+  # The record's 'match', exactly as Connection gives it.
+  match: string
+) -> (
+  # Whether a record was there to forget.
+  forgotten: bool,
+  # What still holds a value, so an interface can offer the second step rather than implying the
+  # secret is gone. "" when nothing does.
+  leftBehind: string
+)
+
+# Which credential a destination would use, and whether it would work - before anything is tried.
+#
+# The call a dialog makes before offering 'Follow it' or 'Approve': it answers the same reasons
+# Follow(dryRun) does, without touching the network.
+method CredentialCheck(
+  # Where something would connect, such as a project repository's URL.
+  url: string,
+  # What for. Default: "git".
+  purpose: ?string
+) -> (
+  # READY, NO_CREDENTIAL, VAULT_LOCKED, MISSING_VALUE, EXPIRED or NOT_NEEDED.
+  #
+  # NOT_NEEDED is a local path: nothing authenticates, and offering to store something would waste
+  # somebody's afternoon. MISSING_VALUE means a record exists and its value does not - the file is
+  # gone, the variable is unset, the vault entry was never stored.
+  outcome: string,
+  # The record that would be used, or an empty one.
+  connection: Connection,
+  # What to run on that machine to fix it, as arguments. Empty when nothing would help - a local
+  # path, or a value this machine does not keep.
+  storeCommand: []string,
+  # What that command needs on its standard input, or "". See CredentialDeclare.
+  storeStdin: string,
+  # One sentence for a person.
+  detail: string
 )
 
 # ---------------------------------------------------------------------------- running tasks
@@ -1809,10 +1924,23 @@ method Follow(
   # rebased, or somebody WITHOUT it re-serving an older signed configuration to put back a rule
   # that was taken away - which needs no key at all, only control of the route. From here the two
   # are indistinguishable, so this must never be sent automatically or as a retry.
-  acceptRewrite: ?bool
+  acceptRewrite: ?bool,
+  # Asks whether following this would work, and records NOTHING.
+  #
+  # Everything a real follow does, against a scratch clone that is deleted afterwards: it fetches
+  # with the credential this machine would use, verifies the signature, reads the file and checks
+  # the egress sets. The answer is READY, or the same named reason the real follow would give -
+  # so a dialog can offer 'Follow it' only when it would work, and put the way out of each refusal
+  # beside it. Nothing this account follows moves, and no project is created.
+  dryRun: ?bool
 ) -> (
-  # APPLIED, UNCHANGED, REFUSED, REWRITTEN, UNREACHABLE, UNUSABLE or FAILED. The project is
-  # followed either way; anything but APPLIED or UNCHANGED means nothing of it is in force.
+  # READY (only with dryRun), APPLIED, UNCHANGED, REWRITTEN, UNREACHABLE, VAULT_LOCKED,
+  # NO_CREDENTIAL, UNUSABLE, NOT_SIGNED, UNKNOWN_KEY, NO_ANCHOR, UNREADABLE or FAILED.
+  #
+  # A project this account was NOT already following and that does not end in APPLIED or UNCHANGED
+  # is NOT recorded: the refusal is the whole answer and the machine is as it was. 'recorded' says
+  # so. A project it was already following keeps its record whatever happens, because that record
+  # is where the reason lives - see Following().
   #
   # REWRITTEN is the one that needs a person: 'detail' says what was found, and the only way past
   # it is calling again with acceptRewrite. Do not treat it as a transient failure.
@@ -1823,6 +1951,13 @@ method Follow(
   detail: string,
   # The commit turned away, or "". Never the same as 'commit'.
   refused: string,
+  # What to type on that machine to store the credential a follow needs, with NO_CREDENTIAL, and
+  # "" otherwise. Named by the machine: which vault entry a follow reads is the machine's
+  # knowledge, and the secret itself must never travel over this socket.
+  storeCommand: string,
+  # Whether anything was written. False for a dry run, and false for a first follow that was
+  # refused - nothing of that project is here.
+  recorded: bool,
   # The fingerprint of the key that signed it, or "".
   signer: string,
   # Whether nothing will change until somebody acts. NOT the same as "it failed": an unreachable
@@ -1834,6 +1969,12 @@ method Follow(
 #
 # It deletes, so it refuses first: a mirror may hold pushes nobody has reviewed and tasks may still
 # be up. The same refusal DeleteProject gives, from the same code.
+#
+# It answers for every project this machine LISTS, not only the ones it follows. A project made
+# before following existed - a task was started with a file, which wrote a mirror and a registry
+# entry - is in no follow record, and it used to get NoSuchProject here: an interface could offer
+# to clear it away and have nothing to show for it, while force would have swept it blind.
+# NoSuchProject now means what it says: this machine does not list that project at all.
 method Unfollow(
   name: string,
   # Says what would go, and removes nothing.
@@ -1854,6 +1995,10 @@ method Unfollow(
   # What is deliberately NOT touched - the real upstream above all. Named so a confirmation never
   # lists the operator's own things among the casualties.
   keeps: []string,
+  # Whether this account was following it at all. False for a project that predates following:
+  # there is a mirror and an image to clear away, and no repository to stop taking from. A
+  # confirmation says "stop following and remove" or just "remove" from this.
+  following: bool,
   detail: string
 )
 

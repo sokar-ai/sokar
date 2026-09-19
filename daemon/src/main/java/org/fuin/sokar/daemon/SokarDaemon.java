@@ -667,6 +667,11 @@ public final class SokarDaemon {
                         return row;
                     }).toList();
             answer.put("credentials", entries);
+            // What this machine is CONFIGURED to connect with, which is a different list: it is
+            // readable with the vault shut, because it holds no secret. Without it, "a credential
+            // for this host is configured, unlock the vault" and "nothing is here" look the same.
+            answer.put("connections",
+                    new org.fuin.sokar.app.CredentialDeclarations(context).asMaps());
             // Empty because it is locked and empty because it holds nothing are different things
             // an interface has to show apart. Asked of the vault rather than inferred from the
             // list being empty, which is what this did before: an unlocked vault holding nothing
@@ -879,9 +884,35 @@ public final class SokarDaemon {
             final org.fuin.sokar.app.FollowedProjects projects =
                     new org.fuin.sokar.app.FollowedProjects(context.paths().followed());
             final String name = text(parameters, "name");
+            final String url = text(parameters, "url");
+            if (flag(parameters, "dryRun")) {
+                // Records nothing: the whole point is the question asked BEFORE a project exists
+                // here. READY where a real follow would have applied, and otherwise the same
+                // named reason it would have given - which is what a dialog offers a way out of.
+                final org.fuin.sokar.app.Reconcile.Result would =
+                        new org.fuin.sokar.app.Reconcile(context).check(
+                                new org.fuin.sokar.app.FollowedProjects.Followed(name, url,
+                                        "", "", "", "", "", "",
+                                        flag(parameters, "unverified")));
+                final boolean ready = would.outcome()
+                        == org.fuin.sokar.app.Reconcile.Outcome.APPLIED
+                        || would.outcome() == org.fuin.sokar.app.Reconcile.Outcome.UNCHANGED;
+                replies.last(Map.of("outcome", ready ? "READY" : would.outcome().name(),
+                        "commit", would.commit(), "detail", would.detail(),
+                        "refused", would.refused(), "signer", would.signer(),
+                        "needsAPerson", would.needsAPerson(),
+                        // What to type to store the credential this machine would need. Named by
+                        // the machine, because which entry a follow reads is the machine's
+                        // knowledge and a client must never guess it - nor ever carry the secret.
+                        "storeCommand", would.outcome()
+                                == org.fuin.sokar.app.Reconcile.Outcome.NO_CREDENTIAL
+                                ? org.fuin.sokar.app.FollowCredential.storeCommand(url) : "",
+                        "recorded", false));
+                return;
+            }
+            final boolean followedBefore = projects.find(name) != null;
             try {
-                projects.follow(name, text(parameters, "url"),
-                        flag(parameters, "unverified"));
+                projects.follow(name, url, flag(parameters, "unverified"));
             } catch (IllegalArgumentException ex) {
                 throw new VarlinkException(INTERFACE + ".Failed",
                         Map.of("message", String.valueOf(ex.getMessage())));
@@ -897,29 +928,135 @@ public final class SokarDaemon {
             // at the next tick is one nobody connects to what they did.
             final org.fuin.sokar.app.Reconcile.Result result =
                     new org.fuin.sokar.app.Reconcile(context).run(projects.find(name));
-            projects.write(org.fuin.sokar.app.Reconcile.after(projects.find(name), result));
+            final boolean applied = result.outcome()
+                    == org.fuin.sokar.app.Reconcile.Outcome.APPLIED
+                    || result.outcome() == org.fuin.sokar.app.Reconcile.Outcome.UNCHANGED;
+            if (!followedBefore && !applied) {
+                // A first follow that cannot apply leaves nothing behind. It used to leave a
+                // project that was followed with nothing in force - a half-made thing nobody
+                // meant to have. A project already followed keeps its record, because that record
+                // is where the reason lives.
+                projects.unfollow(name);
+                org.fuin.sokar.app.FollowedProjects.forget(context.paths().followedClone(name));
+            } else {
+                projects.write(org.fuin.sokar.app.Reconcile.after(projects.find(name), result));
+            }
             replies.last(Map.of("outcome", result.outcome().name(), "commit", result.commit(),
                     "detail", result.detail(), "refused", result.refused(),
-                    "signer", result.signer(), "needsAPerson", result.needsAPerson()));
+                    "signer", result.signer(), "needsAPerson", result.needsAPerson(),
+                    "storeCommand", result.outcome()
+                            == org.fuin.sokar.app.Reconcile.Outcome.NO_CREDENTIAL
+                            ? org.fuin.sokar.app.FollowCredential.storeCommand(url) : "",
+                    // Whether anything was written. False for a first follow that was refused:
+                    // the machine is exactly as it was.
+                    "recorded", followedBefore || applied));
+        });
+
+        server.method("CredentialDeclare", (parameters, replies) -> {
+            // No secret crosses this socket. What is written here is the readable half, and
+            // 'storeCommand' says what to type on the machine for the value.
+            final org.fuin.sokar.core.credential.Credential.Source source;
+            final org.fuin.sokar.core.credential.Credential.Kind kind;
+            try {
+                final String said = text(parameters, "source");
+                source = said.isEmpty()
+                        ? org.fuin.sokar.core.credential.Credential.Source.VAULT
+                        : org.fuin.sokar.core.credential.Credential.Source.valueOf(
+                                said.toUpperCase(java.util.Locale.ROOT));
+                kind = org.fuin.sokar.core.credential.Credential.Kind.valueOf(
+                        text(parameters, "kind").toUpperCase(java.util.Locale.ROOT)
+                                .replace('-', '_'));
+            } catch (IllegalArgumentException ex) {
+                throw new VarlinkException(INTERFACE + ".Failed", Map.of("message",
+                        "kind is SSH_KEY, TOKEN, BASIC or OAUTH and source is VAULT, FILE,"
+                                + " ENVIRONMENT or AGENT"));
+            }
+            final String match = text(parameters, "match");
+            if (match.isEmpty()) {
+                throw new VarlinkException(INTERFACE + ".Failed",
+                        Map.of("message", "a credential has to say which destinations it covers"));
+            }
+            final String purpose = text(parameters, "purpose");
+            final org.fuin.sokar.core.credential.Credential declared =
+                    new org.fuin.sokar.core.credential.Credential(text(parameters, "id"), kind,
+                            org.fuin.sokar.core.credential.CredentialRegistry.normalise(match),
+                            text(parameters, "user").isEmpty() ? null : text(parameters, "user"),
+                            purpose.isEmpty()
+                                    ? org.fuin.sokar.core.credential.Credential.ANY : purpose,
+                            source);
+            final org.fuin.sokar.app.CredentialDeclarations declarations =
+                    new org.fuin.sokar.app.CredentialDeclarations(context);
+            // Declaring twice is not an error: a wizard run again has to land in the same place.
+            // Whether it replaced one is answered, so an interface can say "updated".
+            final boolean replaced = context.credentialRegistry().all().stream()
+                    .anyMatch(existing -> existing.match().equals(declared.match())
+                            && existing.purpose().equals(declared.purpose()));
+            try {
+                declarations.declare(declared);
+            } catch (java.io.IOException ex) {
+                throw new VarlinkException(INTERFACE + ".Failed",
+                        Map.of("message", String.valueOf(ex.getMessage())));
+            }
+            final String store =
+                    org.fuin.sokar.app.CredentialDeclarations.storeCommandFor(declared);
+            replies.last(Map.of("connection", connectionAsMap(declarations, declared),
+                    "storeCommand", org.fuin.sokar.app.CredentialDeclarations.argumentsOf(store),
+                    "storeStdin", store.contains("<") ? "the private key file" : "",
+                    "replaced", replaced));
+        });
+
+        server.method("CredentialForget", (parameters, replies) -> {
+            final org.fuin.sokar.app.CredentialDeclarations declarations =
+                    new org.fuin.sokar.app.CredentialDeclarations(context);
+            final String left;
+            try {
+                left = declarations.forget(text(parameters, "match"));
+            } catch (java.io.IOException ex) {
+                throw new VarlinkException(INTERFACE + ".Failed",
+                        Map.of("message", String.valueOf(ex.getMessage())));
+            }
+            // The secret is not removed: a key in somebody's own directory is theirs, and a vault
+            // entry is removed by a person at the machine.
+            replies.last(Map.of("forgotten", left != null, "leftBehind", left == null ? "" : left));
+        });
+
+        server.method("CredentialCheck", (parameters, replies) -> {
+            final String purpose = text(parameters, "purpose");
+            final org.fuin.sokar.app.CredentialDeclarations declarations =
+                    new org.fuin.sokar.app.CredentialDeclarations(context);
+            final org.fuin.sokar.app.CredentialDeclarations.Check check = declarations.check(
+                    text(parameters, "url"), purpose.isEmpty() ? "git" : purpose);
+            replies.last(Map.of("outcome", check.outcome().name(),
+                    "connection", check.credential() == null ? Map.<String, Object>of()
+                            : connectionAsMap(declarations, check.credential()),
+                    "storeCommand", check.storeArguments(),
+                    "storeStdin", check.storeStdin(), "detail", check.detail()));
         });
 
         server.method("Unfollow", (parameters, replies) -> {
             final org.fuin.sokar.app.FollowedProjects projects =
                     new org.fuin.sokar.app.FollowedProjects(context.paths().followed());
             final String name = text(parameters, "name");
-            if (projects.find(name) == null) {
-                throw new VarlinkException(INTERFACE + ".NoSuchProject", Map.of("project", name));
-            }
+            final boolean following = projects.find(name) != null;
             // The same refusal 'projects delete' gives, through the same code: a mirror may hold
             // work nobody reviewed, and this must not be the quiet way to destroy it.
             final org.fuin.sokar.app.ProjectDeletion.Result deleted =
                     new org.fuin.sokar.app.ProjectDeletion(context).delete(name,
                             flag(parameters, "dryRun"), flag(parameters, "force"));
+            // 'NoSuchProject' for a name this machine does not LIST - not for one it lists but
+            // does not follow. Those are projects from before following, and answering the error
+            // here left an interface offering to clear one and with nothing to show for it, while
+            // force would have swept it blind. Found by Agent Frontend (QF38); the operator hit
+            // the same wall on a test machine the same hour.
+            if (!following && deleted.outcome()
+                    == org.fuin.sokar.app.ProjectDeletion.Outcome.NO_SUCH_PROJECT) {
+                throw new VarlinkException(INTERFACE + ".NoSuchProject", Map.of("project", name));
+            }
             final boolean refused =
                     deleted.outcome() == org.fuin.sokar.app.ProjectDeletion.Outcome.HOLDS_WORK
                     || deleted.outcome()
                             == org.fuin.sokar.app.ProjectDeletion.Outcome.TASKS_RUNNING;
-            if (!refused && deleted.outcome()
+            if (following && !refused && deleted.outcome()
                     != org.fuin.sokar.app.ProjectDeletion.Outcome.PREVIEWED) {
                 projects.unfollow(name);
             }
@@ -933,6 +1070,10 @@ public final class SokarDaemon {
                                     "what", removal.what()))
                             .toList(),
                     "keeps", deleted.keeps(),
+                    // Whether this account was following it at all. A client drawing the
+                    // confirmation says "stop following and remove" or just "remove" from this,
+                    // rather than guessing from the project it asked about.
+                    "following", following,
                     "detail", deleted.detail() == null ? "" : deleted.detail()));
         });
 
@@ -1529,6 +1670,41 @@ public final class SokarDaemon {
      * @param name Parameter to read.
      * @return Its value, or the empty string.
      */
+    /**
+     * Returns one credential record as plain values, with whether its value is there.
+     * <p>
+     * Built from the listing rather than by hand, so a record answered by one method and the same
+     * record answered by another cannot drift.
+     *
+     * @param declarations Where the records are.
+     * @param credential The one to describe.
+     * @return The record, never its secret.
+     */
+    private static Map<String, Object> connectionAsMap(
+            org.fuin.sokar.app.CredentialDeclarations declarations,
+            org.fuin.sokar.core.credential.Credential credential) {
+        return declarations.asMaps().stream()
+                .filter(row -> credential.match().equals(row.get("match"))
+                        && credential.purpose().equals(row.get("purpose")))
+                .findFirst()
+                .orElseGet(() -> {
+                    // Not in the file: a credential found by the names a git URL implies. It is
+                    // real and usable, and saying nothing about it would make an interface show
+                    // "no credential" for a machine that has one.
+                    final Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    row.put("id", credential.id());
+                    row.put("kind", credential.kind().name());
+                    row.put("match", credential.match());
+                    row.put("user", credential.user() == null ? "" : credential.user());
+                    row.put("purpose", credential.purpose());
+                    row.put("source", credential.source().name());
+                    row.put("protected", credential.protectedHere());
+                    row.put("present", true);
+                    row.put("expires", credential.expires() == null ? "" : credential.expires());
+                    return row;
+                });
+    }
+
     private static String text(Map<String, Object> parameters, String name) {
         final Object value = parameters.get(name);
         return value instanceof String string ? string : "";

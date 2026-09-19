@@ -87,6 +87,31 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
      *
      * @return The vault.
      */
+    /**
+     * Returns what this machine is configured to connect out with.
+     * <p>
+     * Read fresh each time: it is a small file, and a person who has just written one expects the
+     * next command to use it.
+     *
+     * @return The registry, empty when there is no file or it cannot be read.
+     */
+    public org.fuin.sokar.core.credential.CredentialRegistry credentialRegistry() {
+        try {
+            return org.fuin.sokar.core.credential.CredentialRegistry.read(
+                    paths.credentialRegistry());
+        } catch (final org.fuin.sokar.core.credential.CredentialException ex) {
+            // A registry that cannot be read must not stop a public repository being reached.
+            // What it would have said is said by whatever asked for a credential and did not get
+            // one, and 'doctor' reports the file itself.
+            return new org.fuin.sokar.core.credential.CredentialRegistry(java.util.List.of());
+        }
+    }
+
+    /**
+     * Returns the vault file.
+     *
+     * @return The vault.
+     */
     public org.fuin.sokar.vault.VaultFile vault() {
         return new org.fuin.sokar.vault.VaultFile(paths.vaultFile());
     }

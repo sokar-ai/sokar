@@ -1,0 +1,160 @@
+package org.fuin.sokar.app;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.fuin.sokar.core.config.XdgPaths;
+import org.fuin.sokar.core.credential.Credential;
+import org.fuin.sokar.testing.FakeCommandRunner;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * What this machine is configured to connect out with.
+ * <p>
+ * <strong>The point of the file is what it can answer with the vault shut.</strong> A machine
+ * whose only record of a credential is the credential itself cannot tell "a credential for this
+ * host is configured, unlock the vault" from "nothing is configured, store one" - and those two
+ * send a person to opposite places.
+ */
+class CredentialDeclarationsTest {
+
+    private Path root;
+
+    private SokarContext context(final Path dir) {
+        root = dir;
+        final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
+            case "XDG_CONFIG_HOME" -> dir.resolve("config").toString();
+            case "XDG_DATA_HOME" -> dir.resolve("data").toString();
+            case "XDG_STATE_HOME" -> dir.resolve("state").toString();
+            case "XDG_RUNTIME_DIR" -> dir.resolve("run").toString();
+            default -> null;
+        }, dir);
+        return new SokarContext(new FakeCommandRunner(),
+                new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0);
+    }
+
+    @Test
+    void writesARecordAndReadsItBack(@TempDir final Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        final CredentialDeclarations declarations = new CredentialDeclarations(context);
+
+        declarations.declare(new Credential("github-work", Credential.Kind.SSH_KEY,
+                "ssh://github.com", null, "git", Credential.Source.VAULT));
+
+        // Through the reader, not through the object it was given: the file is the interface.
+        final Credential read = context.credentialRegistry()
+                .forUrl("git", "git@github.com:acme/x.git");
+        assertThat(read).isNotNull();
+        assertThat(read.id()).isEqualTo("github-work");
+        assertThat(read.kind()).isEqualTo(Credential.Kind.SSH_KEY);
+        // git@host:path and ssh://host/path are one destination written two ways.
+        assertThat(read.match()).isEqualTo("ssh://github.com");
+    }
+
+    @Test
+    void theLongestMatchWins(@TempDir final Path dir) throws IOException {
+
+        // One credential for a forge and another for one group on it, without an ordering rule
+        // nobody can remember.
+        final SokarContext context = context(dir);
+        final CredentialDeclarations declarations = new CredentialDeclarations(context);
+        declarations.declare(new Credential("forge", Credential.Kind.TOKEN,
+                "https://gitlab.example", null, "git", Credential.Source.VAULT));
+        declarations.declare(new Credential("acme-only", Credential.Kind.TOKEN,
+                "https://gitlab.example/acme/", null, "git", Credential.Source.VAULT));
+
+        assertThat(context.credentialRegistry()
+                .forUrl("git", "https://gitlab.example/acme/x.git").id()).isEqualTo("acme-only");
+        assertThat(context.credentialRegistry()
+                .forUrl("git", "https://gitlab.example/other/x.git").id()).isEqualTo("forge");
+    }
+
+    @Test
+    void aKeyInTheUsersOwnDirectoryIsUsedWhereItIs(@TempDir final Path dir) throws IOException {
+
+        // The case the operator named: somebody on their own computer has a key in ~/.ssh and no
+        // wish to keep a second copy in a vault. It is READY, and it is not protected - both
+        // facts, neither of them a refusal.
+        final SokarContext context = context(dir);
+        final Path key = dir.resolve("id_ed25519");
+        Files.writeString(key, "-----BEGIN OPENSSH PRIVATE KEY-----\n", StandardCharsets.UTF_8);
+        new CredentialDeclarations(context).declare(new Credential(key.toString(),
+                Credential.Kind.SSH_KEY, "ssh://github.com", null, "git",
+                Credential.Source.FILE));
+
+        final CredentialDeclarations.Check check =
+                new CredentialDeclarations(context).check("git@github.com:acme/x.git", "git");
+
+        assertThat(check.outcome()).isEqualTo(CredentialDeclarations.Outcome.READY);
+        assertThat(check.credential().protectedHere()).isFalse();
+        assertThat(check.detail()).contains("does not protect it");
+        // And nothing is offered to store: telling somebody to store it would be telling them to
+        // make the copy this record exists to avoid.
+        assertThat(check.storeCommand()).isEmpty();
+    }
+
+    @Test
+    void aDeclaredValueThatIsGoneIsNotTheSameAsNoneDeclared(@TempDir final Path dir)
+            throws IOException {
+
+        final SokarContext context = context(dir);
+        new CredentialDeclarations(context).declare(new Credential(
+                dir.resolve("went-away").toString(), Credential.Kind.SSH_KEY,
+                "ssh://github.com", null, "git", Credential.Source.FILE));
+
+        final CredentialDeclarations.Check check =
+                new CredentialDeclarations(context).check("git@github.com:acme/x.git", "git");
+
+        assertThat(check.outcome()).isEqualTo(CredentialDeclarations.Outcome.MISSING_VALUE);
+        assertThat(check.detail()).contains("cannot be read");
+    }
+
+    @Test
+    void aPathOnThisMachineNeedsNothingAndIsToldSo(@TempDir final Path dir) {
+
+        // Offering to store a credential for a directory would waste somebody's afternoon.
+        final CredentialDeclarations.Check check =
+                new CredentialDeclarations(context(dir)).check(dir.toString(), "git");
+
+        assertThat(check.outcome()).isEqualTo(CredentialDeclarations.Outcome.NOT_NEEDED);
+        assertThat(check.storeCommand()).isEmpty();
+    }
+
+    @Test
+    void forgettingARecordLeavesTheSecretAndSaysSo(@TempDir final Path dir) throws IOException {
+
+        final SokarContext context = context(dir);
+        new CredentialDeclarations(context).declare(new Credential("github-work",
+                Credential.Kind.SSH_KEY, "ssh://github.com", null, "git",
+                Credential.Source.VAULT));
+
+        final String left = new CredentialDeclarations(context).forget("ssh://github.com");
+
+        assertThat(left).contains("still in the vault").contains("sokar vault remove github-work");
+        assertThat(context.credentialRegistry().forUrl("git", "git@github.com:acme/x.git")).isNull();
+        // Forgetting one that was never there is not an error, and says nothing was forgotten.
+        assertThat(new CredentialDeclarations(context).forget("ssh://github.com")).isNull();
+    }
+
+    @Test
+    void anExpiredTokenIsRefusedHereRatherThanByTheForge(@TempDir final Path dir)
+            throws IOException {
+
+        // A 401 from a forge reads like a revoked account. This machine knows better and says so.
+        final SokarContext context = context(dir);
+        new CredentialDeclarations(context).declare(new Credential("oauth-token",
+                Credential.Kind.OAUTH, "https://forge.example", null, "git",
+                Credential.Source.VAULT, "2020-01-01T00:00:00Z"));
+
+        final CredentialDeclarations.Check check =
+                new CredentialDeclarations(context).check("https://forge.example/x.git", "git");
+
+        assertThat(check.outcome()).isEqualTo(CredentialDeclarations.Outcome.EXPIRED);
+        assertThat(check.detail()).contains("nothing here can renew it without you");
+    }
+}

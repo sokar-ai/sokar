@@ -38,6 +38,9 @@ public class GitGate {
     @Nullable
     private final String seedUrl;
 
+    /** Where a credential for a remote comes from. Nothing, until a caller that has one says so. */
+    private GitCredentials lending = GitCredentials.NONE;
+
     /**
      * Constructor for a gate whose mirror is seeded from the upstream it forwards to.
      *
@@ -69,6 +72,20 @@ public class GitGate {
         this.mode = mode;
         this.upstreamUrl = upstreamUrl;
         this.seedUrl = seedUrl;
+    }
+
+    /**
+     * Returns this gate with a credential to reach the upstream with.
+     * <p>
+     * Only the commands that talk to a real remote use it. Everything else here is local to this
+     * machine and has nothing to authenticate to.
+     *
+     * @param lending Where a credential for a URL comes from.
+     * @return This gate.
+     */
+    public GitGate using(final GitCredentials lending) {
+        this.lending = lending;
+        return this;
     }
 
     /**
@@ -370,7 +387,12 @@ public class GitGate {
             throw new GateException("No upstream is configured for this project");
         }
         requirePending(name);
-        gitIn("push", upstreamUrl, INCOMING + name + ":refs/heads/" + branch);
+        // The one command here that reaches the forge. It ran with nothing: an approved change
+        // could not be forwarded to a private upstream unless the account happened to have a key
+        // of its own lying about, which is exactly the arrangement the vault exists to replace.
+        try (GitCredentials.Lease lease = lending.forUrl(upstreamUrl)) {
+            gitWith(lease, "push", upstreamUrl, INCOMING + name + ":refs/heads/" + branch);
+        }
         gitIn("update-ref", "-d", INCOMING + name);
     }
 
@@ -450,10 +472,17 @@ public class GitGate {
     }
 
     private CommandResult gitIn(String... arguments) {
-        final List<String> all = new ArrayList<>(List.of("git", "--git-dir", mirror.toString()));
+        return gitWith(GitCredentials.Lease.EMPTY, arguments);
+    }
+
+    private CommandResult gitWith(GitCredentials.Lease lease, String... arguments) {
+        final List<String> all = new ArrayList<>(List.of("git"));
+        // Before the verb, which is where git takes '-c'. Never a secret: it names a vault entry.
+        all.addAll(lease.arguments());
+        all.addAll(List.of("--git-dir", mirror.toString()));
         all.addAll(List.of(arguments));
         try {
-            return runner.runOrFail(Command.of(all));
+            return runner.runOrFail(Command.of(all).withEnvironment(lease.environment()));
         } catch (CommandException ex) {
             throw new GateException(ex.getMessage() == null ? "git failed" : ex.getMessage(), ex);
         }

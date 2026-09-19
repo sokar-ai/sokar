@@ -106,6 +106,12 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
      * @param err Where to report.
      */
     private void warnIfNothingWillUseIt(PrintWriter err) {
+        if (GitCredentialNames.isOne(name)) {
+            // Not a provider's name and not meant to be: these are read by the git commands this
+            // machine runs. Warning that "no provider is declared" for one sent people looking
+            // for a mistake they had not made.
+            return;
+        }
         final var provider = context.providers().get(name);
         if (provider == null) {
             // Not refused: a credential may be stored before its provider is declared, and an
@@ -170,7 +176,23 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
             }
         }
         final String line = piped.readLine();
-        return line == null ? "" : line.strip();
+        if (line == null) {
+            return "";
+        }
+        if (line.strip().startsWith("-----BEGIN")) {
+            // A key file is many lines, and this read one. '< ~/.ssh/id_ed25519' therefore stored
+            // the armour line alone, warned that it "contains spaces", and failed days later when
+            // something tried to sign with it. The whole file is read when the first line says
+            // that is what this is.
+            final StringBuilder whole = new StringBuilder(line).append('\n');
+            String next = piped.readLine();
+            while (next != null) {
+                whole.append(next).append('\n');
+                next = piped.readLine();
+            }
+            return whole.toString();
+        }
+        return line.strip();
     }
 
     @Override
@@ -179,17 +201,35 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        final String value = valueFrom(name, System.console(), System.in);
+        String value = valueFrom(name, System.console(), System.in);
+        if (org.fuin.sokar.vault.OpenSshPrivateKey.looksLikeOne(value)) {
+            // What a person has is the file their company assigned them; what the vault holds is
+            // the 32-byte seed inside it. Converted here rather than refused, because "store your
+            // key" should mean the key they have. A key this cannot use is refused by name -
+            // encrypted, or an algorithm this does not sign with - and says what to do instead.
+            try {
+                value = org.fuin.sokar.vault.OpenSshPrivateKey.seedBase64(value);
+                if (type == null) {
+                    type = "ssh-key";
+                }
+                out.println("read      an OpenSSH private key; storing the signing seed from it");
+            } catch (final VaultException ex) {
+                err.println("sokar: " + ex.getMessage());
+                err.flush();
+                return 70;
+            }
+        }
         if (value.isEmpty()) {
             err.println("sokar: nothing on standard input. Use: echo <secret> | sokar vault put "
                     + name);
             err.flush();
             return 2;
         }
+        final String stored = value;
 
         try {
             context.vault().update(context.requirePassphrase(), entries -> {
-                entries.put(name, new org.fuin.sokar.vault.VaultEntry(value, type));
+                entries.put(name, new org.fuin.sokar.vault.VaultEntry(stored, type));
                 return entries;
             });
         } catch (VaultException ex) {
@@ -200,9 +240,9 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
 
         // The value is never echoed, not even truncated: a terminal scrollback is a file.
         out.println("stored    " + name + " (" + (type == null ? "kind not stated" : type) + ", "
-                + value.length() + " characters)");
+                + stored.length() + " characters)");
         warnIfNothingWillUseIt(err);
-        final String suspicious = new org.fuin.sokar.vault.VaultEntry(value, type).suspicious();
+        final String suspicious = new org.fuin.sokar.vault.VaultEntry(stored, type).suspicious();
         if (suspicious != null) {
             err.println("sokar: check what you stored - " + suspicious);
             err.flush();

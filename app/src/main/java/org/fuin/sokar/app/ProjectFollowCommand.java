@@ -44,6 +44,10 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
                     + " command. NEVER read from the repository it verifies.")
     private String signedBy;
 
+    @Option(names = "--dry-run",
+            description = "Says whether following this would work, and records nothing.")
+    private boolean dryRun;
+
     @Spec
     private CommandSpec spec;
 
@@ -77,6 +81,16 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
             }
         }
         final FollowedProjects projects = new FollowedProjects(context.paths().followed());
+        if (dryRun) {
+            // Nothing is written, here or below. A check that recorded the project it was asked
+            // about would be the very thing it exists to avoid.
+            return checked(new Reconcile(context).check(new FollowedProjects.Followed(name, url,
+                    "", "", "", "", "", "", unverified)), out, err);
+        }
+        // Whether this account was ALREADY following it decides what a refusal leaves behind:
+        // a first follow that cannot apply leaves nothing, and one that was already followed
+        // keeps its record, because that record is where the reason lives.
+        final boolean followedBefore = projects.find(name) != null;
         try {
             projects.follow(name, url, unverified);
         } catch (final IllegalArgumentException ex) {
@@ -122,6 +136,22 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
             return 70;
         }
 
+        if (!followedBefore && result.outcome() != Reconcile.Outcome.APPLIED
+                && result.outcome() != Reconcile.Outcome.UNCHANGED) {
+            // A first follow that cannot apply leaves nothing behind. It used to leave a project
+            // that was followed and had nothing in force - a half-made thing nobody meant to have
+            // and, until now, no verb could take away. The refusal is the whole answer.
+            projects.unfollow(name);
+            FollowedProjects.forget(context.paths().followedClone(name));
+            err.println("not following  " + name);
+            err.println("           " + result.detail());
+            if (!result.refused().isEmpty()) {
+                err.println("           refused    " + result.refused());
+            }
+            err.println("           nothing was recorded; " + name + " is not followed here");
+            err.flush();
+            return 70;
+        }
         projects.write(Reconcile.after(projects.find(name), result));
 
         out.println("following  " + name + "  " + url
@@ -156,6 +186,36 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
         }
         out.flush();
         return 0;
+    }
+
+    /**
+     * Reports what a check found, without recording anything.
+     *
+     * @param result What following would do.
+     * @param out Where a good answer goes.
+     * @param err Where a refusal goes.
+     * @return Exit code: zero when following would work.
+     */
+    private Integer checked(final Reconcile.Result result, final PrintWriter out,
+            final PrintWriter err) {
+        switch (result.outcome()) {
+            case APPLIED, UNCHANGED -> {
+                out.println("ready      following " + name + " from " + url + " would work");
+                out.println("           " + result.commit() + " is what it would put in force");
+                out.flush();
+                return 0;
+            }
+            default -> {
+                err.println(result.outcome().name().toLowerCase(java.util.Locale.ROOT)
+                        + "    " + result.detail());
+                if (!result.refused().isEmpty()) {
+                    err.println("           refused    " + result.refused());
+                }
+                err.println("           nothing was recorded");
+                err.flush();
+                return 70;
+            }
+        }
     }
 
     /**
