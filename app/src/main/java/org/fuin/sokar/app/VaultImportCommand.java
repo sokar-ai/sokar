@@ -70,7 +70,7 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
         }
         try {
             new org.fuin.sokar.vault.KernelKeyring(context.paths().vaultKeyringKey()).store(passphrase);
-            out.println("unlocked  cached for this session");
+            out.println("unlocked  cached in this account's keyring, where the daemon finds it");
         } catch (RuntimeException ex) {
             // Not being able to cache is not a reason for the import to have failed.
             return;

@@ -95,9 +95,18 @@ public class VaultInitCommand implements Callable<Integer>, SokarFactory.Context
 
             vault.write(Map.<String, VaultEntry>of(), chosen);
             out.println("created " + vault.path());
+
+            // Cached here, because the passphrase was just typed and just proved: it is the one
+            // this command wrote the vault with, so there is nothing to verify it against and
+            // nothing to get wrong. Without this, the very next 'vault put' answered "No
+            // passphrase available, tried: kernel-keyring, prompt" - which reads as a broken
+            // install rather than as "type it again", and is exactly what a wizard does next.
+            final boolean cached = cache(chosen, err);
+            out.println(cached
+                    ? "unlocked  cached in this account's keyring, where the daemon finds it"
+                    : "note      not cached - the next command will ask for it");
             out.println();
             out.println("It holds nothing yet. What usually comes next:");
-            out.println("   sokar vault unlock                 so this machine can open it");
             out.println("   sokar vault login <agent>          or 'import', or 'put'");
             out.println("   then enroll a device, which needs the vault open");
             out.flush();
@@ -113,6 +122,35 @@ public class VaultInitCommand implements Callable<Integer>, SokarFactory.Context
             if (again != null) {
                 Arrays.fill(again, '\0');
             }
+        }
+    }
+
+    /**
+     * Caches the passphrase this command just set.
+     * <p>
+     * Not being able to cache is not a reason to fail: the vault exists and is sound, and the
+     * next command will ask. Said rather than swallowed, because "it asked me again" needs an
+     * explanation the first time it happens.
+     *
+     * @param passphrase What was just used to write the vault.
+     * @param err Where to explain a miss.
+     * @return Whether it was cached.
+     */
+    private boolean cache(final char[] passphrase, final java.io.PrintWriter err) {
+        if (!org.fuin.sokar.vault.KernelKeyring.available()) {
+            err.println("sokar: libkeyutils is not available, so the passphrase cannot be cached");
+            err.flush();
+            return false;
+        }
+        try {
+            new org.fuin.sokar.vault.KernelKeyring(context.paths().vaultKeyringKey())
+                    .store(passphrase, null);
+            return true;
+        } catch (final VaultException ex) {
+            err.println("sokar: the vault was created; its passphrase could not be cached: "
+                    + ex.getMessage());
+            err.flush();
+            return false;
         }
     }
 }

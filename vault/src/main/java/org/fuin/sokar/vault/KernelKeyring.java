@@ -17,7 +17,14 @@ import java.util.Optional;
  * <p>
  * The passphrase is held by the kernel rather than by any file, so it survives between
  * {@code sokar} invocations - an operator unlocks once per login instead of once per command - and
- * disappears when the session ends. Nothing is written to disk, and nothing survives a reboot.
+ * disappears when the account's last session ends. Nothing is written to disk, and nothing
+ * survives a reboot.
+ * <p>
+ * <strong>It is the USER keyring, which is why a daemon finds it.</strong> Measured on
+ * 2026-09-19: a passphrase cached by one ssh session is readable by a later ssh session and by a
+ * systemd <em>user</em> unit - which is what the daemon is. An interface that opens a vault by
+ * running the unlock in a terminal it then closes has therefore opened it for the daemon too. The
+ * command used to say "for this session", which invited exactly the opposite conclusion.
  * <p>
  * The key is created in the <em>user</em> keyring and linked into the session keyring, which is
  * what makes it visible to later processes in the same session. Its permission mask is

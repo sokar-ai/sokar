@@ -23,7 +23,8 @@ import picocli.CommandLine.Spec;
  */
 @Command(name = "unlock",
         mixinStandardHelpOptions = true,
-        description = "Caches the vault passphrase in the kernel keyring for this session.")
+        description = "Caches the vault passphrase in this account's kernel keyring, where the"
+                + " daemon and later sessions find it.")
 public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
     @Option(names = "--forget",
@@ -138,7 +139,8 @@ public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.Conte
             }
             keyring.store(passphrase, bound);
             out.println(bound == null
-                    ? "cached in the kernel keyring for this session"
+                    ? "cached in this account's kernel keyring - the daemon and later sessions"
+                            + " find it, and it is gone at reboot"
                     : "cached in the kernel keyring; the kernel discards it in " + keepFor);
             out.flush();
             return 0;
