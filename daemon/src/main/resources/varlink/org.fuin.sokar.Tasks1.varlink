@@ -279,6 +279,27 @@ type Agent (
   # Where the binary was found.
   from: string,
   # Hosts this agent needs, added to a task's egress on top of the project's own.
+  # How this agent logs itself in, as arguments to its own binary, and where that is described.
+  #
+  # Declared by the agent, never guessed here: some agents open a browser and some print a link
+  # and a code, and only the second kind works on a machine somebody reaches over ssh. A client
+  # runs these in a TERMINAL on that machine - the login writes into the agent's own config
+  # directory, and 'sokar vault import <agent>' then takes what it wrote into the vault.
+  #
+  # canLogIn is false for most agents: one whose credential is an API key has nothing to log in
+  # to, and the manifest saying nothing is how it says so.
+  canLogIn: bool,
+  # What to run ON THAT MACHINE, in a terminal, to log this agent in. Empty when it cannot.
+  #
+  # Answered rather than composed by a client: a client that spells out 'sokar vault login
+  # <agent>' is right until the day that verb moves, and then every client is wrong at once.
+  loginCommand: []string,
+  # What that command will run inside its throwaway container - the agent's own binary and
+  # whatever it declared. Shown so a person can see what they are about to start; running it is
+  # loginCommand's business, not a client's.
+  loginArguments: []string,
+  # Where that login is described, or "". Worth reading BEFORE running one on a remote machine.
+  loginDocumentation: string,
   allowedDomains: []string,
   # Hosts this agent declares and is deliberately NOT given. Not the same as absent from
   # allowedDomains: these were asked for and refused on purpose, which is worth showing beside
@@ -1158,6 +1179,10 @@ method CanStart(
   # either. Render this, not a name of your own composing - otherwise the sentence on screen names
   # a key that would be right in a vault the person does not have.
   credential: string,
+  # What to run ON THAT MACHINE to store it, as arguments, with CREDENTIAL_MISSING. Empty
+  # otherwise. Answered here rather than joined together from Providers() by a client: it is a
+  # string this already builds, and a second place that builds it is a second place it can drift.
+  storeCommand: []string,
   # Prose for a person, always set. Never parsed.
   detail: string
 )

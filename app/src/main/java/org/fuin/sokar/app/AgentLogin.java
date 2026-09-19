@@ -263,22 +263,53 @@ public final class AgentLogin {
                     + " here and the forward carries it to your browser.");
             out.println();
             out.flush();
-            final int code = context.exec().applyAsInt(podman.arguments(arguments));
-            if (code != 0) {
-                return failed(Outcome.NOTHING_TO_COLLECT,
-                        "the login exited with " + code + ", so nothing was stored");
-            }
+            // WATCHED WHILE IT RUNS, not collected after it stops. The token is written the
+            // moment the login succeeds; everything after that - the agent's own session, how
+            // somebody leaves it, whether the terminal is closed on it - is none of this
+            // command's business and must not be able to lose it. The operator's point, and it
+            // covers a case the exit code never could: an ssh session that dies takes this
+            // process with it, and a credential collected only at the end dies with it too.
+            final java.util.concurrent.atomic.AtomicReference<Credential> early =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            final java.nio.file.Path watched = Files.createTempDirectory("sokar-login-watch");
+            final Thread watcher = Thread.ofVirtual().start(() -> watchFor(
+                    context, podman, agent, container, configDirectory, watched, early, out));
 
+            final int code = context.exec().applyAsInt(podman.arguments(arguments));
+            watcher.interrupt();
+
+            // LOOK FIRST, then judge the exit code. An agent whose login is "just run me" does
+            // not stop when the login is done - it carries on into its own session, and a person
+            // who has finished logging in leaves that session however they like. Ctrl-C is a
+            // perfectly ordinary way out and gives 130, and treating that as "nothing was
+            // stored" threw away a login that had already happened: measured on 2026-09-19 with
+            // a real subscription, where the credential sat in the container and Sokar discarded
+            // it over an exit code that says nothing about whether the login worked.
             collected = Files.createTempDirectory("sokar-login");
             // Copied out rather than read in place: the extractor runs on this machine and knows
             // each agent's own file layout, so the credential is read by the same code 'vault
             // import' uses rather than by something written twice.
-            podman.copyOut(container, inContainer(configDirectory), collected);
+            podman.copyOut(container, contentsOf(configDirectory), collected);
 
-            final java.util.Optional<Credential> credential = agent.extractCredential(collected);
+            final java.util.Optional<Credential> credential = early.get() != null
+                    ? java.util.Optional.of(early.get())
+                    : agent.extractCredential(collected);
             if (credential.isEmpty()) {
-                return failed(Outcome.NOTHING_TO_COLLECT, "the login left no credential in "
-                        + configDirectory + " - it may have been cancelled");
+                // BOTH paths: what the agent declares and where that actually was looked for.
+                // "no credential in ~/.claude" reads as though this machine's home was searched,
+                // and an hour went into asking which of the two it meant.
+                final String where = configDirectory + " (" + inContainer(configDirectory)
+                        + " in the container)";
+                return failed(Outcome.NOTHING_TO_COLLECT, code == 0
+                        ? "the login left no credential in " + where
+                                + " - it may have been cancelled"
+                        : "the login exited with " + code + " and left no credential in " + where
+                                + " - it was cancelled or did not finish");
+            }
+            if (code != 0) {
+                // Worth saying, and not worth refusing over: the credential is there.
+                out.println("note      the agent exited with " + code + " - its own session,"
+                        + " not the login, and the credential was written before that");
             }
             final Credential value = credential.get();
 
@@ -298,10 +329,7 @@ public final class AgentLogin {
                 return failed(Outcome.VAULT_LOCKED, "logged in, but the vault is locked and"
                         + " nothing could ask for a passphrase - unlock it and run this again");
             }
-            context.vault().update(way.get(), entries -> {
-                entries.put(key, new VaultEntry(value.secret(), value.type()));
-                return entries;
-            });
+            store(context, agent, value, way.get());
             return new Result(Outcome.STORED, key, value.type(), value.secret().length(), "");
 
         } catch (java.io.IOException | RuntimeException ex) {
@@ -353,8 +381,110 @@ public final class AgentLogin {
      * @param declared The directory as the agent's manifest writes it.
      * @return The absolute path inside the container.
      */
+    /**
+     * Puts a credential in the vault under the name a task will look for.
+     * <p>
+     * One method, because it is done from two moments now - the instant the login writes the
+     * token, and the ordinary path after the run - and two of these would be two chances to
+     * store it under different names.
+     *
+     * @param context The machine.
+     * @param agent Whose credential it is.
+     * @param value What was found.
+     * @param way How the vault opens.
+     */
+    private static void store(SokarContext context, InstalledAgent agent, Credential value,
+            org.fuin.sokar.vault.VaultFile.Opener way) {
+        final SelectedProvider selection =
+                SelectedProvider.choose(context.providers(), agent.definition(), null);
+        final String key = selection == null ? agent.name() : selection.name();
+        context.vault().update(way, entries -> {
+            entries.put(key, new VaultEntry(value.secret(), value.type()));
+            return entries;
+        });
+    }
+
+    /**
+     * Watches the login container for the credential and stores it the moment it appears.
+     * <p>
+     * <strong>Why not wait for the process.</strong> An agent whose login is "just run me" writes
+     * its token and then carries on into its own session. Waiting for that session to end makes
+     * the token's survival depend on how somebody leaves it - and on this process outliving them,
+     * which an ssh session closing does not guarantee. Watching makes the token safe the second it
+     * exists.
+     * <p>
+     * <strong>It only stores when the vault is already open.</strong> Asking for a passphrase here
+     * is impossible: the terminal belongs to the agent. When the vault is shut, the credential is
+     * still captured and the ordinary path stores it after the run, where a prompt is possible.
+     *
+     * @param context The machine.
+     * @param podman Runs the copy.
+     * @param agent Whose credential this is.
+     * @param container The login container.
+     * @param configDirectory What the agent declares.
+     * @param into A directory to copy into.
+     * @param found Where to put what was found.
+     * @param out Where to say it.
+     */
+    private static void watchFor(SokarContext context, org.fuin.sokar.runtime.Podman podman,
+            InstalledAgent agent, String container, String configDirectory,
+            java.nio.file.Path into, java.util.concurrent.atomic.AtomicReference<Credential> found,
+            PrintWriter out) {
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                Thread.sleep(java.time.Duration.ofSeconds(2));
+            } catch (final InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            try {
+                podman.copyOut(container, contentsOf(configDirectory), into);
+                final java.util.Optional<Credential> credential = agent.extractCredential(into);
+                if (credential.isEmpty()) {
+                    continue;
+                }
+                found.set(credential.get());
+                // Stored here when it can be, so that nothing after this moment can lose it.
+                final java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> way =
+                        context.opener();
+                if (way.isPresent()) {
+                    store(context, agent, credential.get(), way.get());
+                    out.println();
+                    out.println("stored    the credential, the moment the login wrote it -"
+                            + " you can leave " + agent.name() + " however you like");
+                    out.flush();
+                }
+                return;
+            } catch (final RuntimeException ex) {
+                // The container may not be up yet, or the directory may not exist until the
+                // login writes it. Neither is worth reporting: this is a watch, not a check.
+                continue;
+            }
+        }
+    }
+
     static String inContainer(String declared) {
         return declared.startsWith("~") ? AGENT_HOME + declared.substring(1) : declared;
+    }
+
+    /**
+     * Returns what to hand {@code podman cp} so the config directory's CONTENTS are copied.
+     * <p>
+     * <strong>This is why a login has never stored anything.</strong> {@code podman cp
+     * container:/home/agent/.claude target} copies the directory itself, leaving
+     * {@code target/.claude/.credentials.json} - while the extractor is handed {@code target} and
+     * looks for {@code target/.credentials.json}, one level up from where the file is. So every
+     * login found nothing, said "it may have been cancelled", and was believed.
+     * <p>
+     * The trailing {@code /.} is the difference, measured against podman rather than read: with
+     * it, the contents land directly in the target. Nobody had measured a login end to end -
+     * Agent Smith said so of his side, and it was true of mine.
+     *
+     * @param declared What the agent declares as its config directory.
+     * @return The source for a copy, whose contents land in the target.
+     */
+    static String contentsOf(String declared) {
+        return inContainer(declared) + "/.";
     }
 
     /**
@@ -377,21 +507,64 @@ public final class AgentLogin {
      * The shim is not a browser and does not pretend to be one. It prints the URL, loudly, which
      * is exactly what somebody sitting at a different machine needs - and the same trick works
      * for any agent, because all three names are the standard ones.
+     * <p>
+     * <strong>{@code BROWSER} is deliberately NOT set, and that is a reversal.</strong> It was,
+     * and Agent Smith measured what it costs: with {@code BROWSER} set, Claude Code stops
+     * printing a link and a code and switches to redirecting to {@code localhost} on a port it
+     * picks per run - which on a machine somebody reaches over ssh lands on the wrong computer
+     * and needs that port forwarded, with the port knowable only by reading it out of the URL.
+     * Unset, the login stays link-and-code: the page opens where the person is, they paste the
+     * code back into the terminal, and nothing has to be forwarded at all.
+     * <p>
+     * The shim stays, because an agent that calls {@code xdg-open} itself still needs the address
+     * printed rather than swallowed. <strong>What is NOT measured</strong> is whether the shim's
+     * mere presence makes an agent choose the redirect anyway; Agent Smith's measurement varied
+     * {@code BROWSER} and not the shim.
      *
      * @return Lines to run as root while the login image is built.
      */
     static java.util.List<String> browserShim() {
-        return java.util.List.of(
-                "# There is no browser in here and no display. Anything trying to open one gets",
-                "# this instead: it prints the URL rather than swallowing it, which is what",
-                "# somebody at another machine actually needs.",
-                "RUN printf '%s\\n' '#!/bin/sh' 'echo' "
-                        + "'echo \"=== Open this in a browser on your own machine: ===\"' "
-                        + "'echo \"$@\"' 'echo' > /usr/local/bin/xdg-open \\",
-                "    && chmod 0755 /usr/local/bin/xdg-open \\",
-                "    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/sensible-browser \\",
-                "    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/www-browser",
-                "ENV BROWSER=/usr/local/bin/xdg-open");
+        final java.util.List<String> script = java.util.List.of(
+                "#!/bin/sh",
+                "# Opens nothing. Writes the address where the person can see it, and says which",
+                "# port the login will answer on, so their own machine can forward it.",
+                "url=$1",
+                "rest=${url#*localhost%3A}",
+                "if [ \"$rest\" = \"$url\" ]; then rest=${url#*localhost:}; fi",
+                "if [ \"$rest\" = \"$url\" ]; then port=; else port=${rest%%[!0-9]*}; fi",
+                "printf \"\\n=== Open this in a browser on your own machine: ===\\n\"",
+                "# OSC 8, so a terminal that renders hyperlinks offers it with a press. The plain",
+                "# text is printed too, for a terminal that does not.",
+                "# BEL rather than ESC-backslash to close them: both are valid, the first needs",
+                "# no backslash at all, and a backslash through a shell inside a RUN line inside",
+                "# a Java string is where this went wrong the first time - it printed a literal",
+                "# n where a newline belonged.",
+                "printf \"\\033]8;;%s\\007%s\\033]8;;\\007\\n\" \"$url\" \"$url\"",
+                "# And the port, said rather than left to be read out of the query string.",
+                "if [ -n \"$port\" ]; then printf \"\\033]5379;forward;%s\\007\" \"$port\"; fi",
+                "if [ -n \"$port\" ]; then",
+                "  printf \"    it will answer on localhost:%s of the machine\\n\\n\" \"$port\"",
+                "fi");
+        final String encoded = java.util.Base64.getEncoder().encodeToString(
+                String.join("\n", script).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        final java.util.List<String> lines = new java.util.ArrayList<>();
+        lines.add("# There is no browser in here and no display. Anything trying to open one gets");
+        lines.add("# this instead. It is written base64 because the quoting of the escape");
+        lines.add("# sequences through a RUN line is unreadable either way, and a blob with the");
+        lines.add("# script printed above it is honest about what it is. Line by line:");
+        for (final String line : script) {
+            lines.add("#   " + line);
+        }
+        lines.add("RUN echo " + encoded + " | base64 -d > /usr/local/bin/xdg-open \\");
+        lines.add("    && chmod 0755 /usr/local/bin/xdg-open \\");
+        lines.add("    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/sensible-browser \\");
+        lines.add("    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/www-browser");
+        // Set again, deliberately. Unset, an agent stays on link-and-code and nothing has to be
+        // forwarded; set, it redirects to a port on this machine's own loopback - which the
+        // login container shares, so the operator's ssh forward reaches it. The operator chose
+        // the second: it is the one where nobody has to copy a code between two windows.
+        lines.add("ENV BROWSER=/usr/local/bin/xdg-open");
+        return java.util.List.copyOf(lines);
     }
 
     private static String hostname() {

@@ -35,6 +35,11 @@ import org.jspecify.annotations.Nullable;
  * @param packaged Directories shipped in the agent's own package, copied into the image.
  * @param configDirectory Where the agent keeps its credentials, or {@code null}.
  * @param loginArguments What runs the agent's own login, or {@code null} if it does not say.
+ * @param loginDocumentation Where that login is described, or {@code null}. Declared because an
+ *        agent's login is its own: some open a browser, some print a link and a code, and only
+ *        the second kind works on a machine somebody reaches over ssh. A person about to run one
+ *        on a remote machine should be able to read what it will do before it does it, and the
+ *        agent is the only thing that knows where that is written.
  * @param sandboxedArguments Arguments that turn off the agent's own permission prompts.
  *        <p>
  *        <strong>Sokar decides whether, the manifest says only how.</strong> Inside a task the
@@ -50,7 +55,8 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         List<InstallArtifact> artifacts,
         List<String> installAsRoot, List<String> installAsAgent,
         List<PackagedTree> packaged, @Nullable String configDirectory,
-        @Nullable List<String> loginArguments, List<String> sandboxedArguments) {
+        @Nullable List<String> loginArguments, @Nullable String loginDocumentation,
+        List<String> sandboxedArguments) {
 
     /**
      * Returns the agent's binary followed by whatever turns its own permission prompts off.
@@ -101,7 +107,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
             @Nullable String configDirectory) {
         this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag,
                 tokenEnvironment, provider, allowedDomains, refusedDomains, version, artifacts,
-                installAsRoot, installAsAgent, packaged, configDirectory, null,
+                installAsRoot, installAsAgent, packaged, configDirectory, null, null,
                 List.of());
     }
 

@@ -113,6 +113,11 @@ public final class AgentDefinitionReader {
                 // would refuse the commonest shape there is.
                 root.get("login") == null ? null
                         : strings(optionalSection(root, "login").get("arguments")),
+                // Where that login is described. Optional even when the section is there: an
+                // agent may have a login and no page about it, and a missing link is better than
+                // one somebody invented.
+                root.get("login") == null ? null
+                        : optional(optionalSection(root, "login"), "documentation"),
                 // What this agent needs to be told so that it stops asking permission for things
                 // the container already prevents. Declared because the flag is the agent's own
                 // and Sokar must not guess it - but never conditional: inside a task the answer

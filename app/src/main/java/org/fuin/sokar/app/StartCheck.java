@@ -115,6 +115,13 @@ public final class StartCheck {
             map.put("agent", agent);
             map.put("provider", provider);
             map.put("credential", credential);
+            // What to run on that machine to store it, when that is what is missing. The line is
+            // built here rather than joined together by a client out of Providers(): it is the
+            // same string ProviderInventory already makes, and a second place that builds it is a
+            // second place it can drift.
+            map.put("storeCommand", outcome == Outcome.CREDENTIAL_MISSING && !credential.isEmpty()
+                    ? java.util.List.of("sokar", "vault", "put", credential)
+                    : java.util.List.<String>of());
             map.put("detail", detail);
             return map;
         }

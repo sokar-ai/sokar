@@ -575,6 +575,25 @@ public final class SokarDaemon {
                     entry.put("version", agent.definition().version() == null
                             ? "" : agent.definition().version());
                     entry.put("from", agent.executable().toString());
+                    // How this agent logs itself in, and where that is written down. Declared in
+                    // the manifest all along and never answered here, so a client that wanted to
+                    // offer "log in with the agent" had no way to know the verb - and Sokar must
+                    // not guess one, because hardcoding one agent's would be wrong for the rest.
+                    entry.put("loginArguments", agent.definition().loginArguments() == null
+                            ? java.util.List.<String>of() : agent.definition().loginArguments());
+                    // Empty when the agent declares no login at all, which is most of them: an
+                    // agent whose credential is an API key has nothing to log in to.
+                    entry.put("canLogIn", agent.definition().loginArguments() != null);
+                    // The whole command, not the verb for a client to spell out. A client that
+                    // composes 'sokar vault login <agent>' is right until the day the verb moves,
+                    // and then it is wrong everywhere at once - the same reason storeCommand is
+                    // answered rather than joined together from a provider list.
+                    entry.put("loginCommand", agent.definition().loginArguments() == null
+                            ? java.util.List.<String>of()
+                            : java.util.List.of("sokar", "vault", "login", agent.name()));
+                    entry.put("loginDocumentation",
+                            agent.definition().loginDocumentation() == null
+                                    ? "" : agent.definition().loginDocumentation());
                     entry.put("allowedDomains", agent.definition().allowedDomains());
                     // Asked for and deliberately not given. Absent from the allowed list means
                     // nobody mentioned it; this means somebody decided, and the two read the same

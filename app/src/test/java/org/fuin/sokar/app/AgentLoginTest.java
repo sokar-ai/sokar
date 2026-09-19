@@ -86,8 +86,14 @@ class AgentLoginTest {
 
         // All three standard names, because which one an agent reaches for is its own business.
         assertThat(rendered).contains("/usr/local/bin/xdg-open")
-                .contains("sensible-browser").contains("www-browser")
-                .contains("ENV BROWSER=");
+                .contains("sensible-browser").contains("www-browser");
+        // BROWSER is set again, and both reversals happened for measured reasons rather than
+        // taste. With it set, Claude Code redirects to a port on localhost instead of printing a
+        // code (Agent Smith); that port is unreachable from the operator's computer unless the
+        // container shares this machine's network, which the login container does - so the
+        // redirect lands somewhere an ssh forward can reach. The operator chose that over
+        // copying a code between two windows.
+        assertThat(rendered).contains("ENV BROWSER=");
     }
 
     @Test
@@ -128,5 +134,23 @@ class AgentLoginTest {
 
         assertThat(runner.invocations()).noneSatisfy(command ->
                 assertThat(command.arguments()).contains("build"));
+    }
+
+    @Test
+    void copiesTheConfigDirectorysContentsRatherThanTheDirectory() {
+
+        // Why a login had never stored anything, for any agent whose config directory holds the
+        // credential as a file inside it. 'podman cp container:/home/agent/.claude target' copies
+        // the DIRECTORY, leaving target/.claude/.credentials.json - and the extractor is handed
+        // target and looks for target/.credentials.json, one level above the file. So every login
+        // found nothing, said "it may have been cancelled", and was believed, because nobody had
+        // run one end to end.
+        //
+        // Measured against podman rather than read: with the trailing "/." the contents land in
+        // the target, without it the directory does.
+        assertThat(AgentLogin.contentsOf("~/.claude")).isEqualTo("/home/agent/.claude/.");
+        assertThat(AgentLogin.contentsOf("/etc/agent")).isEqualTo("/etc/agent/.");
+        // And the plain form is still what names the directory itself, for anything that wants it.
+        assertThat(AgentLogin.inContainer("~/.claude")).isEqualTo("/home/agent/.claude");
     }
 }

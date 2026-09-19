@@ -70,6 +70,7 @@ public final class AgentDefinitionJson {
         out.put("refusedDomains", definition.refusedDomains());
         putIfPresent(out, "configDirectory", definition.configDirectory());
         putIfPresent(out, "loginArguments", definition.loginArguments());
+        putIfPresent(out, "loginDocumentation", definition.loginDocumentation());
         out.put("sandboxedArguments", definition.sandboxedArguments());
         putIfPresent(out, "version", definition.version());
         out.put("artifacts", definition.artifacts().stream()
@@ -118,6 +119,8 @@ public final class AgentDefinitionJson {
                         : String.valueOf(source.get("configDirectory")),
                 source.get("loginArguments") == null ? null
                         : strings(source.get("loginArguments")),
+                source.get("loginDocumentation") == null ? null
+                        : String.valueOf(source.get("loginDocumentation")),
                 strings(source.get("sandboxedArguments")));
     }
 
