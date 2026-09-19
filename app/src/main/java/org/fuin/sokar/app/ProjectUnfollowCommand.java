@@ -121,7 +121,12 @@ public class ProjectUnfollowCommand
                 out.println(followed == null
                         ? "would remove " + name + ", which this account does not follow"
                         : "would remove " + name + " and stop following " + followed.url());
-                deleted.removes().forEach(removal -> out.println("    " + removal));
+                // The kind and the thing, not the record's toString: a preview that reads
+                // "Removal[kind=FOLLOWED_CLONE, what=/home/...]" is for a debugger, and this is
+                // the screen somebody decides on.
+                deleted.removes().forEach(removal -> out.printf("    %-16s %s%n",
+                        removal.kind().toLowerCase(java.util.Locale.ROOT).replace('_', ' '),
+                        removal.what()));
                 // What survives, said as plainly as what goes. Somebody deciding whether to
                 // confirm is asking both questions at once, and the one nobody answers is the one
                 // they assume the worst about.
@@ -129,7 +134,9 @@ public class ProjectUnfollowCommand
                 out.flush();
                 return 0;
             }
-            case DELETED -> deleted.removes().forEach(removal -> out.println("removed  " + removal));
+            case DELETED -> deleted.removes().forEach(removal -> out.printf("removed  %-16s %s%n",
+                    removal.kind().toLowerCase(java.util.Locale.ROOT).replace('_', ' '),
+                    removal.what()));
             default -> {
                 err.println("sokar: " + deleted.detail());
                 err.flush();

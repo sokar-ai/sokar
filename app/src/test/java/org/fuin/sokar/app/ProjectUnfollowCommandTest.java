@@ -152,6 +152,12 @@ class ProjectUnfollowCommandTest {
 
         final Run previewed = run(context, "uc", "--dry-run");
         assertThat(previewed.out()).contains(clone.toString());
+        // Readable, not a record's toString: this is the screen somebody decides on.
+        assertThat(previewed.out()).contains("followed clone").doesNotContain("Removal[");
+        // And what is inside the clone is NOT listed as kept, because the clone goes. Saying
+        // both about one path in one preview is worse than saying neither.
+        assertThat(previewed.out().lines().filter(line -> line.contains("kept:"))
+                .anyMatch(line -> line.contains(clone.toString()))).isFalse();
         assertThat(clone).exists();
 
         run(context, "uc");

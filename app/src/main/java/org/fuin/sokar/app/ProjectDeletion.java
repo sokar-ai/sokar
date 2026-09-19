@@ -157,7 +157,11 @@ public final class ProjectDeletion {
         // know which of a project's things are Sokar's, and being wrong about ownership in a
         // dialog whose job is to say truthfully what is destroyed is the worst place for it.
         final List<String> keeps = new ArrayList<>();
-        if (summary.file() != null) {
+        // NOT a file that sits inside something being removed. A followed project's file is in
+        // the verified clone, and the clone goes - so naming it here said "kept" and "removed"
+        // about the same path, in the same preview. Found by running the published package.
+        if (summary.file() != null
+                && !Path.of(summary.file()).startsWith(context.paths().followedClone(project))) {
             keeps.add(summary.file());
         }
         keeps.add("the checkout and the real upstream, wherever they are");
