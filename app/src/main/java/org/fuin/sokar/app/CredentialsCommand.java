@@ -21,7 +21,7 @@ import picocli.CommandLine.Spec;
         mixinStandardHelpOptions = true,
         subcommands = { CredentialsListCommand.class, CredentialsDeclareCommand.class,
                 CredentialsForgetCommand.class, CredentialsCheckCommand.class,
-                CredentialsKeysCommand.class },
+                CredentialsKeysCommand.class, CredentialsTrustHostCommand.class },
         description = "Says what this machine connects out with, and records more.")
 public class CredentialsCommand implements Callable<Integer>, SokarFactory.ContextAware {
 

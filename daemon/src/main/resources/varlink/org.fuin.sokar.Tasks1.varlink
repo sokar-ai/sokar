@@ -716,10 +716,18 @@ method CredentialDeclare(
   recorded: bool,
   # READY or the reason it would not work, for a dry run. "" for a real declaration, which either
   # succeeds or fails with an error.
+  #
+  # READY, MISSING_VALUE, NO_VAULT, VAULT_LOCKED, NO_CREDENTIAL, EXPIRED or KEY_REFUSED.
+  # NO_VAULT is not MISSING_VALUE: there is nowhere to put anything yet, so 'sokar vault init'
+  # comes first and a wizard that sent somebody to 'vault put' would fail at its last step.
+  # KEY_REFUSED means the host turned this key away - the record would be perfect and the first
+  # fetch would fail.
   outcome: string,
-  # Who the forge says this key logs in as, for a dry run of an SSH_KEY - "Hi fuinorg/utils4j!" -
-  # or "". A key that reaches a different account or a single other repository looks perfectly
-  # good until the first fetch, and only the machine can ask.
+  # What the forge said when asked who this key logs in as, for a dry run of an SSH_KEY - either
+  # "Hi fuinorg/utils4j!" or what it refused with - and "" when nothing could be asked. A key that
+  # reaches a different account, or a single other repository, or nothing at all, looks perfectly
+  # good until the first fetch, and only the machine can ask. When it was refused, 'outcome' is
+  # KEY_REFUSED: silence about that would read exactly like "nothing to report".
   identity: string,
   # One sentence for a person, for a dry run. "" otherwise.
   detail: string
@@ -760,6 +768,45 @@ type SshKey (
   found: string,
   # Why it cannot be used as it stands, with what to do about it, or "".
   obstacle: string
+)
+
+# One key a host offers, as this machine saw it.
+type HostKey (
+  # The algorithm, as ssh names it.
+  type: string,
+  # SHA256:... - the form ssh itself prints, and the form a person is told out of band.
+  fingerprint: string
+)
+
+# What a host offers, so a person can compare it with what they were told.
+#
+# Shown, never recorded: recording is TrustHostKey, which takes the fingerprint back. Accepting a
+# host key on first use would be easier and is exactly what an interception looks like, so this
+# machine refuses to decide it - attended or not, because a timer that learns a host at three in
+# the morning has answered the question this refuses to answer.
+method HostKeys(
+  host: string
+) -> (
+  host: string,
+  # Whether this machine already remembers a key for it.
+  known: bool,
+  keys: []HostKey
+)
+
+# Records ONE key for a host: the one a person confirmed.
+#
+# The fingerprint comes from them, not from here. The host is asked again and the key is recorded
+# only if it still offers that one - which is what stops a key that arrived between being shown
+# and being confirmed from being the one written down.
+method TrustHostKey(
+  host: string,
+  # SHA256:..., exactly as HostKeys gave it.
+  fingerprint: string
+) -> (
+  recorded: bool,
+  type: string,
+  fingerprint: string,
+  detail: string
 )
 
 # The ssh keys this account already has.
@@ -2018,6 +2065,19 @@ method Follow(
   detail: string,
   # The commit turned away, or "". Never the same as 'commit'.
   refused: string,
+  # With UNKNOWN_HOST_KEY and HOST_KEY_CHANGED: the host, spelled exactly as TrustHostKey wants
+  # it, so a client passes it back unchanged. Answered rather than left to be read off the address
+  # again - 'user@host:path', a port, and an alias in somebody's ssh config are three readings of
+  # one thing. "" otherwise.
+  #
+  # It is the host the ADDRESS names. An alias in ~/.ssh/config that points somewhere else is
+  # resolved by ssh and not by this, so on a machine that uses one, what ssh records and what this
+  # reports can differ - the one case where this name is not the last word.
+  host: string,
+  # With UNKNOWN_HOST_KEY and HOST_KEY_CHANGED: what that host offers right now. A person cannot
+  # confirm a fingerprint they have not been shown, and sending them to another call to see it
+  # would be making them fetch what this already has. Empty otherwise.
+  hostKeys: []HostKey,
   # What to type on that machine to store the credential a follow needs, with NO_CREDENTIAL, and
   # "" otherwise. Named by the machine: which vault entry a follow reads is the machine's
   # knowledge, and the secret itself must never travel over this socket.

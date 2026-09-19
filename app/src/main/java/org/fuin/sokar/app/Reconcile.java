@@ -78,6 +78,28 @@ public final class Reconcile {
          */
         NO_CREDENTIAL,
 
+        /**
+         * This machine has never met that host, so it refused rather than deciding. What it would
+         * be trusting is answered with it - every key the host offers, by type and fingerprint -
+         * because the only person who can say which is real is one who was told out of band.
+         */
+        UNKNOWN_HOST_KEY,
+
+        /**
+         * The host answered with a different key from the one this machine remembers. Said as
+         * what it may be - somebody between us and the host - and never offered as something to
+         * accept instead.
+         */
+        HOST_KEY_CHANGED,
+
+        /**
+         * The credential is there and cannot be used: a key this machine cannot sign with, or a
+         * value that is not a key at all. Told apart from having none, because the two send a
+         * person to opposite places - and saying "none" about a vault that holds an entry of that
+         * name sent one to store again what was already stored.
+         */
+        UNUSABLE_VALUE,
+
         /** The commit verifies and its project file does not read as a project. */
         UNUSABLE,
 
@@ -127,7 +149,8 @@ public final class Reconcile {
             return outcome == Outcome.UNKNOWN_KEY || outcome == Outcome.NOT_SIGNED
                     || outcome == Outcome.NO_ANCHOR || outcome == Outcome.REWRITTEN
                     || outcome == Outcome.UNUSABLE || outcome == Outcome.VAULT_LOCKED
-                    || outcome == Outcome.NO_CREDENTIAL;
+                    || outcome == Outcome.NO_CREDENTIAL || outcome == Outcome.UNKNOWN_HOST_KEY
+                    || outcome == Outcome.HOST_KEY_CHANGED || outcome == Outcome.UNUSABLE_VALUE;
         }
     }
 
@@ -232,7 +255,7 @@ public final class Reconcile {
                 arguments.addAll(java.util.List.of("-C", clone.toString(),
                         "fetch", "--quiet", followed.url(), "HEAD"));
                 fetched = runner.run(Command.of(arguments)
-                        .withEnvironment(credential.environment()));
+                        .withEnvironment(credential.environmentFor(context, followed.url())));
             }
             if (!fetched.successful()) {
                 // Unreachable is not a fault of the project's and not a reason to stop: what was
@@ -244,6 +267,24 @@ public final class Reconcile {
                 // A vault that EXISTS and is shut. A machine with no vault at all has no
                 // credential locked away, so nothing about it explains a failed fetch - saying
                 // "unlock your vault" there would send somebody to a vault they have not made.
+                final String said = fetched.standardError().strip();
+                if (HostKeys.refusedTheHost(said)) {
+                    // Asked before anything about credentials: git failing on the host's key says
+                    // nothing at all about what this machine holds, and answering NO_CREDENTIAL
+                    // there sent somebody to store a key they had just stored.
+                    final String host = GitCredentialNames.hostOf(followed.url());
+                    if (HostKeys.changed(said)) {
+                        return new Result(Outcome.HOST_KEY_CHANGED, followed.commit(),
+                                host + " answered with a different key from the one this machine"
+                                        + " remembers. That is what somebody between you and it"
+                                        + " would look like. Nothing was fetched.");
+                    }
+                    return new Result(Outcome.UNKNOWN_HOST_KEY, followed.commit(),
+                            "this machine has never met " + host + ", so it stopped rather than"
+                                    + " deciding for you. See what it offers with 'sokar"
+                                    + " credentials trust-host " + host + "', confirm one against"
+                                    + " what you were told, and follow again.");
+                }
                 if (vaultShut) {
                     return new Result(Outcome.VAULT_LOCKED, followed.commit(),
                             "cannot fetch " + followed.url() + " while this account's vault is"

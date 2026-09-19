@@ -52,7 +52,13 @@ class CredentialDryRunTest {
     @Test
     void saysAValueIsMissingBeforeAnybodyReliesOnIt(@TempDir final Path dir) {
 
-        final CredentialDeclarations.Check would = new CredentialDeclarations(context(dir))
+        // With a vault that exists and is open: the value simply is not in it. That is a
+        // different answer from having no vault at all, which the test below measures - and
+        // telling them apart is the point of both.
+        final SokarContext context = context(dir);
+        context.vault().write(java.util.Map.of(), "a-passphrase".toCharArray());
+
+        final CredentialDeclarations.Check would = new CredentialDeclarations(context)
                 .wouldDeclare(new Credential("", Credential.Kind.TOKEN,
                         "https://forge.example/acme/", null, "git", Credential.Source.VAULT));
 
@@ -91,5 +97,20 @@ class CredentialDryRunTest {
         assertThat(ForgeIdentity.userIn("ssh://github.com/acme/x.git")).isNull();
         assertThat(ForgeIdentity.userIn("https://someone@forge.example/x.git"))
                 .isEqualTo("someone");
+    }
+
+    @Test
+    void tellsNoVaultApartFromAValueThatWasNeverStored(@TempDir final Path dir) {
+
+        // Two different things to do first. A wizard told MISSING_VALUE sends somebody to
+        // 'vault put', which fails at its last step on a machine that has no vault at all.
+        // Found by Agent Frontend on an account that had never made one.
+        final CredentialDeclarations.Check would = new CredentialDeclarations(context(dir))
+                .wouldDeclare(new Credential("", Credential.Kind.TOKEN,
+                        "https://forge.example/", null, "git", Credential.Source.VAULT));
+
+        assertThat(would.outcome()).isEqualTo(CredentialDeclarations.Outcome.NO_VAULT);
+        assertThat(would.detail()).contains("no vault yet");
+        assertThat(would.storeCommand()).isEqualTo("sokar vault init");
     }
 }

@@ -62,6 +62,35 @@ public final class OpenSshPrivateKey {
     }
 
     /**
+     * Tells whether this text is a private key of any kind.
+     * <p>
+     * <strong>Wider than {@link #looksLikeOne(String)} on purpose.</strong> That one knows
+     * OpenSSH's armour, and an RSA key in PEM form says {@code -----BEGIN RSA PRIVATE KEY-----}
+     * instead - so it was stored whole, without a word, and failed days later as a key that could
+     * not be decoded. Measured on 2026-09-19: 1679 characters in a vault entry that every check
+     * called present and ready.
+     *
+     * @param text What somebody stored.
+     * @return {@code true} for any {@code BEGIN ... PRIVATE KEY} armour.
+     */
+    public static boolean looksLikeAnyPrivateKey(final String text) {
+        return text != null && text.contains("PRIVATE KEY-----")
+                && text.contains("-----BEGIN");
+    }
+
+    /**
+     * Returns what kind of private key this is, for saying so.
+     *
+     * @param text The file.
+     * @return The word in its armour - {@code OPENSSH}, {@code RSA}, {@code EC} - or "".
+     */
+    public static String armourOf(final String text) {
+        final java.util.regex.Matcher found = java.util.regex.Pattern
+                .compile("-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY-----").matcher(text);
+        return found.find() ? found.group(1).strip() : "";
+    }
+
+    /**
      * Says what a private key file is, without failing on one this cannot use.
      * <p>
      * Separate from {@link #seedBase64(String)} because listing what a machine has and storing one

@@ -941,8 +941,26 @@ public final class SokarDaemon {
             } else {
                 projects.write(org.fuin.sokar.app.Reconcile.after(projects.find(name), result));
             }
+            // When the host's key is what stopped it, what it offered goes with the refusal:
+            // a person cannot confirm a fingerprint they have not been shown, and asking them to
+            // run a command to see it would be making them fetch what we already have.
+            final boolean aboutTheHost = result.outcome()
+                    == org.fuin.sokar.app.Reconcile.Outcome.UNKNOWN_HOST_KEY
+                    || result.outcome()
+                            == org.fuin.sokar.app.Reconcile.Outcome.HOST_KEY_CHANGED;
+            // The host is answered rather than left to be read off the address again: a client
+            // that re-parsed it would have to know about 'user@host:path', a port, and an alias
+            // in somebody's ssh config - three readings of one thing, two of them ours already.
+            final String host = aboutTheHost
+                    ? String.valueOf(org.fuin.sokar.app.GitCredentialNames.hostOf(url)) : "";
+            final java.util.List<Map<String, Object>> offered = aboutTheHost
+                    ? org.fuin.sokar.app.HostKeys.offeredBy(context, host)
+                            .stream().map(org.fuin.sokar.app.HostKeys.Offered::asMap).toList()
+                    : java.util.List.of();
             replies.last(Map.of("outcome", result.outcome().name(), "commit", result.commit(),
                     "detail", result.detail(), "refused", result.refused(),
+                    "host", host,
+                    "hostKeys", offered,
                     "signer", result.signer(), "needsAPerson", result.needsAPerson(),
                     "storeCommand", result.outcome()
                             == org.fuin.sokar.app.Reconcile.Outcome.NO_CREDENTIAL
@@ -1012,19 +1030,42 @@ public final class SokarDaemon {
                 // fetch. Agent Frontend's idea, and the better moment by a mile.
                 final org.fuin.sokar.app.CredentialDeclarations.Check would =
                         declarations.wouldDeclare(declared);
-                final String greeting = would.credential() == null ? null
-                        : org.fuin.sokar.app.ForgeIdentity.of(context, declared.match(), "declare");
+                // Only worth asking when the value is actually there; a key nothing holds cannot
+                // be offered to a host anyway.
+                final org.fuin.sokar.app.ForgeIdentity.Answer answer =
+                        would.credential() == null
+                                || would.outcome() != org.fuin.sokar.app.CredentialDeclarations
+                                        .Outcome.READY
+                        ? null
+                        : org.fuin.sokar.app.ForgeIdentity.ask(context, declared.match(),
+                                "declare", would.credential());
+                // A host that turns the key away makes this NOT ready, whatever else is in
+                // order: the record would be perfect and the first fetch would fail.
+                final String outcome = answer != null && answer.refused()
+                        ? org.fuin.sokar.app.CredentialDeclarations.Outcome.KEY_REFUSED.name()
+                        : would.outcome().name();
+                // What the CHECK said to run, when it said anything: for a machine with no vault
+                // that is 'vault init', and recomputing it here sent somebody to 'vault put'
+                // while the sentence beside it said there was nowhere to put anything.
+                final String store = would.storeCommand().isEmpty()
+                        ? org.fuin.sokar.app.CredentialDeclarations.storeCommandFor(
+                                would.credential() == null ? declared : would.credential(),
+                                fromFile)
+                        : would.storeCommand();
                 replies.last(Map.of("connection", would.credential() == null
                                 ? Map.<String, Object>of()
                                 : connectionAsMap(declarations, would.credential()),
-                        "outcome", would.outcome().name(),
-                        "storeCommand", org.fuin.sokar.app.CredentialDeclarations.argumentsOf(
-                                org.fuin.sokar.app.CredentialDeclarations.storeCommandFor(
-                                        would.credential() == null ? declared : would.credential(),
-                                        fromFile)),
-                        "storeStdin", "",
-                        "identity", greeting == null ? "" : greeting,
-                        "detail", would.detail(),
+                        "outcome", outcome,
+                        "storeCommand",
+                        org.fuin.sokar.app.CredentialDeclarations.argumentsOf(store),
+                        // Answered the same way the real declaration answers it, or a wizard
+                        // cannot tell from the check whether step four pipes a file or opens a
+                        // terminal - which is what it asked the check for.
+                        "storeStdin", store.contains("<") ? "the private key file" : "",
+                        "identity", answer == null ? "" : answer.said(),
+                        "detail", answer != null && answer.refused()
+                                ? "that host turns this key away: " + answer.said()
+                                : would.detail(),
                         "replaced", false,
                         "recorded", false));
                 return;
@@ -1065,6 +1106,41 @@ public final class SokarDaemon {
             // The secret is not removed: a key in somebody's own directory is theirs, and a vault
             // entry is removed by a person at the machine.
             replies.last(Map.of("forgotten", left != null, "leftBehind", left == null ? "" : left));
+        });
+
+        server.method("HostKeys", (parameters, replies) -> {
+            // What a host offers, so a person can compare it with what they were told. Shown,
+            // never recorded: recording is TrustHostKey, and it takes the fingerprint back.
+            final String host = text(parameters, "host");
+            replies.last(Map.of("host", host,
+                    "known", org.fuin.sokar.app.HostKeys.known(context, host),
+                    "keys", org.fuin.sokar.app.HostKeys.offeredBy(context, host).stream()
+                            .map(org.fuin.sokar.app.HostKeys.Offered::asMap).toList()));
+        });
+
+        server.method("TrustHostKey", (parameters, replies) -> {
+            // The fingerprint comes from the person: they were shown what the host offered and
+            // compared it with what they were told out of band. Asking the host again here is not
+            // a second opinion - it stops a key that arrived in between from being the one
+            // written down.
+            final String host = text(parameters, "host");
+            final org.fuin.sokar.app.HostKeys.Offered recorded;
+            try {
+                recorded = org.fuin.sokar.app.HostKeys.trust(context, host,
+                        text(parameters, "fingerprint"));
+            } catch (java.io.IOException ex) {
+                throw new VarlinkException(INTERFACE + ".Failed",
+                        Map.of("message", String.valueOf(ex.getMessage())));
+            }
+            if (recorded == null) {
+                replies.last(Map.of("recorded", false, "type", "", "fingerprint", "",
+                        "detail", host + " offers no key with that fingerprint right now."
+                                + " Nothing was recorded."));
+                return;
+            }
+            replies.last(Map.of("recorded", true, "type", recorded.type(),
+                    "fingerprint", recorded.fingerprint(),
+                    "detail", host + " is known to this machine from now on"));
         });
 
         server.method("SshKeys", (parameters, replies) -> {

@@ -88,7 +88,28 @@ public final class FollowCredential implements AutoCloseable {
      */
     static FollowCredential open(final SokarContext context, final String url,
             final String label, final String purpose) {
+        return open(context, url, label, purpose, null);
+    }
 
+    /**
+     * Lends a credential that has not been recorded yet.
+     *
+     * @param context The machine.
+     * @param url Where it is about to connect.
+     * @param label Names the socket.
+     * @param purpose What the caller is doing.
+     * @param offered A credential to use INSTEAD of whatever is recorded, or {@code null}. What
+     *        makes it possible to ask a host about a key somebody is only considering - asking
+     *        with the recorded credential instead would answer about a different key, or about
+     *        none, and say nothing about the one in front of them.
+     * @return The lease.
+     */
+    static FollowCredential open(final SokarContext context, final String url,
+            final String label, final String purpose, final @Nullable Credential offered) {
+
+        if (offered != null) {
+            return lend(context, offered, label);
+        }
         final Credential declared = context.credentialRegistry().forUrl(purpose, url);
         if (declared != null) {
             return lend(context, declared, label);
@@ -132,8 +153,7 @@ public final class FollowCredential implements AutoCloseable {
                     // Nothing is read and nothing is lent: the command inherits the account's own
                     // agent, and whoever added keys to it decides. The plainest answer to "use my
                     // own keys", and the one that keeps no copy anywhere.
-                    "GIT_SSH_COMMAND", "ssh -o StrictHostKeyChecking=accept-new"
-                            + " -o UserKnownHostsFile=" + knownHosts(context)),
+                    "GIT_SSH_COMMAND", sshCommand(context, null)),
                     null, null, false);
             case FILE -> fromFile(context, credential);
             case ENVIRONMENT -> fromEnvironment(context, credential);
@@ -151,9 +171,7 @@ public final class FollowCredential implements AutoCloseable {
             // does not copy it, does not parse it, and does not care what algorithm it is -
             // IdentitiesOnly so that the one they named is the one offered.
             return new FollowCredential(Map.of(
-                    "GIT_SSH_COMMAND", "ssh -i " + credential.id() + " -o IdentitiesOnly=yes"
-                            + " -o StrictHostKeyChecking=accept-new"
-                            + " -o UserKnownHostsFile=" + knownHosts(context)),
+                    "GIT_SSH_COMMAND", sshCommand(context, credential.id())),
                     null, null, false);
         }
         return helper(context, credential, "--file", credential.id());
@@ -185,13 +203,12 @@ public final class FollowCredential implements AutoCloseable {
         if (credential.kind() != Credential.Kind.SSH_KEY) {
             return helper(context, credential, "--entry", credential.id());
         }
-        final SigningKey key;
+        final org.fuin.sokar.vault.AgentKey key;
         try {
-            key = new SigningKey(
-                    java.util.Base64.getDecoder().decode(held.value()), credential.id());
+            // Whatever shape the entry is - an Ed25519 seed from before, or a key file.
+            key = org.fuin.sokar.vault.StoredKey.of(held.value(), credential.id());
         } catch (final VaultException | IllegalArgumentException ex) {
-            // Stored in a form nothing can sign with. 'vault put' converts a key file now, so
-            // this is an old entry; the command will fail and say what it could not reach.
+            // There and unusable, which is not the same as absent and must not be reported as it.
             return new FollowCredential(Map.of(), null, null, false);
         }
         try {
@@ -202,11 +219,7 @@ public final class FollowCredential implements AutoCloseable {
             Thread.ofVirtual().start(serving);
             return new FollowCredential(Map.of(
                     "SSH_AUTH_SOCK", where.toString(),
-                    // The host key of a forge nobody has talked to yet cannot be known in advance,
-                    // and a prompt here hangs a daemon nobody is watching. Accepted on first use
-                    // and written down, which is what the task path does for the same reason.
-                    "GIT_SSH_COMMAND", "ssh -o StrictHostKeyChecking=accept-new"
-                            + " -o UserKnownHostsFile=" + knownHosts(context)),
+                    "GIT_SSH_COMMAND", sshCommand(context, null)),
                     serving, where, false);
         } catch (final IOException | RuntimeException ex) {
             return new FollowCredential(Map.of(), null, null, false);
@@ -241,6 +254,20 @@ public final class FollowCredential implements AutoCloseable {
     Map<String, String> environment() {
         final Map<String, String> copy = new java.util.LinkedHashMap<>(environment);
         copy.remove("SOKAR_GIT_CREDENTIAL_CONFIG");
+        return Map.copyOf(copy);
+    }
+
+    /**
+     * Returns what git needs, including the host-key policy when nothing was lent.
+     *
+     * @param context The machine.
+     * @param url Where git is about to connect.
+     * @return The variables.
+     */
+    Map<String, String> environmentFor(final SokarContext context, final String url) {
+        final Map<String, String> copy =
+                new java.util.LinkedHashMap<>(FollowCredential.policyFor(context, url));
+        copy.putAll(environment());
         return Map.copyOf(copy);
     }
 
@@ -289,6 +316,41 @@ public final class FollowCredential implements AutoCloseable {
     }
 
     /**
+     * Returns what git should run instead of plain ssh.
+     * <p>
+     * <strong>This belongs to the destination, not to the credential.</strong> It used to be built
+     * only where a key was lent, so a machine with nothing to lend ran git with no policy at all -
+     * and ssh went looking for {@code ssh-askpass} in a daemon, failed on the host key, and the
+     * answer blamed the vault. An ssh destination needs the policy whether or not anything can be
+     * lent to it.
+     * <p>
+     * <strong>Strict, never accept-new.</strong> A host nobody has vouched for stops the work and
+     * is answered as a question - see {@link HostKeys}.
+     *
+     * @param context The machine.
+     * @param identityFile A key file to name, or {@code null}.
+     * @return The command for {@code GIT_SSH_COMMAND}.
+     */
+    static String sshCommand(final SokarContext context, final @Nullable String identityFile) {
+        return "ssh -o StrictHostKeyChecking=yes"
+                + " -o UserKnownHostsFile=" + knownHosts(context)
+                + (identityFile == null ? ""
+                        : " -i " + identityFile + " -o IdentitiesOnly=yes");
+    }
+
+    /**
+     * Returns the environment for reaching a URL, whether or not anything is lent.
+     *
+     * @param context The machine.
+     * @param url Where git is about to connect.
+     * @return The variables, empty when the URL needs no ssh.
+     */
+    static Map<String, String> policyFor(final SokarContext context, final String url) {
+        return GitCredentialNames.kindOf(url) == GitCredentialNames.Kind.KEY
+                ? Map.of("GIT_SSH_COMMAND", sshCommand(context, null)) : Map.of();
+    }
+
+    /**
      * Returns the username to send, reading it from the environment when it names a variable.
      * <p>
      * One field and one rule: a {@code user} that begins with {@code $} is read from this
@@ -315,6 +377,16 @@ public final class FollowCredential implements AutoCloseable {
         // In the runtime directory, because a unix socket path is short by nature and a state
         // directory nested under a home directory runs out of room at 108 characters.
         return context.paths().xdg().runtime().resolve("sokar").resolve("git-" + label + ".sock");
+    }
+
+    /**
+     * Returns where host keys are remembered, making the directory if it is not there.
+     *
+     * @param context The machine.
+     * @return The file.
+     */
+    static Path knownHostsFile(final SokarContext context) {
+        return knownHosts(context);
     }
 
     private static Path knownHosts(final SokarContext context) {

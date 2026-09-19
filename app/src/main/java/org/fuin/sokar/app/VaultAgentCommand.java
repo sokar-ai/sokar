@@ -67,7 +67,7 @@ public class VaultAgentCommand implements Callable<Integer> {
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        final SigningKey key;
+        final org.fuin.sokar.vault.AgentKey key;
         try {
             key = ephemeral ? SigningKey.generate("sokar-ephemeral") : fromVault();
         } catch (VaultException ex) {
@@ -102,14 +102,15 @@ public class VaultAgentCommand implements Callable<Integer> {
         }
     }
 
-    private SigningKey fromVault() {
+    private org.fuin.sokar.vault.AgentKey fromVault() {
         final SokarPaths paths = new SokarPaths(XdgPaths.current(), Path.of(""));
         final VaultFile vault = new VaultFile(paths.vaultFile());
         final var entry = vault.read(opener(paths)).get(keyName);
         if (entry == null) {
             throw new VaultException("The vault has no entry named '" + keyName + "'");
         }
-        return new SigningKey(java.util.Base64.getDecoder().decode(entry.value()), keyName);
+        // Any shape the vault holds: a seed from before, or a key file of whatever kind.
+        return org.fuin.sokar.vault.StoredKey.of(entry.value(), keyName);
     }
 
     private VaultFile.Opener opener(SokarPaths paths) {

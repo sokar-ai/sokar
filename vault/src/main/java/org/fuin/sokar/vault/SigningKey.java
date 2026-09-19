@@ -13,7 +13,7 @@ import org.bouncycastle.crypto.signers.Ed25519Signer;
  * That distinction is the whole point of the vault: an agent that is compromised can use the key
  * while Sokar is running, and has nothing afterwards.
  */
-public class SigningKey {
+public class SigningKey implements AgentKey {
 
     private final Ed25519PrivateKeyParameters privateKey;
 
@@ -63,6 +63,7 @@ public class SigningKey {
      *
      * @return Comment.
      */
+    @Override
     public String comment() {
         return comment;
     }
@@ -72,6 +73,7 @@ public class SigningKey {
      *
      * @return Key blob.
      */
+    @Override
     public byte[] keyBlob() {
         return SshWire.ed25519KeyBlob(publicKey.getEncoded());
     }
@@ -81,8 +83,21 @@ public class SigningKey {
      *
      * @return One line, without a trailing newline.
      */
+    @Override
     public String authorizedKeysLine() {
         return "ssh-ed25519 " + Base64.getEncoder().encodeToString(keyBlob()) + " " + comment;
+    }
+
+    /**
+     * Signs data.
+     *
+     * @param data What to sign.
+     * @return The OpenSSH signature blob.
+     */
+    @Override
+    public byte[] sign(byte[] data, int flags) {
+        // Ed25519 has one algorithm, so the flags say nothing here and are not consulted.
+        return sign(data);
     }
 
     /**

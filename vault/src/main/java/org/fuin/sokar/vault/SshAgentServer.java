@@ -46,7 +46,7 @@ public class SshAgentServer implements AutoCloseable, Runnable {
 
     private final Path socketPath;
 
-    private final List<SigningKey> keys;
+    private final List<? extends AgentKey> keys;
 
     private final ServerSocketChannel channel;
 
@@ -59,7 +59,7 @@ public class SshAgentServer implements AutoCloseable, Runnable {
      * @param keys Keys the agent offers.
      * @throws VaultException If the socket cannot be created.
      */
-    public SshAgentServer(Path socketPath, List<SigningKey> keys) {
+    public SshAgentServer(Path socketPath, List<? extends AgentKey> keys) {
         this.socketPath = socketPath;
         this.keys = List.copyOf(keys);
         try {
@@ -176,7 +176,7 @@ public class SshAgentServer implements AutoCloseable, Runnable {
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write(SSH_AGENT_IDENTITIES_ANSWER);
         out.write(ByteBuffer.allocate(4).putInt(keys.size()).array());
-        for (final SigningKey key : keys) {
+        for (final AgentKey key : keys) {
             SshWire.writeString(out, key.keyBlob());
             SshWire.writeString(out, key.comment());
         }
@@ -187,12 +187,15 @@ public class SshAgentServer implements AutoCloseable, Runnable {
 
         final byte[] keyBlob = SshWire.readString(buffer);
         final byte[] data = SshWire.readString(buffer);
+        // The flags say which hash an RSA client wants. Ignoring them answered SHA-1, which
+        // GitHub has rejected since 2022 - with a message that says nothing about hashes.
+        final int flags = buffer.remaining() >= 4 ? buffer.getInt() : 0;
 
-        for (final SigningKey key : keys) {
+        for (final AgentKey key : keys) {
             if (java.util.Arrays.equals(key.keyBlob(), keyBlob)) {
                 final ByteArrayOutputStream out = new ByteArrayOutputStream();
                 out.write(SSH_AGENT_SIGN_RESPONSE);
-                SshWire.writeString(out, key.sign(data));
+                SshWire.writeString(out, key.sign(data, flags));
                 return out.toByteArray();
             }
         }

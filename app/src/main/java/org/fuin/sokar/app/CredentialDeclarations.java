@@ -52,6 +52,21 @@ public final class CredentialDeclarations {
         /** An OAuth token whose moment has passed. */
         EXPIRED,
 
+        /**
+         * There is no vault on this machine at all. Told apart from a shut one and from a value
+         * that was never stored, because it is a different thing to do first: somebody has to
+         * make the vault before anything can be put in it, and a wizard that sent them to
+         * {@code vault put} would fail at the last step with a message about a file.
+         */
+        NO_VAULT,
+
+        /**
+         * The host turned this key away. Not "nothing to say" - said, because a key registered
+         * nowhere looks perfectly good here and can only fail at the first fetch. Found by Agent
+         * Frontend, whose check would otherwise have passed one.
+         */
+        KEY_REFUSED,
+
         /** A local path. Nothing authenticates, and offering to store something would mislead. */
         NOT_NEEDED
     }
@@ -180,6 +195,13 @@ public final class CredentialDeclarations {
                             "'" + declared.id() + "' is declared for " + url
                                     + " and this account's vault is shut");
                 }
+                if (!context.vault().exists()) {
+                    // No vault at all. A readable, empty answer covers this and "the vault is
+                    // open and empty", and the two send a person to different places.
+                    yield new Check(Outcome.NO_VAULT, declared, "sokar vault init",
+                            "this account has no vault yet, so there is nowhere to put '"
+                                    + declared.id() + "'");
+                }
                 yield held.containsKey(declared.id())
                         ? new Check(Outcome.READY, declared, "",
                                 "'" + declared.id() + "' in the vault reaches " + url)
@@ -243,6 +265,14 @@ public final class CredentialDeclarations {
             checkPossible(credential);
         } catch (final org.fuin.sokar.core.credential.CredentialException ex) {
             return new Check(Outcome.NO_CREDENTIAL, null, "", String.valueOf(ex.getMessage()));
+        }
+        if (credential.source() == Credential.Source.VAULT && !context.vault().exists()) {
+            // Asked here as well as in check(), because a destination nothing yet covers answers
+            // NO_CREDENTIAL there - so the vault question never came up, and a machine with no
+            // vault at all was told to run 'vault put'.
+            return new Check(Outcome.NO_VAULT, credential, "sokar vault init",
+                    "this account has no vault yet, so there is nowhere to put '"
+                            + credential.id() + "'");
         }
         // The same question the check asks of a destination, asked of the record as it would be:
         // is the value actually there. One implementation, so a dry run cannot answer differently

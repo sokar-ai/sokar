@@ -77,6 +77,94 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
     }
 
     /**
+     * Returns the key in a form this machine reads, converting it if it has to.
+     * <p>
+     * <strong>The machine does this, not the person.</strong> {@code ssh-keygen} writes RSA keys
+     * in its own container by default, which is not a format read here - and the first answer was
+     * a message telling somebody to run {@code ssh-keygen -p -m PEM} themselves. That is our work
+     * to do: the tool is on this machine, the conversion is one command, and what should be easy
+     * is using your own key rather than knowing which of its formats we happened to implement.
+     * <p>
+     * <strong>The original is never touched.</strong> {@code ssh-keygen -p} rewrites a key file
+     * in place, so the conversion runs on a copy in a directory only this account can read, and
+     * the copy is overwritten and removed afterwards. Somebody's daily key is not ours to rewrite.
+     *
+     * @param text The key as it arrived.
+     * @param out Where to report what was done.
+     * @param err Where to report what could not be.
+     * @return The key to store, or {@code null} when it could not be converted.
+     */
+    private @org.jspecify.annotations.Nullable String converted(final String text,
+            final PrintWriter out, final PrintWriter err) {
+
+        if (!org.fuin.sokar.vault.OpenSshPrivateKey.looksLikeOne(text)) {
+            return text;
+        }
+        final org.fuin.sokar.vault.OpenSshPrivateKey.Described described =
+                org.fuin.sokar.vault.OpenSshPrivateKey.describe(text);
+        if (described == null || described.usable() || described.encrypted()) {
+            // Ed25519 is read as it is, and an encrypted key is refused where that is explained.
+            return text;
+        }
+        java.nio.file.Path directory = null;
+        try {
+            directory = java.nio.file.Files.createTempDirectory("sokar-key-");
+            java.nio.file.Files.setPosixFilePermissions(directory,
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+            final java.nio.file.Path copy = directory.resolve("key");
+            java.nio.file.Files.writeString(copy, text);
+            java.nio.file.Files.setPosixFilePermissions(copy,
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+            final var result = context.runner().run(org.fuin.sokar.core.process.Command.of(
+                    "ssh-keygen", "-p", "-m", "PEM", "-N", "", "-P", "", "-f", copy.toString()));
+            if (!result.successful()) {
+                err.println("sokar: this key is in OpenSSH's own format and converting it here"
+                        + " failed: " + result.standardError().strip());
+                err.flush();
+                return null;
+            }
+            out.println("read      an OpenSSH-wrapped key; converted a copy to PEM to store it"
+                    + " (your file is untouched)");
+            return java.nio.file.Files.readString(copy);
+        } catch (final IOException ex) {
+            err.println("sokar: cannot convert this key here: " + ex.getMessage());
+            err.flush();
+            return null;
+        } finally {
+            if (directory != null) {
+                shred(directory);
+            }
+        }
+    }
+
+    /**
+     * Removes a directory that held a key, overwriting what was in it first.
+     * <p>
+     * Not a guarantee on a copy-on-write filesystem, and worth doing anyway: it is the difference
+     * between a key that is gone and a key that is merely unlinked.
+     *
+     * @param directory What to remove.
+     */
+    private static void shred(final java.nio.file.Path directory) {
+        try (var entries = java.nio.file.Files.list(directory)) {
+            for (final java.nio.file.Path file : entries.toList()) {
+                try {
+                    final long size = java.nio.file.Files.size(file);
+                    java.nio.file.Files.write(file, new byte[(int) Math.min(size, 1 << 20)]);
+                } catch (final IOException ex) {
+                    // Overwriting is the part that can fail harmlessly; removal below is what
+                    // matters and is attempted either way.
+                    continue;
+                }
+                java.nio.file.Files.deleteIfExists(file);
+            }
+            java.nio.file.Files.deleteIfExists(directory);
+        } catch (final IOException ex) {
+            return;
+        }
+    }
+
+    /**
      * Says what is wrong with a name no provider is declared under.
      *
      * @param name The name given.
@@ -229,17 +317,28 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
                 return 70;
             }
         }
-        if (org.fuin.sokar.vault.OpenSshPrivateKey.looksLikeOne(value)) {
-            // What a person has is the file their company assigned them; what the vault holds is
-            // the 32-byte seed inside it. Converted here rather than refused, because "store your
-            // key" should mean the key they have. A key this cannot use is refused by name -
-            // encrypted, or an algorithm this does not sign with - and says what to do instead.
+        if (org.fuin.sokar.vault.OpenSshPrivateKey.looksLikeAnyPrivateKey(value)) {
+            // What a person has is the file they use every day. An Ed25519 key is kept as the
+            // seed inside it, which is what every entry written until now holds; anything else is
+            // kept as the file, because there is nothing smaller that is still the key.
+            //
+            // It is READ BACK before it is stored. A value that goes in and cannot come out is
+            // what happened to an RSA key this morning: stored whole, called present and ready by
+            // every check, and undecodable at the first fetch - where the machine blamed the
+            // vault for being empty.
             try {
-                value = org.fuin.sokar.vault.OpenSshPrivateKey.seedBase64(value);
+                value = converted(value, out, err);
+                if (value == null) {
+                    return 70;
+                }
+                value = org.fuin.sokar.vault.StoredKey.toStore(value);
+                final org.fuin.sokar.vault.AgentKey read =
+                        org.fuin.sokar.vault.StoredKey.of(value, name);
                 if (type == null) {
                     type = "ssh-key";
                 }
-                out.println("read      an OpenSSH private key; storing the signing seed from it");
+                out.println("read      " + read.authorizedKeysLine().split("\\s+")[0]
+                        + "; this machine can sign with it");
             } catch (final VaultException ex) {
                 err.println("sokar: " + ex.getMessage());
                 err.flush();
