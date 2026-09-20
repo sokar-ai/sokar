@@ -168,8 +168,8 @@ either. Both are typed at the node.
 passphrase and to a provider credential together, because they were argued separately and reached
 opposite answers within a day on reasoning that moved under both. The discussion — four options and
 what each is worth — is written up in
-[secrets from elsewhere](../issues/base/Secrets-From-Elsewhere_design.md). Until it is
-decided, what is described below is the rule.
+`Secrets-From-Elsewhere_design.md`, under the [issue index](../issues/base/README.md). Until it
+is decided, what is described below is the rule.
 
 This is not a transport-security claim. The socket is forwarded over ssh, so it is the same
 encrypted connection either way, and anybody who can forward it can already run commands on that
@@ -281,5 +281,4 @@ kernel keyring, so a locked vault makes every flow above answer "not yet" rather
 and those are different sentences, only one of which is somebody's problem to fix.
 
 And an OAuth token expires. An agent that tries to renew one *inside* a container, holding a
-task-scoped phantom token, is [B01](../issues/base/B01-Refreshable-Task-Tokens.md), which is
-open.
+task-scoped phantom token, is B01 ([index](../issues/base/README.md)), which is open.

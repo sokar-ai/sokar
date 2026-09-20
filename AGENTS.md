@@ -1031,20 +1031,25 @@ facts above this section were all measured here, on the versions this build pins
 
 ## Shared across the Sokar repositories
 
-The same text in `sokar`, `sokar-frontend`, the three agent repositories and
-`sokar-message-sluice`. Change it in the channel first, not in one copy.
+The same text in every repository `project.yml` names. Change it in the channel first, not in
+one copy.
 
 - **The operator pushes. Agents commit and stop.** A push starts a build that costs metered minutes
   and can cancel one already running. Say what is ready and let him decide when.
 - **Everyone stays in their own repository and asks for what they need from another.** Ruled by
   the operator on 2026-09-13: an agent neither reads nor writes another agent's repository - what
   it needs from there, it asks that repository's agent for in the channel, with the reason. The
-  one exception is the backend agent, who coordinates and may **read** the other repositories.
+  one exception is the coordinating agent, who may **read** the other repositories. Reading does
+  not replace asking: a file shows what is the case, and only the agent who wrote it knows why.
   **Writing is always the job of the agent responsible for the repository**, with no exception.
-- **The channel is append-only.** One heading per entry,
-  `## <date -u> — <agent>`. Read everything written since your marker before you post, move your
-  marker only past somebody else's entry, and never rewrite what is there. A question carries a
-  prefix naming who is owed the answer, so a reader scanning the file can see it.
+- **The channel is append-only.** An entry begins with `## <UTC timestamp> — <agent>`. Headings
+  inside an entry are free; scan for entries by the timestamp, never by `##` alone. Read
+  everything written since your marker before you post, move your marker only past somebody
+  else's entry, and never rewrite what is there. A question carries a prefix naming who is owed
+  the answer, so a reader scanning the file can see it.
+- **When quoting a document that has headings, indent it four spaces rather than fencing it.**
+  A fence hides them from a renderer and not from a scanner, and this file is append-only, so
+  what a fence lets through cannot be taken out again.
 - **Re-read the channel immediately before appending to it.** An entry that landed between your
   read and your append makes what you are about to write answer a state that no longer exists —
   Agent Smith published advice for an experiment that had been settled four minutes earlier, and
@@ -1077,8 +1082,13 @@ The same text in `sokar`, `sokar-frontend`, the three agent repositories and
   work it interrupts, so the person whose run it killed cannot find out what happened.
 - **Say what a run does to a shared machine before starting it - what it does, not what you believe
   it does.** Check first. A confident wrong answer costs somebody else an afternoon.
-- **Link to a requirement by its number and to the index, never to its file.** A finished
-  requirement is deleted, so a link to the file breaks exactly when that requirement succeeds.
+- **Link to a requirement by its number and to the index, never to its file.** A pointer is
+  written for the day the thing it points at is gone, and it goes in more ways than one: a
+  finished requirement is deleted, an issue closed unbuilt is deleted, and a design document
+  recording an undecided question is deleted when the question is answered. A link to a file
+  breaks on all three; a link to the index breaks on none. **Where a repository can enforce
+  this with a test, it does** - three repositories found this defect by accident on 2026-09-20
+  and the fourth will not be so lucky.
 - **From "both are valid" it does not follow that both should exist.** Two indexes, two markers,
   two manifests, the same skills in two repositories - every expensive defect of 2026-09-12 had
   that shape, and not one of them was a wrong fact. They were correct facts with one inference too
@@ -1157,7 +1167,8 @@ One brief line. The reasoning behind a change is a finding, and a finding goes i
 
 **The changelog is part of the change**, written by hand in the same commit: an entry for anything
 that changes what ships or builds, none for issues or notes. Nothing enforces it for now: the check
-was removed on 2026-09-13 by the operator's decision, and requiring an entry returns with B55.
+was removed on 2026-09-13 by the operator's decision, and requiring an entry returns with B55
+([index](issues/base/README.md)).
 
 In this repository an entry is **one YAML file under `changelog/unreleased/`**, with at least a
 `title` - one sentence - and a `type`: `added`, `changed`, `deprecated`, `removed`, `fixed`,
@@ -1186,6 +1197,15 @@ to read a security tool's reasoning are not all German speakers.
 **A requirement that is done is deleted**, file and index row together, once whatever
 is worth keeping has moved into this file. They describe work to do, not work that was
 done; git history is where finished work lives.
+
+**An index linked by URL from another repository is a published path, and moving it is announced
+in the channel first.** A cross-repository dependency is written as the repository and the number -
+`Sokar B54` - and needs no link; but an index does get linked across repositories where a reader has
+to arrive somewhere, and `issues/README.md` here links `sokar-frontend`'s index that way. Such a
+link breaks silently: no test at either end can see it, because neither repository holds both ends.
+`issues/base/README.md` has moved once already, from `requirements/` on 2026-09-12. So a rename, a
+move or a split of an index is announced with the old path and the new one **before** the commit
+that does it; promised on 2026-09-20 and kept here so it outlives the conversation.
 
 **An answered question is deleted the same way**, out of the requirement's own *To be checked*
 section, once what its answer decided has moved into the acceptance criteria, into the design, or

@@ -1,8 +1,8 @@
 # B52 — Knowing An Agent Reached Work
 
 **Status:** open, written 2026-09-13. Requested by Agent Smith when first-run consent moved from
-Sokar to the agent repositories: their tasks `sokar-claude-code` 009, `sokar-pi` 007 and
-`sokar-omp` 007 each depend on it.
+Sokar to the agent repositories: their tasks `sokar-claude-code` CC09, `sokar-pi` PI07 and
+`sokar-omp` OM07 each depend on it.
 
 ## What it is for
 

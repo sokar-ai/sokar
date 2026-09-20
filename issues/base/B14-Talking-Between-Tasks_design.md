@@ -194,9 +194,12 @@ transports with no shared object.
 
 **Inside the group, keys come from a signed directory.** One `allowed_signers` file mapping a
 principal to its key, changed only by an operator-signed commit and distributed with the group's
-other configuration. Each host pins one thing out of band: the operator key that signs it. Once there
-is a git transport (`sokar-message-sluice` 003), that repository is what distributes it; until then it
-is a local file, because a single machine has nothing to distribute to.
+other configuration. Each host pins one thing out of band: the operator key that signs it. **It travels in the project
+repository, which every machine already follows** - decided 2026-09-20, after the git transport that
+was to carry it was closed unbuilt. Same signed commits, same out-of-band key, no new remote and no
+new credential; and `project follow` already refuses a signed commit that is not a descendant of the
+one in force, which is the property a key directory most needs - a revocation that cannot be rolled
+back by re-serving an older signed configuration.
 
 **A certificate authority is left open deliberately.** `cert-authority` is a line in the same
 `allowed_signers` file, so switching later is configuration rather than redesign. It would then need
@@ -304,8 +307,7 @@ until root intervened, with nothing forged and nothing repairable. Found by the 
 may carry between them - addressed `spool:<unix-user>`, so that the address itself names who the
 host must find the message to be owned by. Nothing is allowed by installing a package: the drop
 directories are made by a step where the machine is set up, and removing them refuses every such
-send again. Designed with the filter's agent as their issue 010, agreed on the channel on
-2026-09-18.
+send again. Designed with the filter's agent as the spool transport, agreed on the channel on 2026-09-18.
 `send <message> <signature> --to <address>` prints its receipt as one JSON object.
 `poll --into <dir>` writes pairs there and prints how many. **Nothing is ever read from standard
 input**: messages are files, and a transport that read stdin would tempt somebody to stream a message
@@ -336,15 +338,20 @@ defer when something is missing. An adapter that created `inbound/tmp/` because 
 deliver into a mailbox whose owner never made it, which is either a removed task or a broken layout,
 and both deserve an answer rather than a directory.
 
-**The first one is local** (`sokar-message-sluice` 002): it moves a file into the recipient's
-`inbound/` on the same machine. No network, no credential, no history — and on a developer's machine
-that is the whole of what is needed. **The git transport** (`sokar-message-sluice` 003) is designed
-and not built: it is what adds distribution across machines, a shared ordered record, and a way to
-distribute the key directory.
+**The first one is local**: it moves a file into the recipient's `inbound/` on the same machine.
+No network, no credential, no history — and on a developer's machine that was the whole of what was
+needed. **The git transport was designed and never built**, and is closed: what it was to add -
+distribution across machines, a shared ordered record, and a way to distribute the key directory -
+is answered differently now. Federation carries the first, the key directory travels in the project
+repository, and **the shared ordered tamper-evident record is given up**: every commit hashes its
+parent and a room does not, so each host's hash-chained log proves what it saw and nothing to
+anybody else. What would change that answer is somebody other than the two peers needing to verify
+what passed and in which order.
 
 ## The content check is its own tool
 
-`sokar-message-sluice`, in a repository of its own, where its requirement and design are issue 001.
+`sokar-message-sluice`, in a repository of its own, where its requirement and design are the
+filter's frame.
 Sokar decides *who* may say something to *whom*; the sluice decides *what* a message may contain: the
 narrowed schema, encoded payloads (caught by asking whether the text obeys the statistics of English),
 credentials and personal data (a catalogue of pattern, context and checksum), and a payload spread over
@@ -505,7 +512,7 @@ surefire.
 
 | Option | Why not |
 |---|---|
-| **A git repository as the channel itself**, as this requirement was first designed | It is a transport, and a good one between machines: it becomes `sokar-message-sluice` 003 rather than the shape of the whole feature. As the only channel it put a clone, a push and a second repository inside every container, and made the record depend on the route |
+| **A git repository as the channel itself**, as this requirement was first designed | It is a transport rather than the shape of the whole feature. As the only channel it put a clone, a push and a second repository inside every container, and made the record depend on the route. It was carried as a later transport and closed unbuilt on 2026-09-20 |
 | **A socket helper per task**, with a varlink interface and a journal | Sound on one machine, and it had to invent an inbox for agents that have none, a wire, a journal and its verifier. A directory needs none of that, and every agent already knows how to write a file |
 | **A model reviewer on every machine** | A hosted model is a place every conversation leaks to, and one that reads every project's messages becomes a bridge between them. The sluice is rules; a model, if ever added, may hold and never release |
 | **[Llama Guard](https://huggingface.co/meta-llama/Llama-Guard-4-12B)** | Classifies content against a list of harms; neither exfiltration nor prompt injection is on it |

@@ -24,7 +24,7 @@ script now verifies that the repository actually offers a `sokar` package and re
 when it does not.
 
 **What is not done:** nothing here installs the message filter or the local transport unless they
-are published, and they are not yet (the filter's repository, issue 009). The script says so in its
+are published, and they are not yet (the filter's Maven packaging, in its own repository). The script says so in its
 closing output rather than leaving a machine that quietly cannot message.
 
 Everything Sokar knows how to do, it does through the daemon. **Preparing a machine is the one thing

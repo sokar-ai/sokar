@@ -9,8 +9,8 @@ Java to begin with.
 `sokar-omp` is each of those repositories' own work, handed over on 2026-09-13 and cut into four
 issues per repository. Three of the four are **blocked by this file** - the build-time tools
 and the update pipeline moving onto the shared tool, and the acceptance stage moving onto kit
-scenarios: `sokar-claude-code` 012, 013, 014; `sokar-pi` 010, 011, 012; `sokar-omp` 010, 011,
-012. The fourth, the pin check (`sokar-claude-code` 011, `sokar-pi` 009, `sokar-omp` 009), is
+scenarios: `sokar-claude-code` CC12, CC13, CC14; `sokar-pi` PI10, PI11, PI12; `sokar-omp` OM10,
+OM11, OM12. The fourth, the pin check in a unit test - `PinAgreementTest`, in all three - is
 not blocked and starts first.
 
 ## What is there, measured on 2026-09-13

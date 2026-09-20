@@ -13,9 +13,25 @@ to be discovered: **groups** - a group as a host-side peer list, held, released 
 are not implemented at all, and a message addressing more than one peer is refused with a reason;
 **`sokar talk log`** does not exist, and what it was for is served by the daemon's streaming `Talk`,
 so the gap is a terminal one rather than a missing capability; and a **transport that reaches
-another machine** is `sokar-message-sluice` 003 (git) and deliberately later. Until that exists,
-"another machine" is untested by construction - what has run is two mailboxes on one machine, on
-this laptop and on the Ubuntu VM.
+another machine** does not exist. Until one does, "another machine" is untested by construction -
+what has run is two mailboxes on one machine, on this laptop and on the Ubuntu VM.
+
+**The two transports this was measured against are retired, by the operator's decision of
+2026-09-20**, relayed through Agent Coordinator: *Matrix is the only communication channel, on a
+single machine too*, with the homeserver started in a podman container where communication is
+needed. The git transport that was to carry the between-machine case is closed unbuilt. **What is
+built above still runs today** - it was measured against those transports and that measurement
+stands as history - but the carrier underneath it changes, and three things are named here rather
+than discovered later:
+
+- **`attests: owner` is lost.** A transport that proves which Unix user wrote a message proves it
+  from something the kernel told it; a Matrix account is one Sokar provisions itself, so it attests
+  nothing the signature does not already carry. What remains is the signature.
+- **The acceptance suite tests messaging against the local transport** and will need a running
+  homeserver instead.
+- **Whether an offline project can talk is open.** The local transport declared no hosts and no
+  credentials, which is why `security_class: offline` could use it; a homeserver is a declared host,
+  and an offline project refuses to declare egress at all.
 
 **A person's message works end to end**, since later on 2026-09-18. It was blocked for an afternoon
 because the filter refused any outgoing role but `ROLE_AGENT`; the filter's agent now accepts
