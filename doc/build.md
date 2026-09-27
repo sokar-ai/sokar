@@ -49,6 +49,19 @@ with `-Dmusl.home=...`. Nothing needs to be added to `PATH`.
 Foreign Function & Memory API, and `Linker.defaultLookup()` dlopens `libc.so.6`,
 which a static image cannot do.
 
+### CPU
+
+Every image is built for x86-64 v1, the baseline every x86-64 CPU has: `-march=x86-64` in the root
+POM's native build arguments. native-image's default is the build host's generation - v3 on any
+recent machine - and such a binary refuses to start on an older CPU or on a virtual machine that
+hides AVX2, which an operator learns only by running it.
+
+Each image carries the list of CPU features it checks for at startup. `buildtools/cpu-check` reads
+that list in `package`, right after the images are built, and fails unless it is exactly
+`[CX8, CMOV, FXSR, MMX, SSE, SSE2]` - in either direction, since a list that changed means the
+target changed. A native profile turns it on and names its images in `sokar.cpu.images`; a new
+image is added there.
+
 ### FFM metadata
 
 Panama downcalls are not discovered by native-image's static analysis. An unregistered one is not a

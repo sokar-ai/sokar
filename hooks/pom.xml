@@ -34,6 +34,10 @@
 
         <profile>
             <id>native</id>
+            <properties>
+                <sokar.cpu.skip>false</sokar.cpu.skip>
+                <sokar.cpu.images>sokar-hook-supervisor,sokar-hook-nft,sokar-hook-reader</sokar.cpu.images>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -91,6 +95,10 @@
                                 </configuration>
                             </execution>
                         </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
                     </plugin>
                 </plugins>
             </build>

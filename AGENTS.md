@@ -186,6 +186,11 @@ See [build.md](doc/build.md). Three things that will bite:
   `./mvnw -Pnative,ffm-check -Dagent=true -pl buildtools/ffm-check,core,shield,vault -am verify`, which fails on a downcall
   the tests made that is not registered; add `-Dsokar.ffm.update=true` after
   adding a downcall, and commit the result.
+- **Every native image is x86-64 v1.** `-march=x86-64` is in the root POM's
+  native build arguments, and `buildtools/cpu-check` fails the `package` of any
+  image whose own "required by the image" list is not exactly
+  `[CX8, CMOV, FXSR, MMX, SSE, SSE2]`. A new image goes into its module's
+  `sokar.cpu.images`, or the check never sees it.
 
 ### What stays in another language, and why
 

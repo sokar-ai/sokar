@@ -1,0 +1,2 @@
+title: "Every native binary - sokar, sokard, the three hooks and the agent stub - now runs on any x86-64 CPU: they were built for the build host's generation, x86-64 v3, and would not start on an older CPU or a virtual machine that hides AVX2. The build now targets the baseline and fails if any binary asks for a CPU feature other than the baseline's six."
+type: changed
