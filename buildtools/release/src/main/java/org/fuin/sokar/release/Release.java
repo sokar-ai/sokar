@@ -20,9 +20,10 @@ import org.jspecify.annotations.Nullable;
  * @param channel the channel or dist-tag followed when a caller names none, or null
  * @param digests where the digest of a release is read
  * @param npm how an npm-built tree is relocked, or null for an agent that fetches a binary
+ * @param licenses where a release's declared license is read, or null when the agent records none
  */
 public record Release(Pom pom, String agent, Path definition, Upstream upstream, @Nullable String channel,
-        DigestSource digests, @Nullable NpmTree npm) {
+        DigestSource digests, @Nullable NpmTree npm, @Nullable LicenseSource licenses) {
 
     /** Property prefix, so every name the tool reads is findable in one search. */
     static final String PREFIX = "sokar.release.";
@@ -49,7 +50,121 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
                 digestSource(pom, digest),
                 npmPackage == null ? null : new NpmTree(npmPackage,
                         pom.root().resolve(Optional.ofNullable(pom.optional(PREFIX + "npm.directory")).orElse("src/main/npm")),
-                        pom.required(PREFIX + "npm.image")));
+                        pom.required(PREFIX + "npm.image")),
+                licenseSource(pom));
+    }
+
+    private static @Nullable LicenseSource licenseSource(Pom pom) throws Stop {
+        final String declared = pom.optional(PREFIX + "license");
+        if (declared == null) {
+            return null;
+        }
+        final String[] words = declared.strip().split("\\s+");
+        if (words.length == 2 && "npm".equals(words[0])) {
+            return new LicenseSource.Npm(URI.create(words[1]));
+        }
+        if (words.length == 2 && "github-license".equals(words[0])) {
+            return new LicenseSource.GithubLicense(words[1]);
+        }
+        throw Stop.refused(pom.file() + ": " + PREFIX + "license is 'npm <registry url>' or"
+                + " 'github-license <url with {version}>'");
+    }
+
+    /** Where the license a publisher declares for one release is read. */
+    public sealed interface LicenseSource {
+
+        /**
+         * Reads the license declared for a release.
+         *
+         * @param web where to read
+         * @param version the release
+         * @param env the environment, for a token
+         * @return an SPDX id, or the name the publisher uses where it gives none
+         * @throws Stop refused when the release declares none, unanswered when it cannot be read
+         */
+        String license(Web web, String version, Map<String, String> env) throws Stop;
+
+        /**
+         * Says where a license came from, for the report.
+         *
+         * @return a short description
+         */
+        String describe();
+
+        /**
+         * The {@code license} of one version in the npm registry's document for the package.
+         *
+         * @param registry the registry's address for the package
+         */
+        record Npm(URI registry) implements LicenseSource {
+
+            @Override
+            public String license(Web web, String version, Map<String, String> env) throws Stop {
+                final Object versions = field(parse(read(web, registry, Map.of()), registry), "versions");
+                final Object entry = versions instanceof Map<?, ?> all ? all.get(version) : null;
+                if (entry == null) {
+                    throw Stop.refused(registry + " has no version " + version);
+                }
+                final Object declared = field(entry, "license");
+                final Object name = declared instanceof Map<?, ?> typed ? typed.get("type") : declared;
+                if (!(name instanceof String license) || license.isBlank()) {
+                    throw Stop.refused(version + " declares no license in " + registry);
+                }
+                return license;
+            }
+
+            @Override
+            public String describe() {
+                return "from the npm registry";
+            }
+
+        }
+
+        /**
+         * GitHub's license API for a repository, at a release's tag.
+         *
+         * @param template its address, with {@code {version}} where the release goes
+         */
+        record GithubLicense(String template) implements LicenseSource {
+
+            @Override
+            public String license(Web web, String version, Map<String, String> env) throws Stop {
+                final URI address = URI.create(template.replace("{version}", version));
+                final Object license = field(parse(read(web, address, githubHeaders(address, env)), address), "license");
+                final Object spdx = field(license, "spdx_id");
+                final Object named = field(license, "name");
+                // NOASSERTION is GitHub saying it could not match an SPDX id; the name is then the fact.
+                final Object chosen = spdx instanceof String id && !id.isBlank() && !"NOASSERTION".equals(id) ? id : named;
+                if (!(chosen instanceof String found) || found.isBlank()) {
+                    throw Stop.refused(address + " names no license for " + version);
+                }
+                return found;
+            }
+
+            @Override
+            public String describe() {
+                return "from GitHub's license API";
+            }
+
+        }
+
+    }
+
+    /**
+     * The headers a request to GitHub carries: a token only to its API, whatever a pom names.
+     *
+     * @param address where the request goes
+     * @param env the environment
+     * @return the headers
+     */
+    static Map<String, String> githubHeaders(URI address, Map<String, String> env) {
+        // Unauthenticated GitHub allows 60 requests an hour per address, which a shared runner exhausts.
+        // The token goes to GitHub's API and nowhere else, whatever a pom property says.
+        final String token = GITHUB_API.equals(address.getHost()) && "https".equals(address.getScheme())
+                ? env.get("GITHUB_TOKEN") : null;
+        return token == null || token.isBlank()
+                ? Map.of("Accept", "application/vnd.github+json")
+                : Map.of("Accept", "application/vnd.github+json", "Authorization", "Bearer " + token);
     }
 
     /**
@@ -208,14 +323,7 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
                 if (channel != null) {
                     throw Stop.unanswered("the newest release has no channels, and was asked for '" + channel + "'");
                 }
-                // Unauthenticated GitHub allows 60 requests an hour per address, which a shared runner exhausts.
-                // The token goes to GitHub's API and nowhere else, whatever a pom property says.
-                final String token = GITHUB_API.equals(api.getHost()) && "https".equals(api.getScheme())
-                        ? env.get("GITHUB_TOKEN") : null;
-                final Map<String, String> headers = token == null || token.isBlank()
-                        ? Map.of("Accept", "application/vnd.github+json")
-                        : Map.of("Accept", "application/vnd.github+json", "Authorization", "Bearer " + token);
-                final Object tag = field(parse(read(web, api, headers), api), "tag_name");
+                final Object tag = field(parse(read(web, api, githubHeaders(api, env)), api), "tag_name");
                 final String name = tag instanceof String text ? text : "";
                 final String version = name.startsWith("v") ? name.substring(1) : name;
                 if (!Versions.isVersion(version)) {

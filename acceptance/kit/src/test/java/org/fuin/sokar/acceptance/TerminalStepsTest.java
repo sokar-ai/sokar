@@ -32,4 +32,12 @@ class TerminalStepsTest {
         assertThat(World.takeProjects()).isEmpty();
     }
 
+    @Test
+    void refusesADirectoryNoAcceptanceRunMadeAndSaysWhy() {
+        assertThat(TerminalSteps.fixtureCheck("live"))
+                .isEqualTo("if [ -e ~/'live' ] && [ ! -e ~/'live'/.git/sokar-acceptance-fixture ]; then echo 'refused: live"
+                        + " is in the home and no acceptance run made it - a project of a person is not a fixture';"
+                        + " exit 1; fi");
+    }
+
 }

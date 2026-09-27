@@ -77,6 +77,56 @@ class AgentProtocolTest {
     }
 
     @Test
+    void anArtifactsDigestAndLicenseSurviveTheWire() {
+        final AgentDefinition pinned = AgentDefinitionReader.read(new StringReader("""
+                name: example
+                binary: example-cli
+                git_identity:
+                  name: Example
+                  email: noreply@example.com
+                headless:
+                  prompt_flag: "-p"
+                install:
+                  version: "2.1.267"
+                  artifacts:
+                    - url: https://downloads.example/cli/2.1.267/cli
+                      sha256: "%s"
+                      license: "SEE LICENSE IN README.md"
+                      target: /usr/local/bin/example-cli
+                """.formatted("a".repeat(64))), "t.yaml");
+
+        final AgentDefinition round = AgentDefinitionJson.read(AgentDefinitionJson.write(pinned));
+
+        assertThat(round.artifacts()).singleElement().satisfies(artifact -> {
+            assertThat(artifact.license()).isEqualTo("SEE LICENSE IN README.md");
+            assertThat(artifact.sha256()).isEqualTo("a".repeat(64));
+        });
+        assertThat(round).isEqualTo(pinned);
+    }
+
+    @Test
+    void anArtifactWithoutALicenseSurvivesWithoutOne() {
+        final AgentDefinition pinned = AgentDefinitionReader.read(new StringReader("""
+                name: example
+                binary: example-cli
+                git_identity:
+                  name: Example
+                  email: noreply@example.com
+                headless:
+                  prompt_flag: "-p"
+                install:
+                  version: "1.0.0"
+                  artifacts:
+                    - url: https://downloads.example/cli
+                      sha256: "%s"
+                      target: /usr/local/bin/example-cli
+                """.formatted("b".repeat(64))), "t.yaml");
+
+        assertThat(AgentDefinitionJson.read(AgentDefinitionJson.write(pinned)).artifacts())
+                .singleElement().extracting(InstallArtifact::license).isNull();
+    }
+
+    @Test
     void nullFieldsSurviveAsNull() {
 
         final AgentDefinition minimal = AgentDefinitionReader.read(new StringReader("""

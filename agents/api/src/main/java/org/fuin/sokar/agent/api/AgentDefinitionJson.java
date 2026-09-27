@@ -132,6 +132,7 @@ public final class AgentDefinitionJson {
         out.put("mode", artifact.mode());
         out.put("unverified", Boolean.valueOf(artifact.unverified()));
         putIfPresent(out, "reason", artifact.reason());
+        putIfPresent(out, "license", artifact.license());
         return out;
     }
 
@@ -148,7 +149,8 @@ public final class AgentDefinitionJson {
                         string(map, "target"),
                         string(map, "mode"),
                         Boolean.TRUE.equals(map.get("unverified")),
-                        optional(map, "reason")));
+                        optional(map, "reason"),
+                        optional(map, "license")));
             }
         }
         return List.copyOf(result);

@@ -152,4 +152,10 @@ class InstallScriptTest {
         }
         return -1;
     }
+
+    @Test
+    void refusesALicenseThatWouldBeASecondValueInABill() {
+        assertThatThrownBy(() -> new InstallArtifact("https://example.com/cli", "a".repeat(64), "/usr/local/bin/cli",
+                "0755", false, null, "MIT\nApache-2.0")).isInstanceOf(AgentException.class);
+    }
 }

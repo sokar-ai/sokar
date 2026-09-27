@@ -71,7 +71,7 @@ public final class AddFetchedCli {
             final Bom bom = Bill.parse(Files.readAllBytes(bill));
             final InstallArtifact artifact = agent.artifacts().getFirst();
             replaced = Recorded.into(bom, Recorded.component(name, agent.version(), artifact.url(), artifact.sha256(),
-                    Recorded.FETCHED, null));
+                    Recorded.FETCHED, artifact.license()));
             Bill.write(bom, bill);
         } catch (IOException | IllegalArgumentException | IllegalStateException ex) {
             return failed("cannot add the CLI to " + bill + ": " + ex.getMessage());

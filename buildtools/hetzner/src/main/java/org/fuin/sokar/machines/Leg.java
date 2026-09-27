@@ -140,15 +140,14 @@ public final class Leg {
             // [Service] properties are applied to one podman call that has to make that namespace,
             // and a pause process that already exists would prove nothing, so it is refused.
             step("rootless podman under the daemon unit's own properties, first after boot");
-            run(build, "pause=\"$XDG_RUNTIME_DIR/libpod/tmp/pause.pid\";"
-                    + " if [ -f \"$pause\" ] && kill -0 \"$(cat \"$pause\")\" 2>/dev/null; then"
-                    + " echo 'a pause process already exists, so this would prove nothing'; exit 1; fi;"
-                    + " set -- $(sed -n '/^\\[Service\\]/,/^\\[/p' " + REPO + "/systemd/sokard.service"
-                    + " | grep -E '^[A-Za-z]+=' | grep -v -E '^(Type|ExecStart|Restart|RestartSec)='"
-                    + " | sed 's/^/-p /');"
-                    + " echo \"unit properties: ${*:-none}\";"
-                    + " systemd-run --user --wait --pipe --collect --quiet \"$@\" podman unshare true"
-                    + " && echo 'rootless podman set up its namespace under the unit'");
+            refuseAnExistingPauseProcess(build);
+            final Ssh.Output unit = build.run("cat " + REPO + "/systemd/sokard.service");
+            if (unit.status() != 0) {
+                throw new IOException("the leg failed reading the daemon's unit: " + unit.all().strip());
+            }
+            final List<String> properties = UnitProperties.service(unit.out());
+            System.out.println("unit properties: " + (properties.isEmpty() ? "none" : String.join(" ", properties)));
+            run(build, underTheUnit(properties) + " && echo 'rootless podman set up its namespace under the unit'");
 
             step("building");
             run(build, build(System.getenv("GITHUB_RUN_ID"),
@@ -351,6 +350,42 @@ public final class Leg {
      * @param command What to run.
      * @throws IOException If it failed.
      */
+    /**
+     * Stops the leg when rootless podman's pause process already exists.
+     * <p>
+     * Then the namespace is already made, and a podman call under the unit would pass whatever the
+     * unit forbids - proving nothing.
+     *
+     * @param build The connection as the build user.
+     * @throws IOException If a pause process runs, or its pid file holds something else.
+     */
+    private static void refuseAnExistingPauseProcess(Ssh build) throws IOException {
+        final String pid = build.run("cat \"$XDG_RUNTIME_DIR/libpod/tmp/pause.pid\" 2>/dev/null").out().strip();
+        if (pid.isEmpty()) {
+            return;
+        }
+        if (!pid.matches("\\d+")) {
+            throw new IOException("the pause pid file holds '" + pid + "', which is not a process id");
+        }
+        if (build.run("kill -0 " + pid).status() == 0) {
+            throw new IOException("a pause process already exists (pid " + pid + "), so this would prove nothing");
+        }
+    }
+
+    /**
+     * Builds the one podman call that has to make rootless podman's namespace under the unit's properties.
+     *
+     * @param properties The unit's {@code [Service]} properties, each {@code Name=value}.
+     * @return The command, each property quoted whole.
+     */
+    static String underTheUnit(List<String> properties) {
+        final StringBuilder command = new StringBuilder("systemd-run --user --wait --pipe --collect --quiet");
+        for (final String property : properties) {
+            command.append(" -p ").append(AgentLeg.quote(property));
+        }
+        return command.append(" podman unshare true").toString();
+    }
+
     private static void run(Ssh ssh, String command) throws IOException {
         final Ssh.Output out = ssh.run(command);
         System.out.print(out.all());

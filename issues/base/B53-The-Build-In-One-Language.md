@@ -75,16 +75,21 @@ shared tool below does not carry it.
 2. **Sokar's own scripts:**
    - `check-ffm-metadata.sh` - candidate: the tracing-agent mode and metadata copy of the native
      Maven plugin, if it reproduces what the script checks;
-   - `install-musl.sh` - candidate: a download plugin with digest verification and unpacking;
+   - `install-musl.sh` - **evaluated on 2026-09-27: stays, see *What stays*.** The candidate was a
+     download plugin, and it would cover only half: the script also builds zlib from source with
+     `./configure` and `make` against the musl compiler it just unpacked;
    - `deploy-vm.sh` - a command in `sokar-machines`, beside `leg`;
    - `check-packages.sh` - the content comparison as a Java test; the real install stays on a
      machine;
    - `e2e-tier1.sh` - folded into the Java acceptance suite scenario by scenario, which B27 is
      already doing;
-   - `compare-bills.py` - deleted, once it is confirmed that nothing outside the tracked files runs
-     it;
+   - `compare-bills.py` - **deleted on 2026-09-27**: no tracked file ran it, and `sokar-release
+     compare-bills` is the comparison the agent repositories use - their own copies are gone too;
    - **logic built as shell inside `Leg` and `AgentLeg`** - the command still runs over ssh, but
-     what it decides moves into the driver. First case: the leg's check of rootless podman under the
+     what it decides moves into the driver. **First case built on 2026-09-27** (`UnitProperties`,
+     `Leg.underTheUnit`), **and proven the same day**: the counter-test leg failed at that step with
+     `newuidmap: write to uid_map failed: Operation not permitted`, and a leg of `33d5915` passed.
+     First case: the leg's check of rootless podman under the
      daemon unit's own properties before anything has run podman. Today one shell line reads the
      `[Service]` properties with `sed | grep | grep | sed`, tests for a pause process with a shell
      `if`, and runs `systemd-run … podman unshare true`. In Java: `cat` the unit and parse its
@@ -111,6 +116,10 @@ shared tool below does not carry it.
 - `dist-setup/sokar-setup.sh` - it is not part of the build. It ships beside the packages and runs
   as root on a machine that has nothing yet: no package, no daemon, no Java. A Java version would
   need the runtime it is there to install. Added on 2026-09-18, after the inventory above.
+- `install-musl.sh` - it prepares a machine before Maven can link the hooks: two pinned, digest-checked
+  downloads and a C library built with `make` against the musl compiler. The build does not run it,
+  it only reads `musl.home`; a plugin would be the same downloads and the same `make` with more lines.
+  Measured on 2026-09-27 against B53's candidate, a download plugin.
 - `build-pi-tree.sh` - it orchestrates podman and npm in a pinned container; a Java version would
   be the same calls with more lines. Revisit if the rest is done.
 - The `sh -c` commands Sokar's Java builds in `Podman`, `TaskControl`, `TaskWorkspace`,

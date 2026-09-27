@@ -189,15 +189,20 @@ See [build.md](doc/build.md). Three things that will bite:
 ### What stays in another language, and why
 
 The build is Java and Maven; a file in another language is listed here with the reason it cannot
-be. Both run on the operator's machine, which has Sokar's native binaries and no Java:
+be. The first two run on the operator's machine, which has Sokar's native binaries and no Java; the
+third prepares a build machine before Maven can use it:
 
 - `selinux/install-selinux-policy.sh` - the `.deb` and `.rpm` ship it and run it while the package
   installs, to compile and load the SELinux module. An install hook is shell by nature.
 - `dist-setup/sokar-setup.sh` - published beside the packages and run as root on a machine that has
   nothing yet: no package, no daemon, no Java. A Java version would need the runtime it is there to
   install.
+- `buildtools/install-musl.sh` - prepares a machine before Maven can link the hooks: two pinned,
+  digest-checked downloads, and zlib built from source with `make` against the musl compiler it
+  unpacked. The build only reads `musl.home`; a Maven plugin would be the same downloads and the same
+  `make` with more lines around them.
 
-The other scripts under `buildtools/` are being replaced or deleted and are not listed. One that
+The other scripts under `buildtools/` are being replaced and are not listed. One that
 survives that work comes here with its reason.
 
 ## Facts that were expensive to learn

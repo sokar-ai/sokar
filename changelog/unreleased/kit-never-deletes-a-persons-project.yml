@@ -1,0 +1,2 @@
+title: "The acceptance kit's 'a project called ...' step no longer deletes a directory it did not make. It marks what it makes; a directory of that name with the mark - left by an aborted run - is cleared as before, and one without it is refused with the reason, and is not removed by the end-of-run cleanup either."
+type: fixed

@@ -82,7 +82,7 @@ public final class Main {
                 final Options options = Options.parse(rest, Set.of("--pom"), Set.of("--dry-run"));
                 yield options == null || options.positional().size() != 1
                         ? usage(err, "update <version> [--dry-run] [--pom FILE]")
-                        : new Update(out, err, web, relock).pin(options.pom(), options.positional().getFirst(),
+                        : new Update(out, err, web, relock, env).pin(options.pom(), options.positional().getFirst(),
                                 options.flag("--dry-run"));
             }
             case "check-pin" -> {
@@ -90,7 +90,7 @@ public final class Main {
                 final String definition = options == null ? null : options.value("--definition");
                 yield options == null || !options.positional().isEmpty()
                         ? usage(err, "check-pin [--definition FILE] [--offline] [--pom FILE]")
-                        : new CheckPin(out, err, web).check(options.pom(),
+                        : new CheckPin(out, err, web, env).check(options.pom(),
                                 definition == null ? null : Path.of(definition), options.flag("--offline"));
             }
             default -> unknown(command, err);

@@ -5,6 +5,7 @@ import java.io.PrintStream;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import org.fuin.sokar.agent.api.AgentDefinition;
@@ -31,17 +32,21 @@ public final class CheckPin {
 
     private final Web web;
 
+    private final Map<String, String> env;
+
     /**
      * A check that reports on two streams.
      *
      * @param out where each fact is reported
      * @param err where an unanswered check is explained
-     * @param web where the published digest is read
+     * @param web where the published digest and license are read
+     * @param env the environment, for a token
      */
-    public CheckPin(PrintStream out, PrintStream err, Web web) {
+    public CheckPin(PrintStream out, PrintStream err, Web web, Map<String, String> env) {
         this.out = Objects.requireNonNull(out, "out");
         this.err = Objects.requireNonNull(err, "err");
         this.web = Objects.requireNonNull(web, "web");
+        this.env = Map.copyOf(env);
     }
 
     /**
@@ -127,6 +132,28 @@ public final class CheckPin {
                         + artifact.sha256() + "\n          published  " + published.get());
             } else {
                 report.ok("the digest is the published one (" + release.digests().describe() + ")");
+            }
+        }
+        final Release.LicenseSource licenses = release.licenses();
+        if (licenses != null && !offline) {
+            final String declared;
+            try {
+                declared = licenses.license(web, version, env);
+            } catch (Stop stop) {
+                if (stop.code() == Stop.UNANSWERED) {
+                    out.println("  UNKNOWN  " + stop.getMessage());
+                    err.println("Could not check the license. This is not the same as 'it agrees'.");
+                    return Stop.UNANSWERED;
+                }
+                report.bad(stop.getMessage());
+                return report.summary();
+            }
+            if (artifact.license() == null) {
+                report.bad("the definition records no license; " + version + " declares '" + declared + "'");
+            } else if (!artifact.license().equals(declared)) {
+                report.bad("the definition records '" + artifact.license() + "', " + version + " declares '" + declared + "'");
+            } else {
+                report.ok("the license is the declared one: " + declared + " (" + licenses.describe() + ")");
             }
         }
         return report.summary();

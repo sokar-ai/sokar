@@ -21,9 +21,11 @@ import org.jspecify.annotations.Nullable;
  * @param mode Octal file mode, for example {@code 0755}.
  * @param unverified Whether this artifact is knowingly unverifiable.
  * @param reason Why it is unverifiable; required when {@code unverified}.
+ * @param license The license the publisher declares for this release - an SPDX id or, where it gives
+ *     none, the name it uses - or {@code null} when nobody has recorded one.
  */
 public record InstallArtifact(String url, @Nullable String sha256, String target, String mode,
-        boolean unverified, @Nullable String reason) {
+        boolean unverified, @Nullable String reason, @Nullable String license) {
 
     /**
      * Constructor with all data.
@@ -34,8 +36,13 @@ public record InstallArtifact(String url, @Nullable String sha256, String target
      * @param mode Octal file mode.
      * @param unverified Whether it is knowingly unverifiable.
      * @param reason Why; required when unverified.
+     * @param license The declared license, or {@code null}.
      */
     public InstallArtifact {
+        if (license != null) {
+            // Recorded in a bill and compared there: a newline or a quote would be a second value.
+            requirePlain("Install artifact license", license);
+        }
         if (!url.startsWith("https://")) {
             // Not a style preference: a plaintext fetch lets anyone on the path replace the
             // artifact, and the digest below is only worth having if the URL is worth trusting.
@@ -71,6 +78,21 @@ public record InstallArtifact(String url, @Nullable String sha256, String target
                         + " reason");
             }
         }
+    }
+
+    /**
+     * Constructor without a license, as every definition was written before one was recorded.
+     *
+     * @param url Where to fetch it.
+     * @param sha256 Expected digest, or {@code null} when unverified.
+     * @param target Absolute path to install it at.
+     * @param mode Octal file mode.
+     * @param unverified Whether it is knowingly unverifiable.
+     * @param reason Why; required when unverified.
+     */
+    public InstallArtifact(String url, @Nullable String sha256, String target, String mode, boolean unverified,
+            @Nullable String reason) {
+        this(url, sha256, target, mode, unverified, reason, null);
     }
 
     /**

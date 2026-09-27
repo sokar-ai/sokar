@@ -39,6 +39,8 @@ public final class Update {
 
     private final Relock relock;
 
+    private final Map<String, String> env;
+
     /**
      * An update that reports on two streams.
      *
@@ -46,12 +48,14 @@ public final class Update {
      * @param err where a refusal is explained
      * @param web where upstream is read
      * @param relock how an npm tree gets its lockfile
+     * @param env the environment, for a token
      */
-    public Update(PrintStream out, PrintStream err, Web web, Relock relock) {
+    public Update(PrintStream out, PrintStream err, Web web, Relock relock, Map<String, String> env) {
         this.out = Objects.requireNonNull(out, "out");
         this.err = Objects.requireNonNull(err, "err");
         this.web = Objects.requireNonNull(web, "web");
         this.relock = Objects.requireNonNull(relock, "relock");
+        this.env = Map.copyOf(env);
     }
 
     /**
@@ -94,6 +98,14 @@ public final class Update {
             writes.put(release.definition(), Texts.replaceOnce(definition, DIGEST,
                     "$1" + digest.get() + "$2", "pinned sha256 in " + release.definition().getFileName()));
             report.put("sha256", digest.get() + "  (" + release.digests().describe() + ")");
+        }
+        final Release.LicenseSource licenses = release.licenses();
+        if (licenses != null) {
+            final String license = licenses.license(web, version, env);
+            final String definition = writes.containsKey(release.definition()) ? writes.get(release.definition())
+                    : read(release.definition());
+            writes.put(release.definition(), withLicense(definition, license, release.definition()));
+            report.put("license", license + "  (" + licenses.describe() + ")");
         }
         final Release.NpmTree tree = release.npm();
         if (tree != null) {
@@ -158,6 +170,31 @@ public final class Update {
         writes.put(manifestFile, manifest);
         writes.put(lockFile, lockfile);
         return packages(before) + " -> " + packages(lockfile) + " packages, resolved by the pinned npm";
+    }
+
+    private static final Pattern LICENSE = Pattern.compile("(\\blicense:\\s*\")[^\"\\n]*(\")");
+
+    private static final Pattern DIGEST_LINE = Pattern.compile("(\\n([ \\t]*)sha256:\\s*\"[0-9a-f]{64}\")");
+
+    /**
+     * Records a license in the definition beside its digest, or in place of the one recorded before.
+     *
+     * @param definition the definition's text
+     * @param license the license to record
+     * @param file the definition, for a refusal
+     * @return the rewritten text
+     * @throws Stop refused when the license cannot be written as one quoted value, or there is no digest to put it beside
+     */
+    static String withLicense(String definition, String license, Path file) throws Stop {
+        if (license.chars().anyMatch(c -> c == '"' || c == '\\' || c == '\n' || c == '\r')) {
+            throw Stop.refused("the license '" + license + "' cannot be written as one quoted value");
+        }
+        if (LICENSE.matcher(definition).find()) {
+            return Texts.replaceOnce(definition, LICENSE, "$1" + Matcher.quoteReplacement(license) + "$2",
+                    "recorded license in " + file.getFileName());
+        }
+        return Texts.replaceOnce(definition, DIGEST_LINE,
+                "$1\n$2license: \"" + Matcher.quoteReplacement(license) + "\"", "pinned sha256 in " + file.getFileName());
     }
 
     // Only a released module moves - a snapshot is not three numbers - since its successor would be invented.

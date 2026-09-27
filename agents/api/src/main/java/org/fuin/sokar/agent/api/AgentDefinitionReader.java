@@ -205,7 +205,8 @@ public final class AgentDefinitionReader {
                     required(map, "target", origin),
                     map.get("mode") == null ? "0755" : String.valueOf(map.get("mode")),
                     Boolean.TRUE.equals(map.get("unverified")),
-                    optional(map, "reason")));
+                    optional(map, "reason"),
+                    optional(map, "license")));
         }
         return List.copyOf(result);
     }

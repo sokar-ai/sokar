@@ -129,7 +129,7 @@ class CheckPinTest {
 
     private int check(AgentRepository repository, Web web, @Nullable Path definition, boolean offline) {
         return new CheckPin(new PrintStream(out, true, StandardCharsets.UTF_8),
-                new PrintStream(err, true, StandardCharsets.UTF_8), web).check(repository.pom(), definition, offline);
+                new PrintStream(err, true, StandardCharsets.UTF_8), web, java.util.Map.of()).check(repository.pom(), definition, offline);
     }
 
     private String stdout() {

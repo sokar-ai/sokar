@@ -1,0 +1,2 @@
+title: "The Hetzner leg's check of rootless podman under the daemon unit's own properties decides in Java rather than in a shell line: the unit's [Service] properties are parsed with a tested method, the pause pid is validated as a number before 'kill -0', and each property reaches 'systemd-run' quoted whole."
+type: changed

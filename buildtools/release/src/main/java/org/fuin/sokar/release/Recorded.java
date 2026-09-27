@@ -61,7 +61,12 @@ final class Recorded {
         }
         if (license != null) {
             final License named = new License();
-            named.setId(license);
+            // An SPDX id where the publisher gives one; otherwise the name it uses, which CycloneDX keeps as a name.
+            if (license.matches("[A-Za-z0-9.+-]+")) {
+                named.setId(license);
+            } else {
+                named.setName(license);
+            }
             final LicenseChoice choice = new LicenseChoice();
             choice.addLicense(named);
             component.setLicenses(choice);

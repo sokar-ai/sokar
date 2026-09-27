@@ -290,9 +290,14 @@ public class TerminalSteps {
         // public one would be a dependency on somebody else's uptime.
         //
         // Followed unverified, or every fixture would have to sign its commits.
-        world.made(projectName(name));
+        final Ssh.Output owned = world.run(fixtureCheck(projectName(name)));
+        if (owned.status() != 0) {
+            throw new AssertionError(owned.all().strip());
+        }
+        // Only now: a directory the check refused must not be the cleanup's to delete either.
+        world.made(name);
         world.run("rm -rf ~/" + name + " && mkdir -p ~/" + name);
-        world.run("cd ~/" + name + " && git init -q -b main . "
+        world.run("cd ~/" + name + " && git init -q -b main . && touch .git/" + FIXTURE + " "
                 + "&& git config user.email t@example.com && git config user.name T "
                 + "&& echo 'the project' > README.md");
         world.run("cd ~/" + name + " && printf '%s\\n' "
@@ -301,6 +306,26 @@ public class TerminalSteps {
                 + "'image:' '  base_image: \"ubuntu:24.04\"' > project.yml");
         world.run("cd ~/" + name + " && git add -A && git commit -q -m initial");
         world.run("sokar project follow " + name + " ~/" + name + " --unverified");
+    }
+
+    /** Left inside a fixture's .git, never committed: what says a directory is one a run made. */
+    static final String FIXTURE = "sokar-acceptance-fixture";
+
+    /**
+     * Builds the check that stops the step from deleting a directory no acceptance run made.
+     * <p>
+     * The step used to begin with {@code rm -rf ~/NAME}, so a person's own project that shared a
+     * scenario's name was deleted the moment a scenario named it. Asked on 2026-09-27; a leftover of
+     * an aborted run still carries the marker and is cleared.
+     *
+     * @param name The project's name, already checked.
+     * @return A command that exits non-zero, saying why, when the directory is somebody else's.
+     */
+    static String fixtureCheck(String name) {
+        final String home = "~/" + Shell.quote(name);
+        return "if [ -e " + home + " ] && [ ! -e " + home + "/.git/" + FIXTURE + " ]; then echo 'refused: " + name
+                + " is in the home and no acceptance run made it - a project of a person is not a fixture';"
+                + " exit 1; fi";
     }
 
     /**

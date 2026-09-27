@@ -1,0 +1,2 @@
+title: "`buildtools/compare-bills.py` is deleted: nothing ran it, and `sokar-release compare-bills` is the bill comparison every agent repository now uses."
+type: removed

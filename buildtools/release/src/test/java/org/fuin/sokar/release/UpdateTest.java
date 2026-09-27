@@ -163,7 +163,7 @@ class UpdateTest {
         final Map<String, String> before = pi.snapshot();
         final Relock wrong = (tree, manifest, lockfile, work) -> AgentRepository.lockfile("0.85.2", 3);
 
-        assertThat(new Update(stream(out), stream(err), registry("0.85.0", "0.85.1"), wrong).pin(pi.pom(), "0.85.1", false))
+        assertThat(new Update(stream(out), stream(err), registry("0.85.0", "0.85.1"), wrong, Map.of()).pin(pi.pom(), "0.85.1", false))
                 .as(report()).isEqualTo(Stop.REFUSED);
         assertThat(pi.snapshot()).isEqualTo(before);
         assertThat(stderr()).contains("resolved 0.85.2, not 0.85.1");
@@ -186,7 +186,7 @@ class UpdateTest {
             relocked.add(manifest);
             return AgentRepository.lockfile(version, 4);
         };
-        return new Update(stream(out), stream(err), web, relock).pin(repository.pom(), version, dryRun);
+        return new Update(stream(out), stream(err), web, relock, Map.of()).pin(repository.pom(), version, dryRun);
     }
 
     private static PrintStream stream(ByteArrayOutputStream target) {

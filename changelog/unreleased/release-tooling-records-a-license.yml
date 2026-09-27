@@ -1,0 +1,2 @@
+title: "A release's declared license travels like its digest. An agent's install artifact may record a `license` - an SPDX id, or the name a publisher uses where it gives none - and it crosses the agent protocol. `sokar-release update` reads it per release from the source `sokar.release.license` names - npm's per-version entry or GitHub's license API at the release tag - and writes it beside the digest; `check-pin` compares it with the declared one; `add-fetched-cli` records it in the bill, so `compare-bills` stops a release that relicensed itself."
+type: added
