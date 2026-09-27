@@ -55,6 +55,33 @@
             <build>
                 <plugins>
 
+                    <!-- The bill the package installs, from this module's own dependencies: the
+                         three that ship and what they pull in, compile and runtime. It was an
+                         aggregate over the whole reactor, which put the acceptance kit's cucumber,
+                         junit and sshj and the build tools' libraries into what an operator reads
+                         as the contents of the package. Written where the rpm and the publishing
+                         step have always read it. -->
+                    <plugin>
+                        <groupId>org.cyclonedx</groupId>
+                        <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>cyclonedx-package</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>makeBom</goal>
+                                </goals>
+                                <configuration>
+                                    <projectType>application</projectType>
+                                    <outputDirectory>${project.basedir}/../target</outputDirectory>
+                                    <outputName>sokar.cdx</outputName>
+                                    <!-- Nothing here is deployed to Maven: the package is what ships. -->
+                                    <skipNotDeployed>false</skipNotDeployed>
+                                    <skipAttach>true</skipAttach>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
 
                     <plugin>
                         <groupId>org.vafer</groupId>

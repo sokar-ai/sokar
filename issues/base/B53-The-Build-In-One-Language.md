@@ -176,3 +176,51 @@ the script at all.
    strategy and prove the publishing path.
 2. **Whether `e2e-tier1.sh` belongs here or to B27**, which is already moving what a person does
    into the Java suite.
+
+## Where it stands, 2026-09-27 evening - what is left to pick up
+
+Stopped here at the operator's word, to be continued. **Agent Coordinator's 20:07Z list (PJ06
+measured at every tip) is what closes Sokar's half**: everything else in PJ06 is done in claude, pi,
+omp and the sluice. Measured: `git grep python3` outside docs, issues and changelogs finds exactly
+the three files below.
+
+**Done, committed locally on top of `0cbe228`** (whole reactor green, deployed to the ubuntu VM at 20:1xZ;
+the VM suite was stopped before it finished, so **not yet run**):
+
+- `acceptance/kit` `PackageSteps`: "the bill at ... names ..." reads the bill with `cat` and parses
+  it on the runner (`components()`, sokar-wire's `Json`), so no machine under test needs `python3`.
+  New step "the bill at ... does not name ...". `PackageStepsTest`, counter-tested (recursion,
+  format check).
+- **The shipped bill was wrong, found on the way:** `/usr/share/sokar/sbom/sokar.cdx.json` was the
+  root pom's `makeAggregateBom` over the whole reactor - it named the acceptance kit's cucumber,
+  junit, sshj, `sokar-machines`, `sokar-release` (42 components that do not ship), and its content
+  depended on which modules the last build included. Now `dist-deb`'s `makeBom`, from its own
+  dependencies (app, sokard, hooks and their closure: 19 components), written to the same
+  `target/sokar.cdx.json`, so the rpm and CI's upload are unchanged. **Its subject is now
+  `sokar-dist-deb`, not `sokar`** - the plugin has no name override; `check-packages.sh` expects that
+  now. **Note:** `makeBom` skips itself under `-o` - package online.
+- `acceptance/suite` `package/package-bill.feature`: names what ships, names no test or build tool.
+  Proven failing (6 of 10) against the 19:37Z package on the VM.
+- Changelog: `package-bill-describes-the-package.yml`, `kit-bill-steps-without-python.yml`.
+
+**Left, in this order:**
+
+1. **`buildtools/check-packages.sh`** (1 inline `python3`, in `check_bom`; called from `build.yml`
+   "Check the packages"). B53's plan: the content comparison (deb vs rpm file lists, copyright and
+   license places, completions, the bill's subject and version, the version ordering) as Java; the
+   real install in ubuntu:24.04 and fedora:41 containers stays a machine check. It needs `dpkg-deb`
+   and podman (for `rpm`) wherever it runs - CI's ubuntu runner has both.
+2. **`buildtools/deploy-vm.sh`** (154 lines, by hand, see `.AGENTS.md`): a command in
+   `sokar-machines`, beside `leg`. No `python3`.
+3. **`buildtools/e2e-tier1.sh`** (1355 lines; 8 `python3` calls, lines 159-174, all reading
+   `sokar agents describe` JSON; run by `Leg` at "tier 1, on <os>"). Folding it into the suite is
+   B27's, scenario by scenario, and is days, not an evening. **Minimum for PJ06:** replace the
+   eight calls (e.g. one `sokar` command that prints the fields, or read them in Java in `Leg`),
+   and list the script under *What stays in another language, and why* in `AGENTS.md` with B27 as
+   its way out - the Coordinator accepts either replaced or listed with its reason.
+4. Then: the VM suite on the whole change, the operator pushes (no Hetzner leg this round, the
+   operator's word), and tell Agent Coordinator so PJ06's rule can go into the shared block.
+
+**Pushed state when this was written:** remote `0cbe228` (x86-64 v1 and its guard, pushed 20:05Z,
+tested on unit, VM and Hetzner); `5e9cddd`, the bill work above, is the next and local. Nothing in
+`sokar-project` reads the bill's `metadata.component.name` (Agent Coordinator, 20:20Z).

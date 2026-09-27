@@ -161,7 +161,9 @@ echo
 echo "-- bills of materials --"
 
 check_bom() {
-    local label="$1" package="$2" name="$3" version="$4" body
+    # The file is named for the package; the subject is the Maven project that made the bill -
+    # for sokar that is dist-deb, whose dependencies are what the package holds.
+    local label="$1" package="$2" name="$3" version="$4" subject="${5:-$3}" body
     case "$package" in
         *.deb) body="$(dpkg-deb --fsys-tarfile "$package" \
                    | tar -xO "./usr/share/sokar/sbom/$name.cdx.json" 2>/dev/null)" ;;
@@ -181,7 +183,7 @@ import json, sys
 bom = json.load(sys.stdin)
 assert bom.get('bomFormat') == 'CycloneDX', 'not a CycloneDX document'
 subject = bom['metadata']['component']
-assert subject['name'] == '$name', f\"names {subject['name']}, not $name\"
+assert subject['name'] == '$subject', f\"names {subject['name']}, not $subject\"
 assert subject['version'] == '$version', f\"version {subject['version']}, not $version\"
 
 def count(items):
@@ -216,8 +218,8 @@ bom_version() {
 
 SOKAR_VERSION="$(dpkg-deb -f "$DEB" Version)"
 AGENT_VERSION="$(dpkg-deb -f "$AGENT_DEB" Version)"
-check_bom "the sokar deb" "$DEB" "sokar" "$(bom_version "$SOKAR_VERSION")"
-check_bom "the sokar rpm" "$RPM" "sokar" "$(bom_version "$SOKAR_VERSION")"
+check_bom "the sokar deb" "$DEB" "sokar" "$(bom_version "$SOKAR_VERSION")" "sokar-dist-deb"
+check_bom "the sokar rpm" "$RPM" "sokar" "$(bom_version "$SOKAR_VERSION")" "sokar-dist-deb"
 check_bom "the agent deb" "$AGENT_DEB" "sokar-agent-stub" "$(bom_version "$AGENT_VERSION")"
 check_bom "the agent rpm" "$AGENT_RPM" "sokar-agent-stub" "$(bom_version "$AGENT_VERSION")"
 

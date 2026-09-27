@@ -5,6 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.cucumber.java.en.Then;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import org.fuin.sokar.wire.Json;
+import org.fuin.sokar.wire.JsonException;
+import org.jspecify.annotations.Nullable;
 
 /**
  * What a scenario can say about the package that put Sokar, or an agent, on the machine.
@@ -70,6 +77,10 @@ public class PackageSteps {
      * Checked where it matters: on a machine that installed the package rather than in the build
      * that made it. An update gate diffs this against the published one, so a package that ships
      * none, or one describing something else, breaks that gate silently rather than loudly.
+     * <p>
+     * Only the file is read on the machine; it is parsed here. The machine under test needs
+     * nothing beyond {@code cat} - it once needed {@code python3}, which none of the packages
+     * installs - and a failure names what the bill held.
      *
      * @param path Where the package installs its bill.
      * @param component A component the bill must name.
@@ -77,20 +88,62 @@ public class PackageSteps {
      */
     @Then("the bill at {string} names {string}")
     public void billNames(String path, String component) throws IOException {
-        final String python = String.join("\n",
-                "import json, sys",
-                "bom = json.load(open(sys.argv[1]))",
-                "assert bom.get('bomFormat') == 'CycloneDX', 'not a CycloneDX bill'",
-                "def walk(items):",
-                "    for c in items or []:",
-                "        yield c",
-                "        yield from walk(c.get('components'))",
-                "names = {c['name'] for c in walk(bom.get('components'))}",
-                "assert sys.argv[2] in names, sys.argv[2] + ' is not among ' + str(sorted(names))",
-                "print(len(names), 'components')");
-        final Ssh.Output output = world.run(
-                "python3 - " + Shell.quote(path) + " " + Shell.quote(component) + " <<'PY'\n"
-                        + python + "\nPY");
-        assertThat(output.status()).as("%s", output.all().strip()).isZero();
+        assertThat(components(bill(path))).as("the bill at %s", path).contains(component);
+    }
+
+    /**
+     * Asserts that the package's bill of materials does not name a component.
+     * <p>
+     * For what must not ship: a test framework or a build tool in the bill says it was made from
+     * the build rather than from the package, and an operator reading it learns nothing true.
+     *
+     * @param path Where the package installs its bill.
+     * @param component A component the bill must not name.
+     * @throws IOException If the machine cannot be asked.
+     */
+    @Then("the bill at {string} does not name {string}")
+    public void billDoesNotName(String path, String component) throws IOException {
+        assertThat(components(bill(path))).as("the bill at %s", path).isNotEmpty().doesNotContain(component);
+    }
+
+    private String bill(String path) throws IOException {
+        final Ssh.Output output = world.run("cat -- " + Shell.quote(path));
+        assertThat(output.status()).as("reading %s: %s", path, output.err().strip()).isZero();
+        return output.out();
+    }
+
+    /**
+     * Reads the names of every component in a CycloneDX bill, nested ones included.
+     *
+     * @param bill The bill's JSON.
+     * @return The names, sorted, so a failure lists what the bill held.
+     * @throws AssertionError If the text is not a CycloneDX bill.
+     */
+    static Set<String> components(String bill) {
+        final Object parsed;
+        try {
+            parsed = Json.parse(bill);
+        } catch (JsonException ex) {
+            throw new AssertionError("not JSON: " + ex.getMessage(), ex);
+        }
+        if (!(parsed instanceof Map<?, ?> bom) || !"CycloneDX".equals(bom.get("bomFormat"))) {
+            throw new AssertionError("not a CycloneDX bill");
+        }
+        final Set<String> names = new TreeSet<>();
+        collect(bom.get("components"), names);
+        return names;
+    }
+
+    private static void collect(@Nullable Object components, Set<String> names) {
+        if (components instanceof List<?> list) {
+            for (final Object item : list) {
+                if (item instanceof Map<?, ?> map) {
+                    if (map.get("name") instanceof String name) {
+                        names.add(name);
+                    }
+                    collect(map.get("components"), names);
+                }
+            }
+        }
     }
 }

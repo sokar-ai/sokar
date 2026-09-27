@@ -1,0 +1,2 @@
+title: "The acceptance kit's bill steps no longer need python3 on the machine under test: the bill is read with cat and parsed by the runner, and a new step, 'the bill at ... does not name ...', checks that something does not ship."
+type: changed

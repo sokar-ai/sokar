@@ -1,0 +1,2 @@
+title: "The bill of materials the package installs at /usr/share/sokar/sbom/sokar.cdx.json now lists what the package holds, and only that: it was an aggregate over the whole build, which added the acceptance kit's cucumber and junit, sshj and the release tooling's libraries - 42 components that do not ship - and changed with whichever modules the last build included. It is now made from the package's own dependencies, and an acceptance scenario checks it on an installed machine."
+type: fixed

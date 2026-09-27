@@ -538,34 +538,6 @@
                  that publishes on its own gets its own bill from pluginManagement instead. -->
 
             <plugin>
-                <groupId>org.cyclonedx</groupId>
-                <artifactId>cyclonedx-maven-plugin</artifactId>
-                <!-- Not inherited: a module that publishes declares this itself, and without
-                     this every module in the reactor would generate one. -->
-                <inherited>false</inherited>
-                <executions>
-                    <execution>
-                        <id>cyclonedx-aggregate</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>makeAggregateBom</goal>
-                        </goals>
-                        <configuration>
-                            <projectType>application</projectType>
-                            <outputName>sokar.cdx</outputName>
-                            <!-- The default skips anything that is not deployed to Maven, and
-                                 nothing here is: the packages are what ship. That default is
-                                 why this produced no file at all at first. -->
-                            <skipNotDeployed>false</skipNotDeployed>
-                            <!-- The file is packaged, not attached as a Maven artifact of an
-                                 aggregator that is never published. -->
-                            <skipAttach>true</skipAttach>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
                 <groupId>dev.logchange</groupId>
                 <artifactId>logchange-maven-plugin</artifactId>
                 <version>${logchange-maven-plugin.version}</version>
