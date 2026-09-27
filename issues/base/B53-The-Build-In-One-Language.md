@@ -1,9 +1,10 @@
 # B53 — The Build In One Language
 
-**Status:** open, written 2026-09-13 at the operator's instruction, **first priority**. The Java
-repositories should build, check, update and test in Java and Maven, and use another language only
-where there is a reason that cannot be. The interface is exempt: it is Flutter and Dart, and not
-Java to begin with.
+**Status:** open, written 2026-09-13 at the operator's instruction, **first priority**.
+
+**The rule is `sokar-project` PJ06** - that the Java repositories build, check, update and test in
+Java and Maven, and that anything left in another language says why. This file is the tooling that
+carries it out here and in the agent repositories: the shared tool, and Sokar's own scripts.
 
 **Where the other half lives.** Replacing the scripts in `sokar-claude-code`, `sokar-pi` and
 `sokar-omp` is each of those repositories' own work, handed over on 2026-09-13 and cut into four
@@ -113,20 +114,17 @@ shared tool below does not carry it.
 
 ## What must be true
 
-**The Java repositories build, check, update and test in Java and Maven, and every non-Java file
-that remains says why it cannot be Java.**
+**The shared tool exists and the agent repositories use it, and each of Sokar's own scripts is
+either replaced or listed above under *What stays* with its reason.** Whether that satisfies the
+rule is measured by PJ06, not here.
 
 ## Acceptance
 
-- No Python file is left in Sokar or in the agent repositories, and no build or workflow needs
-  `python3`.
-- Every shell file that remains is listed in `AGENTS.md` with the reason it stays.
 - The shared tool is one implementation. An agent's difference is configuration or a strategy, and
   each agent's case is covered by a test.
 - The pinned-digest check runs on every push wherever it runs today, not only in the update job.
 - **Every replaced check is proven against the failure it exists for**: that failure is reproduced
   and the new check fails on it. A rewrite that passes everything proves nothing.
-- The workflows call Maven or the published tool, never a script this requirement replaced.
 
 ## Decided with the agent repositories, 2026-09-13
 
