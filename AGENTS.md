@@ -115,6 +115,13 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
 - **Descriptive method names, not `testXxx`.** All 775 test methods read as
   sentences — `refusesADomainThatIsBothAllowedAndRefused`,
   `readsTheDomainsAnAgentNeeds`. There is no `testXxx` left; do not reintroduce it.
+- **A family of guards needs one that has fired, or their green means nothing.** Agent Smith's,
+  2026-09-27, from four bills of materials across four repositories: one compared an empty set, two
+  compared five Java libraries that cannot change, one was shipped and compared by no job at all,
+  and one compared 140 components and had stopped a release. **All four were green in the same
+  way.** The working one is the instrument - it is what made the other three visible, and a project
+  holding only the first three would have had no reason to look. So when several checks of one kind
+  all pass, ask which of them has ever failed; if the answer is none, that is the finding.
 - **Every guard must be proven to fail.** A test that has never failed is a test
   nobody has checked. When adding a rule, deliberately violate it once and watch
   it break, then keep the negative case if it can be expressed as a test. This is
