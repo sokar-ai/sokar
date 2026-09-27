@@ -148,9 +148,15 @@ done
 
 # ------------------------------------------------------------------ the bill
 #
-# A package that ships no bill, or one describing something else, is the failure this exists
-# for: the automated update gate compares the new bill against the published one, and it cannot
-# notice a changed dependency set in a document that was never written or never updated.
+# A package that ships no bill, or one describing something else, is the failure this exists for.
+# What the bill is for here is a reader: an operator can see what a package carries without
+# installing it, and a native image is opaque to a scanner afterwards.
+#
+# NOTHING IN THIS REPOSITORY COMPARES ONE BILL WITH THE NEXT. The agent repositories' update jobs
+# do that for their own, which is what this comment used to claim for this one - true of the
+# project and false of the file it sits in. So this check proves the document exists and describes
+# the right package, and no more than that: a dependency set that changed between two releases of
+# `sokar` passes here in silence.
 echo
 echo "-- bills of materials --"
 
