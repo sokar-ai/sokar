@@ -955,6 +955,16 @@ reads a parameter it does not describe, or throws an error it does not name.
 - **Derive nothing on the client side that the daemon can send.** A clearance prompt now carries
   its own `key` because a client rebuilding it from the other fields is one separator away from
   answering a prompt that does not exist, while the task stays blocked.
+- **A client needs to be told which of two things happened when its sentence claims an act, and
+  does not when its sentence describes a state.** That is what decides whether a reply gains a
+  value, and it was Agent Frontend's on 2026-09-27 after an outcome was proposed and refused.
+  `Lock` answers `wasCached` because *"the store is shut"* claims an act and is false for a store
+  that was already shut; `SetClearance` answers `UNCHANGED` because *"nothing was restarted"*
+  deserves its own sentence. `UnlockWithShare` needs nothing of the kind: it returns `UNLOCKED`
+  for a store that was opened and for one whose bound was replaced, the state afterwards is the
+  same, and the interface says only *"open until <time>"*. **A value nobody renders is the same
+  defect as a state nobody can reach**, so the question is asked of the reader's sentence rather
+  than of the daemon's branch.
 
 ## The skills this repository expects you to have
 
