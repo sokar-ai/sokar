@@ -1053,6 +1053,20 @@ one copy.
 
 - **The operator pushes. Agents commit and stop.** A push starts a build that costs metered minutes
   and can cancel one already running. Say what is ready and let him decide when.
+- **A rewrite is cheap only while the commits are yours alone. Ask the remote first.**
+  *The operator pushes. Agents commit and stop* - and stop includes stop amending, stop squashing,
+  stop rebasing. A commit stops being yours the moment he takes it, and nothing tells you when that
+  happened except asking:
+
+      git ls-remote origin refs/heads/main            the tip, and it cannot be stale
+      git merge-base --is-ancestor <commit> <tip>     whether the commit is already in it
+
+  `origin/main` and `@{u}` are caches and answer a question about your last fetch. On 2026-09-27 an
+  amend after a push put two commits with one parent and one subject on two sides, and the operator
+  met it as a merge conflict. **The repair is never a force push** - reset onto the remote's commit
+  and re-apply as a new one, because the side that pushes is the side whose history is real. That
+  same reset is also the only safe way to squash, which is why the cure and the correct method are
+  one operation.
 - **Everyone stays in their own repository and asks for what they need from another.** Ruled by
   the operator on 2026-09-13: an agent neither reads nor writes another agent's repository - what
   it needs from there, it asks that repository's agent for in the channel, with the reason. The
