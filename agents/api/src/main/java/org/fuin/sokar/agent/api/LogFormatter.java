@@ -1,5 +1,7 @@
 package org.fuin.sokar.agent.api;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Turns one line of an agent's output into something worth showing an operator.
  * <p>
@@ -17,7 +19,7 @@ public interface LogFormatter {
      * @param line Raw output line.
      * @return What to show, or {@code null} to show nothing for this line.
      */
-    String format(String line);
+    @Nullable String format(String line);
 
     /**
      * Returns a formatter that passes every line through unchanged.

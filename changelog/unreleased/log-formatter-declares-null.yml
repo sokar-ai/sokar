@@ -1,0 +1,2 @@
+title: "The agent API's `LogFormatter.format` declares the null it has always been allowed to return, so an agent that hides a line no longer has to widen the return type of an override to say so."
+type: fixed
