@@ -133,7 +133,7 @@ class SeveralRepositoriesTest {
         // Waiting in the repository it was pushed to.
         assertThat(backend.pending()).containsExactly("task-1");
 
-        // And nowhere near that repository's upstream. This is the claim B13 makes for one
+        // And nowhere near that repository's upstream. This is the claim the gate makes for one
         // repository, measured again for one repository OF A PROJECT THAT HAS SEVERAL - the
         // mirror is a different directory now, and a gate built on the wrong one would forward
         // or refuse without anybody noticing which.

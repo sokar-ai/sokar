@@ -18,8 +18,8 @@ Feature: What a task is after the machine restarts
   # it and only the last removes it. What that costs is idempotence, and it cost a run: a previous
   # run left the container behind in exactly the state a reboot puts it in, and the next run's
   # first scenario waited 480s for a shell that sokar was quite correctly refusing to give it.
-  # Removing it first is what makes this file runnable twice on the same machine, which B27 names
-  # as the property the interesting failures hide behind.
+  # Removing it first is what makes this file runnable twice on the same machine - the property
+  # the interesting failures hide behind.
 
   Scenario: a task that outlived the machine still says what it belongs to
     Given a script runs "sokar task remove sokar-restarted-shell --force"

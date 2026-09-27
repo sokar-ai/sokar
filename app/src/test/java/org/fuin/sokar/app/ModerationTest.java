@@ -78,7 +78,7 @@ class ModerationTest {
     }
 
     /**
-     * The setting B13 and B14 share: unread work leaving is one decision, written down once.
+     * The setting the gate and the mailbox share: unread work leaving is one decision, written down once.
      */
     @Test
     void a_guarded_project_must_opt_in_before_anything_leaves_unread(@TempDir final Path dir)

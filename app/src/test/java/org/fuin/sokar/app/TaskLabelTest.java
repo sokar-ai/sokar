@@ -142,7 +142,7 @@ class TaskLabelTest {
     @Test
     void aTaskSaysWhetherItsOwnWorkIsWaitingAtTheGate(@TempDir Path dir) throws IOException {
 
-        // F10 asks whether anything of this task is waiting for review. It cannot be joined from
+        // Whether anything of this task is waiting for review cannot be joined from
         // the outside: Task.name is a CONTAINER name and PendingPush.name is a TASK name, and
         // several containers over time share one ref - so the answer has to come from here.
         final SokarContext context = context(dir);

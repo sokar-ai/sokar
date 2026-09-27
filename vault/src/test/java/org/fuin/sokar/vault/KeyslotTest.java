@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Test for B60: a device opens the vault with a share, and the node cannot open it alone.
+ * A device opens the vault with a share, and the node cannot open it alone.
  */
 class KeyslotTest {
 

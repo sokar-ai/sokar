@@ -41,7 +41,7 @@ import org.fuin.sokar.wire.Json;
  * key is generated once, when the vault is created, and stored only in wrapped form - once per
  * {@link Keyslot}. The passphrase is keyslot 0 and wraps it with Argon2id; a device's share wraps
  * it with HKDF. Adding a device adds a slot, removing one deletes a slot, and neither re-keys
- * anything or disturbs another device. See B60.
+ * anything or disturbs another device.
  */
 public class VaultFile {
 

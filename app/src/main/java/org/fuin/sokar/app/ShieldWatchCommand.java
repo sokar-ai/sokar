@@ -142,7 +142,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
                         try {
                             policy.allow(address);
                             // Written down at the one moment both are known. Resolving the name
-                            // again later to find out what to withdraw was rejected in B12: a
+                            // again later to find out what to withdraw was rejected: a
                             // CDN, GeoDNS or plain round-robin answers Sokar and the container
                             // differently, and the addresses that differ are exactly the ones
                             // that would be left open.

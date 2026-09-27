@@ -13,7 +13,7 @@ import picocli.CommandLine.Spec;
  * <p>
  * <strong>The worth is the point, not the list.</strong> A share kept in a keyring that unlocks at
  * login is worth less than one behind a security key, and the difference is invisible in a list of
- * device names. B60 asks the product to say that rather than imply it, and this is where it is
+ * device names. The product says that rather than implying it, and this is where it is
  * said - at the machine, without an interface.
  */
 @Command(name = "devices",

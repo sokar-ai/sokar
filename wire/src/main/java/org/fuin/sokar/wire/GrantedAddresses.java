@@ -16,7 +16,7 @@ import java.util.Set;
  * <strong>Written at the one moment both are known.</strong> The clearance watcher sees a blocked
  * packet, looks the address up to a name, and lets it through; from then on the firewall holds an
  * address and nothing holds the pair. Taking a grant back needs it - a name has to become the
- * addresses to remove - and re-resolving the name later was rejected in B12 for a specific reason:
+ * addresses to remove - and re-resolving the name later was rejected for a specific reason:
  * a CDN, GeoDNS or plain round-robin answers Sokar and the container differently, and the
  * addresses that differ are precisely the ones a withdrawal would leave open.
  * <p>

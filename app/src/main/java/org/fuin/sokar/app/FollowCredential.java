@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
  * the vault. A private repository was therefore reachable exactly as far as the account's own ssh
  * setup reached, while the refusal said <em>"this account's vault is shut, so the credential a
  * private repository needs is out of reach"</em> - pointing at a vault that held nothing any of
- * those paths would have used. Found by the operator, through Agent Frontend's dialog (QF39).
+ * those paths would have used. Found by the operator, through Agent Frontend's dialog.
  * <p>
  * <strong>Where the work comes from does not change the credential.</strong> An agent in a
  * container, a person at {@code gate approve}, the daemon reconciling on a timer: the connection

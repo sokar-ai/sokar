@@ -2156,7 +2156,7 @@ method Unfollow(
 
 # ---------------------------------------------------------------------------- keyslots
 
-# What can open this machine's vault (B60).
+# What can open this machine's vault.
 #
 # The vault's master key is stored only in wrapped form, once per credential allowed to open it.
 # Keyslot 0 is the passphrase and is recovery only; every other slot is one device, which keeps a

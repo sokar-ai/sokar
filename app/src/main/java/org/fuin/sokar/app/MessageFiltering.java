@@ -62,7 +62,7 @@ public final class MessageFiltering {
         }
         final CommandResult result;
         try {
-            // One flag: the filter derives the B14 layout from the mailbox root, so the two cannot
+            // One flag: the filter derives the mailbox layout from its root, so the two cannot
             // disagree about where anything is.
             //
             // '--blocking' is deliberately absent. A mailbox that has never been calibrated

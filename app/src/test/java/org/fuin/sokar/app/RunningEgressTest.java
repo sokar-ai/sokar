@@ -227,7 +227,7 @@ class RunningEgressTest {
     void removesTheAddressesThatWereRecordedWhenTheGrantWasApplied(@TempDir Path dir)
             throws IOException {
 
-        // The load-bearing claim. B12 rejected resolving the name again here: a CDN, GeoDNS or
+        // The load-bearing claim. Resolving the name again here was rejected: a CDN, GeoDNS or
         // round-robin answers Sokar and the container differently, and the addresses that differ
         // are exactly the ones a withdrawal would leave open. So what comes out of the firewall is
         // what went in, recorded at the moment it did.

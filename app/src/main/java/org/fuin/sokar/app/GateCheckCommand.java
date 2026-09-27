@@ -30,7 +30,7 @@ import picocli.CommandLine.Spec;
  * per line - works out which commits are about to leave, and names any whose author is an agent
  * installed here.
  * <p>
- * <strong>Author identity, and the reason is measured rather than assumed.</strong> B13 recorded
+ * <strong>Author identity, and the reason is measured rather than assumed.</strong> It was once held
  * that an author is "easy to lose in a rebase" and that a trailer added at approval time would be
  * safer. Measured: {@code git rebase} <em>preserves</em> the author and changes only the
  * committer, through an ordinary rebase, an interactive one and an {@code --amend}. So the cheap

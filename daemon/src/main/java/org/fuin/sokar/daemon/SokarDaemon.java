@@ -844,7 +844,7 @@ public final class SokarDaemon {
             }
         });
 
-        // B60's four verbs. The daemon can open the vault with a share where it cannot with a
+        // The four keyslot verbs. The daemon can open the vault with a share where it cannot with a
         // passphrase: a share arrives from a device over this socket, and a passphrase would need
         // a terminal the daemon does not have.
         server.method("Keyslots", (parameters, replies) -> {
@@ -1205,7 +1205,7 @@ public final class SokarDaemon {
             // 'NoSuchProject' for a name this machine does not LIST - not for one it lists but
             // does not follow. Those are projects from before following, and answering the error
             // here left an interface offering to clear one and with nothing to show for it, while
-            // force would have swept it blind. Found by Agent Frontend (QF38); the operator hit
+            // force would have swept it blind. Found by Agent Frontend; the operator hit
             // the same wall on a test machine the same hour.
             if (!following && deleted.outcome()
                     == org.fuin.sokar.app.ProjectDeletion.Outcome.NO_SUCH_PROJECT) {

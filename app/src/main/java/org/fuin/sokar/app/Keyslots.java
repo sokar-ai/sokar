@@ -13,7 +13,7 @@ import org.fuin.sokar.vault.VaultFile;
 /**
  * What an interface may do with the vault's keyslots, and what each answer means.
  * <p>
- * One place for the four operations B60 describes, so the daemon's methods and any command line
+ * One place for the four keyslot operations, so the daemon's methods and any command line
  * render the same outcomes rather than each deciding what counts as a failure.
  * <p>
  * <strong>A share never appears in an outcome, a log line or a message.</strong> It arrives, it is

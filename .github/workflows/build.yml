@@ -198,7 +198,7 @@ jobs:
           jf rt upload "target/sokar.cdx.json" "sokar-dist-deb/pool/main/s/sokar/" --flat=true
           jf rt upload "target/sokar.cdx.json" "sokar-dist-rpm/snapshots/" --flat=true
 
-          # The setup script, versioned with the packages it installs (B62). A machine being
+          # The setup script, versioned with the packages it installs. A machine being
           # prepared has no daemon to ask, so this is the one Sokar interface that is a file: the
           # wizard fetches it with 'curl -L', shows it to the person, and runs it as root. Named
           # with the version so the script and the packages it configures cannot drift apart, and

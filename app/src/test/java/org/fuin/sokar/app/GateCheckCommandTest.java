@@ -189,7 +189,7 @@ class GateCheckCommandTest {
     @Test
     void anAuthorSurvivesARebaseSoTheCheckStillSeesIt(@TempDir Path root) throws Exception {
 
-        // B13 assumed an author is "easy to lose in a rebase" and proposed rewriting commits at
+        // It was assumed an author is "easy to lose in a rebase", and proposed to rewrite commits at
         // approval time to carry a trailer instead. Measured here rather than assumed: a rebase
         // changes the committer and keeps the author, so the cheap signal is the durable one and
         // nothing has to be rewritten.

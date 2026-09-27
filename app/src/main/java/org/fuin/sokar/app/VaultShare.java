@@ -15,7 +15,7 @@ import org.fuin.sokar.vault.KernelKeyring;
  * stops working the moment its keyslot is removed, and it is no more than what the passphrase cache
  * already is - a way in, held in memory, with a timeout.
  * <p>
- * <strong>The kernel keyring, not a file.</strong> B60 says the node persists neither the share nor
+ * <strong>The kernel keyring, not a file.</strong> The node persists neither the share nor
  * the master key, and this is how that is kept true: the keyring is memory, it is gone on reboot,
  * and the kernel enforces the timeout rather than a process remembering to.
  */

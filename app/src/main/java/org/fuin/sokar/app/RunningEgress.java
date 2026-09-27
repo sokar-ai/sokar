@@ -206,7 +206,7 @@ public final class RunningEgress {
      * "narrowed" on its own would claim the host is unreachable, and it is not, yet.
      * <p>
      * The addresses come from what was recorded when each grant was applied, never from resolving
-     * the name again here. B12 rejected re-resolving for a measured reason: a CDN, GeoDNS or plain
+     * the name again here. Re-resolving was rejected for a measured reason: a CDN, GeoDNS or plain
      * round-robin answers Sokar and the container differently, and the addresses that differ are
      * exactly the ones a withdrawal would leave open.
      *

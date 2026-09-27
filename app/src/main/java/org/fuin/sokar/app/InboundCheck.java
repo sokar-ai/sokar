@@ -82,7 +82,7 @@ public final class InboundCheck {
         // project a mailbox belongs to - a project file that moved, a task older than its project.
         // It then knows no peers at all, and "not listed" meant "not external" meant "delivered
         // unchecked". Not knowing whether to trust somebody is not a reason to trust them, and
-        // B14 already says an omitted trust level reads as external.
+        // An omitted trust level already reads as external.
         if (filter == null) {
             return "it is from a peer this machine does not vouch for, and no message filter is"
                     + " installed to check it";

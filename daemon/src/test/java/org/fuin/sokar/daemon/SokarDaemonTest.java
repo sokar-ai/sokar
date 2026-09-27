@@ -1669,7 +1669,7 @@ class SokarDaemonTest {
     void canStartAnswersRatherThanThrowingWhenNothingCanRun(@TempDir Path dir) throws Exception {
 
         // The whole point of the method: a refusal is an ANSWER a client branches on, not an
-        // exception and not an exit code with prose after it. F08's sixth criterion is that a
+        // exception and not an exit code with prose after it. one criterion is that a
         // missing credential is reported before anything is built or started, and reporting it
         // as a thrown error would put the client back to reading text.
         serving(dir, socket -> {

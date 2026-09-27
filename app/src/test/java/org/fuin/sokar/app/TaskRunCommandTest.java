@@ -784,7 +784,7 @@ class TaskRunCommandTest {
     void aFollowedProjectsVerifiedFileWinsOverTheOneInTheDirectory(@TempDir Path dir)
             throws IOException {
 
-        // The measurement B70 asks for by name: start a task from a directory holding a DIFFERENT
+        // The measurement that matters: start a task from a directory holding a DIFFERENT
         // project.yml and show that the directory's file had no effect. Following checks a
         // signature against a key pinned out of band, and reading anything else afterwards throws
         // that check away.

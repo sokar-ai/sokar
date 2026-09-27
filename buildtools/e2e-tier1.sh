@@ -753,7 +753,7 @@ esac
 
 # ----------------------------------------------- widening and narrowing a live run
 #
-# Both halves of B12, against the running container rather than against a fake command runner. The
+# Both halves of it, against the running container rather than against a fake command runner. The
 # unit tests prove the right arguments are built; only this proves the arguments do anything - a
 # real dnsmasq re-reading its servers file on SIGHUP, and a real 'nft delete element' inside the
 # container's own network namespace.

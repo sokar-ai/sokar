@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Test for {@link Keyslots}, which is what an interface sees of B60.
+ * Test for {@link Keyslots}, which is what an interface sees of the keyslots.
  */
 class KeyslotsTest {
 
@@ -99,7 +99,7 @@ class KeyslotsTest {
     }
 
     /**
-     * The acceptance of B60, through the paths a task actually uses: a device unlocks, and the
+     * The whole of it, through the paths a task actually uses: a device unlocks, and the
      * credentials read with nothing typed.
      * <p>
      * Needs the kernel keyring, which is where an unlock is held. A machine without one has no

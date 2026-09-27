@@ -4,7 +4,7 @@
 #
 # This is the one piece of Sokar that is a file rather than a call: everything else goes through
 # the daemon, and a machine being prepared has no daemon yet, no packages, and no user for the
-# daemon to run as. See issues/base/B62.
+# daemon to run as.
 #
 # Usage:  sokar-setup.sh [options]
 #

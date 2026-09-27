@@ -247,7 +247,7 @@ public final class ProjectDeletion {
         // project have to take it: the terminal removed it by hand afterwards and the socket did
         // not, so a project unfollowed from an interface left its clone on the machine. The
         // contract said the clone goes, and one of the two paths quietly did not. Found by Agent
-        // Frontend (QF43).
+        // Frontend.
         if (Files.isDirectory(context.paths().followedClone(project))) {
             removes.add(new Removal("FOLLOWED_CLONE",
                     context.paths().followedClone(project).toString()));
