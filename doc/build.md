@@ -56,8 +56,8 @@ build error, it is a `MissingForeignRegistrationError` at runtime in the shipped
 registrations are generated from a test run rather than maintained by hand:
 
 ```
-./buildtools/check-ffm-metadata.sh            # verify; non-zero exit on drift
-./buildtools/check-ffm-metadata.sh --update   # rewrite, then commit the result
+./mvnw -Pnative,ffm-check -Dagent=true -pl buildtools/ffm-check,core,shield,vault -am verify                            # verify; fails on drift
+./mvnw -Pnative,ffm-check -Dagent=true -pl buildtools/ffm-check,core,shield,vault -am verify -Dsokar.ffm.update=true  # add, then commit the result
 ```
 
 Run it in CI. After adding or changing a downcall, run it with `--update` and commit

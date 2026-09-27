@@ -41,6 +41,10 @@ jobs:
       - name: Build and unit tests
         run: ./mvnw -B verify -s settings.xml
 
+      # FFM downcalls are not found by native-image's analysis: an unregistered one fails only in the shipped binary.
+      - name: Every FFM downcall the tests made is registered
+        run: ./mvnw -B -s settings.xml -Pnative,ffm-check -Dagent=true -pl buildtools/ffm-check,core,shield,vault -am verify
+
   # Only what has landed on main, plus a manual run.
   tier1:
     name: Tier 1 - ${{ matrix.os }}

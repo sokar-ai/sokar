@@ -68,6 +68,21 @@
             </build>
         </profile>
 
+        <!-- -Pnative,ffm-check -Dagent=true fails on an unregistered downcall; -Dsokar.ffm.update=true adds it. -->
+        <profile>
+            <id>ffm-check</id>
+            <properties>
+                <sokar.ffm.skip>false</sokar.ffm.skip>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
 </project>

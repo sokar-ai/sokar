@@ -100,6 +100,9 @@
         <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
         <!-- The library the plugin above builds bills with, so a bill is read by the code that wrote it. -->
         <cyclonedx-core-java.version>9.0.5</cyclonedx-core-java.version>
+        <exec-maven-plugin.version>3.5.1</exec-maven-plugin.version>
+        <!-- The FFM check runs only in a module whose ffm-check profile turns it on. -->
+        <sokar.ffm.skip>true</sokar.ffm.skip>
         <logchange-maven-plugin.version>1.19.16</logchange-maven-plugin.version>
         <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
         <picocli.version>4.7.7</picocli.version>
@@ -147,6 +150,7 @@
         <module>hooks</module>
         <module>buildtools/hetzner</module>
         <module>buildtools/release</module>
+        <module>buildtools/ffm-check</module>
         <module>acceptance</module>
         <module>dist-deb</module>
         <module>dist-rpm</module>
@@ -318,6 +322,39 @@
         <pluginManagement>
 
             <plugins>
+
+                <!-- The FFM check; it runs where a module's ffm-check profile sets sokar.ffm.skip to false. -->
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>${exec-maven-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <id>ffm-check</id>
+                            <phase>prepare-package</phase>
+                            <goals>
+                                <goal>java</goal>
+                            </goals>
+                            <configuration>
+                                <skip>${sokar.ffm.skip}</skip>
+                                <mainClass>org.fuin.sokar.ffmcheck.ForeignRegistrations</mainClass>
+                                <includeProjectDependencies>false</includeProjectDependencies>
+                                <includePluginDependencies>true</includePluginDependencies>
+                                <arguments>
+                                    <argument>${project.build.directory}/native/agent-output</argument>
+                                    <argument>${project.basedir}/src/main/resources/META-INF/native-image/org.fuin.sokar/${project.artifactId}/reachability-metadata.json</argument>
+                                </arguments>
+                            </configuration>
+                        </execution>
+                    </executions>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.fuin.sokar</groupId>
+                            <artifactId>sokar-ffm-check</artifactId>
+                            <version>${project.version}</version>
+                        </dependency>
+                    </dependencies>
+                </plugin>
 
                 <!-- A CycloneDX bill for anything published. Managed here, bound only in the
                      modules that publish: a native image is opaque to a scanner and an archive

@@ -1,0 +1,2 @@
+title: "The check that every FFM downcall is registered for the native image is Java - `buildtools/ffm-check`, run by the `ffm-check` profile - and runs in CI for the first time: the shell script it replaces was documented as a CI step that no workflow called. An update keeps the hand-written entries and comment a test cannot produce."
+type: changed

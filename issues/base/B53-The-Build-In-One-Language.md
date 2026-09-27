@@ -73,8 +73,12 @@ shared tool below does not carry it.
    is what catches a hand-made version bump that forgot the digest - a build that tests and packages
    green and fails only at an image build - and it needs the network, so it cannot be a unit test.
 2. **Sokar's own scripts:**
-   - `check-ffm-metadata.sh` - candidate: the tracing-agent mode and metadata copy of the native
-     Maven plugin, if it reproduces what the script checks;
+   - `check-ffm-metadata.sh` - **replaced on 2026-09-27** by `buildtools/ffm-check`, run by an
+     `ffm-check` profile in `core`, `shield` and `vault`. The plugin's metadata copy was not it: it
+     merges whole files, and the check has to keep hand-written entries a test cannot execute. **And
+     it now runs in CI** - the script was documented as a CI step and no workflow ever called it.
+     Proven: a registration taken out turned the build red naming it; `-Dsokar.ffm.update=true` put it
+     back. The script's own update dropped the hand-written `comment` in `shield`'s file; this keeps it;
    - `install-musl.sh` - **evaluated on 2026-09-27: stays, see *What stays*.** The candidate was a
      download plugin, and it would cover only half: the script also builds zlib from source with
      `./configure` and `make` against the musl compiler it just unpacked;

@@ -44,7 +44,7 @@
         <!-- Runs the tests under the native-image tracing agent, which records every FFM downcall
              this module makes. FFM downcalls are not found by static analysis: an unregistered one
              is a runtime failure in the shipped binary, so the registration is generated from a
-             test run rather than maintained by hand. See buildtools/check-ffm-metadata.sh. -->
+             test run rather than maintained by hand. See the ffm-check profile below. -->
 
         <profile>
             <id>native</id>
@@ -64,6 +64,21 @@
             </build>
         </profile>
 
+        <!-- -Pnative,ffm-check -Dagent=true fails on an unregistered downcall; -Dsokar.ffm.update=true adds it. -->
+        <profile>
+            <id>ffm-check</id>
+            <properties>
+                <sokar.ffm.skip>false</sokar.ffm.skip>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
 </project>

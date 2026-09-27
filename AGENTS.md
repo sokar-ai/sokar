@@ -182,9 +182,10 @@ See [build.md](doc/build.md). Three things that will bite:
   uses a literal `<sokar.version>` property, and why an enforcer rule checks the
   two have not drifted.
 - **FFM downcalls are not discovered by static analysis.** An unregistered one is
-  a `MissingForeignRegistrationError` at runtime in the shipped binary. Run
-  `./buildtools/check-ffm-metadata.sh` in CI, and `--update` after adding a
-  downcall.
+  a `MissingForeignRegistrationError` at runtime in the shipped binary. CI runs
+  `./mvnw -Pnative,ffm-check -Dagent=true -pl buildtools/ffm-check,core,shield,vault -am verify`, which fails on a downcall
+  the tests made that is not registered; add `-Dsokar.ffm.update=true` after
+  adding a downcall, and commit the result.
 
 ### What stays in another language, and why
 

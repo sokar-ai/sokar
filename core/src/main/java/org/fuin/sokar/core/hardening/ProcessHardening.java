@@ -53,7 +53,7 @@ public final class ProcessHardening {
     /**
      * The single {@code prctl} descriptor used by this class. Adding a second distinct descriptor
      * anywhere means a new entry in {@code reachability-metadata.json} - see
-     * {@code buildtools/check-ffm-metadata.sh}.
+     * the {@code ffm-check} profile.
      */
     private static final MethodHandle PRCTL = prctl();
 
