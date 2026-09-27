@@ -100,6 +100,9 @@ shared tool below does not carry it.
 - `mvnw` - the Maven wrapper is the standard.
 - `install-selinux-policy.sh` - it runs on the operator's machine while a package installs, and that
   is shell by nature.
+- `dist-setup/sokar-setup.sh` - it is not part of the build. It ships beside the packages and runs
+  as root on a machine that has nothing yet: no package, no daemon, no Java. A Java version would
+  need the runtime it is there to install. Added on 2026-09-18, after the inventory above.
 - `build-pi-tree.sh` - it orchestrates podman and npm in a pinned container; a Java version would
   be the same calls with more lines. Revisit if the rest is done.
 - The `sh -c` commands Sokar's Java builds in `Podman`, `TaskControl`, `TaskWorkspace`,
