@@ -1,0 +1,2 @@
+title: "A new published artifact, `sokar-release`, gives the agent repositories one bill comparison instead of three copies: `compare-bills <built bill> <published URL> [--expect-moved NAME]` exits 0 to publish, 1 when a component arrived or left or a license changed, and 2 when the comparison could not be made - a failed fetch or an unreadable bill is never read as nothing published."
+type: added

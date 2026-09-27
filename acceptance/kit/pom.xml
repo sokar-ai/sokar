@@ -43,6 +43,12 @@
         </dependency>
 
         <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-wire</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>
             <version>${cucumber.version}</version>

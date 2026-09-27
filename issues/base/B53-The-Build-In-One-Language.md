@@ -95,6 +95,13 @@ shared tool below does not carry it.
      that step with `newuidmap: write to uid_map failed`, and by one leg that passes.
 3. **Acceptance-kit steps for what `acceptance.sh` and `broker-check.sh` check**, so that an agent
    repository's last stage is scenarios rather than a script. B52 is the first of those steps.
+   **A vault of the scenario's own**, decided with the operator on 2026-09-27 as the long-term
+   form: the scripts set `SOKAR_VAULT` to a temporary file with a passphrase they state, and the kit
+   does too since `05f29ba` - *a vault of this scenario's own* - so that a scenario never depends on
+   what an account's vault holds. Measured the same
+   day: the `claude` test account's vault had a passphrase nobody recorded, and the only way through
+   was to move it aside. Every command of such a scenario carries it, so no step can reach the
+   account's vault by going around it.
 
 ## What stays, and why
 

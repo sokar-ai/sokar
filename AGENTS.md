@@ -186,6 +186,20 @@ See [build.md](doc/build.md). Three things that will bite:
   `./buildtools/check-ffm-metadata.sh` in CI, and `--update` after adding a
   downcall.
 
+### What stays in another language, and why
+
+The build is Java and Maven; a file in another language is listed here with the reason it cannot
+be. Both run on the operator's machine, which has Sokar's native binaries and no Java:
+
+- `selinux/install-selinux-policy.sh` - the `.deb` and `.rpm` ship it and run it while the package
+  installs, to compile and load the SELinux module. An install hook is shell by nature.
+- `dist-setup/sokar-setup.sh` - published beside the packages and run as root on a machine that has
+  nothing yet: no package, no daemon, no Java. A Java version would need the runtime it is there to
+  install.
+
+The other scripts under `buildtools/` are being replaced or deleted and are not listed. One that
+survives that work comes here with its reason.
+
 ## Facts that were expensive to learn
 
 - **FFM and static linking are mutually exclusive.**
@@ -983,6 +997,14 @@ uses the third**, and nobody is without one.
 - **Java** — <https://github.com/decebals/claude-code-java>.
 - **Dart and Flutter** — <https://github.com/flutter/agent-plugins>, the Flutter team's own.
 
+**This repository uses seven of them, by slug:**
+
+    graal  java-code-review  test-quality  security-audit  concurrency-review
+    clean-code  solid-principles
+
+The Java set upstream is eighteen slugs, among them `spring-boot-patterns`, `jpa-patterns` and
+`java-migration`, which describe nothing here; *the Java set* alone does not say which are meant.
+
 The interface was briefly treated as the repository with no skills, on the true observation that
 neither Java skill applies to it. That was the wrong conclusion from a right fact: the exemption
 was from *those two*, not from having any, and the vendor ships its own set the same way Oracle
@@ -1015,6 +1037,11 @@ it loaded, not by looking at the directory.
 **Check what you downloaded.** `curl -fsSL $BASE/../api/storage/agent-skills/<path>` states the
 artifact's SHA-256; an interrupted transfer otherwise installs a truncated skill, which reads as a
 short one rather than as an error.
+
+**If your harness cannot install a skill, read it.** Unpack it outside the repository - a scratch
+directory - and read its `SKILL.md`. Measured on 2026-09-27: a session here could not write its
+skills directory, and the module it had written without them turned out to send a CI token wherever a
+property pointed. An agent that cannot install and is not told this concludes it has no skills.
 
 **If the JFrog CLI happens to be installed**, `jf agent skills install <slug> --repo agent-skills`
 does the same with resolution and an install record. Do not install it for this — the four commands

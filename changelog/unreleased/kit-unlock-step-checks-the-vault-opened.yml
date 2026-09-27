@@ -1,0 +1,2 @@
+title: "The acceptance kit's 'the vault is unlocked with the passphrase' step now fails when the passphrase is wrong. It waited for the word 'cached', which the refusal - 'nothing was cached' - also prints, so a wrong passphrase passed and the failure surfaced one step later as a vault that would not open. It now asks the machine whether the vault opens. The kit also gained a precondition that stops a run as root, and a step that proves an agent's traffic went through the task's broker."
+type: fixed

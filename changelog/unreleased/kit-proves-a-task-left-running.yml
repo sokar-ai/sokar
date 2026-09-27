@@ -1,0 +1,2 @@
+title: "The acceptance kit can start a task and leave it running, run a script in its container, and prove that a credential reached neither the container's environment nor any log the task left - also when a line break was put into the value - without the secret ever going on a command line. With it, an agent repository's last stage becomes scenarios instead of `acceptance.sh`; this repository's own suite proves the steps with the stub agent and a fake credential."
+type: added

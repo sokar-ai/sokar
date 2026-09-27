@@ -37,6 +37,24 @@ public final class World implements AutoCloseable {
 
     private final Map<String, String> secrets = new LinkedHashMap<>();
 
+    private @Nullable Task task;
+
+    private @Nullable String vault;
+
+    /** Every project the kit made in this run, in any scenario - removed once the run is over. */
+    private static final java.util.Set<String> PROJECTS = java.util.Collections.synchronizedSet(
+            new java.util.LinkedHashSet<>());
+
+    /**
+     * A task this scenario started and left running.
+     *
+     * @param container The container it runs in.
+     * @param state Its state directory on the machine, or {@code null} if the start did not name one.
+     * @param said What the start printed, searched later for a secret like any log.
+     */
+    public record Task(String container, @Nullable String state, String said) {
+    }
+
     /** Constructor for the object factory, which makes one per scenario. */
     public World() {
         super();
@@ -50,6 +68,76 @@ public final class World implements AutoCloseable {
      */
     public Machine machine() throws IOException {
         return Machine.shared();
+    }
+
+    /**
+     * Runs a command with no terminal, in this scenario's environment.
+     * <p>
+     * <strong>Every step sends through here, never through the machine directly</strong>, so that a
+     * scenario with a vault of its own has every command use it - a step that went around would act
+     * on the account's vault while the scenario believed it was acting on its own.
+     *
+     * @param command What to run.
+     * @return What it wrote and what it exited with.
+     * @throws IOException If the machine cannot be reached.
+     */
+    public Ssh.Output run(String command) throws IOException {
+        return machine().run(environment() + command);
+    }
+
+    /**
+     * Runs a command with no terminal and standard input, in this scenario's environment.
+     *
+     * @param command What to run.
+     * @param stdin What to feed it - how a secret reaches the machine.
+     * @return What it wrote and what it exited with.
+     * @throws IOException If the machine cannot be reached.
+     */
+    public Ssh.Output run(String command, String stdin) throws IOException {
+        return machine().run(environment() + command, stdin);
+    }
+
+    /**
+     * Opens a terminal in this scenario's environment.
+     *
+     * @return The terminal.
+     * @throws IOException If it cannot be opened.
+     */
+    public Terminal openTerminal() throws IOException {
+        final Terminal terminal = machine().terminal();
+        if (vault != null) {
+            // A leading space keeps it out of the shell's history, as a person would type it.
+            terminal.type(" " + environment().strip());
+            terminal.drain();
+        }
+        return terminal;
+    }
+
+    /**
+     * What every command of this scenario starts with: its own vault, when it has one.
+     *
+     * @return An {@code export} and a separator, or nothing.
+     */
+    String environment() {
+        return vault == null ? "" : "export SOKAR_VAULT=" + Shell.quote(vault) + "; ";
+    }
+
+    /**
+     * The vault this scenario brought, or {@code null} when it uses the account's.
+     *
+     * @return The path on the machine, or {@code null}.
+     */
+    public @Nullable String vault() {
+        return vault;
+    }
+
+    /**
+     * Gives this scenario a vault of its own, or takes it away.
+     *
+     * @param path The path on the machine, or {@code null} for the account's.
+     */
+    public void vault(@Nullable String path) {
+        vault = path;
     }
 
     /**
@@ -148,6 +236,103 @@ public final class World implements AutoCloseable {
         final String value = secrets.containsKey(variable) ? secrets.get(variable)
                 : secret(variable);
         return text.contains(value);
+    }
+
+    /**
+     * Tells whether text contains a secret even where a line break was put into it.
+     * <p>
+     * A value that reaches a log across a newline - wrapped output, two writes, a formatter breaking
+     * a long line - matches nothing line by line, and the check reads as proof that nothing leaked.
+     *
+     * @param variable The variable's name, as given to {@link #secret}.
+     * @param text Where to look.
+     * @return {@code true} if the value is in the text, with or without its line breaks.
+     */
+    public boolean containsAcrossLines(String variable, String text) {
+        return contains(variable, text) || contains(variable, text.replace("\r", "").replace("\n", ""));
+    }
+
+    /**
+     * Tells whether a variable's value was taken as a secret in this scenario.
+     *
+     * @param variable The variable's name.
+     * @return {@code true} if {@link #secret} returned it.
+     */
+    public boolean remembers(String variable) {
+        return secrets.containsKey(variable);
+    }
+
+    /**
+     * Replaces every secret this scenario holds with the name it came from.
+     * <p>
+     * For a failure message that has to show what a command printed: a command that leaked would
+     * otherwise have its leak repeated into the run log by the assertion that caught it.
+     *
+     * @param text What a command printed.
+     * @return The same text with each secret's value replaced by {@code <value of NAME>}.
+     */
+    public String redact(String text) {
+        String redacted = text;
+        for (final Map.Entry<String, String> secret : secrets.entrySet()) {
+            redacted = redacted.replace(secret.getValue(), "<value of " + secret.getKey() + ">");
+        }
+        return redacted;
+    }
+
+    /**
+     * Remembers a value as a secret without reading the environment, for a test of this class.
+     *
+     * @param variable The name it is known by.
+     * @param value The value.
+     */
+    void remember(String variable, String value) {
+        secrets.put(variable, value);
+    }
+
+    /**
+     * Remembers a project the kit made, so it can be removed when the run is over.
+     * <p>
+     * Per run, not per scenario: some scenarios share a project on purpose - one restarts the machine,
+     * the next asks what the task on it says - and removing it between them breaks the second.
+     *
+     * @param name The project's name and directory in the operator's home.
+     */
+    public void made(String name) {
+        PROJECTS.add(name);
+    }
+
+    /**
+     * Returns every project the kit made in this run, and forgets them.
+     *
+     * @return Their names, in the order they were first made.
+     */
+    static java.util.List<String> takeProjects() {
+        synchronized (PROJECTS) {
+            final java.util.List<String> made = java.util.List.copyOf(PROJECTS);
+            PROJECTS.clear();
+            return made;
+        }
+    }
+
+    /**
+     * Returns the task this scenario started, or fails if it started none.
+     *
+     * @return The task.
+     */
+    public Task task() {
+        if (task == null) {
+            throw new AssertionError("No task is running: start one with 'When a task is started in ...'");
+        }
+        return task;
+    }
+
+    /**
+     * Remembers the task this scenario started.
+     *
+     * @param started The task.
+     */
+    public void task(Task started) {
+        task = started;
     }
 
     /**

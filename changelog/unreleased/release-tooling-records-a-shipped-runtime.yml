@@ -1,0 +1,2 @@
+title: "`sokar-release add-component <bill> --name --version --url --sha256 [--license]` records a runtime a package ships inside a tree - Pi's Node - so no build needs a `python3` heredoc to write it. It and `add-fetched-cli` now replace their own earlier recording when a build without `clean` runs them again, instead of naming one thing twice, and refuse to record beside a component of the same name delivered otherwise."
+type: added

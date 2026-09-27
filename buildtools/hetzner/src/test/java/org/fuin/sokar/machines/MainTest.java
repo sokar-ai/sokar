@@ -150,4 +150,26 @@ class MainTest {
         assertThat(Main.runId(null, "acc-smith-claude-code-ubuntu"))
                 .startsWith("local-").endsWith("-acc-smith-claude-code-ubuntu");
     }
+
+    @Test
+    void acceptanceRunsScenariosWithoutAScriptForAnAgentThatReplacedIt() {
+        // Accepted means it went on to rent a machine - which NEVER refuses, so the test ends there.
+        assertThatThrownBy(() -> Main.run(new String[] {"acceptance", "--candidate", "packages",
+                "--cucumber", "."}, QUIET, NEVER))
+                .isInstanceOf(AssertionError.class).hasMessageContaining("tried to connect");
+    }
+
+    @Test
+    void acceptanceWithNeitherAScriptNorScenariosHasNothingToProve() throws IOException {
+        final List<String> said = new ArrayList<>();
+        assertThat(Main.run(new String[] {"acceptance", "--candidate", "packages"}, said::add, NEVER)).isEqualTo(2);
+        assertThat(said).singleElement().asString().contains("--script or --cucumber");
+    }
+
+    @Test
+    void aLeaseTakesACandidateSoItCanRunTheSokarNobodyPushedYet() {
+        assertThatThrownBy(() -> Main.run(new String[] {"lease", "--os", "ubuntu", "--candidate", "packages"},
+                QUIET, NEVER))
+                .isInstanceOf(AssertionError.class).hasMessageContaining("tried to connect");
+    }
 }

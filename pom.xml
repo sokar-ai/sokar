@@ -98,6 +98,8 @@
         <build-helper.version>3.6.1</build-helper.version>
         <fuin-bom.version>1.0.2</fuin-bom.version>
         <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
+        <!-- The library the plugin above builds bills with, so a bill is read by the code that wrote it. -->
+        <cyclonedx-core-java.version>9.0.5</cyclonedx-core-java.version>
         <logchange-maven-plugin.version>1.19.16</logchange-maven-plugin.version>
         <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
         <picocli.version>4.7.7</picocli.version>
@@ -144,6 +146,7 @@
         <module>daemon</module>
         <module>hooks</module>
         <module>buildtools/hetzner</module>
+        <module>buildtools/release</module>
         <module>acceptance</module>
         <module>dist-deb</module>
         <module>dist-rpm</module>

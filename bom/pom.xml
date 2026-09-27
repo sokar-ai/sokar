@@ -63,6 +63,11 @@
                 <artifactId>sokar-machines</artifactId>
                 <version>${sokar.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-release</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
 
             <!-- What the acceptance kit is built with, so a consumer adding a step of its own
                  compiles against the same Cucumber and reaches the same machine the same way. -->

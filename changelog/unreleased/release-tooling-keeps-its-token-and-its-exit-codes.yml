@@ -1,0 +1,2 @@
+title: "`sokar-release` sends `GITHUB_TOKEN` only to `https://api.github.com`, whatever a pom property names, and a fault inside any command exits 2 - never 1, which a caller reads as a stop or a disagreement."
+type: fixed

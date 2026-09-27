@@ -47,8 +47,11 @@ public final class Rental {
      * @param types Server types to try, in order.
      * @param artifactory Where the packages are published.
      * @param write Where to record what was leased.
+     * @param candidate A directory of packages built here to install over the published ones, or
+     *     {@code null} for the published Sokar.
      */
-    public record Options(String os, List<String> types, String artifactory, Path write) {
+    public record Options(String os, List<String> types, String artifactory, Path write,
+            @Nullable Path candidate) {
     }
 
     /**
@@ -89,9 +92,13 @@ public final class Rental {
         leased.put("run", hetzner.runId());
         write(options.write(), leased);
 
+        // A candidate is how a machine gets the Sokar nobody has pushed yet: without it a lease answers
+        // with the last published build, and whatever is tested against it tests that one.
+        final String installs = options.candidate() == null ? ""
+                : AgentLeg.sendCandidate(lease, options.os(), options.candidate());
         System.out.println("\n-- installing Sokar from " + options.artifactory()
-                + ", as an operator would --");
-        run(lease, AgentLeg.install(options.os(), options.artifactory(), ""));
+                + (installs.isEmpty() ? "" : " and the candidate") + ", as an operator would --");
+        run(lease, AgentLeg.install(options.os(), options.artifactory(), installs));
 
         System.out.println("\n-- creating the " + USER + " user --");
         run(lease, "id -u " + USER + " >/dev/null 2>&1 || useradd -m -s /bin/bash " + USER

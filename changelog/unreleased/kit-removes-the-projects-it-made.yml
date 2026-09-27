@@ -1,0 +1,2 @@
+title: "The acceptance kit removes the projects its scenarios made with 'a project called ...' - unfollowed, with their tasks, and their directories deleted - once at the end of the run, whether the scenarios passed or not. A project two scenarios share survives until the last of them. A name that would delete the directory it lives in is refused."
+type: added

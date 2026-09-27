@@ -1,0 +1,2 @@
+title: "`sokar-machines acceptance` runs an agent's Cucumber scenarios without a script: `--script`, `--cucumber` or both, so an agent repository that replaced `acceptance.sh` with kit scenarios can still prove its packages on a rented machine."
+type: changed

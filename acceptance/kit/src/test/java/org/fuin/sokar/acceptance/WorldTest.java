@@ -42,4 +42,35 @@ class WorldTest {
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("SOKAR_ACCEPTANCE_NOT_A_VARIABLE_2");
     }
+
+    @Test
+    void redactsASecretFromWhatACommandPrinted() {
+        final World world = new World();
+        world.remember("KEY", "sk-live-secret");
+
+        assertThat(world.redact("refused: sk-live-secret is not valid"))
+                .isEqualTo("refused: <value of KEY> is not valid");
+    }
+
+    @Test
+    void findsASecretWithAWindowsLineBreakInIt() {
+        final World world = new World();
+        world.remember("KEY", "sk-live-secret");
+
+        assertThat(world.containsAcrossLines("KEY", "sk-live-\r\nsecret")).isTrue();
+        assertThat(world.contains("KEY", "sk-live-\r\nsecret")).isFalse();
+    }
+
+    @Test
+    void sendsEveryCommandWithTheScenariosOwnVault() {
+        final World world = new World();
+        world.vault("/tmp/tmp.a b/vault.bin");
+
+        assertThat(world.environment()).isEqualTo("export SOKAR_VAULT='/tmp/tmp.a b/vault.bin'; ");
+    }
+
+    @Test
+    void addsNothingWhenTheScenarioUsesTheAccountsVault() {
+        assertThat(new World().environment()).isEmpty();
+    }
 }

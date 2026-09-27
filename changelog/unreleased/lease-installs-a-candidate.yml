@@ -1,0 +1,2 @@
+title: "`sokar-machines lease` takes `--candidate <dir>` as `acceptance` does, so a machine leased for the interface's tests runs the Sokar built here rather than the last one published - and a leg that must run before a push can."
+type: added

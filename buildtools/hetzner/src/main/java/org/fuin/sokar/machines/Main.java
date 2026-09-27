@@ -83,9 +83,9 @@ public final class Main {
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
                        leg      --os <ubuntu|fedora> --repo <dir> [--key <file>] [--keep]
                                 [--fetch <dir>] [--acceptance]
-                       acceptance (--package <p> | --candidate <dir>) --script <f>
-                                [--os <o>] [--type <t>] [--cucumber <dir>] [--keep]
-                       lease    --os <ubuntu|fedora> [--key <file>] [--write <file>]
+                       acceptance (--package <p> | --candidate <dir>) (--script <f> | --cucumber <dir>)
+                                [--os <o>] [--type <t>] [--keep]
+                       lease    --os <ubuntu|fedora> [--key <file>] [--write <file>] [--candidate <dir>]
                                 [--type <t>] - rents a machine, installs Sokar, starts the
                                 daemon as an unprivileged user, and leaves it running. What
                                 deletes it is 'sweep --mine'.
@@ -267,16 +267,17 @@ public final class Main {
                 }
             }
         }
-        if (script == null || (pkg == null && candidate == null)) {
+        if ((script == null && cucumber == null) || (pkg == null && candidate == null)) {
             // --package names what to install from the repository; --candidate installs files
             // built in this run instead, and then the name is not used for anything. Asking for
             // both would make a caller invent a name for packages it is holding in its hand.
-            complain.accept("acceptance needs --script, and --package or --candidate");
+            // A script, scenarios or both: an agent that replaced its script has nothing to pass.
+            complain.accept("acceptance needs --script or --cucumber, and --package or --candidate");
             return 2;
         }
         final AgentLeg.Options options = new AgentLeg.Options(os, List.of(type), artifactory,
                 pkg == null ? "" : pkg,
-                java.nio.file.Files.readString(java.nio.file.Path.of(script)),
+                script == null ? null : java.nio.file.Files.readString(java.nio.file.Path.of(script)),
                 candidate == null ? null : java.nio.file.Path.of(candidate), keep,
                 cucumber == null ? null : java.nio.file.Path.of(cucumber));
         try (Hetzner hetzner = open.get()) {
@@ -289,7 +290,7 @@ public final class Main {
     /**
      * Rents a machine and leaves it running, recording what it took.
      *
-     * @param args {@code lease --os <os> [--key <file>] [--write <file>] [--type <t>]}.
+     * @param args {@code lease --os <os> [--key <file>] [--write <file>] [--type <t>] [--candidate <dir>]}.
      * @param complain Where a refusal goes.
      * @param open How to reach the provider.
      * @return Exit code.
@@ -302,6 +303,7 @@ public final class Main {
         String write = null;
         String type = "cpx12";
         String artifactory = "https://fuinorg.jfrog.io/artifactory";
+        String candidate = null;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = at + 1 < args.length ? args[++at] : null;
@@ -309,6 +311,7 @@ public final class Main {
                 case "--write" -> write = at + 1 < args.length ? args[++at] : null;
                 case "--type" -> type = at + 1 < args.length ? args[++at] : null;
                 case "--artifactory" -> artifactory = at + 1 < args.length ? args[++at] : null;
+                case "--candidate" -> candidate = at + 1 < args.length ? args[++at] : null;
                 default -> {
                     complain.accept("unknown option: " + args[at]);
                     return 2;
@@ -316,7 +319,8 @@ public final class Main {
             }
         }
         final Rental.Options options = new Rental.Options(os, List.of(type), artifactory,
-                write == null ? null : java.nio.file.Path.of(write));
+                write == null ? null : java.nio.file.Path.of(write),
+                candidate == null ? null : java.nio.file.Path.of(candidate));
         try (Hetzner hetzner = open.get()) {
             Rental.run(hetzner, options, Credential.of(System.getenv(SSH_KEY),
                     key == null ? null : java.nio.file.Path.of(key)));

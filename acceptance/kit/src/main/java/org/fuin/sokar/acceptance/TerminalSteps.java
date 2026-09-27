@@ -54,7 +54,35 @@ public class TerminalSteps {
      */
     @AfterAll
     public static void closeTheConnection() throws IOException {
-        Machine.closeShared();
+        try {
+            removeTheProjectsTheKitMade();
+        } finally {
+            Machine.closeShared();
+        }
+    }
+
+    /**
+     * Removes every project the kit made in this run, passed or failed.
+     * <p>
+     * Here although tearing down is not, because this removes only what the kit itself made: the
+     * repository it wrote into the operator's home and the following of it. Measured on 2026-09-27,
+     * three scenarios of the agent repositories left their project followed and every one left its
+     * directory, on both VMs, until an agent removed them by hand. Once, at the end of the run: a
+     * project two scenarios share must outlive the first. {@code unfollow --force} removes the
+     * project's tasks with it and is best effort, so a renamed verb cannot turn a run red.
+     *
+     * @throws IOException If the machine cannot be reached.
+     */
+    static void removeTheProjectsTheKitMade() throws IOException {
+        final java.util.List<String> made = World.takeProjects();
+        if (made.isEmpty()) {
+            return;
+        }
+        final Machine machine = Machine.shared();
+        for (final String name : made) {
+            machine.run("sokar project unfollow " + Shell.quote(name) + " --force");
+            machine.run("rm -rf -- ~/" + Shell.quote(name));
+        }
     }
 
     /**
@@ -92,7 +120,7 @@ public class TerminalSteps {
      */
     @Given("a terminal on the machine")
     public void aTerminal() throws IOException {
-        final Terminal terminal = world.machine().terminal();
+        final Terminal terminal = world.openTerminal();
         world.terminal(terminal);
         // A prompt of our own, so that what a scenario waits for afterwards is its command's
         // output rather than whatever the login banner happened to say.
@@ -262,17 +290,31 @@ public class TerminalSteps {
         // public one would be a dependency on somebody else's uptime.
         //
         // Followed unverified, or every fixture would have to sign its commits.
-        final Machine machine = world.machine();
-        machine.run("rm -rf ~/" + name + " && mkdir -p ~/" + name);
-        machine.run("cd ~/" + name + " && git init -q -b main . "
+        world.made(projectName(name));
+        world.run("rm -rf ~/" + name + " && mkdir -p ~/" + name);
+        world.run("cd ~/" + name + " && git init -q -b main . "
                 + "&& git config user.email t@example.com && git config user.name T "
                 + "&& echo 'the project' > README.md");
-        machine.run("cd ~/" + name + " && printf '%s\\n' "
+        world.run("cd ~/" + name + " && printf '%s\\n' "
                 + "'project:' '  name: \"" + name + "\"' '  security_class: \"" + securityClass
                 + "\"' "
                 + "'image:' '  base_image: \"ubuntu:24.04\"' > project.yml");
-        machine.run("cd ~/" + name + " && git add -A && git commit -q -m initial");
-        machine.run("sokar project follow " + name + " ~/" + name + " --unverified");
+        world.run("cd ~/" + name + " && git add -A && git commit -q -m initial");
+        world.run("sokar project follow " + name + " ~/" + name + " --unverified");
+    }
+
+    /**
+     * Refuses a project name that is not one, before it goes into a path that is deleted.
+     *
+     * @param name The name a scenario gave.
+     * @return The same name.
+     */
+    static String projectName(String name) {
+        final String checked = TaskSteps.aName(name);
+        if (checked.chars().allMatch(c -> c == '.')) {
+            throw new IllegalArgumentException("Not a project name: '" + name + "' names a directory, not a project");
+        }
+        return checked;
     }
 
     /**
@@ -294,7 +336,7 @@ public class TerminalSteps {
      */
     @When("a script runs {string}")
     public void aScriptRuns(String command) throws IOException {
-        world.output(world.machine().run(World.expand(command)));
+        world.output(world.run(World.expand(command)));
     }
 
     /**
@@ -309,7 +351,7 @@ public class TerminalSteps {
      */
     @When("a script runs {string} with the value of {string} on standard input")
     public void aScriptRunsWithStdin(String command, String variable) throws IOException {
-        world.output(world.machine().run(World.expand(command), world.secret(variable)));
+        world.output(world.run(World.expand(command), world.secret(variable)));
     }
 
     /**
@@ -321,7 +363,7 @@ public class TerminalSteps {
      */
     @Then("a script running {string} mentions {string}")
     public void aScriptRunningMentions(String command, String text) throws IOException {
-        final Ssh.Output output = world.machine().run(World.expand(command));
+        final Ssh.Output output = world.run(World.expand(command));
         world.output(output);
         assertThat(output.all()).as("running: %s", command).contains(text);
     }

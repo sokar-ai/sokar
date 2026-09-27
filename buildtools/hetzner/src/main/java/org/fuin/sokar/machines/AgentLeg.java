@@ -1,5 +1,6 @@
 package org.fuin.sokar.machines;
 
+import org.jspecify.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,14 +58,14 @@ public final class AgentLeg {
      * @param types Server types to try, in order.
      * @param artifactory Where the packages are published.
      * @param packageName The agent package, such as {@code sokar-agent-claude}.
-     * @param script The acceptance script to run on the machine.
+     * @param script The acceptance script to run on the machine, or {@code null} for scenarios only.
      * @param candidate A directory holding a package built in this run, or {@code null} to
      *     install the published one.
      * @param keep Whether to leave the machine running.
      * @param cucumber The repository to run the Cucumber suite from, or {@code null} not to.
      */
     public record Options(String os, List<String> types, String artifactory, String packageName,
-            String script, Path candidate, boolean keep, Path cucumber) {
+            @Nullable String script, Path candidate, boolean keep, Path cucumber) {
     }
 
     /**
@@ -88,7 +89,7 @@ public final class AgentLeg {
 
             String installs = options.packageName();
             if (options.candidate() != null) {
-                installs = sendCandidate(lease, options);
+                installs = sendCandidate(lease, options.os(), options.candidate());
             }
 
             System.out.println("\n-- installing from " + options.artifactory()
@@ -105,14 +106,16 @@ public final class AgentLeg {
             // As USER, not as the root connection above. The suite has to run in the shape a
             // task runs in - rootless podman, one operator's own directories - and root has
             // neither: podman is rootful there and /run/user/0 does not exist.
-            try (Ssh user = Ssh.to(lease.address(), USER, credential)) {
-                System.out.println("\n-- sending the suite --");
-                run(user, "cat > /home/" + USER + "/acceptance.sh && chmod +x /home/" + USER
-                        + "/acceptance.sh", options.script());
+            if (options.script() != null) {
+                try (Ssh user = Ssh.to(lease.address(), USER, credential)) {
+                    System.out.println("\n-- sending the suite --");
+                    run(user, "cat > /home/" + USER + "/acceptance.sh && chmod +x /home/" + USER
+                            + "/acceptance.sh", options.script());
 
-                System.out.println("\n-- acceptance --");
-                run(user, "cd /home/" + USER + " && XDG_RUNTIME_DIR=/run/user/$(id -u) "
-                        + exported() + "./acceptance.sh", null);
+                    System.out.println("\n-- acceptance --");
+                    run(user, "cd /home/" + USER + " && XDG_RUNTIME_DIR=/run/user/$(id -u) "
+                            + exported() + "./acceptance.sh", null);
+                }
             }
 
             if (options.cucumber() != null) {
@@ -169,15 +172,15 @@ public final class AgentLeg {
      * @return How the package manager should name them, space separated.
      * @throws IOException If the directory holds no package, or two builds of one.
      */
-    private static String sendCandidate(Lease lease, Options options) throws IOException {
-        final String suffix = CANDIDATE.get(options.os());
+    static String sendCandidate(Lease lease, String os, Path candidate) throws IOException {
+        final String suffix = CANDIDATE.get(os);
         final List<Path> built = new ArrayList<>();
-        try (var found = Files.list(options.candidate())) {
+        try (var found = Files.list(candidate)) {
             found.filter(each -> each.getFileName().toString().endsWith(suffix))
                     .sorted().forEach(built::add);
         }
         if (built.isEmpty()) {
-            throw new IOException("--candidate " + options.candidate() + " holds no " + suffix
+            throw new IOException("--candidate " + candidate + " holds no " + suffix
                     + " package. Installing the published package instead would look exactly like"
                     + " a passing run, which is why this stops.");
         }
@@ -186,7 +189,7 @@ public final class AgentLeg {
             final String name = packageName(each.getFileName().toString(), suffix);
             final Path already = byName.put(name, each);
             if (already != null) {
-                throw new IOException("--candidate " + options.candidate() + " holds two builds of"
+                throw new IOException("--candidate " + candidate + " holds two builds of"
                         + " '" + name + "': " + already.getFileName() + " and "
                         + each.getFileName() + ". The package manager would take whichever it"
                         + " prefers - clean the directory.");

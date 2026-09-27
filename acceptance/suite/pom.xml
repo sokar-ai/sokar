@@ -71,6 +71,11 @@
                         <sokar.acceptance.features>acceptance/suite/src/test/resources/</sokar.acceptance.features>
                         <cucumber.plugin>pretty, html:target/acceptance.html, json:target/acceptance.json, org.fuin.sokar.acceptance.GitHubReport</cucumber.plugin>
                     </systemPropertyVariables>
+                    <environmentVariables>
+                        <!-- Fake on purpose: a searched-for value proves the search, and no account is needed. -->
+                        <SOKAR_ACCEPTANCE_FAKE_CREDENTIAL>sk-sokar-acceptance-not-a-real-key</SOKAR_ACCEPTANCE_FAKE_CREDENTIAL>
+                        <SOKAR_ACCEPTANCE_MODEL>stub-model</SOKAR_ACCEPTANCE_MODEL>
+                    </environmentVariables>
                 </configuration>
             </plugin>
         </plugins>

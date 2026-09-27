@@ -56,7 +56,7 @@ public class TaskSteps {
      */
     @Given("the vault holds no credential for {string}")
     public void theVaultHoldsNoCredentialFor(String name) throws IOException {
-        world.output(world.machine().run("sokar vault remove " + Shell.quote(name)));
+        world.output(world.run("sokar vault remove " + Shell.quote(name)));
     }
 
     /**
@@ -73,7 +73,7 @@ public class TaskSteps {
      */
     @When("a task nobody is watching is started in {string} for the {string} agent")
     public void aTaskNobodyIsWatchingIsStarted(String project, String agent) throws IOException {
-        world.output(world.machine().run(startCommand(project, agent)));
+        world.output(world.run(startCommand(project, agent)));
     }
 
     /**
@@ -104,7 +104,7 @@ public class TaskSteps {
      */
     @When("a script asks what a task in {string} for the {string} agent would do")
     public void aScriptAsksWhatATaskWouldDo(String project, String agent) throws IOException {
-        world.output(world.machine().run(planCommand(project, agent)));
+        world.output(world.run(planCommand(project, agent)));
     }
 
     /**
@@ -131,7 +131,7 @@ public class TaskSteps {
      * @param project The project.
      * @return The same name.
      */
-    private static String aName(String project) {
+    static String aName(String project) {
         if (!project.matches("[A-Za-z0-9._-]+")) {
             throw new IllegalArgumentException("Not a project name: '" + project
                     + "'. Letters, digits, dot, dash and underscore only.");
@@ -151,7 +151,7 @@ public class TaskSteps {
      */
     @When("the vault file is read as it lies on disk")
     public void theVaultFileIsRead() throws IOException {
-        world.output(world.machine().run("cat \"$HOME/.local/share/sokar/vault.bin\""));
+        world.output(world.run("cat \"${SOKAR_VAULT:-$HOME/.local/share/sokar/vault.bin}\""));
     }
 
     /**
@@ -165,7 +165,7 @@ public class TaskSteps {
      */
     @When("logging in to the {string} agent is attempted")
     public void loggingInIsAttempted(String agent) throws IOException {
-        world.output(world.machine().run("sokar vault login " + Shell.quote(agent)
+        world.output(world.run("sokar vault login " + Shell.quote(agent)
                 + " --dry-run"));
     }
 }

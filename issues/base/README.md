@@ -39,8 +39,9 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 |---|---|---|---|---|---|---|
 | B75 | [A Login Nobody Measures Is A Login That Does Not Work](B75-A-Login-Nobody-Measures-Is-A-Login-That-Does-Not-Work.md) | open | sokar-claude-code (a stub that fakes a login) | The build runs an agent login end to end and fails when it stops storing, using an agent that fakes one - no account, no network. | two, and the first is whether the stub can carry it | [note](#b75) |
 | B53 | [The Build In One Language](B53-The-Build-In-One-Language.md) | open | sokar-claude-code CC12, CC13, CC14; sokar-pi PI10, PI11, PI12; sokar-omp OM10, OM11, OM12 | The shared tool exists and the agent repositories use it, and each of Sokar's own scripts is replaced or listed with its reason. The rule itself is `sokar-project` PJ06. | two, and the first is the order | [note](#b53) |
+| B76 | [The Code Checked Against The Skills It Was Written Without](B76-The-Code-Checked-Against-The-Skills-It-Was-Written-Without.md) | open | none - every agent opens its own | Every Java module has been read against the skills that apply to it, and each finding is fixed with a test watched to fail or declined with its reason. | one - the order | [note](#b76) |
 | B54 | [Stopping The Daemon Stops The Tasks It Started](B54-Stopping-The-Daemon-Stops-The-Tasks-It-Started.md) | decided | sokar-frontend F33 | Stopping, restarting or losing the daemon does not stop a task; a task ends when something asks that task to end. | one - whether removing a task reaps helpers in its scope | [note](#b54) |
-| B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | sokar-claude-code CC09, sokar-pi PI07, sokar-omp OM07 | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | three, and the first is what an agent declares as "reached work" | [note](#b52) |
+| B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | sokar-claude-code CC09, sokar-pi PI07, sokar-omp OM07 | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | none - decided 2026-09-27: a manifest marker, within a bound the agent declares | [note](#b52) |
 | B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | in progress | - | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
 | B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | open | - | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
 | B49 | [What The Build Trusts To Run Beside Its Secrets](B49-What-The-Build-Trusts-To-Run-Beside-Its-Secrets.md) | open | - | Nothing runs beside this product's credentials that was fetched by a name its owner may repoint. | four, and the first decides whether it lasts | [note](#b49) |
@@ -177,6 +178,11 @@ about 6,300 lines of Python and shell, and most of the Python is the same tools 
 repositories - two still byte-identical, three already drifted apart, and none of it tested. The
 shared tool has to exist in Sokar before an agent repository can drop its copies, which is why
 the agent half waits on this one.
+
+<a id="b76"></a>**B76 is next after B53, by the operator's decision of 2026-09-27.** The house skills were
+never used, and the first module read against them had two defects its tests had not found: a
+token sent wherever a property pointed, and a crash that answered the question. Every agent opens
+the same issue in its own repository.
 
 <a id="b54"></a>**B54 is second, above B52, because it ends work that is running.** Measured on
 2026-09-13: stopping the daemon stopped the task it had started, container included - and a daemon

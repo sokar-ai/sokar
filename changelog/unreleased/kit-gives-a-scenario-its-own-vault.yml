@@ -1,0 +1,2 @@
+title: "An acceptance scenario can bring a vault of its own - 'a vault of this scenario's own, unlocked with the passphrase ...' - made in a temporary directory, used by every command the scenario sends, and removed afterwards whether the scenario passed or not. The account's vault is never read or replaced, so a scenario no longer depends on a passphrase an earlier run chose, and a machine with no vault works the same."
+type: added

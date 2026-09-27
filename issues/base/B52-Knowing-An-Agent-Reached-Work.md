@@ -47,12 +47,13 @@ any agent.**
 - An unattended run that stops at a question fails within a stated bound instead of waiting it out.
 - No step in the kit names an agent, and no agent-specific text appears in it.
 
-## Open questions
+## Decided by the operator, 2026-09-27
 
-1. **What an agent declares.** A marker in its manifest, like B47's waiting patterns, or something
-   the agent package provides that the kit runs. The first keeps agents declarative; the second may
-   be the only way for an agent whose ready state has no stable text.
-2. **What counts as having been asked.** Anything on the screen before the marker, or the marker
-   not appearing within a time. The first is exact and brittle against banners; the second is
-   robust and slower to fail.
-3. **The bound for the unattended half**, and whether it belongs to the kit or to the agent.
+1. **What an agent declares: a marker in its manifest**, like B47's waiting patterns, read by the
+   kit. The agent stays declarative. An agent whose ready state has no stable text declares no
+   marker, and the step fails saying it *cannot tell*.
+2. **What counts as having been asked: the marker not appearing within a bound.** The kit types
+   nothing; a question blocks the marker, so the step fails and prints the screen. Banners and update
+   notices before the marker do not count - that is the robustness chosen over failing fastest.
+3. **The bound belongs to the agent, with a default in the kit.** The agent knows how long its own
+   start takes; the kit only needs a value when the agent is silent about it.
