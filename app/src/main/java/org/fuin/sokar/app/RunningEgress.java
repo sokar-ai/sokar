@@ -75,9 +75,10 @@ public final class RunningEgress {
      * @param opens Names it grants, in the order they were asked for.
      * @param persisted Whether the project file was changed as well.
      * @param detail Why it was refused or what went wrong, or {@code null}.
+     * @param file The project file that was changed, or {@code null} when none was.
      */
     public record Effect(Outcome outcome, List<String> opens, boolean persisted,
-            @Nullable String detail) {
+            @Nullable String detail, @Nullable String file) {
 
         /**
          * Constructor with defensive copies.
@@ -89,6 +90,18 @@ public final class RunningEgress {
          */
         public Effect {
             opens = List.copyOf(opens);
+        }
+
+        /**
+         * Constructor for a widening that wrote no project file.
+         *
+         * @param outcome What became of it.
+         * @param opens Names it grants.
+         * @param persisted Whether the project file was changed too.
+         * @param detail Why, or {@code null}.
+         */
+        public Effect(Outcome outcome, List<String> opens, boolean persisted, @Nullable String detail) {
+            this(outcome, opens, persisted, detail, null);
         }
 
         static Effect refused(Outcome outcome, String detail) {
@@ -174,9 +187,10 @@ public final class RunningEgress {
      * @param addresses How many addresses were removed from the firewall.
      * @param persisted Whether the project file was changed as well.
      * @param detail Why it was refused or what went wrong, or {@code null}.
+     * @param file The project file that was changed, or {@code null} when none was.
      */
     public record Withdrawal(Outcome outcome, List<String> closes, int addresses,
-            boolean persisted, @Nullable String detail) {
+            boolean persisted, @Nullable String detail, @Nullable String file) {
 
         /**
          * Constructor with defensive copies.
@@ -189,6 +203,20 @@ public final class RunningEgress {
          */
         public Withdrawal {
             closes = List.copyOf(closes);
+        }
+
+        /**
+         * Constructor for a withdrawal that wrote no project file.
+         *
+         * @param outcome What became of it.
+         * @param closes Names it takes back.
+         * @param addresses Addresses removed.
+         * @param persisted Whether the project file was changed too.
+         * @param detail Why, or {@code null}.
+         */
+        public Withdrawal(Outcome outcome, List<String> closes, int addresses, boolean persisted,
+                @Nullable String detail) {
+            this(outcome, closes, addresses, persisted, detail, null);
         }
 
         static Withdrawal refused(Outcome outcome, String detail) {
@@ -411,7 +439,7 @@ public final class RunningEgress {
             return new Withdrawal(Outcome.NO_PROJECT_FILE, names, addresses, false,
                     "the run was narrowed; the project file was not: " + written.detail());
         }
-        return new Withdrawal(Outcome.NARROWED, names, addresses, true, null);
+        return new Withdrawal(Outcome.NARROWED, names, addresses, true, null, file);
     }
 
     private Effect persist(TaskInventory.Task task, List<String> names) {
@@ -440,6 +468,6 @@ public final class RunningEgress {
             return new Effect(Outcome.NO_PROJECT_FILE, names, false,
                     "the run was widened; the project file was not: " + written.detail());
         }
-        return new Effect(Outcome.WIDENED, names, true, null);
+        return new Effect(Outcome.WIDENED, names, true, null, file);
     }
 }

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.fuin.sokar.machines.Credential;
 import org.fuin.sokar.machines.Ssh;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The machine a scenario runs against.
@@ -177,7 +178,7 @@ public final class Machine implements AutoCloseable {
      * @return What it wrote and what it exited with.
      * @throws IOException If the command cannot be run.
      */
-    public Ssh.Output run(String command, String stdin) throws IOException {
+    public Ssh.Output run(String command, @Nullable String stdin) throws IOException {
         return ssh.run(asUser(onPath(command)), stdin);
     }
 

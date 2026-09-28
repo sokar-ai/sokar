@@ -68,7 +68,7 @@ public final class Preparation {
         try {
             project = org.fuin.sokar.core.project.ProjectReader.read(projectFile);
         } catch (RuntimeException ex) {
-            return new Result(Outcome.NO_SUCH_PROJECT, "", rebuild, ex.getMessage());
+            return new Result(Outcome.NO_SUCH_PROJECT, "", rebuild, CliErrors.reason(ex));
         }
 
         try (var agents = context.agents()) {

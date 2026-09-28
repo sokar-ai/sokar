@@ -6,6 +6,7 @@ import java.util.concurrent.Callable;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.gate.GateException;
 import org.fuin.sokar.gate.GitGate;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -26,11 +27,11 @@ public class GateReviewCommand implements Callable<Integer> {
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories. Default: the project's own.")
-    private String repository;
+    private @Nullable String repository;
 
     @Option(names = "--upstream", paramLabel = "<url>",
             description = "Upstream repository to forward approved pushes to.")
-    private String upstream;
+    private @Nullable String upstream;
 
     @Parameters(index = "0", paramLabel = "<name>", description = "Name of the pending push.")
     private String name;

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.fuin.sokar.vault.SshSignature;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Hands a task what arrived for it, and only what can be attributed.
@@ -190,11 +191,15 @@ public final class MessageDelivery {
             final byte[] bytes = Files.readAllBytes(message);
             final String armored = Files.readString(signature, StandardCharsets.UTF_8);
             final byte[] signer = SshSignature.signerOf(armored);
-            final Peer peer = signer == null ? null : peerFor(peers, signer);
+            if (signer == null) {
+                hold(mailbox, message, signature);
+                held.add(new Held(name, "its signature cannot be read"));
+                continue;
+            }
+            final Peer peer = peerFor(peers, signer);
             if (peer == null) {
                 hold(mailbox, message, signature);
-                held.add(new Held(name, signer == null ? "its signature cannot be read"
-                        : "it is signed by a key no peer is allowed to use"));
+                held.add(new Held(name, "it is signed by a key no peer is allowed to use"));
                 continue;
             }
             if (!SshSignature.verify(bytes, armored, signer, MessageIntake.NAMESPACE)) {
@@ -268,7 +273,7 @@ public final class MessageDelivery {
         return new Outcome(delivered, held, duplicates);
     }
 
-    private Peer peerFor(final List<Peer> peers, final byte[] signer) {
+    private @Nullable Peer peerFor(final List<Peer> peers, final byte[] signer) {
         for (final Peer peer : peers) {
             for (final byte[] key : peer.keys()) {
                 if (Arrays.equals(key, signer)) {
@@ -279,7 +284,7 @@ public final class MessageDelivery {
         return null;
     }
 
-    private void hold(final Mailbox mailbox, final Path message, final Path signature)
+    private void hold(final Mailbox mailbox, final Path message, final @Nullable Path signature)
             throws IOException {
         final String name = message.getFileName().toString();
         // What a transport attested travels with the message it is about: an operator looking at a

@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.fuin.sokar.wire.Json;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The part of a vault file that is readable without opening it.
@@ -224,7 +225,7 @@ final class VaultHeader {
         return Base64.getEncoder().encodeToString(bytes);
     }
 
-    private static byte[] decode(final Object value, final Object name) {
+    private static byte[] decode(final @Nullable Object value, final Object name) {
         if (!(value instanceof String text)) {
             throw new VaultException(name + " has a malformed keyslot");
         }

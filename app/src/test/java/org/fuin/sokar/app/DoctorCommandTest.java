@@ -142,6 +142,36 @@ class DoctorCommandTest {
     }
 
     /**
+     * A record of followed projects that cannot be read is reported, not thrown: the probe once
+     * named no next action, which the probe itself refuses, so doctor failed where it should report.
+     */
+    @Test
+    void reportsFollowedProjectsItCannotReadWithSomethingToDo(@TempDir Path dir) throws java.io.IOException {
+
+        final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
+            case "XDG_STATE_HOME" -> dir.resolve("state").toString();
+            default -> null;
+        }, dir);
+        final SokarPaths paths = new SokarPaths(xdg, dir.resolve("bin"));
+        final Path followed = java.nio.file.Files.createDirectories(paths.followed());
+        java.nio.file.Files.setPosixFilePermissions(followed, java.util.Set.of());
+        try {
+            final DoctorCommand doctor = new DoctorCommand();
+            doctor.setContext(new SokarContext(new FakeCommandRunner(), paths, arguments -> 0));
+
+            assertThat(doctor.probes()).filteredOn(probe -> "following".equals(probe.name()))
+                    .singleElement().satisfies(probe -> {
+                        assertThat(probe.state()).isEqualTo(Probe.State.DEGRADED);
+                        assertThat(probe.detail()).contains("cannot be read");
+                        assertThat(probe.action()).contains(followed.toString());
+                    });
+        } finally {
+            java.nio.file.Files.setPosixFilePermissions(followed,
+                    java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        }
+    }
+
+    /**
      * A machine with nothing pinned does not break - it stops following its projects, which is the
      * kind of failure that looks like nothing at all.
      */

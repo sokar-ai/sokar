@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.fuin.sokar.wire.varlink.VarlinkServer;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Serves one agent over varlink.
@@ -143,11 +144,11 @@ public class AgentServer implements AutoCloseable {
         server.close();
     }
 
-    private static String optional(Map<String, Object> parameters, String key) {
+    private static @Nullable String optional(Map<String, Object> parameters, String key) {
         return parameters.get(key) instanceof String value && !value.isBlank() ? value : null;
     }
 
-    private static Integer integer(Map<String, Object> parameters, String key) {
+    private static @Nullable Integer integer(Map<String, Object> parameters, String key) {
         return parameters.get(key) instanceof Number value ? Integer.valueOf(value.intValue()) : null;
     }
 

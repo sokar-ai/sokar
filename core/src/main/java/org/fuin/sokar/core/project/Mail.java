@@ -137,7 +137,7 @@ public record Mail(List<Peer> peers) {
      * @param name As a message addresses it.
      * @return The peer, or {@code null} when this project may not address it.
      */
-    public Peer peer(final String name) {
+    public @org.jspecify.annotations.Nullable Peer peer(final String name) {
         return peers.stream().filter(peer -> peer.name().equals(name)).findFirst().orElse(null);
     }
 }

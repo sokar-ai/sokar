@@ -58,7 +58,7 @@ final class WorkspaceSetup {
      *        both mean no workspace, and neither is this class's decision to read.
      * @return The workspace, or {@code null} when running without a gate.
      */
-    TaskWorkspace openWorkspace(Project project, boolean wanted, PrintWriter out,
+    @Nullable TaskWorkspace openWorkspace(Project project, boolean wanted, PrintWriter out,
             PrintWriter err) {
         if (!wanted) {
             return null;
@@ -69,7 +69,14 @@ final class WorkspaceSetup {
                 // Online takes the gate out of the path entirely: the agent's remote IS the
                 // upstream. Nothing is reviewed, which is what the class is for and why a project
                 // has to opt into it rather than a task asking for it.
-                return TaskWorkspace.direct(chosen.upstream());
+                final String upstream = chosen.upstream();
+                if (upstream == null) {
+                    err.println("sokar: an online project needs an upstream for '" + chosen.name()
+                            + "': its agent pushes there itself");
+                    err.flush();
+                    return null;
+                }
+                return TaskWorkspace.direct(upstream);
             }
             return TaskWorkspace.gated(chosen,
                     GateSupport.gate(project, chosen, upstream, seed(project, chosen, out)),

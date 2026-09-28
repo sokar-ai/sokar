@@ -85,7 +85,8 @@ final class GateWiring {
             final ProcessBuilder builder = new ProcessBuilder(command)
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("gate.log").toFile());
-            builder.environment().put("SOKAR_GATE_TOKEN", workspace.token().value());
+            builder.environment().put("SOKAR_GATE_TOKEN", java.util.Objects.requireNonNull(workspace.token(),
+                    "a gated workspace has a token").value());
             if (upstream != null) {
                 builder.environment().put("SOKAR_GATE_UPSTREAM", upstream);
             }
@@ -186,7 +187,7 @@ final class GateWiring {
      * @param container Container name.
      * @return {@code null} if the gate is reachable, otherwise a message saying why not.
      */
-    String gateReachability(TaskRunner runner, String container, String gateAddress) {
+    @Nullable String gateReachability(TaskRunner runner, String container, String gateAddress) {
         try {
             final java.nio.file.Path out = java.nio.file.Files.createTempFile("sokar-hosts", "");
             try {

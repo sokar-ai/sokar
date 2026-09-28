@@ -264,7 +264,8 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
      */
     public Path hooksDirectory() {
         // Not under the Sokar config directory: podman decides where to look, and it looks here.
-        return xdg.config().getParent().resolve("containers/oci/hooks.d");
+        return java.util.Objects.requireNonNull(xdg.config().getParent(), "the config directory has a parent")
+                .resolve("containers/oci/hooks.d");
     }
 
     /**
@@ -481,7 +482,16 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
      * @return Mailbox root, which is the host's half - only what is under it is mounted.
      */
     public Path mailbox(String container) {
-        return xdg.state().resolve("mail").resolve(container);
+        return mailboxes().resolve(container);
+    }
+
+    /**
+     * Returns the directory every task's mailbox is in.
+     *
+     * @return The directory.
+     */
+    public Path mailboxes() {
+        return xdg.state().resolve("mail");
     }
 
     /**

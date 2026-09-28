@@ -94,26 +94,26 @@ public final class CompareBills {
         final List<Relicensed> relicensed = new ArrayList<>();
         for (final String key : new TreeSet<>(built.keySet())) {
             if (published.containsKey(key)) {
-                relicensed(key, published.get(key), built.get(key)).ifPresent(relicensed::add);
+                relicensed(key, in(published, key), in(built, key)).ifPresent(relicensed::add);
             }
         }
         // Reported by the key it arrived as, so the line names the version a reader would look at.
         for (final Move move : moved) {
-            relicensed(move.to(), published.get(move.from()), built.get(move.to())).ifPresent(relicensed::add);
+            relicensed(move.to(), in(published, move.from()), in(built, move.to())).ifPresent(relicensed::add);
         }
 
         for (final Move move : moved) {
-            final Component was = published.get(move.from());
-            final Component is = built.get(move.to());
+            final Component was = in(published, move.from());
+            final Component is = in(built, move.to());
             out.println("  moved     " + was.getName() + " " + was.getVersion() + " -> " + is.getVersion()
                     + "   " + shown(Bill.licenses(is)));
         }
         // The license goes on the line: an added component's has been compared with nothing.
         for (final String key : added) {
-            out.println("  added     " + key + "   " + shown(Bill.licenses(built.get(key))));
+            out.println("  added     " + key + "   " + shown(Bill.licenses(in(built, key))));
         }
         for (final String key : removed) {
-            out.println("  removed   " + key + "   " + shown(Bill.licenses(published.get(key))));
+            out.println("  removed   " + key + "   " + shown(Bill.licenses(in(published, key))));
         }
         for (final Relicensed change : relicensed) {
             out.println("  relicensed " + change.key() + ": " + listed(change.before()) + " -> "
@@ -132,6 +132,17 @@ public final class CompareBills {
     }
 
     /**
+     * Returns the component a map holds under a key taken from that same map.
+     *
+     * @param components The bill's components by key.
+     * @param key A key it holds.
+     * @return The component.
+     */
+    private static Component in(Map<String, Component> components, String key) {
+        return java.util.Objects.requireNonNull(components.get(key), () -> "no component " + key);
+    }
+
+    /**
      * Takes the component this run is deliberately updating out of the added and removed sets.
      * <p>
      * Its version is in its purl, so an update reads as one removed and one added and would stop
@@ -143,9 +154,9 @@ public final class CompareBills {
         final List<Move> moved = new ArrayList<>();
         for (final String name : expected) {
             final List<String> arrived = added.stream()
-                    .filter(key -> name.equals(built.get(key).getName())).toList();
+                    .filter(key -> name.equals(in(built, key).getName())).toList();
             final List<String> left = removed.stream()
-                    .filter(key -> name.equals(published.get(key).getName())).toList();
+                    .filter(key -> name.equals(in(published, key).getName())).toList();
             if (arrived.size() != 1 || left.size() != 1) {
                 continue;
             }

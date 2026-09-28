@@ -11,6 +11,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.VarHandle;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The Linux kernel keyring, used as a volatile unlock cache.
@@ -85,9 +86,9 @@ public class KernelKeyring {
 
     private static final Linker.Option CAPTURE = Linker.Option.captureCallState("errno");
 
-    private static final SymbolLookup KEYUTILS = load();
+    private static final @Nullable SymbolLookup KEYUTILS = load();
 
-    private static SymbolLookup load() {
+    private static @Nullable SymbolLookup load() {
         for (final String name : new String[] { "libkeyutils.so.1", "libkeyutils.so" }) {
             try {
                 return SymbolLookup.libraryLookup(name, Arena.global());
@@ -120,6 +121,9 @@ public class KernelKeyring {
 
     private static MethodHandle handle(String name, MemoryLayout returnType,
             MemoryLayout... arguments) {
+        if (KEYUTILS == null) {
+            throw new VaultException("libkeyutils is not installed, so the kernel keyring cannot be used");
+        }
         return LINKER.downcallHandle(
                 KEYUTILS.find(name).orElseThrow(() ->
                         new VaultException("Symbol '" + name + "' not found in libkeyutils")),

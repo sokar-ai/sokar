@@ -40,6 +40,15 @@ class ShieldEgressCommandTest {
         return cmd.execute(args);
     }
 
+    @Test
+    void asksWhichProjectRatherThanShowingOneCalledNull(@TempDir Path dir) {
+
+        final int code = execute(context(dir), "shield", "egress");
+
+        assertThat(code).as(err.toString()).isEqualTo(2);
+        assertThat(err.toString()).contains("say which project, with --project").doesNotContain("'null'");
+    }
+
     /** Two sets on this machine, so a change can be reported in hosts rather than in names. */
     private void installSets(Path dir) throws IOException {
         final Path sets = dir.resolve("data/sokar/egress");

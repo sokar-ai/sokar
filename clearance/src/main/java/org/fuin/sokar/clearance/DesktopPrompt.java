@@ -159,16 +159,17 @@ public class DesktopPrompt implements ClearancePrompt, AutoCloseable {
                 }
             });
 
-            shown.set(notifications.Notify("Sokar", new UInt32(0), "network-error",
+            final UInt32 id = notifications.Notify("Sokar", new UInt32(0), "network-error",
                     request.summary(), request.body(),
                     List.of(ALLOW, "Allow", DENY, "Deny"),
                     Map.of("urgency", new Variant<>((byte) 2)),
-                    (int) timeout.toMillis()));
+                    (int) timeout.toMillis());
+            shown.set(id);
 
             if (!answered.await(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-                expire(shown.get(), request);
+                expire(id, request);
             }
-            return verdict.get();
+            return java.util.Objects.requireNonNullElse(verdict.get(), Verdict.TIMEOUT);
 
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();

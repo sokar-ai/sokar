@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
@@ -171,7 +172,7 @@ public class EgressSetDirectory {
         return new EgressSet(name, label.isEmpty() ? name : label, domains);
     }
 
-    private static String text(Object value) {
+    private static String text(@Nullable Object value) {
         return value == null ? "" : value.toString().strip();
     }
 

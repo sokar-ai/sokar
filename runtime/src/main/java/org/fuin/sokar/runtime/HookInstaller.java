@@ -119,7 +119,8 @@ public class HookInstaller {
      * @return Drop-in file.
      */
     public Path dropInFile() {
-        return hooksDirectory.getParent().getParent().resolve("containers.conf.d/50-sokar.conf");
+        // hooks.d sits in oci/ inside the containers directory, so two levels up always exists.
+        return hooksDirectory.resolve("../../containers.conf.d/50-sokar.conf").normalize();
     }
 
     /**
@@ -235,7 +236,7 @@ public class HookInstaller {
      */
     public List<String> effectiveHooksDirectories() {
 
-        final Path directory = dropInFile().getParent();
+        final Path directory = java.util.Objects.requireNonNull(dropInFile().getParent(), "a drop-in is in a directory");
         if (!Files.isDirectory(directory)) {
             return List.of();
         }

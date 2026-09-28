@@ -8,6 +8,7 @@ import org.fuin.sokar.agent.api.AgentDirectory;
 import org.fuin.sokar.agent.api.InstalledAgent;
 import org.fuin.sokar.agent.api.InstalledAgents;
 import org.fuin.sokar.core.config.XdgPaths;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -30,7 +31,7 @@ public class AgentsCommand implements Callable<Integer> {
 
     @Option(names = "--directory", paramLabel = "<path>",
             description = "Extra directory to scan, before the standard ones.")
-    private Path directory;
+    private @Nullable Path directory;
 
     @Option(names = "--supply-chain",
             description = "Show what each agent installs, and whether it can be verified.")

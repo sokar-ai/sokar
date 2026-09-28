@@ -425,7 +425,7 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
         try {
             body = web.read(address);
         } catch (IOException ex) {
-            throw Stop.unanswered(ex.getMessage(), ex);
+            throw Stop.unanswered(java.util.Objects.requireNonNullElse(ex.getMessage(), ex.toString()), ex);
         }
         if (body.isEmpty()) {
             throw Stop.refused("there is no release " + version + " - " + address + " answers 404");
@@ -439,11 +439,11 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
                     .map(body -> new String(body, StandardCharsets.UTF_8))
                     .orElseThrow(() -> Stop.unanswered(address + ": HTTP 404"));
         } catch (IOException ex) {
-            throw Stop.unanswered(ex.getMessage(), ex);
+            throw Stop.unanswered(java.util.Objects.requireNonNullElse(ex.getMessage(), ex.toString()), ex);
         }
     }
 
-    private static Object parse(String body, URI address) throws Stop {
+    private static @Nullable Object parse(String body, URI address) throws Stop {
         try {
             return Json.parse(body);
         } catch (JsonException ex) {
@@ -451,7 +451,7 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
         }
     }
 
-    private static @Nullable Object field(Object parsed, String name) {
+    private static @Nullable Object field(@Nullable Object parsed, String name) {
         return parsed instanceof Map<?, ?> map ? map.get(name) : null;
     }
 

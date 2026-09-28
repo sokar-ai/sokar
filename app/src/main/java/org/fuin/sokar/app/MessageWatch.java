@@ -173,7 +173,7 @@ public final class MessageWatch implements AutoCloseable {
      *         still has the timer, which is why this reports rather than throws.
      */
     public boolean startNotices() {
-        final Path root = context.paths().mailbox("x").getParent();
+        final Path root = context.paths().mailboxes();
         if (root == null || !Files.isDirectory(root)) {
             return false;
         }
@@ -324,7 +324,7 @@ public final class MessageWatch implements AutoCloseable {
     }
 
     private List<Path> mailboxes() {
-        final Path root = context.paths().mailbox("x").getParent();
+        final Path root = context.paths().mailboxes();
         if (!Files.isDirectory(root)) {
             return List.of();
         }

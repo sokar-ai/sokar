@@ -11,6 +11,7 @@ import org.fuin.sokar.core.process.Command;
 import org.fuin.sokar.core.process.CommandResult;
 import org.fuin.sokar.core.process.CommandRunner;
 import org.fuin.sokar.core.project.Mail;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Puts a message from an {@code external} peer through the filter before any agent sees it.
@@ -43,7 +44,7 @@ public final class InboundCheck {
 
     private final CommandRunner runner;
 
-    private final Path filter;
+    private final @Nullable Path filter;
 
     private final Mail mail;
 

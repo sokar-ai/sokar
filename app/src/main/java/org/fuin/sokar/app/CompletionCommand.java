@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Callable;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Parameters;
@@ -34,7 +35,7 @@ public class CompletionCommand implements Callable<Integer>, Suggests {
 
     @Parameters(index = "0", arity = "0..1", paramLabel = "SHELL",
             description = "Which shell: bash or zsh.")
-    private String shell;
+    private @Nullable String shell;
 
     @Spec
     private CommandSpec spec;

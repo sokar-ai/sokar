@@ -50,7 +50,7 @@ public final class Rental {
      * @param candidate A directory of packages built here to install over the published ones, or
      *     {@code null} for the published Sokar.
      */
-    public record Options(String os, List<String> types, String artifactory, Path write,
+    public record Options(String os, List<String> types, String artifactory, @Nullable Path write,
             @Nullable Path candidate) {
     }
 

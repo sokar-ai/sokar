@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.runtime.ContainerName;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -44,7 +45,7 @@ public class TaskLogsCommand implements Callable<Integer>, SokarFactory.ContextA
 
     @Parameters(index = "1", arity = "0..1", paramLabel = "LOG",
             description = "Which log. Leave it out to list what this task has.")
-    private String log;
+    private @Nullable String log;
 
     @Option(names = { "-f", "--follow" },
             description = "Keeps printing as the log grows. Ends with Ctrl-C.")

@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.core.credential.Credential;
 import org.fuin.sokar.core.credential.CredentialRegistry;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -35,16 +36,16 @@ public class CredentialsDeclareCommand implements Callable<Integer>, SokarFactor
 
     @Option(names = "--vault", paramLabel = "<entry>",
             description = "Keep the value in this machine's vault, under this name.")
-    private String vaultEntry;
+    private @Nullable String vaultEntry;
 
     @Option(names = "--file", paramLabel = "<path>",
             description = "Use a file that is already here, such as ~/.ssh/id_ed25519. Nothing is"
                     + " copied, and this machine does not protect it.")
-    private String file;
+    private @Nullable String file;
 
     @Option(names = "--env", paramLabel = "<variable>",
             description = "Use a value already in the environment. Not protected here either.")
-    private String variable;
+    private @Nullable String variable;
 
     @Option(names = "--agent",
             description = "Use the ssh-agent this account already runs. Nothing is read or kept.")
@@ -52,7 +53,7 @@ public class CredentialsDeclareCommand implements Callable<Integer>, SokarFactor
 
     @Option(names = "--user", paramLabel = "<name>",
             description = "Username, for 'basic' and for a token that needs one.")
-    private String user;
+    private @Nullable String user;
 
     @Option(names = "--purpose", paramLabel = "<what>",
             description = "What it may be used for. Default: ${DEFAULT-VALUE}")

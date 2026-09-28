@@ -2,6 +2,7 @@ package org.fuin.sokar.app;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Rewrites the {@code egress} block of a project file and leaves everything else byte for byte.
@@ -240,7 +241,7 @@ final class EgressEdit {
      * @param pad What to indent a key with when the block does not have one yet. Taken from the
      *        block rather than assumed, so a nested declaration lines up with its neighbours.
      */
-    private static void replace(List<String> block, String key, String value, String pad) {
+    private static void replace(List<String> block, String key, @Nullable String value, String pad) {
 
         for (int i = 0; i < block.size(); i++) {
             final String line = block.get(i);
@@ -326,7 +327,7 @@ final class EgressEdit {
      * @param quoted Whether each value is quoted, as a host name is in the shipped examples.
      * @return The rendered list, or {@code null} when there is nothing to render.
      */
-    private static String flow(List<String> values, boolean quoted) {
+    private static @Nullable String flow(List<String> values, boolean quoted) {
         if (values.isEmpty()) {
             return null;
         }

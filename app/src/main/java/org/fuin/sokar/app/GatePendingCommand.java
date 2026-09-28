@@ -10,6 +10,7 @@ import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.gate.GateException;
 import org.fuin.sokar.gate.GitGate;
 import org.fuin.sokar.gate.PendingPush;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -33,11 +34,11 @@ public class GatePendingCommand implements Callable<Integer> {
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories. Default: the project's own.")
-    private String repository;
+    private @Nullable String repository;
 
     @Option(names = "--upstream", paramLabel = "<url>",
             description = "Upstream repository to forward approved pushes to.")
-    private String upstream;
+    private @Nullable String upstream;
 
     @Option(names = "--stale-after", paramLabel = "<hours>",
             description = "Mark pushes older than this. Default: ${DEFAULT-VALUE}")

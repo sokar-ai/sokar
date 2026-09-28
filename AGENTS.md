@@ -110,6 +110,40 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
   *towards*.
 - Prefer a small named method over a comment explaining a block.
 
+### Nullness is checked when it compiles
+
+**NullAway runs in every main compile, as an error.** Error Prone with only NullAway enabled, in the
+root POM's `default-compile` execution, scoped by `OnlyNullMarked`. Test code is not checked: a test
+passes `null` on purpose to watch a refusal. Turned on 2026-09-28 against 210 findings; four were
+defects a person would have met - `sokar doctor` threw instead of reporting an unreadable record,
+`shield egress` and `talk pass` looked up a project called `null`, and `vault serve` would write its
+token to no file at all. Each has a test now, watched to fail against the old code.
+
+- **A package without `@NullMarked` is skipped in silence.** Measured: a dereference of a `@Nullable`
+  result, planted in the acceptance kit, failed the build with the kit marked and compiled green
+  without its `package-info.java`. Three packages had none. `NullMarkedPackagesTest` now fails on any
+  package with main code that is not marked, so a new package carries it from its first commit.
+- **NullAway trusts what this repository does not annotate.** `System.getenv(...).length()` passes: a
+  JDK method is assumed non-null. So a planted defect that proves the check runs has to dereference
+  something declared `@Nullable` here, such as `Json.parse` - the first plant here used `getenv` and
+  proved nothing.
+- **Only what is compiled is checked.** An incremental build leaves an up-to-date module alone, and
+  NullAway with it: `-pl daemon -am` reported nothing for `app`'s hundred findings. Judge with `clean`.
+- **The compiler's lists append.** `app` declares picocli's processor, which writes the native image's
+  metadata; a `default-compile` execution in the root that replaced `annotationProcessorPaths` would
+  drop it with every unit test green and fail only in the shipped binary. Both lists carry
+  `combine.children="append"`, checked in `help:effective-pom`.
+- **picocli sets its fields, but only the ones it is given.** They are excluded from NullAway's
+  initialization check by annotation, and an optional option with no default is declared
+  `@Nullable`, so every use of it is checked. `OptionNullnessTest` walks the whole command tree and
+  fails on one that is not.
+- **`.mvn/jvm.config` is what lets Error Prone run on JDK 25**: without it javac's internals are
+  closed and the compile dies before checking a file. `./mvnw` reads it; a bare `mvn` from another
+  directory does not.
+- **No suppressions.** Where a value cannot be `null` for a reason the checker cannot see, a
+  `requireNonNull` says the reason in its message - five of them, each one an invariant rather than a
+  hope.
+
 ## Tests
 
 - **Descriptive method names, not `testXxx`.** All 775 test methods read as

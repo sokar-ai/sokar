@@ -9,6 +9,7 @@ import org.fuin.sokar.vault.KernelKeyring;
 import org.fuin.sokar.vault.PassphraseTiers;
 import org.fuin.sokar.vault.SystemdCredential;
 import org.fuin.sokar.vault.VaultException;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -33,16 +34,16 @@ public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.Conte
 
     @Option(names = "--passphrase-command", paramLabel = "<command>",
             description = "Command whose first output line is the passphrase.")
-    private String passphraseCommand;
+    private @Nullable String passphraseCommand;
 
     @Option(names = "--systemd-credential", paramLabel = "<file>",
             description = "systemd-creds encrypted file holding the passphrase.")
-    private String systemdCredential;
+    private @Nullable String systemdCredential;
 
     @Option(names = "--for", paramLabel = "<duration>",
             description = "How long to keep it: 45s, 30m, 8h. Without this it is kept until"
                     + " 'vault lock' or until your last session ends.")
-    private String keepFor;
+    private @Nullable String keepFor;
 
     @Spec
     private CommandSpec spec;

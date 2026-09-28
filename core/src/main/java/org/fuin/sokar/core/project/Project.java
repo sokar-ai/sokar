@@ -29,7 +29,7 @@ package org.fuin.sokar.core.project;
 public record Project(String name, String description, SecurityClass securityClass, String baseImage,
         @org.jspecify.annotations.Nullable String imageSnippet,
         @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
-        java.util.List<String> packageSources, Mail mail, boolean unreadWorkMayLeave,
+        java.util.@org.jspecify.annotations.Nullable List<String> packageSources, Mail mail, boolean unreadWorkMayLeave,
         java.util.List<Repository> repositories) {
 
     /**
@@ -50,7 +50,7 @@ public record Project(String name, String description, SecurityClass securityCla
     public Project(String name, String description, SecurityClass securityClass, String baseImage,
             @org.jspecify.annotations.Nullable String imageSnippet,
             @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
-            java.util.List<String> packageSources, Mail mail, boolean unreadWorkMayLeave) {
+            java.util.@org.jspecify.annotations.Nullable List<String> packageSources, Mail mail, boolean unreadWorkMayLeave) {
         this(name, description, securityClass, baseImage, imageSnippet, upstream, limits, egress,
                 packageSources, mail, unreadWorkMayLeave, java.util.List.of());
     }
@@ -72,7 +72,7 @@ public record Project(String name, String description, SecurityClass securityCla
     public Project(String name, String description, SecurityClass securityClass, String baseImage,
             @org.jspecify.annotations.Nullable String imageSnippet,
             @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
-            java.util.List<String> packageSources, Mail mail) {
+            java.util.@org.jspecify.annotations.Nullable List<String> packageSources, Mail mail) {
         this(name, description, securityClass, baseImage, imageSnippet, upstream, limits, egress,
                 packageSources, mail, false);
     }
@@ -96,7 +96,7 @@ public record Project(String name, String description, SecurityClass securityCla
     public Project(String name, String description, SecurityClass securityClass, String baseImage,
             @org.jspecify.annotations.Nullable String imageSnippet,
             @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
-            java.util.List<String> packageSources) {
+            java.util.@org.jspecify.annotations.Nullable List<String> packageSources) {
         this(name, description, securityClass, baseImage, imageSnippet, upstream, limits, egress,
                 packageSources, Mail.none());
     }

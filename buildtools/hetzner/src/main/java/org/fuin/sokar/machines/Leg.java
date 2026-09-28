@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import javax.xml.parsers.DocumentBuilderFactory;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One test leg: rent a machine, build the product on it, and see what it does.
@@ -91,7 +92,7 @@ public final class Leg {
      * @throws IOException If any step fails, saying which.
      */
     public static void run(Machines hetzner, String os, List<String> types, Credential credential,
-            Path archive, boolean keep, Path into, Path suite) throws IOException {
+            Path archive, boolean keep, @Nullable Path into, @Nullable Path suite) throws IOException {
         // root, so this run's key can be given to the build user. The image carries whatever key
         // built it, which is not the key a workflow holds - and a leg that assumed otherwise
         // waited five minutes for an ssh that was never going to be accepted. It passed locally

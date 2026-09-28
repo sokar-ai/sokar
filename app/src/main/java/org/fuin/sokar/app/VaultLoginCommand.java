@@ -2,6 +2,7 @@ package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
 import java.util.concurrent.Callable;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -22,7 +23,7 @@ public class VaultLoginCommand implements Callable<Integer>, SokarFactory.Contex
 
     @Parameters(index = "0", arity = "0..1", paramLabel = "<agent>",
             description = "Agent to log in with. Default: the only one installed.")
-    private String agentName;
+    private @Nullable String agentName;
 
     @Option(names = "--dry-run", description = "Says what it would run and runs nothing.")
     private boolean dryRun;

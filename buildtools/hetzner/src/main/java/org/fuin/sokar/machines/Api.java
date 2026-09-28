@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.fuin.sokar.wire.Json;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The Hetzner Cloud REST API, as much of it as this repository uses.
@@ -114,7 +115,7 @@ final class Api implements AutoCloseable {
         return send("DELETE", path, null);
     }
 
-    private Map<String, Object> send(String method, String path, String body) throws IOException {
+    private Map<String, Object> send(String method, String path, @Nullable String body) throws IOException {
         for (int attempt = 1; ; attempt++) {
             final HttpRequest.BodyPublisher content = body == null
                     ? HttpRequest.BodyPublishers.noBody()

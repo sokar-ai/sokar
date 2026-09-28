@@ -124,7 +124,7 @@ public final class Main {
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--mine" -> mine = true;
-                case "--from" -> from = at + 1 < args.length ? args[++at] : null;
+                case "--from" -> from = value(args, ++at);
                 case "--now" -> delete = true;
                 case "--older-than" -> {
                     if (at + 1 >= args.length) {
@@ -204,10 +204,10 @@ public final class Main {
         String type = null;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
-                case "--os" -> os = at + 1 < args.length ? args[++at] : null;
-                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
-                case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
-                case "--type" -> type = at + 1 < args.length ? args[++at] : null;
+                case "--os" -> os = value(args, ++at);
+                case "--key" -> key = value(args, ++at);
+                case "--repo" -> repo = value(args, ++at);
+                case "--type" -> type = value(args, ++at);
                 default -> {
                     complain.accept("unknown option: " + args[at]);
                     return 2;
@@ -259,14 +259,14 @@ public final class Main {
         boolean keep = false;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
-                case "--os" -> os = at + 1 < args.length ? args[++at] : null;
-                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
-                case "--package" -> pkg = at + 1 < args.length ? args[++at] : null;
-                case "--script" -> script = at + 1 < args.length ? args[++at] : null;
-                case "--candidate" -> candidate = at + 1 < args.length ? args[++at] : null;
-                case "--cucumber" -> cucumber = at + 1 < args.length ? args[++at] : null;
-                case "--type" -> type = at + 1 < args.length ? args[++at] : null;
-                case "--artifactory" -> artifactory = at + 1 < args.length ? args[++at] : null;
+                case "--os" -> os = value(args, ++at);
+                case "--key" -> key = value(args, ++at);
+                case "--package" -> pkg = value(args, ++at);
+                case "--script" -> script = value(args, ++at);
+                case "--candidate" -> candidate = value(args, ++at);
+                case "--cucumber" -> cucumber = value(args, ++at);
+                case "--type" -> type = value(args, ++at);
+                case "--artifactory" -> artifactory = value(args, ++at);
                 case "--keep" -> keep = true;
                 default -> {
                     complain.accept("unknown option: " + args[at]);
@@ -313,12 +313,12 @@ public final class Main {
         String candidate = null;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
-                case "--os" -> os = at + 1 < args.length ? args[++at] : null;
-                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
-                case "--write" -> write = at + 1 < args.length ? args[++at] : null;
-                case "--type" -> type = at + 1 < args.length ? args[++at] : null;
-                case "--artifactory" -> artifactory = at + 1 < args.length ? args[++at] : null;
-                case "--candidate" -> candidate = at + 1 < args.length ? args[++at] : null;
+                case "--os" -> os = value(args, ++at);
+                case "--key" -> key = value(args, ++at);
+                case "--write" -> write = value(args, ++at);
+                case "--type" -> type = value(args, ++at);
+                case "--artifactory" -> artifactory = value(args, ++at);
+                case "--candidate" -> candidate = value(args, ++at);
                 default -> {
                     complain.accept("unknown option: " + args[at]);
                     return 2;
@@ -343,10 +343,10 @@ public final class Main {
         boolean skipBuild = false;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
-                case "--vm" -> vm = at + 1 < args.length ? args[++at] : null;
-                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
-                case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
-                case "--run" -> run = at + 1 < args.length ? args[++at] : null;
+                case "--vm" -> vm = value(args, ++at);
+                case "--key" -> key = value(args, ++at);
+                case "--repo" -> repo = value(args, ++at);
+                case "--run" -> run = value(args, ++at);
                 case "--skip-build" -> skipBuild = true;
                 default -> {
                     complain.accept("unknown option: " + args[at]);
@@ -399,6 +399,24 @@ public final class Main {
     }
 
     /**
+     * Returns an option's value, which is the next word.
+     * <p>
+     * Refused rather than read as {@code null}: an option given last with nothing after it would
+     * otherwise replace its default with nothing and fail somewhere that does not name it.
+     *
+     * @param args The command line.
+     * @param at Where the value should be.
+     * @return The value.
+     * @throws IllegalArgumentException If there is none.
+     */
+    static String value(String[] args, int at) {
+        if (at >= args.length) {
+            throw new IllegalArgumentException("option " + args[at - 1] + " needs a value");
+        }
+        return args[at];
+    }
+
+    /**
      * Returns a tar of what is checked out.
      * <p>
      * {@code git archive} of the working tree rather than a clone: it sends exactly what is here,
@@ -444,11 +462,11 @@ public final class Main {
         boolean acceptance = false;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
-                case "--os" -> os = at + 1 < args.length ? args[++at] : null;
-                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
-                case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
+                case "--os" -> os = value(args, ++at);
+                case "--key" -> key = value(args, ++at);
+                case "--repo" -> repo = value(args, ++at);
                 case "--keep" -> keep = true;
-                case "--fetch" -> into = at + 1 < args.length ? args[++at] : null;
+                case "--fetch" -> into = value(args, ++at);
                 case "--acceptance" -> acceptance = true;
                 default -> {
                     complain.accept("unknown option: " + args[at]);

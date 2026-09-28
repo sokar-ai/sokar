@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -37,16 +38,16 @@ public class VaultCredentialCommand implements Callable<Integer>, SokarFactory.C
 
     @Option(names = "--entry", paramLabel = "<name>",
             description = "Vault entry holding the token, as 'sokar vault list' shows it.")
-    private String entry;
+    private @Nullable String entry;
 
     @Option(names = "--env", paramLabel = "<variable>",
             description = "Environment variable holding the token, for a value this machine did"
                     + " not store.")
-    private String variable;
+    private @Nullable String variable;
 
     @Option(names = "--file", paramLabel = "<path>",
             description = "File holding the token, for a value this machine did not store.")
-    private String file;
+    private @Nullable String file;
 
     @Option(names = "--username", paramLabel = "<name>",
             description = "What to answer as the user. Default: ${DEFAULT-VALUE}")

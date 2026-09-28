@@ -144,7 +144,7 @@ public class TaskWorkspace {
      *
      * @return The task token.
      */
-    public TaskToken token() {
+    public @Nullable TaskToken token() {
         return token;
     }
 
@@ -169,7 +169,7 @@ public class TaskWorkspace {
      * @param project The project.
      * @return Gate URL.
      */
-    public String url(Project project) {
+    public @Nullable String url(Project project) {
         // The repository's name rather than the project's, because that is what the agent has
         // open. With one repository the two are the same string, so nothing that reads a URL
         // today sees a change.
@@ -301,7 +301,7 @@ public class TaskWorkspace {
      *
      * @return The gate.
      */
-    public GitGate gate() {
+    public @Nullable GitGate gate() {
         return gate;
     }
 
@@ -349,7 +349,7 @@ public class TaskWorkspace {
      * @return {@code null} if the mapping is as expected, otherwise a message naming the
      *         difference.
      */
-    public static String verify(String hosts, String expected) {
+    public static @Nullable String verify(String hosts, String expected) {
         for (final String line : hosts.split("\n")) {
             final String entry = line.strip();
             if (entry.isEmpty() || entry.startsWith("#")) {

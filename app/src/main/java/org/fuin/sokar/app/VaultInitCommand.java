@@ -11,6 +11,7 @@ import org.fuin.sokar.vault.PassphraseTiers;
 import org.fuin.sokar.vault.VaultEntry;
 import org.fuin.sokar.vault.VaultException;
 import org.fuin.sokar.vault.VaultFile;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -37,7 +38,7 @@ public class VaultInitCommand implements Callable<Integer>, SokarFactory.Context
     @Option(names = "--passphrase-command", paramLabel = "<command>",
             description = "Reads the passphrase from this command instead of asking. Asked once,"
                     + " because a command cannot mistype.")
-    private String passphraseCommand;
+    private @Nullable String passphraseCommand;
 
     @Spec
     private CommandSpec spec;

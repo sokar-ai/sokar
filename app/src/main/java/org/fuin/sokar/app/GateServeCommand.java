@@ -11,6 +11,7 @@ import org.fuin.sokar.gate.GitGate;
 import org.fuin.sokar.gate.GitHttpServer;
 import org.fuin.sokar.gate.GitSubprocess;
 import org.fuin.sokar.gate.TaskToken;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -34,11 +35,11 @@ public class GateServeCommand implements Callable<Integer> {
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories. Default: the project's own.")
-    private String repository;
+    private @Nullable String repository;
 
     @Option(names = "--upstream", paramLabel = "<url>",
             description = "Upstream repository, used only when approving.")
-    private String upstream;
+    private @Nullable String upstream;
 
     @Option(names = "--address", paramLabel = "<ip>",
             description = "Address to bind. Default: ${DEFAULT-VALUE}")
@@ -50,7 +51,7 @@ public class GateServeCommand implements Callable<Integer> {
 
     @Option(names = "--pid-file", paramLabel = "<file>",
             description = "Writes this process's id here, so the poststop hook can reap it.")
-    private Path pidFile;
+    private @Nullable Path pidFile;
 
     @Option(names = "--seconds", paramLabel = "<n>",
             description = "Stop after this long. Zero means run until killed.")

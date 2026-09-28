@@ -6,6 +6,7 @@ import java.util.concurrent.Callable;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.gate.GateException;
 import org.fuin.sokar.gate.GitGate;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -30,7 +31,7 @@ public class GateBackupCommand implements Callable<Integer>,
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories. Default: the project's own.")
-    private String repository;
+    private @Nullable String repository;
 
     @Spec
     private CommandSpec spec;

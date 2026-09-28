@@ -3,6 +3,7 @@ package org.fuin.sokar.app;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.concurrent.Callable;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Parameters;
@@ -29,7 +30,7 @@ public class TaskLabelCommand implements Callable<Integer>, SokarFactory.Context
 
     @Parameters(index = "1", arity = "0..1", paramLabel = "CAPTION",
             description = "What to call it. Leave it out to remove the caption.")
-    private String caption;
+    private @Nullable String caption;
 
     @Spec
     private CommandSpec spec;
@@ -64,7 +65,7 @@ public class TaskLabelCommand implements Callable<Integer>, SokarFactory.Context
         final TaskControl.Labelled outcome = new TaskControl(context).label(container, caption);
 
         switch (outcome) {
-            case LABELLED -> out.println("labelled  " + container + " \"" + caption.strip() + "\"");
+            case LABELLED -> out.println("labelled  " + container + " \"" + String.valueOf(caption).strip() + "\"");
             case CLEARED -> out.println("cleared   " + container + " shows its own name again");
             case NOT_A_TASK -> {
                 err.println("sokar: no task named '" + container + "' - 'sokar task list' shows"

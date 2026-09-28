@@ -204,14 +204,14 @@ public final class ForeignRegistrations {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> object(Object parsed) {
+    private static Map<String, Object> object(@Nullable Object parsed) {
         if (!(parsed instanceof Map<?, ?>)) {
             throw new IllegalStateException("not a JSON object: " + parsed);
         }
         return new LinkedHashMap<>((Map<String, Object>) parsed);
     }
 
-    private static Object read(Path file) {
+    private static @Nullable Object read(Path file) {
         try {
             return Json.parse(Files.readString(file));
         } catch (IOException ex) {

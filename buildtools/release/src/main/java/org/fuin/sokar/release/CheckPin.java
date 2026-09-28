@@ -122,7 +122,7 @@ public final class CheckPin {
                     err.println("Could not check the digest. This is not the same as 'it agrees'.");
                     return Stop.UNANSWERED;
                 }
-                report.bad(stop.getMessage());
+                report.bad(java.util.Objects.requireNonNullElse(stop.getMessage(), stop.toString()));
                 return report.summary();
             }
             if (published.isEmpty()) {
@@ -145,7 +145,7 @@ public final class CheckPin {
                     err.println("Could not check the license. This is not the same as 'it agrees'.");
                     return Stop.UNANSWERED;
                 }
-                report.bad(stop.getMessage());
+                report.bad(java.util.Objects.requireNonNullElse(stop.getMessage(), stop.toString()));
                 return report.summary();
             }
             if (artifact.license() == null) {

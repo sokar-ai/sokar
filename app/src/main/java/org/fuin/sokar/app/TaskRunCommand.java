@@ -8,6 +8,7 @@ import org.fuin.sokar.core.process.CommandException;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.core.project.ProjectException;
 import org.fuin.sokar.core.project.ProjectReader;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -51,15 +52,15 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
     @Option(names = "--agent", paramLabel = "<name>",
             description = "Agent to install in the image. Default: the only one installed.")
-    private String agentName;
+    private @Nullable String agentName;
 
     @Option(names = "--provider", paramLabel = "<name>",
             description = "Provider to serve the models. Default: the agent's own.")
-    private String providerName;
+    private @Nullable String providerName;
 
     @Option(names = "--credential-type", paramLabel = "<type>",
             description = "Overrides the kind recorded with the credential when it was stored.")
-    private String credentialType;
+    private @Nullable String credentialType;
 
     @Option(names = "--token-hours", paramLabel = "<n>",
             description = "How long the phantom token is accepted. Default: ${DEFAULT-VALUE}")
@@ -83,15 +84,15 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
     @Option(names = { "-P", "--prompt" }, paramLabel = "<text>",
             description = "Runs the agent with this prompt instead of attaching a shell.")
-    private String prompt;
+    private @Nullable String prompt;
 
     @Option(names = "--model", paramLabel = "<name>",
             description = "Model to ask the agent for. Only if the agent declares a model flag.")
-    private String model;
+    private @Nullable String model;
 
     @Option(names = "--max-turns", paramLabel = "<n>",
             description = "Turn limit. Only if the agent declares one.")
-    private Integer maxTurns;
+    private @Nullable Integer maxTurns;
 
     @Option(names = "--minutes", paramLabel = "<n>",
             description = "How long the agent may run. Default: ${DEFAULT-VALUE}")
@@ -99,13 +100,13 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
     @Option(names = "--upstream", paramLabel = "<url>",
             description = "Upstream the gate forwards approved pushes to.")
-    private String upstream;
+    private @Nullable String upstream;
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories the task works on. Required:"
                     + " there is no default, and the project's own repository is one of the"
                     + " choices.")
-    private String repository;
+    private @Nullable String repository;
 
     @Option(names = "--no-gate",
             description = "Runs without a workspace or a git gate. The agent gets an empty"
@@ -337,7 +338,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
      * @param upstream Remote as written in the project file.
      * @return Host, or {@code null} if none can be read.
      */
-    static String upstreamHost(String upstream) {
+    static @Nullable String upstreamHost(@Nullable String upstream) {
         if (upstream == null || upstream.isBlank()) {
             return null;
         }

@@ -21,6 +21,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator;
 import org.bouncycastle.crypto.params.Argon2Parameters;
 import org.fuin.sokar.wire.Json;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The credential store: one AES-256-GCM encrypted file holding a JSON document.
@@ -421,11 +422,11 @@ public class VaultFile {
      */
     public static final class Opener {
 
-        private final char[] passphrase;
+        private final char @Nullable [] passphrase;
 
-        private final byte[] share;
+        private final byte @Nullable [] share;
 
-        private Opener(char[] passphrase, byte[] share) {
+        private Opener(char @Nullable [] passphrase, byte @Nullable [] share) {
             this.passphrase = passphrase;
             this.share = share;
         }
@@ -509,7 +510,7 @@ public class VaultFile {
      * @param opener What was offered.
      * @return The slot key, or {@code null}.
      */
-    private byte[] keyFor(VaultHeader.Slot slot, Opener opener) {
+    private byte @Nullable [] keyFor(VaultHeader.Slot slot, Opener opener) {
         if (VaultHeader.PASSPHRASE_SLOT.equals(slot.kind())) {
             if (opener.passphrase == null) {
                 return null;

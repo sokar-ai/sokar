@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import org.fuin.sokar.core.process.CommandRunner;
 import org.fuin.sokar.core.project.Mail;
 import org.fuin.sokar.vault.SigningKey;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One pass over a task's mailbox: everything that has to happen between an agent writing a message
@@ -50,7 +51,7 @@ public final class MessagePass {
 
     private final SigningKey key;
 
-    private final Path filter;
+    private final @Nullable Path filter;
 
     private final TransportDirectory transports;
 
@@ -62,7 +63,7 @@ public final class MessagePass {
      * @param filter The message filter, or {@code null} when none is installed.
      * @param transports Where the adapters are.
      */
-    public MessagePass(final CommandRunner runner, final SigningKey key, final Path filter,
+    public MessagePass(final CommandRunner runner, final SigningKey key, final @Nullable Path filter,
             final TransportDirectory transports) {
         this.runner = runner;
         this.key = key;

@@ -652,9 +652,15 @@ public final class TaskLaunch {
             err.flush();
             return NO_AGENT;
         }
+        final String prompt = request.prompt();
+        if (prompt == null) {
+            err.println("sokar: this task was started without a prompt, so there is nothing to run");
+            err.flush();
+            return 2;
+        }
         final Path log = context.paths().containerState(container).resolve("task.log");
         final org.fuin.sokar.agent.api.RunRequest agentRequest =
-                new org.fuin.sokar.agent.api.RunRequest(request.prompt(), request.model(),
+                new org.fuin.sokar.agent.api.RunRequest(prompt, request.model(),
                         request.maxTurns(), null, false, true);
 
         out.println();
@@ -1134,19 +1140,19 @@ public final class TaskLaunch {
      * Which credential this task uses, and what to say about it. Built on first use because it
      * reads the options, and those are not set until picocli has parsed them.
      */
-    private CredentialChoice credentials;
+    private @Nullable CredentialChoice credentials;
 
     /** The broker, the relay and the signing agent this task needs. Built on first use. */
-    private CredentialWiring wiring;
+    private @Nullable CredentialWiring wiring;
 
     /** How the git gate is bound and firewalled for this task. Built on first use. */
-    private GateWiring gate;
+    private @Nullable GateWiring gate;
 
     /** The repository the agent works in. Built on first use. */
-    private WorkspaceSetup workspace;
+    private @Nullable WorkspaceSetup workspace;
 
     /** The watcher that asks about blocked connections. Built on first use. */
-    private ClearanceWiring clearanceWiring;
+    private @Nullable ClearanceWiring clearanceWiring;
 
     /**
      * Removes a task that finished, and holds one that failed.

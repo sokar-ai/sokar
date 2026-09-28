@@ -102,7 +102,7 @@ public final class CredentialRegistry {
         }
         return new Credential(id == null ? "" : id, kind(file, match, text(fields, "kind")),
                 normalise(match), text(fields, "user"),
-                text(fields, "purpose") == null ? Credential.ANY : text(fields, "purpose"),
+                java.util.Objects.requireNonNullElse(text(fields, "purpose"), Credential.ANY),
                 source, text(fields, "expires"));
     }
 

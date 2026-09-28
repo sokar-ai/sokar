@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.fuin.sokar.wire.varlink.VarlinkClient;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An agent binary installed on this machine.
@@ -264,7 +265,7 @@ public class InstalledAgent implements AutoCloseable {
         });
     }
 
-    private static Map<String, String> attributes(Object value) {
+    private static Map<String, String> attributes(@Nullable Object value) {
         if (!(value instanceof Map<?, ?> source)) {
             return Map.of();
         }

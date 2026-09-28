@@ -10,6 +10,7 @@ import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.core.project.ProjectException;
 import org.fuin.sokar.core.project.ProjectReader;
 import org.fuin.sokar.shield.EgressSetException;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -33,12 +34,12 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
     @Option(names = { "-p", "--project" }, paramLabel = "<name>",
             description = "Project name, as 'sokar project list' prints it. Required unless"
                     + " --task says which running task to change, which names its own project.")
-    private String projectName;
+    private @Nullable String projectName;
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories to declare this for. Default: the"
                     + " project's own. A repository's grants are ADDED to the project's.")
-    private String repository;
+    private @Nullable String repository;
 
     @Option(names = "--add-set", paramLabel = "<name>",
             description = "Curated set to declare. Repeatable.")
@@ -58,12 +59,12 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
 
     @Option(names = "--agent", paramLabel = "<name>",
             description = "Agent whose own grants to include. Default: the only one installed.")
-    private String agentName;
+    private @Nullable String agentName;
 
     @Option(names = "--task", paramLabel = "<name>",
             description = "Change what this RUNNING task may reach, rather than the project file."
                     + " Takes effect without stopping it.")
-    private String task;
+    private @Nullable String task;
 
     @Option(names = "--also-project",
             description = "With --task: write the same names into the project file as well, so the"
@@ -96,7 +97,10 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
         if (change.isEmpty()) {
             return show(control, out, err);
         }
-        if (task == null && projectName == null) {
+        if (task != null) {
+            return widen(task, out, err);
+        }
+        if (projectName == null) {
             // Required for every path but one: a running task names its own project, and asking
             // for it again would be asking somebody to repeat what the machine already knows.
             err.println("sokar: say which project, with --project - or which running task, with"
@@ -104,11 +108,8 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
             err.flush();
             return 2;
         }
-        if (task != null) {
-            return widen(out, err);
-        }
-        return change(control.apply(ProjectSource.require(context, projectName), repository,
-                change, dryRun), out, err);
+        final Path file = ProjectSource.require(context, projectName);
+        return change(file, control.apply(file, repository, change, dryRun), out, err);
     }
 
     /**
@@ -123,7 +124,7 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
      * @param err Where to report a refusal.
      * @return Exit code.
      */
-    private int widen(PrintWriter out, PrintWriter err) {
+    private int widen(String running, PrintWriter out, PrintWriter err) {
 
         if (!addSets.isEmpty() || !removeSets.isEmpty()) {
             err.println("sokar: --task takes --add-domain and --remove-domain; sets are not"
@@ -139,10 +140,10 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
             return 2;
         }
         if (!removeDomains.isEmpty()) {
-            return narrow(out, err);
+            return narrow(running, out, err);
         }
 
-        final RunningEgress.Effect effect = new RunningEgress(context).widen(task, addDomains,
+        final RunningEgress.Effect effect = new RunningEgress(context).widen(running, addDomains,
                 alsoProject ? RunningEgress.Scope.RUN_AND_PROJECT : RunningEgress.Scope.RUN,
                 dryRun);
 
@@ -172,14 +173,14 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
             out.flush();
             return 0;
         }
-        out.println("granted        to " + task + ", from its next attempt");
+        out.println("granted        to " + running + ", from its next attempt");
         // Said every time, because it is what the operator is about to see: the connection that
         // just failed is not retried by Sokar, and the packet that was dropped is gone.
         out.println("               the attempt that was refused is not retried - the agent's next"
                 + " one goes through");
-        if (effect.persisted()) {
-            out.println("written        " + ProjectSource.require(context, projectName)
-                    + " as well");
+        if (effect.file() != null) {
+            // The file the task's own project keeps: with --task nobody named a project.
+            out.println("written        " + effect.file() + " as well");
         } else if (effect.outcome() == RunningEgress.Outcome.NO_PROJECT_FILE) {
             err.println("sokar: " + effect.detail());
             err.flush();
@@ -197,9 +198,9 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
      * @param err Where to report a refusal.
      * @return Exit code.
      */
-    private int narrow(PrintWriter out, PrintWriter err) {
+    private int narrow(String running, PrintWriter out, PrintWriter err) {
 
-        final RunningEgress.Withdrawal taken = new RunningEgress(context).narrow(task,
+        final RunningEgress.Withdrawal taken = new RunningEgress(context).narrow(running,
                 removeDomains,
                 alsoProject ? RunningEgress.Scope.RUN_AND_PROJECT : RunningEgress.Scope.RUN,
                 dryRun);
@@ -238,9 +239,8 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
         // established traffic without consulting the set again.
         out.println("stopped        new connections only - anything already transferring runs to"
                 + " its end; stop the task to end that");
-        if (taken.persisted()) {
-            out.println("written        " + ProjectSource.require(context, projectName)
-                    + " as well");
+        if (taken.file() != null) {
+            out.println("written        " + taken.file() + " as well");
         } else if (taken.outcome() == RunningEgress.Outcome.NO_PROJECT_FILE) {
             err.println("sokar: " + taken.detail());
             err.flush();
@@ -260,15 +260,22 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
      * @return Exit code.
      */
     private int show(EgressControl control, PrintWriter out, PrintWriter err) {
+        final String name = projectName;
+        if (name == null) {
+            // Showing is about a project, so there is nothing to show without one.
+            err.println("sokar: say which project, with --project.");
+            err.flush();
+            return 2;
+        }
         try {
-            final Project project = GateSupport.byName(context, projectName);
+            final Project project = GateSupport.byName(context, name);
             out.println("project        " + project.name());
             out.println("security class " + project.securityClass().name().toLowerCase(
                     java.util.Locale.ROOT));
             EgressReport.reportReachable(project,
-                    control.reachable(ProjectSource.require(context, projectName), agentName),
+                    control.reachable(ProjectSource.require(context, name), agentName),
                     control.refused(agentName), out);
-            out.println("declared in    " + ProjectSource.require(context, projectName));
+            out.println("declared in    " + ProjectSource.require(context, name));
             out.flush();
             return 0;
         } catch (ProjectException | EgressSetException ex) {
@@ -281,12 +288,13 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
     /**
      * Prints what a change did, or why it did nothing.
      *
+     * @param file The project file the change was made to.
      * @param effect What the domain decided.
      * @param out Where to report.
      * @param err Where to report a refusal.
      * @return Exit code.
      */
-    private int change(EgressControl.Effect effect, PrintWriter out, PrintWriter err) {
+    private int change(Path file, EgressControl.Effect effect, PrintWriter out, PrintWriter err) {
 
         switch (effect.outcome()) {
             case UNREADABLE, REFUSED_BY_CLASS, NO_SUCH_SET -> {
@@ -321,7 +329,7 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
             out.flush();
             return 0;
         }
-        out.println("written        " + ProjectSource.require(context, projectName));
+        out.println("written        " + file);
         // The change applies to the next task. A container's ruleset and resolver are built when
         // it starts and are not reloaded under a running agent.
         out.println("               applies to the next task, not to one already running");

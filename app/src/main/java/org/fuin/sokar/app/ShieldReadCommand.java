@@ -6,6 +6,7 @@ import org.fuin.sokar.shield.BlockedConnection;
 import org.fuin.sokar.shield.NetlinkException;
 import org.fuin.sokar.shield.NflogReader;
 import org.fuin.sokar.shield.NftRuleset;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -40,7 +41,7 @@ public class ShieldReadCommand implements Callable<Integer> {
 
     @Option(names = "--report-to", paramLabel = "<socket>",
             description = "Sends each event to a clearance service over varlink instead of stdout.")
-    private java.nio.file.Path reportTo;
+    private java.nio.file.@Nullable Path reportTo;
 
     @Spec
     private CommandSpec spec;
@@ -83,7 +84,7 @@ public class ShieldReadCommand implements Callable<Integer> {
         }
     }
 
-    private org.fuin.sokar.wire.varlink.VarlinkClient connect() {
+    private org.fuin.sokar.wire.varlink.@Nullable VarlinkClient connect() {
         return reportTo == null ? null
                 : new org.fuin.sokar.wire.varlink.VarlinkClient(reportTo);
     }

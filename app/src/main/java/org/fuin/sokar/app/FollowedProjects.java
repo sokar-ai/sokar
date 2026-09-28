@@ -249,6 +249,22 @@ public final class FollowedProjects {
     }
 
     /**
+     * Returns a project the caller knows is followed, such as one it has just followed.
+     *
+     * @param name The project.
+     * @return What is recorded.
+     * @throws IOException Reading failed.
+     * @throws IllegalStateException If nothing is recorded, which would be a fault here.
+     */
+    public Followed require(final String name) throws IOException {
+        final Followed followed = find(name);
+        if (followed == null) {
+            throw new IllegalStateException("project " + name + " is followed and has no record");
+        }
+        return followed;
+    }
+
+    /**
      * Returns one followed project.
      *
      * @param name The project.

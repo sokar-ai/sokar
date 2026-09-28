@@ -163,6 +163,9 @@ class RunningEgressTest {
         assertThat(effect.outcome()).isEqualTo(RunningEgress.Outcome.WIDENED);
         assertThat(effect.persisted()).isTrue();
         assertThat(Files.readString(projectFile)).contains("docs.example.test");
+        // What the command prints: with --task nobody named the project, so the file comes from here.
+        assertThat(effect.file()).as("the file that was written").isNotNull();
+        assertThat(Path.of(effect.file())).isEqualTo(projectFile);
     }
 
     @Test

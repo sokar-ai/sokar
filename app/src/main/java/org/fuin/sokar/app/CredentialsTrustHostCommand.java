@@ -3,6 +3,7 @@ package org.fuin.sokar.app;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.concurrent.Callable;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -32,7 +33,7 @@ public class CredentialsTrustHostCommand implements Callable<Integer>, SokarFact
 
     @Option(names = "--fingerprint", paramLabel = "<SHA256:...>",
             description = "The key you confirmed. Without this, nothing is recorded.")
-    private String fingerprint;
+    private @Nullable String fingerprint;
 
     @Spec
     private CommandSpec spec;

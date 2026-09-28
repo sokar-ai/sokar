@@ -8,6 +8,7 @@ import org.fuin.sokar.agent.api.Credential;
 import org.fuin.sokar.agent.api.InstalledAgent;
 import org.fuin.sokar.vault.VaultEntry;
 import org.fuin.sokar.vault.VaultException;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -27,11 +28,11 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
 
     @Parameters(index = "0", arity = "0..1", paramLabel = "<agent>",
             description = "Agent to import from. Default: the only one installed.")
-    private String agentName;
+    private @Nullable String agentName;
 
     @Option(names = "--config-dir", paramLabel = "<dir>",
             description = "Where the agent keeps its credentials. Default: what the agent declares.")
-    private String configDirectory;
+    private @Nullable String configDirectory;
 
     @Spec
     private CommandSpec spec;

@@ -190,7 +190,8 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         try {
             followed = new FollowedProjects(context.paths().followed()).all();
         } catch (final java.io.IOException ex) {
-            return Probe.degraded(name, "cannot be read: " + ex.getMessage(), null);
+            return Probe.degraded(name, "cannot be read: " + CliErrors.reason(ex),
+                    "check that this account can read " + context.paths().followed());
         }
         if (followed.isEmpty()) {
             // Not a fault. An account that follows nothing is configured by hand, which is what

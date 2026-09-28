@@ -3,6 +3,7 @@ package org.fuin.sokar.app;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -38,7 +39,7 @@ public class TalkSayCommand implements Callable<Integer>, SokarFactory.ContextAw
 
     @Option(names = "--context", paramLabel = "<id>",
             description = "The conversation it belongs to. Default: a new one.")
-    private String contextId;
+    private @Nullable String contextId;
 
     @Spec
     private CommandSpec spec;

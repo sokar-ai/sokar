@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Virtual machines already on this host, driven with {@code virsh}.
@@ -130,7 +131,7 @@ public final class LocalVms implements Machines {
      * @param output What virsh wrote.
      * @return The address, or {@code null} when there is none yet.
      */
-    static String address(String output) {
+    static @Nullable String address(String output) {
         final Matcher matcher = IPV4.matcher(output);
         return matcher.find() ? matcher.group(1) : null;
     }

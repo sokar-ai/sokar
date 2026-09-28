@@ -23,6 +23,7 @@ import org.fuin.sokar.runtime.ContainerName;
 import org.fuin.sokar.wire.varlink.VarlinkClient;
 import org.fuin.sokar.wire.varlink.VarlinkException;
 import org.fuin.sokar.wire.varlink.VarlinkServer;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Entry point of the {@code sokard} binary: the domain over a unix socket, for an interface that
@@ -802,8 +803,9 @@ public final class SokarDaemon {
             }
             sink.flush();
             // The one trace a start leaves on the machine: what was output went to the caller only.
-            System.out.println(startLine(text(parameters, "task"), started.get(), code));
-            replies.last(Map.of("container", started.get(), "exitCode", code,
+            final String container = java.util.Objects.requireNonNullElse(started.get(), "");
+            System.out.println(startLine(text(parameters, "task"), container, code));
+            replies.last(Map.of("container", container, "exitCode", code,
                     "output", replies.streaming() ? List.of()
                             : List.of(collected.toString().split("\n", -1))));
         });
@@ -941,12 +943,12 @@ public final class SokarDaemon {
                 // has nothing to descend from and applies what it verifies. The same two lines the
                 // CLI runs, because a rewrite accepted over the socket and one accepted at the
                 // machine have to mean the same thing.
-                projects.write(projects.find(name).forgettingWhatIsInForce());
+                projects.write(projects.require(name).forgettingWhatIsInForce());
             }
             // Once, now: somebody who asked for this wants to know whether it works, and a refusal
             // at the next tick is one nobody connects to what they did.
             final org.fuin.sokar.app.Reconcile.Result result =
-                    new org.fuin.sokar.app.Reconcile(context).run(projects.find(name));
+                    new org.fuin.sokar.app.Reconcile(context).run(projects.require(name));
             final boolean applied = result.outcome()
                     == org.fuin.sokar.app.Reconcile.Outcome.APPLIED
                     || result.outcome() == org.fuin.sokar.app.Reconcile.Outcome.UNCHANGED;
@@ -958,7 +960,7 @@ public final class SokarDaemon {
                 projects.unfollow(name);
                 org.fuin.sokar.app.FollowedProjects.forget(context.paths().followedClone(name));
             } else {
-                projects.write(org.fuin.sokar.app.Reconcile.after(projects.find(name), result));
+                projects.write(org.fuin.sokar.app.Reconcile.after(projects.require(name), result));
             }
             // When the host's key is what stopped it, what it offered goes with the refusal:
             // a person cannot confirm a fingerprint they have not been shown, and asking them to
@@ -1510,7 +1512,7 @@ public final class SokarDaemon {
      * @param task Container name.
      * @return The socket, or {@code null}.
      */
-    private static Path clearanceSocket(SokarContext context, String task) {
+    private static @Nullable Path clearanceSocket(SokarContext context, String task) {
         if (!ContainerName.isTask(task)) {
             return null;
         }
@@ -1556,7 +1558,7 @@ public final class SokarDaemon {
      * @param log File name within the task's state directory.
      * @return The file, or {@code null}.
      */
-    private static Path logOf(SokarContext context, String task, String log) {
+    private static @Nullable Path logOf(SokarContext context, String task, String log) {
         // The same rule the listing uses, so a client is never offered a file this refuses.
         if (!ContainerName.isTask(task) || log.isEmpty()
                 || !org.fuin.sokar.app.TaskInventory.isLog(log)

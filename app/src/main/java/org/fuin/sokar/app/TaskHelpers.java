@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.fuin.sokar.wire.Json;
+import org.jspecify.annotations.Nullable;
 
 /**
  * What a task started on the host, recorded so the task can be resumed.
@@ -107,11 +108,11 @@ record TaskHelpers(List<Helper> helpers) {
         }
     }
 
-    private static Integer number(Object value) {
+    private static @Nullable Integer number(@Nullable Object value) {
         return value instanceof Number n ? Integer.valueOf(n.intValue()) : null;
     }
 
-    private static List<String> strings(Object value) {
+    private static List<String> strings(@Nullable Object value) {
         final List<String> result = new ArrayList<>();
         if (value instanceof List<?> list) {
             list.forEach(item -> result.add(String.valueOf(item)));
@@ -119,7 +120,7 @@ record TaskHelpers(List<Helper> helpers) {
         return List.copyOf(result);
     }
 
-    private static Map<String, String> variables(Object value) {
+    private static Map<String, String> variables(@Nullable Object value) {
         final Map<String, String> result = new LinkedHashMap<>();
         if (value instanceof Map<?, ?> map) {
             map.forEach((key, item) -> result.put(String.valueOf(key), String.valueOf(item)));

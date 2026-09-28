@@ -65,7 +65,7 @@ public final class AgentLeg {
      * @param cucumber The repository to run the Cucumber suite from, or {@code null} not to.
      */
     public record Options(String os, List<String> types, String artifactory, String packageName,
-            @Nullable String script, Path candidate, boolean keep, Path cucumber) {
+            @Nullable String script, @Nullable Path candidate, boolean keep, @Nullable Path cucumber) {
     }
 
     /**
@@ -174,6 +174,9 @@ public final class AgentLeg {
      */
     static String sendCandidate(Lease lease, String os, Path candidate) throws IOException {
         final String suffix = CANDIDATE.get(os);
+        if (suffix == null) {
+            throw new IOException("no candidate package is known for '" + os + "'. Known: " + CANDIDATE.keySet());
+        }
         final List<Path> built = new ArrayList<>();
         try (var found = Files.list(candidate)) {
             found.filter(each -> each.getFileName().toString().endsWith(suffix))
@@ -300,11 +303,11 @@ public final class AgentLeg {
         run(lease.ssh(), command, null);
     }
 
-    private static void run(Lease lease, String command, String stdin) throws IOException {
+    private static void run(Lease lease, String command, @Nullable String stdin) throws IOException {
         run(lease.ssh(), command, stdin);
     }
 
-    private static void run(Ssh ssh, String command, String stdin) throws IOException {
+    private static void run(Ssh ssh, String command, @Nullable String stdin) throws IOException {
         final Ssh.Output out = ssh.run(command, stdin);
         System.out.print(out.all());
         if (out.status() != 0) {

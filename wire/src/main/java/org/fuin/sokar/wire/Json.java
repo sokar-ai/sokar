@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A minimal JSON reader and writer for the sidecar file.
@@ -33,7 +34,7 @@ public final class Json {
      *         {@code null}.
      * @throws JsonException If the text is not well-formed JSON.
      */
-    public static Object parse(String text) {
+    public static @Nullable Object parse(String text) {
         final Json json = new Json(text);
         json.skipWhitespace();
         final Object value = json.readValue();
@@ -51,7 +52,7 @@ public final class Json {
      *        {@link Boolean} or {@code null}.
      * @return The document, without a trailing newline.
      */
-    public static String write(Object value) {
+    public static String write(@Nullable Object value) {
         final StringBuilder out = new StringBuilder();
         writeValue(out, value);
         return out.toString();
@@ -67,11 +68,11 @@ public final class Json {
      * @param value Value to write.
      * @param out Where to write it.
      */
-    public static void write(Object value, StringBuilder out) {
+    public static void write(@Nullable Object value, StringBuilder out) {
         writeValue(out, value);
     }
 
-    private static void writeValue(StringBuilder out, Object value) {
+    private static void writeValue(StringBuilder out, @Nullable Object value) {
         switch (value) {
             case null -> out.append("null");
             case Map<?, ?> map -> {
@@ -127,7 +128,7 @@ public final class Json {
         out.append('"');
     }
 
-    private Object readValue() {
+    private @Nullable Object readValue() {
         if (position >= text.length()) {
             throw error("Unexpected end of input");
         }
@@ -232,7 +233,7 @@ public final class Json {
         }
     }
 
-    private Object readKeyword(String keyword, Object value) {
+    private @Nullable Object readKeyword(String keyword, @Nullable Object value) {
         if (!text.startsWith(keyword, position)) {
             throw error("Expected '" + keyword + "'");
         }

@@ -6,6 +6,7 @@ import net.schmizz.keepalive.KeepAliveProvider;
 import net.schmizz.sshj.DefaultConfig;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A connection to a machine.
@@ -151,7 +152,7 @@ public final class Ssh implements AutoCloseable {
      * @return What it wrote and what it exited with.
      * @throws IOException If the command cannot be run.
      */
-    public Output run(String command, String stdin) throws IOException {
+    public Output run(String command, @Nullable String stdin) throws IOException {
         try (var session = client.startSession()) {
             final var exec = session.exec(command);
             if (stdin != null) {

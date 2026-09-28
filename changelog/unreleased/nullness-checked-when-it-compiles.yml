@@ -1,0 +1,2 @@
+title: "Nullness is checked when the code compiles: NullAway runs in every main compile as an error, every package holding main code is @NullMarked (three were not, and a test now fails on any that is not), and an optional command-line option says it may be null."
+type: changed

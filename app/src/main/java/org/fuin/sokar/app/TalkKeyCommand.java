@@ -2,6 +2,7 @@ package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
 import java.util.concurrent.Callable;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -21,7 +22,7 @@ public class TalkKeyCommand implements Callable<Integer>, SokarFactory.ContextAw
 
     @Option(names = "--as", paramLabel = "<principal>",
             description = "What to call this machine in the line. Default: sokar@<hostname>")
-    private String principal;
+    private @Nullable String principal;
 
     @Option(names = "--publish",
             description = "Also writes the line to this machine's shared key directory, so the"

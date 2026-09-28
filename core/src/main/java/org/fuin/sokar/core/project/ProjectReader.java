@@ -301,7 +301,7 @@ public final class ProjectReader {
      * @param origin Name used in error messages.
      * @return The entries, empty when the key is absent.
      */
-    private static java.util.List<String> strings(Object value, String key, String origin) {
+    private static java.util.List<String> strings(@org.jspecify.annotations.Nullable Object value, String key, String origin) {
         if (value == null) {
             return java.util.List.of();
         }
@@ -385,7 +385,7 @@ public final class ProjectReader {
         if (file == null) {
             return null;
         }
-        final Path path = Path.of(origin).toAbsolutePath().getParent().resolve(String.valueOf(file));
+        final Path path = Path.of(origin).toAbsolutePath().resolveSibling(String.valueOf(file));
         if (!Files.isRegularFile(path)) {
             throw new ProjectException(origin + ": no image snippet at " + path);
         }

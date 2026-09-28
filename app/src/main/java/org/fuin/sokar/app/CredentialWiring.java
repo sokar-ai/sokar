@@ -218,7 +218,7 @@ final class CredentialWiring {
     }
 
     @Nullable
-    CredentialPlumbing startVault(org.fuin.sokar.agent.api.InstalledAgent agent,
+    CredentialPlumbing startVault(org.fuin.sokar.agent.api.@Nullable InstalledAgent agent,
             String container, PrintWriter out, PrintWriter err) {
 
         if (agent == null) {
@@ -320,7 +320,7 @@ final class CredentialWiring {
      * @param tokenFile File the proxy writes its token to.
      * @return The token, or {@code null} if it did not appear in time.
      */
-    private static String awaitToken(java.nio.file.@org.jspecify.annotations.Nullable Path socket,
+    private static @Nullable String awaitToken(java.nio.file.@org.jspecify.annotations.Nullable Path socket,
             java.nio.file.Path tokenFile) {
         final long deadline = System.nanoTime() + java.time.Duration.ofSeconds(20).toNanos();
         while (System.nanoTime() < deadline) {
@@ -362,7 +362,7 @@ final class CredentialWiring {
      * @param err Where problems are reported.
      * @return Host path of the socket, or {@code null} if the agent could not be started.
      */
-    java.nio.file.Path startSshAgent(String container, PrintWriter out, PrintWriter err) {
+    java.nio.file.@Nullable Path startSshAgent(String container, PrintWriter out, PrintWriter err) {
 
         final java.nio.file.Path state = context.paths().containerState(container);
         final java.nio.file.Path socket = state.resolve("ssh-agent.sock");

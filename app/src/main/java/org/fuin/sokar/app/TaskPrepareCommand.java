@@ -4,6 +4,7 @@ import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.runtime.Podman;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -26,7 +27,7 @@ public class TaskPrepareCommand implements Callable<Integer>, SokarFactory.Conte
 
     @Option(names = "--agent", paramLabel = "<name>",
             description = "Whose tooling to install. Default: the only one installed.")
-    private String agentName;
+    private @Nullable String agentName;
 
     @Option(names = "--rebuild", paramLabel = "<depth>",
             description = "How much to discard: ${COMPLETION-CANDIDATES}. Default:"

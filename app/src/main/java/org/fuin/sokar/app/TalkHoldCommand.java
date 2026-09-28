@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.core.project.ProjectReader;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -35,7 +36,7 @@ public class TalkHoldCommand implements Callable<Integer>, SokarFactory.ContextA
 
     @Option(names = "--mode", paramLabel = "<mode>",
             description = "prompt, allow, deny or off. Default: leaves it as it is.")
-    private String mode;
+    private @Nullable String mode;
 
     @Option(names = { "-p", "--project" }, paramLabel = "<file>",
             description = "Project file, which decides whether unread work may leave.")

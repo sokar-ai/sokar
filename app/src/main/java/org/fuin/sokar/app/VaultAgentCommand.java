@@ -9,6 +9,7 @@ import org.fuin.sokar.vault.SigningKey;
 import org.fuin.sokar.vault.SshAgentServer;
 import org.fuin.sokar.vault.VaultException;
 import org.fuin.sokar.vault.VaultFile;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -36,11 +37,11 @@ public class VaultAgentCommand implements Callable<Integer> {
 
     @Option(names = "--passphrase-command", paramLabel = "<command>",
             description = "Command whose first output line is the vault passphrase.")
-    private String passphraseCommand;
+    private @Nullable String passphraseCommand;
 
     @Option(names = "--systemd-credential", paramLabel = "<file>",
             description = "systemd-creds encrypted file holding the vault passphrase.")
-    private String systemdCredential;
+    private @Nullable String systemdCredential;
 
     @Option(names = "--ephemeral",
             description = "Generates a throwaway key instead of reading the vault. For testing.")
@@ -52,7 +53,7 @@ public class VaultAgentCommand implements Callable<Integer> {
 
     @Option(names = "--pid-file", paramLabel = "<file>",
             description = "Writes this process's id here, so the poststop hook can reap it.")
-    private Path pidFile;
+    private @Nullable Path pidFile;
 
     @Option(names = "--seconds", paramLabel = "<n>",
             description = "Stop after this long. Zero means run until killed.")

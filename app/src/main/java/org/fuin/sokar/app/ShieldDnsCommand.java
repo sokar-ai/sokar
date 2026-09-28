@@ -10,6 +10,7 @@ import java.util.concurrent.Callable;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.core.project.ProjectReader;
 import org.fuin.sokar.shield.DnsPolicy;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -45,7 +46,7 @@ public class ShieldDnsCommand implements Callable<Integer> {
 
     @Option(names = "--config-only", paramLabel = "<file>",
             description = "Writes the configuration and exits, without starting dnsmasq.")
-    private Path configOnly;
+    private @Nullable Path configOnly;
 
     @Spec
     private CommandSpec spec;

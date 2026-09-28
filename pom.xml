@@ -101,6 +101,8 @@
         <!-- The library the plugin above builds bills with, so a bill is read by the code that wrote it. -->
         <cyclonedx-core-java.version>9.0.5</cyclonedx-core-java.version>
         <exec-maven-plugin.version>3.5.1</exec-maven-plugin.version>
+        <error-prone.version>2.50.0</error-prone.version>
+        <nullaway.version>0.14.2</nullaway.version>
         <!-- The FFM check runs only in a module whose ffm-check profile turns it on. -->
         <sokar.ffm.skip>true</sokar.ffm.skip>
         <!-- The CPU check runs only in a native profile, which names its images here and turns it on. -->
@@ -551,6 +553,37 @@
                         <goals>
                             <goal>lint</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- NullAway makes a broken @NullMarked contract a compile error; main code only, tests pass null on purpose. -->
+            <!-- The lists append: app's picocli processor writes the native image's metadata, and replacing it loses that silently. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-compile</id>
+                        <configuration>
+                            <compilerArgs combine.children="append">
+                                <arg>-XDcompilePolicy=simple</arg>
+                                <arg>--should-stop=ifError=FLOW</arg>
+                                <arg>-Xplugin:ErrorProne -XepDisableAllChecks -Xep:NullAway:ERROR -XepOpt:NullAway:OnlyNullMarked=true -XepOpt:NullAway:ExcludedFieldAnnotations=picocli.CommandLine.Option,picocli.CommandLine.Parameters,picocli.CommandLine.Spec,picocli.CommandLine.ParentCommand,picocli.CommandLine.Mixin</arg>
+                            </compilerArgs>
+                            <annotationProcessorPaths combine.children="append">
+                                <path>
+                                    <groupId>com.google.errorprone</groupId>
+                                    <artifactId>error_prone_core</artifactId>
+                                    <version>${error-prone.version}</version>
+                                </path>
+                                <path>
+                                    <groupId>com.uber.nullaway</groupId>
+                                    <artifactId>nullaway</artifactId>
+                                    <version>${nullaway.version}</version>
+                                </path>
+                            </annotationProcessorPaths>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

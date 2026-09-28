@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import org.fuin.sokar.wire.SocketContext;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An ssh-agent that signs with keys the container can never read.
@@ -128,7 +129,7 @@ public class SshAgentServer implements AutoCloseable, Runnable {
         }
     }
 
-    private byte[] readMessage(SocketChannel client) throws IOException {
+    private byte @Nullable [] readMessage(SocketChannel client) throws IOException {
         final ByteBuffer header = ByteBuffer.allocate(4);
         if (!readFully(client, header)) {
             return null;

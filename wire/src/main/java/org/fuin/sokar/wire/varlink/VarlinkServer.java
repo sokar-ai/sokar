@@ -295,7 +295,7 @@ public class VarlinkServer implements AutoCloseable, Runnable {
         try {
             org.fuin.sokar.wire.LiveSocket.refuseToStealFrom(socket, "server");
         } catch (IOException ex) {
-            throw new VarlinkException(ex.getMessage(), ex);
+            throw new VarlinkException(ex.getMessage() != null ? ex.getMessage() : ex.toString(), ex);
         }
     }
 

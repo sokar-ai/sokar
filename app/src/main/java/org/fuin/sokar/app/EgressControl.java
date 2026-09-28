@@ -226,7 +226,7 @@ public final class EgressControl {
             project = ProjectReader.read(projectFile);
             original = Files.readString(projectFile, StandardCharsets.UTF_8);
         } catch (ProjectException ex) {
-            return Effect.refused(Outcome.UNREADABLE, ex.getMessage());
+            return Effect.refused(Outcome.UNREADABLE, CliErrors.reason(ex));
         } catch (IOException ex) {
             return Effect.refused(Outcome.UNREADABLE,
                     "cannot read " + projectFile + ": " + ex.getMessage());
@@ -240,7 +240,7 @@ public final class EgressControl {
         try {
             chosen = GateSupport.repository(project, block);
         } catch (ProjectException ex) {
-            return Effect.refused(Outcome.UNREADABLE, ex.getMessage());
+            return Effect.refused(Outcome.UNREADABLE, CliErrors.reason(ex));
         }
         // What that block says today, which is what the change is applied to. The project's lists
         // for the project's block, the repository's own for a repository's - editing the project's
@@ -257,7 +257,7 @@ public final class EgressControl {
         } catch (IllegalArgumentException ex) {
             // A repository the file does not name. Refused rather than written to the project's
             // block, which is the one place this must not put it.
-            return Effect.refused(Outcome.UNREADABLE, ex.getMessage());
+            return Effect.refused(Outcome.UNREADABLE, CliErrors.reason(ex));
         }
 
         final Project after;
@@ -270,7 +270,7 @@ public final class EgressControl {
                     GateSupport.repository(after, block), sets);
         } catch (ProjectException ex) {
             // Where an offline project is refused, in the words that rule already chose.
-            return Effect.refused(Outcome.REFUSED_BY_CLASS, ex.getMessage());
+            return Effect.refused(Outcome.REFUSED_BY_CLASS, CliErrors.reason(ex));
         } catch (EgressSetException ex) {
             // A set this machine does not have, whether the change added it or the file already
             // named one. Refused before anything is written: the file would otherwise name
@@ -278,7 +278,7 @@ public final class EgressControl {
             // this one call. Checked by resolving rather than by a second look-up beside it -
             // deleting that look-up changed no behavior, which is how it was found to be
             // redundant.
-            return Effect.refused(Outcome.NO_SUCH_SET, ex.getMessage());
+            return Effect.refused(Outcome.NO_SUCH_SET, CliErrors.reason(ex));
         }
 
         final Map<String, String> opens = new LinkedHashMap<>(now);

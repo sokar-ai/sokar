@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Reading a parsed JSON body without pretending it is typed.
@@ -29,7 +30,7 @@ final class Values {
      * @return Its value.
      * @throws IllegalArgumentException If it is not a number.
      */
-    static long id(Object value) {
+    static long id(@Nullable Object value) {
         if (value instanceof Number number) {
             return number.longValue();
         }
@@ -57,7 +58,7 @@ final class Values {
      * @throws IllegalArgumentException If it was not one.
      */
     @SuppressWarnings("unchecked")
-    static Map<String, Object> object(Object parsed) {
+    static Map<String, Object> object(@Nullable Object parsed) {
         if (parsed instanceof Map) {
             return (Map<String, Object>) parsed;
         }
@@ -133,7 +134,7 @@ final class Values {
      * @param header The {@code Retry-After} header, or {@code null}.
      * @return What it said, or a second when it said nothing usable.
      */
-    static Duration retryAfter(String header) {
+    static Duration retryAfter(@Nullable String header) {
         if (header != null) {
             try {
                 return Duration.ofSeconds(Math.max(1, Long.parseLong(header.trim())));

@@ -20,6 +20,7 @@ import org.fuin.sokar.clearance.Verdict;
 import org.fuin.sokar.core.process.ProcessCommandRunner;
 import org.fuin.sokar.shield.EgressPolicy;
 import org.fuin.sokar.shield.NftRuleset;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -87,21 +88,21 @@ public class ShieldWatchCommand implements Callable<Integer> {
 
     @Option(names = "--socket", paramLabel = "<path>",
             description = "Where to create the clearance socket. Default: beside the container state.")
-    private Path socket;
+    private @Nullable Path socket;
 
     @Option(names = "--events", paramLabel = "<file>",
             description = "Follows an events file the reader hook is writing, instead of starting"
                     + " a reader. Use this when the container already has one.")
-    private Path events;
+    private @Nullable Path events;
 
     @Option(names = "--pid-file", paramLabel = "<file>",
             description = "Writes this process's id here, so the poststop hook can reap it.")
-    private Path pidFile;
+    private @Nullable Path pidFile;
 
     @Option(names = "--journal", paramLabel = "<file>",
             description = "Where decisions are recorded and read back from. Default: beside the"
                     + " clearance socket.")
-    private Path journal;
+    private @Nullable Path journal;
 
     @Spec
     private CommandSpec spec;
@@ -130,7 +131,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
                     // clock would be wrong in the direction that costs the most.
                     request -> {
                         final org.fuin.sokar.wire.Waiting waiting =
-                                new org.fuin.sokar.wire.Waiting(socketPath().getParent());
+                                new org.fuin.sokar.wire.Waiting(socketDirectory());
                         waiting.asking(request.destination());
                         try {
                             return ((ClearancePrompt) prompt).ask(request);
@@ -149,7 +150,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
                             if (name != null) {
                                 try {
                                     org.fuin.sokar.wire.GrantedAddresses.add(
-                                            socketPath().getParent(), name, address);
+                                            socketDirectory(), name, address);
                                 } catch (java.io.IOException ex) {
                                     // NOT the same failure as the allow not taking effect, and it
                                     // must not borrow that sentence: the host IS open. What is
@@ -198,7 +199,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
             // after an agent was refused something, so a list read at start would never hold the
             // one that matters.
             hub.granted(name -> org.fuin.sokar.wire.GrantedNames.covers(
-                    socketPath().getParent(), name));
+                    socketDirectory(), name));
 
             // Before anything is followed. A resumed task re-reads the events file from the start,
             // so a destination decided in the previous run reaches the hub again within seconds -
@@ -258,7 +259,7 @@ public class ShieldWatchCommand implements Callable<Integer> {
      *
      * @return The verdict, or {@code null} if the line was not an event.
      */
-    private Verdict handle(ClearanceHub hub, ClearanceService service, String line,
+    private @Nullable Verdict handle(ClearanceHub hub, ClearanceService service, String line,
             PrintWriter err) {
         try {
             if (!(org.fuin.sokar.wire.Json.parse(line) instanceof java.util.Map<?, ?> event)) {
@@ -356,6 +357,12 @@ public class ShieldWatchCommand implements Callable<Integer> {
      */
     private Path journalPath() {
         return journal != null ? journal : socketPath().resolveSibling("clearance.jsonl");
+    }
+
+    private Path socketDirectory() {
+        // Absolute, so it has a parent even when --socket was given as a bare file name.
+        return java.util.Objects.requireNonNull(socketPath().toAbsolutePath().getParent(),
+                "an absolute socket path has a directory");
     }
 
     private Path socketPath() {

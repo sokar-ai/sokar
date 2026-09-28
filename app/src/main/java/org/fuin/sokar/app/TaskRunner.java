@@ -349,7 +349,7 @@ public class TaskRunner {
     }
 
     private String rulesetFor(Project project, java.util.List<String> upstreamResolvers,
-            String gateAddress, int gatePort) {
+            @Nullable String gateAddress, int gatePort) {
         final NftRuleset ruleset = new NftRuleset(project.securityClass());
         if (gateAddress != null) {
             // Before the security-class check on purpose: the gate is on this machine, and an
@@ -514,7 +514,7 @@ public class TaskRunner {
      * @return Command and arguments.
      */
     public List<String> attachCommand(String container, String shell,
-            @org.jspecify.annotations.Nullable String command, String label) {
+            @org.jspecify.annotations.Nullable String command, @org.jspecify.annotations.Nullable String label) {
         // Inside the task's one session rather than beside it. A plain exec ran the agent as a
         // child of this terminal: closing the window took the agent with it, and attaching from
         // anywhere else created a second, empty session and showed a bare shell in the workspace.

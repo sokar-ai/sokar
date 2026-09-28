@@ -349,7 +349,7 @@ public final class StartCheck {
             // An agent that cannot be asked what it is. Not one of the outcomes above, because it
             // is not a choice anybody made - and refusing to answer at all would be worse than
             // saying which agent is broken.
-            return refused(Outcome.UNKNOWN_AGENT, ex.getMessage());
+            return refused(Outcome.UNKNOWN_AGENT, CliErrors.reason(ex));
         }
     }
 }

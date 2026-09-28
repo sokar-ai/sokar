@@ -4,6 +4,7 @@ import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.core.project.ProjectReader;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -25,9 +26,9 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
     @Parameters(index = "0", paramLabel = "<task>", description = "Container name of the task.")
     private String container;
 
-    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
-            description = "Project file, for the peers. Default: project.yml")
-    private String projectName;
+    @Option(names = { "-p", "--project" }, paramLabel = "<name>",
+            description = "The task's project, for its peers, as 'sokar project list' prints it.")
+    private @Nullable String projectName;
 
     @Spec
     private CommandSpec spec;
@@ -48,6 +49,11 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
             err.println("sokar: " + container + " has no mailbox");
             err.flush();
             return 1;
+        }
+        if (projectName == null) {
+            err.println("sokar: say which project the task belongs to, with --project");
+            err.flush();
+            return 2;
         }
         final var pass = new MessagePass(context.runner(),
                 HostKey.loadOrCreate(context.paths().messageKey(), "sokar@" + hostName()),

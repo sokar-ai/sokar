@@ -145,9 +145,9 @@ public final class CredentialImport {
                     directory.toString(), note.toString());
 
         } catch (VaultException ex) {
-            return failed(Outcome.FAILED, ex.getMessage());
+            return failed(Outcome.FAILED, CliErrors.reason(ex));
         } catch (RuntimeException ex) {
-            return failed(Outcome.FAILED, ex.getMessage());
+            return failed(Outcome.FAILED, CliErrors.reason(ex));
         }
     }
 }

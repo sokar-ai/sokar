@@ -6,6 +6,7 @@ import java.util.concurrent.Callable;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.gate.GateException;
 import org.fuin.sokar.gate.GitGate;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -39,11 +40,11 @@ public class GateCheckoutCommand implements Callable<Integer>, SokarFactory.Cont
 
     @Option(names = { "-r", "--repository" }, paramLabel = "<name>",
             description = "Which of the project's repositories. Default: the project's own.")
-    private String repository;
+    private @Nullable String repository;
 
     @Option(names = "--into", paramLabel = "<dir>",
             description = "Where to write it. Default: a directory beside the project file.")
-    private Path into;
+    private @Nullable Path into;
 
     @Spec
     private CommandSpec spec;

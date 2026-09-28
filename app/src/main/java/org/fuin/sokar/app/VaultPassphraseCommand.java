@@ -10,6 +10,7 @@ import org.fuin.sokar.vault.ConsolePassphrase;
 import org.fuin.sokar.vault.KernelKeyring;
 import org.fuin.sokar.vault.PassphraseTiers;
 import org.fuin.sokar.vault.VaultException;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -34,12 +35,12 @@ public class VaultPassphraseCommand implements Callable<Integer>, SokarFactory.C
 
     @Option(names = "--passphrase-command", paramLabel = "<command>",
             description = "Command whose first output line is the CURRENT passphrase.")
-    private String passphraseCommand;
+    private @Nullable String passphraseCommand;
 
     @Option(names = "--new-passphrase-command", paramLabel = "<command>",
             description = "Command whose first output line is the NEW passphrase. Without it, it"
                     + " is asked for twice.")
-    private String newPassphraseCommand;
+    private @Nullable String newPassphraseCommand;
 
     @Spec
     private CommandSpec spec;

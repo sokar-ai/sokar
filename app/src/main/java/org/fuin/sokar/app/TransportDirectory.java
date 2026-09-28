@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The transports installed on this machine.
@@ -88,7 +89,7 @@ public class TransportDirectory {
      * @param transport Name after the prefix, as {@link #byName()} reports it.
      * @return The executable, or {@code null} when this machine has no such transport.
      */
-    public Path find(final String transport) {
+    public @Nullable Path find(final String transport) {
         return byName().get(transport);
     }
 

@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The request line and headers of one HTTP/1.1 request.
@@ -48,7 +49,7 @@ public record HttpHead(String method, String target, List<String> names, List<St
      * @return The head, or {@code null} when the peer closed without sending one.
      * @throws IOException On a read failure or a malformed head.
      */
-    public static HttpHead read(InputStream in) throws IOException {
+    public static @Nullable HttpHead read(InputStream in) throws IOException {
 
         final String requestLine = line(in);
         if (requestLine == null || requestLine.isEmpty()) {
@@ -79,7 +80,7 @@ public record HttpHead(String method, String target, List<String> names, List<St
      * @param name Header name.
      * @return Value, or {@code null} when the header is absent.
      */
-    public String value(String name) {
+    public @Nullable String value(String name) {
         for (int i = 0; i < names.size(); i++) {
             if (names.get(i).equalsIgnoreCase(name)) {
                 return values.get(i);
@@ -122,7 +123,7 @@ public record HttpHead(String method, String target, List<String> names, List<St
         return value != null && value.toLowerCase(Locale.ROOT).contains("chunked");
     }
 
-    private static String line(InputStream in) throws IOException {
+    private static @Nullable String line(InputStream in) throws IOException {
         final StringBuilder text = new StringBuilder();
         int read;
         while ((read = in.read()) != -1) {

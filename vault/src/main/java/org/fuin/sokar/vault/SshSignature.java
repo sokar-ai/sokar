@@ -9,6 +9,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Base64;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Detached signatures in OpenSSH's {@code SSHSIG} format.
@@ -92,7 +93,7 @@ public final class SshSignature {
      * @param armored The signature.
      * @return The OpenSSH public key blob, or {@code null} when this is not a signature.
      */
-    public static byte[] signerOf(final String armored) {
+    public static byte @Nullable [] signerOf(final String armored) {
         final Parsed parsed = parse(armored);
         return parsed == null ? null : parsed.keyBlob();
     }
@@ -122,7 +123,7 @@ public final class SshSignature {
         return out.append(END).append('\n').toString();
     }
 
-    private static Parsed parse(final String armored) {
+    private static @Nullable Parsed parse(final String armored) {
         final String body = armored.replace(BEGIN, "").replace(END, "").replaceAll("\\s", "");
         final byte[] blob;
         try {

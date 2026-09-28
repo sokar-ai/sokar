@@ -100,7 +100,7 @@ public final class TransportSend {
                 moveWithCompanions(message, mailbox.sent());
                 sent.add(name);
             } else if (result.exitCode() == TEMPORARY) {
-                if (!message.getParent().equals(waiting)) {
+                if (!waiting.equals(message.getParent())) {
                     moveWithCompanions(message, waiting);
                 }
                 deferred.add(name);

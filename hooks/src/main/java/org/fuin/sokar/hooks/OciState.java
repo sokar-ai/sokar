@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.fuin.sokar.wire.Json;
 import org.fuin.sokar.wire.JsonException;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The container state an OCI runtime writes to a hook's standard input.
@@ -65,7 +66,7 @@ public record OciState(String id, long pid, Map<String, String> annotations) {
      * @param key Annotation key.
      * @return Value, or {@code null}.
      */
-    public String annotation(String key) {
+    public @Nullable String annotation(String key) {
         return annotations.get(key);
     }
 }

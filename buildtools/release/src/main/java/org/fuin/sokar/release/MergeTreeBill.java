@@ -55,7 +55,7 @@ public final class MergeTreeBill {
             merged = Bill.parse(Files.readAllBytes(packageBill));
             tree = Bill.parse(Files.readAllBytes(treeBill));
         } catch (IOException | IllegalArgumentException ex) {
-            return failed(ex.getMessage());
+            return failed(java.util.Objects.requireNonNullElse(ex.getMessage(), ex.toString()));
         }
         if (tree.getMetadata() == null || tree.getMetadata().getComponent() == null) {
             return failed(treeBill + " names no subject in metadata.component, so there is nothing to nest it under");

@@ -11,6 +11,7 @@ import org.fuin.sokar.supervisor.VaultProxy;
 import org.fuin.sokar.vault.PhantomToken;
 import org.fuin.sokar.vault.TokenBroker;
 import org.fuin.sokar.vault.VaultException;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -57,7 +58,7 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             description = "Text before the credential, for example 'Bearer '.")
     private String authPrefix = "";
 
-    @Option(names = "--token-file", paramLabel = "<file>",
+    @Option(names = "--token-file", paramLabel = "<file>", required = true,
             description = "Writes the minted phantom token here, owner-only.")
     private Path tokenFile;
 
@@ -66,7 +67,7 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
                     + " for a task being resumed.")
     private boolean reuseToken;
 
-    @Option(names = "--pid-file", paramLabel = "<file>",
+    @Option(names = "--pid-file", paramLabel = "<file>", required = true,
             description = "Writes this process's id here, so the poststop hook can reap it.")
     private Path pidFile;
 
@@ -90,7 +91,7 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
      *
      * @return Token value.
      */
-    private String readToken() {
+    private @Nullable String readToken() {
         try {
             final String value = java.nio.file.Files.readString(tokenFile).strip();
             return value.isEmpty() ? null : value;

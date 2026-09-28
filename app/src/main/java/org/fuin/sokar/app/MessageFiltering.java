@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import org.fuin.sokar.core.process.Command;
 import org.fuin.sokar.core.process.CommandResult;
 import org.fuin.sokar.core.process.CommandRunner;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Runs the filter that decides what a message may contain.
@@ -37,7 +38,7 @@ public final class MessageFiltering {
 
     private final CommandRunner runner;
 
-    private final Path filter;
+    private final @Nullable Path filter;
 
     /**
      * Constructor.
@@ -45,7 +46,7 @@ public final class MessageFiltering {
      * @param runner How commands are run.
      * @param filter The filter's executable, or {@code null} when this machine has none.
      */
-    public MessageFiltering(final CommandRunner runner, final Path filter) {
+    public MessageFiltering(final CommandRunner runner, final @Nullable Path filter) {
         this.runner = runner;
         this.filter = filter;
     }

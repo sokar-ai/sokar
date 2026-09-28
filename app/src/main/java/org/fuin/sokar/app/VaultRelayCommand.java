@@ -3,6 +3,7 @@ package org.fuin.sokar.app;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.supervisor.SocketRelay;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -30,7 +31,7 @@ public class VaultRelayCommand implements Callable<Integer> {
 
     @Option(names = "--pid-file", paramLabel = "<file>",
             description = "Where to write this process's id, so it can be reaped with the task.")
-    private Path pidFile;
+    private @Nullable Path pidFile;
 
     @Spec
     private CommandSpec spec;

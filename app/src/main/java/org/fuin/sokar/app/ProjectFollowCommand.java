@@ -2,6 +2,7 @@ package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
 import java.util.concurrent.Callable;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -42,7 +43,7 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
             description = "The public key this project's configuration is signed with, as"
                     + " 'ssh-ed25519 AAAA...'. Pins it for this project and follows in one"
                     + " command. NEVER read from the repository it verifies.")
-    private String signedBy;
+    private @Nullable String signedBy;
 
     @Option(names = "--dry-run",
             description = "Says whether following this would work, and records nothing.")
@@ -101,20 +102,21 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
         if (acceptRewrite) {
             // Forgetting what is in force is the whole of accepting: the next reconcile then has
             // nothing to descend from and applies what it verifies.
-            projects.write(projects.find(name).forgettingWhatIsInForce());
+            projects.write(projects.require(name).forgettingWhatIsInForce());
         }
         // Once, now, rather than at the next tick: somebody who typed this wants to know whether it
         // works, and a refusal an hour later is a refusal nobody connects to what they did.
-        Reconcile.Result result = new Reconcile(context).run(projects.find(name));
+        Reconcile.Result result = new Reconcile(context).run(projects.require(name));
 
         // A fingerprint rather than a whole key: the refusal names the fingerprint, so this is the
         // string a person actually has in front of them. The key itself is read out of the commit
         // that was just turned away - and only once its fingerprint is the one they named, which
         // is what keeps the anchor coming from the person rather than from the repository.
-        if (SignedBy.isFingerprint(signedBy) && result.signer().equals(signedBy.strip())) {
+        final String pinned = signedBy != null && SignedBy.isFingerprint(signedBy) ? signedBy.strip() : null;
+        if (pinned != null && result.signer().equals(pinned)) {
             final String key = SignedBy.keyOf(context.runner(),
                     context.paths().followedClone(name), "FETCH_HEAD");
-            if (key == null || !signedBy.strip().equals(SignedBy.fingerprintOf(key))) {
+            if (key == null || !pinned.equals(SignedBy.fingerprintOf(key))) {
                 err.println("sokar: could not read the key that signed " + result.refused()
                         + " out of the commit, so there is nothing to pin.");
                 err.flush();
@@ -127,11 +129,11 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
                 err.flush();
                 return 70;
             }
-            out.println("pinned     " + signedBy.strip());
-            result = new Reconcile(context).run(projects.find(name));
-        } else if (SignedBy.isFingerprint(signedBy) && !result.signer().isEmpty()) {
+            out.println("pinned     " + pinned);
+            result = new Reconcile(context).run(projects.require(name));
+        } else if (pinned != null && !result.signer().isEmpty()) {
             err.println("sokar: " + name + " is signed by " + result.signer()
-                    + ", not by " + signedBy.strip() + ". Nothing was pinned.");
+                    + ", not by " + pinned + ". Nothing was pinned.");
             err.flush();
             return 70;
         }
@@ -152,7 +154,7 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
             err.flush();
             return 70;
         }
-        projects.write(Reconcile.after(projects.find(name), result));
+        projects.write(Reconcile.after(projects.require(name), result));
 
         out.println("following  " + name + "  " + url
                 + (unverified ? "  (unverified - whoever can push there decides what tasks here"

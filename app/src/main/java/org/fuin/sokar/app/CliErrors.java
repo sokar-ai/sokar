@@ -12,6 +12,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine;
 import picocli.CommandLine.IParameterExceptionHandler;
 import picocli.CommandLine.ParameterException;
@@ -318,7 +319,21 @@ final class CliErrors {
      * @param message Picocli's own wording.
      * @return The same, starting lower case.
      */
-    private static String lower(String message) {
+    /**
+     * Says why something failed, in the exception's own words when it has any.
+     * <p>
+     * An exception with no message would otherwise report {@code null} as its reason, which is a
+     * sentence nobody can act on; its class name at least says what kind of thing went wrong.
+     *
+     * @param ex What was thrown.
+     * @return Its message, or what it is when it carries none.
+     */
+    static String reason(Throwable ex) {
+        final String message = ex.getMessage();
+        return message != null ? message : ex.toString();
+    }
+
+    private static String lower(@Nullable String message) {
         if (message == null || message.isEmpty() || !Character.isUpperCase(message.charAt(0))) {
             return String.valueOf(message);
         }

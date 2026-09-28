@@ -3,6 +3,7 @@ package org.fuin.sokar.machines;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A machine held for as long as this is open.
@@ -43,7 +44,7 @@ public final class Lease implements AutoCloseable {
 
     private final Release release;
 
-    private Ssh ssh;
+    private @Nullable Ssh ssh;
 
     /**
      * Constructor with everything a holder needs.
@@ -129,7 +130,7 @@ public final class Lease implements AutoCloseable {
         } catch (IOException ex) {
             // Going down is what was asked for.
         }
-        ssh.disconnect();
+        ssh().disconnect();
         final Instant deadline = Instant.now().plus(SSH_PATIENCE);
         while (true) {
             if (Instant.now().isAfter(deadline)) {
@@ -138,7 +139,7 @@ public final class Lease implements AutoCloseable {
             }
             sleep(SSH_INTERVAL);
             try {
-                ssh.reconnect();
+                ssh().reconnect();
                 if (!before.equals(ssh().run("cat /proc/sys/kernel/random/boot_id")
                         .out().strip())) {
                     return;

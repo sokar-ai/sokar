@@ -49,11 +49,11 @@ public class ProvidersCommand implements Callable<Integer>, SokarFactory.Context
         final Map<String, List<String>> drivers = drivers();
         out.printf("%-12s %-24s %-34s %s%n", "NAME", "LABEL", "CREDENTIAL", "AGENTS");
         for (final Map<String, Object> row : listing.providers()) {
-            final String name = (String) row.get("name");
+            final String name = row.get("name") instanceof String text ? text : "";
             out.printf("%-12s %-24s %-34s %s%n", name, row.get("label"),
                     credential(row, listing.readable()),
                     String.join(", ", drivers.getOrDefault(name, List.of("-"))));
-            if (listing.readable() && (!(Boolean) row.get("authenticated")
+            if (listing.readable() && (!Boolean.TRUE.equals(row.get("authenticated"))
                     || !name.equals(row.get("credentialName")))) {
                 // Also when one is found under an agent's name: this is where it belongs.
                 out.println("             store:   " + row.get("storeCommand"));
@@ -79,10 +79,10 @@ public class ProvidersCommand implements Callable<Integer>, SokarFactory.Context
         if (!readable) {
             return "unknown - vault locked";
         }
-        if (!(Boolean) row.get("authenticated")) {
+        if (!Boolean.TRUE.equals(row.get("authenticated"))) {
             return "none";
         }
-        final String type = (String) row.get("credentialType");
+        final String type = row.get("credentialType") instanceof String text ? text : "";
         return "stored as '" + row.get("credentialName") + "'"
                 + (type.isEmpty() ? "" : " (" + type + ")");
     }

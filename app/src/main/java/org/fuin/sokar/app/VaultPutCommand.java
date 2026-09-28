@@ -7,6 +7,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.vault.VaultException;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Parameters;
@@ -33,13 +34,13 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
     @picocli.CommandLine.Option(names = "--type", paramLabel = "<kind>",
             description = "Kind of credential, as the agent names it, for example 'oauth'."
                     + " Stored with the entry, so no task has to repeat it.")
-    private String type;
+    private @Nullable String type;
 
     @picocli.CommandLine.Option(names = "--from-file", paramLabel = "<path>",
             description = "Reads the value from this file ON THIS MACHINE, instead of from"
                     + " standard input. For a key that is already here: nothing has to be sent,"
                     + " and an interface can ask for this without ever holding the value.")
-    private String fromFile;
+    private @Nullable String fromFile;
 
     @Spec
     private CommandSpec spec;

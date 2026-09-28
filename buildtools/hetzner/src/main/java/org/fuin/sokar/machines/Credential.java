@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The private key that reaches a machine, however it was given.
@@ -78,7 +79,7 @@ public sealed interface Credential {
      * @return Whichever was given.
      * @throws IllegalArgumentException If neither was.
      */
-    static Credential of(String material, Path path) {
+    static Credential of(@Nullable String material, @Nullable Path path) {
         if (material != null && !material.isBlank()) {
             return new InMemory(material);
         }

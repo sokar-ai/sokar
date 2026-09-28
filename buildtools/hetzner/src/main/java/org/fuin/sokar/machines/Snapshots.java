@@ -6,6 +6,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Building the images a test leg boots from.
@@ -125,7 +126,7 @@ public final class Snapshots {
      * @throws IOException If it cannot be built.
      */
     public static long build(Hetzner hetzner, String os, List<String> types,
-            Credential credential, java.nio.file.Path archive, String musl) throws IOException {
+            Credential credential, java.nio.file.@Nullable Path archive, @Nullable String musl) throws IOException {
         final String stock = STOCK.get(os);
         if (stock == null) {
             throw new IOException("No stock image for '" + os + "'. Known: " + STOCK.keySet());
@@ -201,7 +202,7 @@ public final class Snapshots {
      * @param stdin What to feed it, or {@code null}.
      * @throws IOException If the step failed.
      */
-    private static void run(Lease lease, String command, String stdin) throws IOException {
+    private static void run(Lease lease, String command, @Nullable String stdin) throws IOException {
         final Ssh.Output out = lease.ssh().run(command, stdin);
         if (out.status() != 0) {
             throw new IOException("preparing the image failed at: " + command + "\n" + out.all());

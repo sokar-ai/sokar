@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.fuin.sokar.wire.Json;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The record of what a task was allowed and refused, one JSON object per line.
@@ -118,7 +119,7 @@ public class ClearanceJournal {
      *         leaves a partial last line, and refusing to start over it would cost the task every
      *         decision before it.
      */
-    private static Decision parse(String line) {
+    private static @Nullable Decision parse(String line) {
         try {
             if (!(Json.parse(line) instanceof Map<?, ?> fields)) {
                 return null;

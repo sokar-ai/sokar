@@ -12,6 +12,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
@@ -39,7 +40,7 @@ public class DaemonConnectCommand implements Callable<Integer>, SokarFactory.Con
 
     @Option(names = "--socket", paramLabel = "<path>",
             description = "Daemon socket. Default: the one in this user's runtime directory.")
-    private Path socket;
+    private @Nullable Path socket;
 
     @Spec
     private CommandSpec spec;
