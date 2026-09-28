@@ -72,14 +72,22 @@ case — so that a release is judged by something other than somebody trying it.
   05:32Z and again at 06:21Z on the same account. Only the package was reinstalled between the two;
   nothing the first run left behind was cleaned up.
 
-## To be checked
+## Decided 2026-09-28, by the operator
 
-- **What happens to tier 1's 1357 lines.** They work and they cover things worth keeping. Porting them
-  wholesale is weeks; keeping both means two places to add a case. A third answer - port only what
-  needs a terminal and leave the rest - splits the report in two, which is half of what this
-  requirement is asking for.
-- **Where the line sits.** A scenario against a real machine costs minutes and can be flaky; a unit
-  test costs milliseconds and cannot see a pty. Deciding what belongs in each is the difference
-  between a suite people trust and one they re-run until it passes.
-- **Whether the local VM is provisioned by the suite or assumed.** Assuming it is faster and makes
-  "works on my machine" a real hazard; provisioning it is slower and is the thing being tested.
+- **Tier 1 is ported whole, in stages.** Its checks move into Cucumber scenarios one group at a time
+  - the firewall, the credential proxy, the gate, the declared and refused domains, and so on - and
+  each part of `e2e-tier1.sh` is deleted in the same change that lands its scenarios. So there is
+  never a check in both places, the report converges on one, and each stage ships on its own. The
+  script is gone when the last group is.
+- **Every command a person types has at least one scenario**, even where a unit test already covers
+  its logic. A unit test proves the logic; only a scenario proves what somebody sees at a terminal,
+  on a machine - which is where today's defects were found, not in the logic. The suite grows
+  slower for it, and that is the accepted cost.
+- **The local VM is assumed, not provisioned.** It exists; `exec:java@deploy` installs the build and
+  the suite runs against it. Provisioning from nothing is what the Hetzner legs do, on every push.
+
+## What is left
+
+1. **An inventory**: every command, and whether a scenario covers it. The decision above makes the
+   gaps the list of work, and nobody has counted them.
+2. **Tier 1, group by group**, each group's scenarios landing with that part of the script deleted.
