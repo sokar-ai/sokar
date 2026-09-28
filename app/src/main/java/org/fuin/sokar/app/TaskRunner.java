@@ -281,10 +281,26 @@ public class TaskRunner {
         return SokarBinary.path();
     }
 
+    /** Names this task's resolver refuses whatever allows them. */
+    private java.util.List<String> refused = java.util.List.of();
+
+    /**
+     * Sets the names this task's resolver refuses, whatever allows them - the agent's, the
+     * project's and the repository's, as the start report printed them.
+     *
+     * @param names Host names.
+     */
+    void refusing(java.util.List<String> names) {
+        refused = java.util.List.copyOf(names);
+    }
+
     private org.fuin.sokar.shield.DnsPolicy dnsPolicyFor(Project project,
             java.util.List<String> allowedDomains) {
         final org.fuin.sokar.shield.DnsPolicy policy =
                 new org.fuin.sokar.shield.DnsPolicy(project.securityClass());
+        // Refused first in the reading, though the order does not decide it: dnsmasq takes the longest
+        // match, so a refused name wins over any allowance of it or of its parent.
+        refused.forEach(policy::refuse);
         // Every allowed domain, not just the upstream. Resolving a name and being allowed to
         // reach it are the same decision: a domain that resolves but is then dropped produces a
         // clearance prompt for a host the definition already declared, which is a prompt about

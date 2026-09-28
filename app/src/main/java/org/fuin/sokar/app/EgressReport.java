@@ -71,13 +71,26 @@ final class EgressReport {
     }
 
     /**
-     * Returns the destinations an agent asks for and is deliberately not given.
+     * Returns every name a task refuses whatever allows it, each with who refused it.
+     * <p>
+     * One declaration read once, for the report and for the resolver alike, so the two cannot drift:
+     * what an operator is told is refused is what the task's resolver answers NXDOMAIN for.
      *
      * @param selected The chosen agent, or {@code null}.
-     * @return Hosts, empty when the agent names none.
+     * @param project The project.
+     * @param repository The repository the task works on.
+     * @return Host to who refused it - the agent, the project or the repository - first one wins.
      */
-    static java.util.List<String> refused(@Nullable InstalledAgent selected) {
-        return selected == null ? java.util.List.of() : selected.definition().refusedDomains();
+    static java.util.Map<String, String> refusals(@Nullable InstalledAgent selected, Project project,
+            org.fuin.sokar.core.project.Repository repository) {
+        final java.util.Map<String, String> refused = new java.util.LinkedHashMap<>();
+        if (selected != null) {
+            selected.definition().refusedDomains()
+                    .forEach(domain -> refused.putIfAbsent(domain, "agent " + selected.definition().name()));
+        }
+        project.egress().refused().forEach(domain -> refused.putIfAbsent(domain, "project"));
+        repository.egress().refused().forEach(domain -> refused.putIfAbsent(domain, "repository " + repository.name()));
+        return refused;
     }
 
     /**
@@ -176,11 +189,11 @@ final class EgressReport {
      *
      * @param project The project.
      * @param origins Host to the origin that granted it, in the order the sources were consulted.
-     * @param refused Hosts an agent declares it asks for and is not given.
+     * @param refused Hosts refused whatever allows them, each with who refused it.
      * @param out Where to report.
      */
     static void reportReachable(Project project, java.util.Map<String, String> origins,
-            java.util.List<String> refused, PrintWriter out) {
+            java.util.Map<String, String> refused, PrintWriter out) {
 
         if (origins.isEmpty() && refused.isEmpty()) {
             out.println("reachable      nothing - no agent, provider or project declared a host");
@@ -189,7 +202,7 @@ final class EgressReport {
         }
 
         final int width = java.util.stream.Stream.concat(origins.keySet().stream(),
-                        refused.stream())
+                        refused.keySet().stream())
                 .mapToInt(String::length).max().orElse(0);
 
         String label = "reachable";
@@ -197,11 +210,16 @@ final class EgressReport {
             out.printf("%-14s %-" + width + "s  %s%n", label, entry.getKey(), entry.getValue());
             label = "";
         }
-        for (final String host : refused) {
-            out.printf("%-14s %-" + width + "s  %s%n", label, host, "refused on purpose");
+        for (final java.util.Map.Entry<String, String> entry : refused.entrySet()) {
+            out.printf("%-14s %-" + width + "s  %s%n", label, entry.getKey(), "refused on purpose by " + entry.getValue());
             label = "";
         }
         out.println("               ports 80 and 443; everything else is NXDOMAIN");
+        if (!refused.isEmpty()) {
+            // What a refusal is worth, said where it is made: nothing here pretends it is more.
+            out.println("               a refusal is of a name: an address a refused host shares with an"
+                    + " allowed one stays reachable");
+        }
 
         // Said once, here, where the grants are. Not refused: an agent legitimately clones
         // dependencies from a forge.

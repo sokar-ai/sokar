@@ -363,8 +363,10 @@ public record Project(String name, String description, SecurityClass securityCla
         if (repository.egress().isEmpty()) {
             return egress;
         }
+        // A refusal of either place holds for the task: nothing a repository adds takes one back.
         return new Egress(merged(egress.sets(), repository.egress().sets()),
-                merged(egress.domains(), repository.egress().domains()));
+                merged(egress.domains(), repository.egress().domains()),
+                merged(egress.refused(), repository.egress().refused()));
     }
 
     private static java.util.List<String> merged(java.util.List<String> first,

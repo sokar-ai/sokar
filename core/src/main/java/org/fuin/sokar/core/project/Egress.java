@@ -13,10 +13,17 @@ import java.util.List;
  * considered and rejected: a grant that is invisible in the file, and that widens whenever a
  * release adds a set, is the wrong shape for the most dangerous key in the project file.
  *
+ * <p>
+ * <strong>A refusal wins over an allowance</strong>, the project's or the agent's: a name refused here
+ * does not resolve inside a task even when an allowed domain is its parent. It is a refusal of a
+ * name, not of an address - a host that shares an address with an allowed one is still reachable
+ * at that address.
+ *
  * @param sets Names of curated sets the project opts into, in the order written.
  * @param domains Hosts named directly, for the private mirror no shipped set can cover.
+ * @param refused Hosts that must not resolve in a task, whatever else allows them.
  */
-public record Egress(List<String> sets, List<String> domains) {
+public record Egress(List<String> sets, List<String> domains, List<String> refused) {
 
     /**
      * A name that can be written into a resolver configuration without escaping it.
@@ -39,10 +46,12 @@ public record Egress(List<String> sets, List<String> domains) {
      *
      * @param sets Curated set names.
      * @param domains Host names.
+     * @param refused Host names that must not resolve.
      */
     public Egress {
         sets = List.copyOf(sets);
         domains = List.copyOf(domains);
+        refused = List.copyOf(refused);
         for (final String set : sets) {
             if (!SET.matcher(set).matches()) {
                 throw new ProjectException("Invalid egress set name '" + set
@@ -55,6 +64,23 @@ public record Egress(List<String> sets, List<String> domains) {
                         + "', expected a host name such as nexus.corp.example");
             }
         }
+        // The same grammar, for the same reason: a refusal becomes an 'address=' line.
+        for (final String domain : refused) {
+            if (domain.length() > 253 || !DOMAIN.matcher(domain).matches()) {
+                throw new ProjectException("Invalid refused domain '" + domain
+                        + "', expected a host name such as telemetry.example");
+            }
+        }
+    }
+
+    /**
+     * Constructor for a declaration that refuses nothing.
+     *
+     * @param sets Curated set names.
+     * @param domains Host names.
+     */
+    public Egress(List<String> sets, List<String> domains) {
+        this(sets, domains, List.of());
     }
 
     /**
@@ -69,9 +95,9 @@ public record Egress(List<String> sets, List<String> domains) {
     /**
      * Tells whether the project declared anything at all.
      *
-     * @return {@code true} when neither a set nor a domain was named.
+     * @return {@code true} when no set, domain or refusal was named.
      */
     public boolean isEmpty() {
-        return sets.isEmpty() && domains.isEmpty();
+        return sets.isEmpty() && domains.isEmpty() && refused.isEmpty();
     }
 }

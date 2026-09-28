@@ -148,7 +148,7 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
                 dryRun);
 
         switch (effect.outcome()) {
-            case NOT_RUNNING, REFUSED_BY_CLASS, FAILED -> {
+            case NOT_RUNNING, REFUSED_BY_CLASS, REFUSED_NAME, FAILED -> {
                 err.println("sokar: " + effect.detail());
                 err.flush();
                 return effect.outcome() == RunningEgress.Outcome.FAILED ? 70 : 2;
@@ -274,7 +274,7 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
                     java.util.Locale.ROOT));
             EgressReport.reportReachable(project,
                     control.reachable(ProjectSource.require(context, name), agentName),
-                    control.refused(agentName), out);
+                    control.refusals(ProjectSource.require(context, name), null, agentName), out);
             out.println("declared in    " + ProjectSource.require(context, name));
             out.flush();
             return 0;

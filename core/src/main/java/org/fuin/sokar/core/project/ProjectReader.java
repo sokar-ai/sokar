@@ -252,7 +252,8 @@ public final class ProjectReader {
             throw new ProjectException(origin + ": '" + path + "egress' must be a mapping");
         }
         return new Egress(strings(egress.get("sets"), path + "egress.sets", origin),
-                strings(egress.get("domains"), path + "egress.domains", origin));
+                strings(egress.get("domains"), path + "egress.domains", origin),
+                strings(egress.get("refused"), path + "egress.refused", origin));
     }
 
     /**

@@ -53,7 +53,6 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
-| B61 | [A Declared Refusal That Nothing Enforces](B61-A-Declared-Refusal-That-Nothing-Enforces.md) | open | - | A domain an agent declares as refused does not resolve in a task, instead of being reported as refused and reachable. | two | |
 | B62 | [Preparing A Machine Before There Is A Daemon](B62-Preparing-A-Machine-Before-There-Is-A-Daemon.md) | built | - | A machine being prepared has no daemon, so the one thing Sokar cannot do through its socket is make a Sokar machine - and the interface is about to reimplement it. | three | |
 | B63 | [A Share That Is Not Stored At All](B63-A-Share-That-Is-Not-Stored-At-All.md) | open | - | On a desktop a keyslot's share sits in a keystore any process running as that user can read, so a device is worth no more than the account it runs under until the share is derived from a token rather than stored. | three | |
 | B64 | [The Two Steps That Still Need A Terminal](B64-The-Two-Steps-That-Still-Need-A-Terminal.md) | open | - | A freshly prepared machine needs its daemon started and its vault created, and neither can be done from an interface - so a wizard that exists to avoid a shell has to open one twice. | two | |

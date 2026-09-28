@@ -170,14 +170,18 @@ public final class EgressControl {
     }
 
     /**
-     * Returns the destinations an agent asks for and is deliberately not given.
+     * Returns the names a task would refuse whatever allows them, each with who refused it.
      *
-     * @param agentName Agent to ask, or {@code null} for the only one installed.
-     * @return Hosts, empty when no agent declares any.
+     * @param projectFile The project file.
+     * @param repository Which repository, or {@code null} for the project's own.
+     * @param agentName Agent to include, or {@code null} for the only one installed.
+     * @return Host to who refused it, empty when nobody refuses anything.
      */
-    public List<String> refused(@Nullable String agentName) {
+    public Map<String, String> refusals(Path projectFile, @Nullable String repository, @Nullable String agentName) {
+        final Project project = ProjectReader.read(projectFile);
         try (InstalledAgents agents = context.agents()) {
-            return EgressReport.refused(TaskLaunch.select(agents, agentName));
+            return EgressReport.refusals(TaskLaunch.select(agents, agentName), project,
+                    GateSupport.repository(project, repository));
         }
     }
 

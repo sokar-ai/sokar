@@ -25,8 +25,9 @@ import org.jspecify.annotations.Nullable;
  *        directly.
  * @param allowedDomains Domains the agent needs to resolve and reach.
  * @param refusedDomains Domains the agent is known to ask for and is deliberately not given -
- *        telemetry and crash reporting. Declared rather than merely absent so that a test can
- *        tell a policy choice from an oversight, and so an operator can see what is refused.
+ *        telemetry and crash reporting. The task's resolver answers NXDOMAIN for each, even under
+ *        an allowed parent, so what an operator is told is refused is what is refused. Declared
+ *        rather than merely absent so that a test can tell a policy choice from an oversight.
  * @param version Version of the agent CLI this definition installs, or {@code null} if it
  *        installs nothing.
  * @param artifacts Files the image build fetches, each pinned and verified.

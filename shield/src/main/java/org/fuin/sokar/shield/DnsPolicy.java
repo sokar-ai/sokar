@@ -43,9 +43,14 @@ public class DnsPolicy {
      */
     public static final String SERVERS_FILE = "dnsmasq.servers";
 
+    /** How a refused name is written: {@code address=/<name>/}, which answers NXDOMAIN. */
+    public static final String REFUSED_PREFIX = "address=/";
+
     private final SecurityClass securityClass;
 
     private final Set<String> allowedDomains = new LinkedHashSet<>();
+
+    private final Set<String> refusedDomains = new LinkedHashSet<>();
 
     private final Set<String> upstreamResolvers = new LinkedHashSet<>();
 
@@ -99,6 +104,33 @@ public class DnsPolicy {
     public DnsPolicy autoAllow(String domain) {
         autoAllowed.add(domain);
         return allow(domain);
+    }
+
+    /**
+     * Refuses a domain and everything under it, whatever allows it.
+     * <p>
+     * dnsmasq takes the longest matching domain, so an {@code address=} line answering NXDOMAIN for
+     * the refused name wins over the {@code server=} line that allows its parent - measured on
+     * dnsmasq 2.92, with the allowance in the servers file, for a child of an allowed name and for
+     * the allowed name itself, and still after a widening of it was appended and the resolver
+     * signalled. A name answered NXDOMAIN never puts an address into the allow set. What it does not
+     * refuse is an address: a refused host that shares one with an allowed host is reachable there.
+     *
+     * @param domain Domain name, without a leading dot.
+     * @return This instance.
+     */
+    public DnsPolicy refuse(String domain) {
+        refusedDomains.add(domain);
+        return this;
+    }
+
+    /**
+     * Returns the refused domains.
+     *
+     * @return Domains, in the order they were added.
+     */
+    public Set<String> refusedDomains() {
+        return Set.copyOf(refusedDomains);
     }
 
     public DnsPolicy upstream(String address) {
@@ -167,6 +199,16 @@ public class DnsPolicy {
             lines.add("# the only part dnsmasq re-reads on SIGHUP - which is how a running task");
             lines.add("# can be widened by name without restarting its resolver.");
             lines.add("servers-file=" + serversFile);
+            if (!refusedDomains.isEmpty()) {
+                lines.add("");
+                lines.add("# Refused by name, whatever allows them: the longest match wins, so these");
+                lines.add("# answer NXDOMAIN under an allowed parent too, and none of their addresses");
+                lines.add("# reaches the firewall's allow set. Here rather than in the servers file, so");
+                lines.add("# a widening of a running task cannot take one back.");
+                for (final String domain : refusedDomains) {
+                    lines.add(REFUSED_PREFIX + domain + "/");
+                }
+            }
             if (allowedDomains.isEmpty()) {
                 lines.add("");
                 lines.add("# No domains are allowed for this project yet.");

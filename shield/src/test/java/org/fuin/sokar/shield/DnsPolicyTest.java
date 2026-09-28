@@ -152,4 +152,22 @@ class DnsPolicyTest {
         assertThat(rendered).contains("inet#sokar#allowed_v4");
         assertThat(rendered).contains("inet#sokar#allowed_v6");
     }
+
+    @Test
+    void refusesANameUnderAnAllowedParentInTheConfigurationNotTheServersFile() {
+        final DnsPolicy policy = new DnsPolicy(SecurityClass.GUARDED)
+                .upstream("8.8.8.8").autoAllow("claude.ai").refuse("downloads.claude.ai");
+
+        // In the configuration, which a widening never rewrites: a refusal a running task cannot lose.
+        assertThat(policy.render(SERVERS)).contains("address=/downloads.claude.ai/");
+        assertThat(policy.renderServers()).contains("server=/claude.ai/8.8.8.8")
+                .doesNotContain("downloads.claude.ai");
+    }
+
+    @Test
+    void anOfflineProjectNeedsNoRefusalWrittenOut() {
+        // Everything is NXDOMAIN there already; a line per refusal would say nothing.
+        assertThat(new DnsPolicy(SecurityClass.OFFLINE).refuse("telemetry.example").render(SERVERS))
+                .doesNotContain("address=/telemetry.example/");
+    }
 }

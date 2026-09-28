@@ -61,6 +61,9 @@ public final class RunningEgress {
         /** The project is offline, so its tasks reach nothing and this is not a way around that. */
         REFUSED_BY_CLASS,
 
+        /** A name asked for is refused for this task, and a widening does not take a refusal back. */
+        REFUSED_NAME,
+
         /** The run was widened and the project file could not be, because nothing knows where it is. */
         NO_PROJECT_FILE,
 
@@ -148,6 +151,18 @@ public final class RunningEgress {
         }
 
         final Path state = context.paths().containerState(container);
+        // Refused rather than done: the resolver answers a refused name NXDOMAIN whatever the servers
+        // file allows - measured, a widening appended and signalled changed nothing - so reporting it
+        // as opened would be a success that is not one.
+        final java.util.Set<String> refused = refusedBy(state);
+        for (final String name : names) {
+            final String covering = covering(refused, name.strip());
+            if (covering != null) {
+                return Effect.refused(Outcome.REFUSED_NAME, name.strip() + " is refused for this task"
+                        + (covering.equals(name.strip()) ? "" : ", under " + covering)
+                        + " - by its agent, its project or its repository, and a widening does not take that back");
+            }
+        }
         final List<String> wanted = new ArrayList<>();
         names.stream().map(String::strip).filter(name -> !name.isEmpty())
                 .filter(name -> !GrantedNames.covers(state, name))
@@ -479,5 +494,45 @@ public final class RunningEgress {
                 .orElseThrow(() -> new IOException("the resolver named in " + pidFile
                         + " is not running any more, so it cannot be told"));
         context.runner().runOrFail(org.fuin.sokar.core.process.Command.of("kill", "-HUP", String.valueOf(pid)));
+    }
+
+    /**
+     * Reads the names a running task's resolver refuses, from its own configuration.
+     * <p>
+     * From the file the resolver reads, not worked out again: what is refused here is exactly what the
+     * resolver answers NXDOMAIN for.
+     *
+     * @param state The task's state directory.
+     * @return The refused names, empty when the configuration cannot be read.
+     */
+    static java.util.Set<String> refusedBy(Path state) {
+        final java.util.Set<String> refused = new java.util.LinkedHashSet<>();
+        try {
+            for (final String line : Files.readAllLines(state.resolve("dns.conf"), StandardCharsets.UTF_8)) {
+                if (line.startsWith(DnsPolicy.REFUSED_PREFIX) && line.endsWith("/")
+                        && !line.equals(DnsPolicy.REFUSED_PREFIX + "#/")) {
+                    refused.add(line.substring(DnsPolicy.REFUSED_PREFIX.length(), line.length() - 1));
+                }
+            }
+        } catch (IOException ex) {
+            // No configuration, no refusals to find; the widening then fails where it needs the file.
+        }
+        return refused;
+    }
+
+    /**
+     * Returns the refused name a host is, or is under.
+     *
+     * @param refused The refused names.
+     * @param host The host asked for.
+     * @return The refusal that covers it, or {@code null}.
+     */
+    static @org.jspecify.annotations.Nullable String covering(java.util.Set<String> refused, String host) {
+        for (final String name : refused) {
+            if (host.equals(name) || host.endsWith("." + name)) {
+                return name;
+            }
+        }
+        return null;
     }
 }

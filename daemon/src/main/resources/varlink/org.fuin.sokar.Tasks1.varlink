@@ -415,6 +415,9 @@ type WidenOutcome (
   NOT_RUNNING,
   # The project is offline, so its tasks reach nothing and this is not a way around that.
   REFUSED_BY_CLASS,
+  # A name asked for is refused for this task - by its agent, its project or its repository - and
+  # a widening does not take a refusal back. Nothing was changed; detail names it and who refused.
+  REFUSED_NAME,
   # The run WAS widened and the project file was not, because nothing knows where it is. Not a
   # failure: the task can now reach the host, and detail says why the file was not written.
   NO_PROJECT_FILE,

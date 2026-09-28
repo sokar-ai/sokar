@@ -392,7 +392,7 @@ public final class TaskLaunch {
         if (request.dryRun()) {
             // What the project itself opens. The agent and provider are not chosen yet, so this
             // is a preview of the file rather than the full report a real run prints.
-            EgressReport.reportReachable(project, projectOrigins, java.util.List.of(), out);
+            EgressReport.reportReachable(project, projectOrigins, java.util.Map.of(), out);
             if ((request.repository() == null || request.repository().isBlank())
                     && !project.repositories().isEmpty()) {
                 // Said, because otherwise a project-level plan reads as a task's. A repository
@@ -577,7 +577,9 @@ public final class TaskLaunch {
                 }
             }
 
-            EgressReport.reportReachable(project, origins, EgressReport.refused(selected), out);
+            final java.util.Map<String, String> refusals = EgressReport.refusals(selected, project, repository);
+            EgressReport.reportReachable(project, origins, refusals, out);
+            runner.refusing(java.util.List.copyOf(refusals.keySet()));
 
             // The port is decided before this, so the firewall rule can name it; the gate itself
             // starts afterwards, because its log lives in the state directory that start()

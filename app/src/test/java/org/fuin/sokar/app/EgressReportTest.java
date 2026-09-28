@@ -33,7 +33,7 @@ class EgressReportTest {
     }
 
     private static String report(Project project, Map<String, String> origins,
-            List<String> refused) {
+            Map<String, String> refused) {
         final StringWriter written = new StringWriter();
         final PrintWriter out = new PrintWriter(written);
         EgressReport.reportReachable(project, origins, refused, out);
@@ -88,7 +88,7 @@ class EgressReportTest {
                     put("api.anthropic.com", "provider anthropic");
                     put("repo.maven.apache.org", "set maven");
                     put("nexus.corp.example", "project");
-                }}, List.of());
+                }}, Map.of());
 
         // Padded to the longest host, so the pairing is asserted rather than the spacing.
         assertThat(report.lines().map(line -> line.replaceAll("\\s+", " ").strip()))
@@ -105,16 +105,17 @@ class EgressReportTest {
         // Two different states. Only one of them is something to go and fix, and a report that
         // showed neither would leave an operator guessing which they were looking at.
         final String report = report(project(SecurityClass.GUARDED, Egress.none()),
-                Map.of("example.com", "agent stub"), List.of("example.net"));
+                Map.of("example.com", "agent stub"), Map.of("example.net", "agent stub"));
 
         assertThat(report.lines().map(line -> line.replaceAll("\\s+", " ").strip()))
-                .contains("reachable example.com agent stub", "example.net refused on purpose");
+                .contains("reachable example.com agent stub", "example.net refused on purpose by agent stub")
+                .contains("a refusal is of a name: an address a refused host shares with an allowed one stays reachable");
     }
 
     @Test
     void saysSoWhenThereIsNothingToReach() {
 
-        assertThat(report(project(SecurityClass.GUARDED, Egress.none()), Map.of(), List.of()))
+        assertThat(report(project(SecurityClass.GUARDED, Egress.none()), Map.of(), Map.of()))
                 .contains("nothing - no agent, provider or project declared a host");
     }
 
@@ -122,7 +123,7 @@ class EgressReportTest {
     void warnsWhenAGuardedProjectCanReachAForge() {
 
         final String report = report(project(SecurityClass.GUARDED, Egress.none()),
-                Map.of("github.com", "set git-hosting"), List.of());
+                Map.of("github.com", "set git-hosting"), Map.of());
 
         assertThat(report).contains("github.com is reachable")
                 .contains("no credential for them");
@@ -134,7 +135,7 @@ class EgressReportTest {
         // An online project's agent already pushes to the upstream itself, so there is no review
         // step for a reachable forge to weaken. Warning there would be noise.
         assertThat(report(project(SecurityClass.ONLINE, Egress.none()),
-                Map.of("github.com", "set git-hosting"), List.of()))
+                Map.of("github.com", "set git-hosting"), Map.of()))
                 .doesNotContain("no credential for them");
     }
 
@@ -142,7 +143,7 @@ class EgressReportTest {
     void warnsAboutASubdomainOfAForgeToo() {
 
         assertThat(report(project(SecurityClass.GUARDED, Egress.none()),
-                Map.of("raw.githubusercontent.com", "set git-hosting"), List.of()))
+                Map.of("raw.githubusercontent.com", "set git-hosting"), Map.of()))
                 .contains("raw.githubusercontent.com is reachable");
     }
 
@@ -155,9 +156,19 @@ class EgressReportTest {
                     put("github.com", "set git-hosting");
                     put("gitlab.com", "set git-hosting");
                     put("codeberg.org", "set git-hosting");
-                }}, List.of());
+                }}, Map.of());
 
         assertThat(report).contains("github.com and 2 more forge hosts are reachable")
                 .doesNotContain("gitlab.com,");
+    }
+
+    @Test
+    void aRefusalSaysWhoMadeItTheAgentFirst() {
+        // One declaration read once, for the report and the resolver alike.
+        final Project project = project(SecurityClass.GUARDED,
+                new Egress(List.of(), List.of("iana.org"), List.of("www.iana.org", "example.net")));
+
+        assertThat(EgressReport.refusals(null, project, project.ownRepository()))
+                .containsExactly(Map.entry("www.iana.org", "project"), Map.entry("example.net", "project"));
     }
 }

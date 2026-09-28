@@ -105,7 +105,7 @@ Feature: A task in a guarded project, from its image to what it hands back
     When a task called "report" is started in "guarded" for the "stub" agent and left running
     Then its output has a line matching "repo\.maven\.apache\.org +set maven"
     And its output has a line matching "github\.com +set git-hosting"
-    And its output has a line matching "example\.net +refused on purpose"
+    And its output has a line matching "example\.net +refused on purpose by agent stub"
     And its output contains "the gate now rests on this container holding no credential"
     And its output contains "unverified - whoever can push there decides what tasks here may reach"
 

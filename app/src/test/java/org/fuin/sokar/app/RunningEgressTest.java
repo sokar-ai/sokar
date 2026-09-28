@@ -346,4 +346,22 @@ class RunningEgressTest {
         assertThat(Files.readString(state.resolve(DnsPolicy.SERVERS_FILE)))
                 .doesNotContain("server=/example.test/");
     }
+
+    @Test
+    void doesNotWidenANameTheTaskRefusesNorOneUnderIt(@TempDir Path dir) throws IOException {
+        // Measured on dnsmasq: a refusal in the configuration wins over a widening appended to the
+        // servers file, so a success reported here would be one the resolver does not honour.
+        final SokarContext context = context(dir);
+        final Path state = task("sokar-uc-shell-1", "guarded");
+        Files.writeString(state.resolve("dns.conf"), "address=/#/\naddress=/telemetry.example/\n",
+                StandardCharsets.UTF_8);
+        final String servers = Files.readString(state.resolve(DnsPolicy.SERVERS_FILE));
+
+        final RunningEgress.Effect effect = widen(context, "eu.telemetry.example");
+
+        assertThat(effect.outcome()).isEqualTo(RunningEgress.Outcome.REFUSED_NAME);
+        assertThat(effect.detail()).contains("eu.telemetry.example is refused for this task, under telemetry.example");
+        assertThat(Files.readString(state.resolve(DnsPolicy.SERVERS_FILE))).isEqualTo(servers);
+        assertThat(runner.lines()).noneMatch(line -> line.startsWith("kill"));
+    }
 }

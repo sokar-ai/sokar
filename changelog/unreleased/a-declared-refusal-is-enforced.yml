@@ -1,0 +1,2 @@
+title: "A name an agent declares as refused - and now a name a project or repository refuses with 'egress: refused:' - does not resolve inside a task, even under an allowed parent and even where the same name is allowed elsewhere; none of its addresses reaches the firewall's allow set. The start report says who refused each name and that a refusal is of a name, not an address. 'shield egress --add-domain' refuses to widen a refused name (outcome REFUSED_NAME over the socket) instead of reporting a success the resolver would not honour."
+type: fixed

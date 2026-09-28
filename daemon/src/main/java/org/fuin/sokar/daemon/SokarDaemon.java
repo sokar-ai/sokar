@@ -286,7 +286,9 @@ public final class SokarDaemon {
             final Map<String, Object> answer = new LinkedHashMap<>();
             answer.put("hosts", hosts(egress.reachable(file,
                     repository.isEmpty() ? null : repository, named)));
-            answer.put("refused", egress.refused(named));
+            // The names only, as the contract has always carried them; now the project's too.
+            answer.put("refused", List.copyOf(egress.refusals(file, repository.isEmpty() ? null : repository,
+                    named).keySet()));
             replies.last(answer);
         });
 

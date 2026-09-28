@@ -137,6 +137,11 @@ egress:
   # Anything else, by name. Ports 80 and 443 only, at the addresses the name resolves to.
   domains: ["nexus.corp.example"]
 
+  # Names that must not resolve in a task, whatever allows them - a set, a domain above, or the
+  # agent. A refusal wins, also for a name under an allowed parent. It refuses a name, not an
+  # address: a host that shares an address with an allowed one stays reachable at that address.
+  refused: ["telemetry.nexus.corp.example"]
+
 # Optional. What one task may consume. These are the defaults.
 limits:
 
