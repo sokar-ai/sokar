@@ -199,8 +199,12 @@ the VM suite was stopped before it finished, so **not yet run**):
   `target/sokar.cdx.json`, so the rpm and CI's upload are unchanged. **Its subject is now
   `sokar-dist-deb`, not `sokar`** - the plugin has no name override; `check-packages.sh` expects that
   now. **Note:** `makeBom` skips itself under `-o` - package online.
-- `acceptance/suite` `package/package-bill.feature`: names what ships, names no test or build tool.
-  Proven failing (6 of 10) against the 19:37Z package on the VM.
+- ~~`acceptance/suite` `package/package-bill.feature`~~: names what ships, names no test or build
+  tool. Proven failing (6 of 10) against the 19:37Z package on the VM - and **failed all 10 on both
+  CI legs of `d710ebd`**, because a leg never installs a package: it builds on the machine and
+  stages into `~/.local/share/sokar`, so `/usr/share/sokar/sbom` does not exist there. Green on the
+  VM only because `deploy-vm.sh` installs the `.deb`. The same names are now asserted by
+  `check-packages.sh` on the `.deb` and the `.rpm` themselves, and the feature is deleted.
 - Changelog: `package-bill-describes-the-package.yml`, `kit-bill-steps-without-python.yml`.
 
 **Left, in this order:**

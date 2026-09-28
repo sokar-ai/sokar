@@ -178,19 +178,23 @@ check_bom() {
         fail "$label ships no bill at /usr/share/sokar/sbom/$name.cdx.json"
         return
     fi
-    printf '%s' "$body" | python3 -c "
-import json, sys
+    printf '%s' "$body" | BOM_NAMES="${BOM_NAMES:-}" BOM_NOT_NAMES="${BOM_NOT_NAMES:-}" python3 -c "
+import json, os, sys
 bom = json.load(sys.stdin)
 assert bom.get('bomFormat') == 'CycloneDX', 'not a CycloneDX document'
 subject = bom['metadata']['component']
 assert subject['name'] == '$subject', f\"names {subject['name']}, not $subject\"
 assert subject['version'] == '$version', f\"version {subject['version']}, not $version\"
 
-def count(items):
-    return sum(1 + count(c.get('components')) for c in (items or []))
-total = count(bom.get('components'))
-assert total > 0, 'lists no components at all'
-print(total)
+def names(items):
+    return [n for c in (items or []) for n in [c.get('name')] + names(c.get('components'))]
+held = names(bom.get('components'))
+assert held, 'lists no components at all'
+missing = sorted(set(os.environ['BOM_NAMES'].split()) - set(held))
+assert not missing, f\"is missing what ships: {', '.join(missing)}\"
+extra = sorted(set(os.environ['BOM_NOT_NAMES'].split()) & set(held))
+assert not extra, f\"names what does not ship: {', '.join(extra)}\"
+print(len(held))
 " > /tmp/sokar-bom-count 2>/tmp/sokar-bom-error
 
     if [ $? -eq 0 ]; then
@@ -218,8 +222,14 @@ bom_version() {
 
 SOKAR_VERSION="$(dpkg-deb -f "$DEB" Version)"
 AGENT_VERSION="$(dpkg-deb -f "$AGENT_DEB" Version)"
-check_bom "the sokar deb" "$DEB" "sokar" "$(bom_version "$SOKAR_VERSION")" "sokar-dist-deb"
-check_bom "the sokar rpm" "$RPM" "sokar" "$(bom_version "$SOKAR_VERSION")" "sokar-dist-deb"
+# What sokar's bill must and must not name. Checked here, on the packages, because no acceptance
+# leg installs one: the legs stage a build, so /usr/share/sokar/sbom does not exist there.
+SHIPS="sokar-app sokard sokar-core picocli"
+NEVER="cucumber-core junit-platform-engine sshj sokar-acceptance-kit sokar-machines sokar-release"
+BOM_NAMES="$SHIPS" BOM_NOT_NAMES="$NEVER" \
+    check_bom "the sokar deb" "$DEB" "sokar" "$(bom_version "$SOKAR_VERSION")" "sokar-dist-deb"
+BOM_NAMES="$SHIPS" BOM_NOT_NAMES="$NEVER" \
+    check_bom "the sokar rpm" "$RPM" "sokar" "$(bom_version "$SOKAR_VERSION")" "sokar-dist-deb"
 check_bom "the agent deb" "$AGENT_DEB" "sokar-agent-stub" "$(bom_version "$AGENT_VERSION")"
 check_bom "the agent rpm" "$AGENT_RPM" "sokar-agent-stub" "$(bom_version "$AGENT_VERSION")"
 

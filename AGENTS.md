@@ -964,6 +964,12 @@ both. Both packages carry identical bytes, so there is one binary to get right. 
 writes a manifest beside the binaries and the publish job reads it, because the two lists
 drifted when they were written down twice.
 
+**So no acceptance leg has a package installed, and a scenario about a packaged file cannot pass on
+one.** A leg builds on the machine and stages into `~/.local/share/sokar`; `/usr/share/sokar` is not
+there. `deploy-vm.sh` does install the `.deb`, so such a scenario is green on the VM and red on both
+legs - measured on 2026-09-27, when a bill check passed 102/0 on the VM and failed 10 of 10 in CI.
+What the package holds is checked on the package, in `check-packages.sh`.
+
 ## The interface contract
 
 `daemon/src/main/resources/varlink/org.fuin.sokar.Tasks1.varlink` is the API the frontend is
