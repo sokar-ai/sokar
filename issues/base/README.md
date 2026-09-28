@@ -40,6 +40,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | B75 | [A Login Nobody Measures Is A Login That Does Not Work](B75-A-Login-Nobody-Measures-Is-A-Login-That-Does-Not-Work.md) | open | sokar-claude-code (a stub that fakes a login) | The build runs an agent login end to end and fails when it stops storing, using an agent that fakes one - no account, no network. | two, and the first is whether the stub can carry it | [note](#b75) |
 | B53 | [The Build In One Language](B53-The-Build-In-One-Language.md) | open | sokar-claude-code CC12, CC13, CC14; sokar-pi PI10, PI11, PI12; sokar-omp OM10, OM11, OM12 | The shared tool exists and the agent repositories use it, and each of Sokar's own scripts is replaced or listed with its reason. The rule itself is `sokar-project` PJ06. | two, and the first is the order | [note](#b53) |
 | B76 | [The Code Checked Against The Skills It Was Written Without](B76-The-Code-Checked-Against-The-Skills-It-Was-Written-Without.md) | open | none - every agent opens its own | Every Java module has been read against the skills that apply to it, and each finding is fixed with a test watched to fail or declined with its reason. | one - the order | [note](#b76) |
+| B77 | [Nullness Checked When It Compiles](B77-Nullness-Checked-When-It-Compiles.md) | open | none - every Java repository opens its own | The build fails on a nullness error in main code, and every package holding main code is `@NullMarked`, so nothing is skipped in silence. | two, and the first is whether test code is checked | [note](#b77) |
 | B54 | [Stopping The Daemon Stops The Tasks It Started](B54-Stopping-The-Daemon-Stops-The-Tasks-It-Started.md) | decided | sokar-frontend F33 | Stopping, restarting or losing the daemon does not stop a task; a task ends when something asks that task to end. | one - whether removing a task reaps helpers in its scope | [note](#b54) |
 | B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | sokar-claude-code CC09, sokar-pi PI07, sokar-omp OM07 | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | none - decided 2026-09-27: a manifest marker, within a bound the agent declares | [note](#b52) |
 | B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | in progress | - | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
@@ -183,6 +184,11 @@ the agent half waits on this one.
 never used, and the first module read against them had two defects its tests had not found: a
 token sent wherever a property pointed, and a crash that answered the question. Every agent opens
 the same issue in its own repository.
+
+<a id="b77"></a>**B77 is high priority, by the operator's word of 2026-09-28, relayed by Agent Coordinator.**
+Every package here is marked for nullness and nothing checks the marks, so they read as a guarantee
+the compiler never gives. Placed after B76 by Agent Core, because both are about checking code that
+is already written; the operator re-ranks.
 
 <a id="b54"></a>**B54 is second, above B52, because it ends work that is running.** Measured on
 2026-09-13: stopping the daemon stopped the task it had started, container included - and a daemon
