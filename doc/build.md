@@ -112,10 +112,10 @@ A snapshot build produces `0.1.0~SNAPSHOT`, with a tilde, because both dpkg and
 rpm sort `~` below everything; left as `-SNAPSHOT` it would sort *above* the
 release and neither apt nor dnf would upgrade from it.
 
-To check the built packages:
+To check the built packages, after `./mvnw install` and a `-Pdist verify`:
 
 ```
-./buildtools/check-packages.sh
+./mvnw -pl buildtools/package-check exec:java@check
 ```
 
 It compares the deb and the rpm against each other — they declare their contents

@@ -36,7 +36,7 @@ public final class Leg {
      * when GITHUB_RUN_ID is absent. On a rented machine it is absent, so a CI run produced a
      * package called 0.1.0~snapshot.129 holding a binary that called itself
      * 0.1.0~snapshot.0+local.20260911T121128 - a local build, shipped as a CI one. Caught by
-     * check-packages.sh comparing the two for the first time, on the first run after it learned to.
+     * the package check comparing the two for the first time, on the first run after it learned to.
      * <p>
      * Outside CI neither is set, nothing is passed, and the remote build marks itself local -
      * which is what it is.

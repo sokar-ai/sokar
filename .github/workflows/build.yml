@@ -160,9 +160,9 @@ jobs:
         run: ./mvnw -B -Pdist verify -DskipTests -pl agents/stub,dist-deb,dist-rpm
              -Dsokar.snapshot.run=${{ github.run_number }}
 
-      # Checks the two packages against each other and installs both in a clean Debian and a clean.
+      # Checks the two packages against each other and installs both in a clean Debian and a clean Fedora.
       - name: Check the packages
-        run: ./buildtools/check-packages.sh
+        run: ./mvnw -B -q -pl buildtools/package-check exec:java@check
 
       # Both halves, after the checks and as close together as the job can put them. They still
       # cannot be made atomic: measured on 2026-09-11, the deb followed the jars by 15m42s, and a

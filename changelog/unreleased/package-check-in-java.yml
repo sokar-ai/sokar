@@ -1,0 +1,2 @@
+title: "The check of the .deb and the .rpm is Java now (buildtools/package-check, run as 'exec:java@check'): the same checks, the bill's contents included, with a unit test for each and no python3; it refuses to guess when target holds more than one package."
+type: changed

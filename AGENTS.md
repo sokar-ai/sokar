@@ -170,7 +170,7 @@ See [build.md](doc/build.md). Three things that will bite:
   `package`, and an inherited plugin runs before the module's own — so at
   `package` time the binary does not exist. `-Pnative,dist package` rebuilds
   everything and produces **no packages at all**, or silently leaves an older
-  package beside a newer binary. `buildtools/check-packages.sh` fails on exactly
+  package beside a newer binary. `buildtools/package-check` fails on exactly
   that.
 - **The `dist` profile is inherited by modules that are not agents.** It lives in
   `agents/pom.xml` so adding an agent needs no packaging config, so the aggregator
@@ -968,7 +968,7 @@ drifted when they were written down twice.
 one.** A leg builds on the machine and stages into `~/.local/share/sokar`; `/usr/share/sokar` is not
 there. `deploy-vm.sh` does install the `.deb`, so such a scenario is green on the VM and red on both
 legs - measured on 2026-09-27, when a bill check passed 102/0 on the VM and failed 10 of 10 in CI.
-What the package holds is checked on the package, in `check-packages.sh`.
+What the package holds is checked on the package, in `buildtools/package-check`.
 
 ## The interface contract
 

@@ -83,8 +83,13 @@ shared tool below does not carry it.
      download plugin, and it would cover only half: the script also builds zlib from source with
      `./configure` and `make` against the musl compiler it just unpacked;
    - `deploy-vm.sh` - a command in `sokar-machines`, beside `leg`;
-   - `check-packages.sh` - the content comparison as a Java test; the real install stays on a
-     machine;
+   - `check-packages.sh` - **replaced on 2026-09-28** by `buildtools/package-check`, run in CI's
+     "Check the packages" as `exec:java@check`. The whole script, not only the content comparison:
+     `dpkg`, `rpm` and podman are still what answer, called from Java, and the install scripts are
+     `sh -c` inside a container, which *What stays* already exempts. Proven: its 33 verdicts on one
+     build were word for word the script's; 19 mutations of the checks each turned a unit test red;
+     and an rpm built without the bash completion failed naming the file. It also refuses a `target`
+     holding more than one package, where the script silently took the first;
    - `e2e-tier1.sh` - folded into the Java acceptance suite scenario by scenario, which B27 is
      already doing;
    - `compare-bills.py` - **deleted on 2026-09-27**: no tracked file ran it, and `sokar-release
@@ -209,11 +214,7 @@ the VM suite was stopped before it finished, so **not yet run**):
 
 **Left, in this order:**
 
-1. **`buildtools/check-packages.sh`** (1 inline `python3`, in `check_bom`; called from `build.yml`
-   "Check the packages"). B53's plan: the content comparison (deb vs rpm file lists, copyright and
-   license places, completions, the bill's subject and version, the version ordering) as Java; the
-   real install in ubuntu:24.04 and fedora:41 containers stays a machine check. It needs `dpkg-deb`
-   and podman (for `rpm`) wherever it runs - CI's ubuntu runner has both.
+1. ~~**`buildtools/check-packages.sh`**~~ - **done 2026-09-28**, see *Sokar's half* above.
 2. **`buildtools/deploy-vm.sh`** (154 lines, by hand, see `.AGENTS.md`): a command in
    `sokar-machines`, beside `leg`. No `python3`.
 3. **`buildtools/e2e-tier1.sh`** (1355 lines; 8 `python3` calls, lines 159-174, all reading

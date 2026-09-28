@@ -92,7 +92,7 @@
 
              '+local.<stamp>' sorts ABOVE the run it names and BELOW the next one, so a local
              package replaces the published build it was made from and the next CI build takes the
-             machine back. Verified against dpkg and rpm themselves, below in check-packages.sh. -->
+             machine back. Verified against dpkg itself, in buildtools/package-check. -->
         <sokar.snapshot.suffix></sokar.snapshot.suffix>
         <maven.build.timestamp.format>yyyyMMdd'T'HHmmss</maven.build.timestamp.format>
         <build-helper.version>3.6.1</build-helper.version>
@@ -155,6 +155,7 @@
         <module>buildtools/release</module>
         <module>buildtools/ffm-check</module>
         <module>buildtools/cpu-check</module>
+        <module>buildtools/package-check</module>
         <module>acceptance</module>
         <module>dist-deb</module>
         <module>dist-rpm</module>
