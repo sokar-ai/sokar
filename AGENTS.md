@@ -1146,9 +1146,13 @@ one copy.
   2026-09-18 and before. The `/api/` endpoints answer directly. Let `curl` drop the credentials
   on that cross-host redirect - the storage URL is signed - and never pass
   `--location-trusted`.
-- **The test machines are shared.** Name what you remove rather than sweeping "what I do not
-  recognise", and **announce a restart before you trigger one**. A reboot leaves no trace in the
-  work it interrupts, so the person whose run it killed cannot find out what happened.
+- **The test machines are shared, and so is everything a run resolves from** - `~/.m2`,
+  `~/.sokar/handover/` and what a VM has installed. Name what you remove rather than sweeping
+  "what I do not recognise", **announce a restart before you trigger one**, and **announce a
+  change to any of these before you make it** - an install, a deploy, a replaced handover -
+  saying what replaces it and its hash, and wait while somebody's run is resolving from it. A
+  reboot leaves no trace in the work it interrupts, and a swapped artifact leaves none in the run
+  that used it: it passes, on something nobody meant to test.
 - **Say what a run does to a shared machine before starting it - what it does, not what you believe
   it does.** Check first. A confident wrong answer costs somebody else an afternoon.
 - **Link to a requirement by its number and to the index, never to its file.** A pointer is
