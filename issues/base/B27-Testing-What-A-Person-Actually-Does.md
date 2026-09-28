@@ -86,8 +86,30 @@ case — so that a release is judged by something other than somebody trying it.
 - **The local VM is assumed, not provisioned.** It exists; `exec:java@deploy` installs the build and
   the suite runs against it. Provisioning from nothing is what the Hetzner legs do, on every push.
 
+## The inventory, 2026-09-28
+
+Measured at `fa6faf9`: the commands from picocli's own model of `SokarCli`, walked the way
+`OptionNullnessTest` walks it; the coverage from every `sokar ...` line in `acceptance/suite`'s feature
+files, with each scenario outline expanded from its examples. **67 commands; 59 of them are typed by a
+person.**
+
+| | Commands | Count |
+|---|---|---|
+| **Run by a scenario** | `task start`, `task list`, `task stop`, `task remove`, `task label`, `task attach`, `task status`, `task logs`, `shield sets`, `shield egress`, `vault put`, `vault list`, `vault login`, `gate review`, `gate approve`, `gate reject`, `agents`, `doctor`, `panic` | 19 |
+| **Run only as setup, never asserted** - a kit step uses it to prepare, and no scenario checks what it says | `vault remove`, `vault unlock`, `vault lock`, `project follow`, `project unfollow` | 5 |
+| **Only `--help` is run** | `task prepare`, `task clearance`, `shield dns`, `shield subscribe`, `vault import`, `vault passphrase`, `gate pending`, `gate backup`, `gate restore`, `gate checkout`, `gate protect`, `gate check`, `setup` | 13 |
+| **Run by nothing** | `vault init`, `vault devices`, `vault revoke`, `credentials list`, `credentials declare`, `credentials forget`, `credentials check`, `credentials keys`, `credentials trust-host`, `providers`, `talk peers`, `talk pass`, `talk held`, `talk release`, `talk hold`, `talk verify`, `talk say`, `talk key`, `daemon connect`, `project list`, `project following`, `completion` | 22 |
+| *Not typed by a person* - Sokar, a hook, git or the shell runs them | `shield read` (firewall hook), `shield watch` (task helper), `vault serve` (task helper), `vault relay` (task helper), `vault agent` (task helper), `vault credential` (git credential helper), `gate serve` (task helper), `__complete` (shell completion) | 8 |
+
+So **40 commands owe a scenario** under the decision above. Groups that stand
+out: all six `credentials` commands and all eight `talk` commands run nowhere; `vault init`,
+`vault devices`, `vault revoke`, `providers`, `daemon connect`, `project list`, `project following`
+and `completion` neither. The internal ones are not counted: a person meets them through a task, a
+fetch or a TAB, not by typing them, and which of them tier 1 asserts is part of porting it.
+
 ## What is left
 
-1. **An inventory**: every command, and whether a scenario covers it. The decision above makes the
-   gaps the list of work, and nobody has counted them.
-2. **Tier 1, group by group**, each group's scenarios landing with that part of the script deleted.
+1. ~~**An inventory**~~ - **done 2026-09-28**, above: 40 commands owe a scenario.
+2. **The missing scenarios**, group by group - `credentials` and `talk` first, as the two groups with
+   nothing at all.
+3. **Tier 1, group by group**, each group's scenarios landing with that part of the script deleted.
