@@ -122,6 +122,13 @@ public class AgentsCommand implements Callable<Integer> {
                         }
                         out.println("             resume:  "
                                 + (agent.definition().supportsResume() ? "yes" : "no"));
+                        // What a check waits for once the agent is attached, and for how long. Said
+                        // when it is absent too: then whether it reached work cannot be told.
+                        final org.fuin.sokar.agent.api.ReadyMarker ready = agent.definition().ready();
+                        out.println("             ready:   " + (ready == null
+                                ? "not declared - whether it reached work cannot be told"
+                                : "\"" + ready.text() + "\"" + (ready.withinSeconds() == null ? ""
+                                        : " within " + ready.withinSeconds() + "s")));
                     }
                     if (supplyChain) {
                         supplyChain(out, agent);

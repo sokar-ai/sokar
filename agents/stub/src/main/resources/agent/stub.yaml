@@ -22,6 +22,11 @@ headless:
 
 session:
   supports_resume: false
+  # What the stub shows once it is at work, attached, having asked nothing - the text a check
+  # waits for. A workspace holding '.sokar-stub-asks' makes it ask one question first, which is
+  # how a check proves it notices an agent that asks.
+  ready_marker: "stub: at work, nothing asked"
+  ready_within_seconds: 30
 
 provider:
   # Anthropic, because the credential-exchange check needs an upstream that answers a bad key
@@ -62,6 +67,7 @@ install:
     - "RUN printf '%s\\n' \\"
     - "      '#!/bin/sh' \\"
     - "      '[ \"$1\" = \"--version\" ] && { echo \"${agent.cli.version} (Sokar stub agent)\"; exit 0; }' \\"
+    - "      '[ -z \"$1\" ] && [ -t 0 ] && { [ -e /workspace/.sokar-stub-asks ] && { printf \"Trust this folder? [y/N] \"; read answer; }; echo \"stub: at work, nothing asked\"; exec cat; }' \\"
     - "      'getent hosts example.com >/dev/null 2>&1 && echo \"stub: example.com resolved\" || echo \"stub: example.com did not resolve\"' \\"
     - "      'getent hosts example.net >/dev/null 2>&1 && echo \"stub: example.net resolved\" || echo \"stub: example.net refused\"' \\"
     - "      '[ -S \"$SOKAR_STUB_SOCKET\" ] || { echo \"stub: no proxy socket\"; exit 0; }' \\"

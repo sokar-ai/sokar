@@ -40,7 +40,6 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | B75 | [A Login Nobody Measures Is A Login That Does Not Work](B75-A-Login-Nobody-Measures-Is-A-Login-That-Does-Not-Work.md) | open | sokar-claude-code (a stub that fakes a login) | The build runs an agent login end to end and fails when it stops storing, using an agent that fakes one - no account, no network. | two, and the first is whether the stub can carry it | [note](#b75) |
 | B76 | [The Code Checked Against The Skills It Was Written Without](B76-The-Code-Checked-Against-The-Skills-It-Was-Written-Without.md) | open | none - every agent opens its own | Every Java module has been read against the skills that apply to it, and each finding is fixed with a test watched to fail or declined with its reason. | one - the order | [note](#b76) |
 | B79 | [A Daemon That Answers Nothing](B79-A-Daemon-That-Answers-Nothing.md) | open | - | A call on the daemon socket is answered or refused within a bound, whatever the daemon background work is doing. | two - a thread dump, and the first follow pass | - |
-| B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | sokar-claude-code CC09, sokar-pi PI07, sokar-omp OM07 | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | none - decided 2026-09-27: a manifest marker, within a bound the agent declares | [note](#b52) |
 | B44 | [One Way To Start Work](B44-One-Way-To-Start-Work.md) | in progress | - | Starting work does one of two understandable things, says which, and never silently creates a second task beside the one that was named. | four; the shape is decided and mostly built | [note](#b44) |
 | B45 | [One Documentation Somebody Can Find Their Way Through](B45-One-Documentation-Somebody-Can-Find-Their-Way-Through.md) | open | - | A reader finds one place per subject, in an order, on a published site that cannot go stale unnoticed. | four | [note](#b45) |
 | B49 | [What The Build Trusts To Run Beside Its Secrets](B49-What-The-Build-Trusts-To-Run-Beside-Its-Secrets.md) | open | - | Nothing runs beside this product's credentials that was fetched by a name its owner may repoint. | four, and the first decides whether it lasts | [note](#b49) |
@@ -174,12 +173,6 @@ present.
 never used, and the first module read against them had two defects its tests had not found: a
 token sent wherever a property pointed, and a crash that answered the question. Every agent opens
 the same issue in its own repository.
-
-<a id="b52"></a>**B52 is here because three agent repositories are waiting on
-it and nobody else can build it.** First-run consent moved to the agent repositories on 2026-09-13, and each of them now
-has a task that fails its acceptance when a release adds a dialog. That needs one step all their
-scenarios share, and it lives in the kit because the kit is the only glue those scenarios have:
-written three times it would be three dialects of one check.
 
 <a id="b29"></a>**B29 sits above B28, the foundation it depends on.** A set that begins with its
 own foundation tends to sit unstarted. Building the smallest kind first makes the foundation's

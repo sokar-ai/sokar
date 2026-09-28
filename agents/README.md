@@ -91,6 +91,8 @@ headless:                     # the agent's own spelling of the common ideas
 session:
   supports_resume: true
   resume_flag: "--resume"
+  ready_marker: "Ready for work."   # text shown once at work, attached, having asked nothing
+  ready_within_seconds: 60          # optional; the kit's default is 120
 
 provider:
   token_env:
@@ -144,6 +146,14 @@ refused. **A declared tree that is not there refuses the task**: an image built
 without it would start a task with no tool in it.
 `sokar agents --supply-chain` lists every artifact and marks the unverified ones,
 so an audit reads the roster rather than the build logs.
+
+**`ready_marker` is what a check of the agent waits for**, attached, to prove it reached work
+with nothing asked first. The acceptance kit's step *"the … agent reaches work without being asked
+anything"* types nothing and waits for this text, within `ready_within_seconds` or the kit's
+default. Any question before it - a trust dialog, a login, a setup wizard - blocks it, so the step
+fails the day a release adds one, including one nobody has seen. An agent whose ready screen has no
+stable text declares none, and the step then fails saying it cannot tell. `sokar agents --verbose`
+shows what each agent declares.
 
 ### 3. `agents/<name>/src/main/java/org/fuin/sokar/agent/impl/<name>/<Name>Agent.java`
 

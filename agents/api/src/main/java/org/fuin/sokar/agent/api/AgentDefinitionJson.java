@@ -72,6 +72,10 @@ public final class AgentDefinitionJson {
         putIfPresent(out, "loginArguments", definition.loginArguments());
         putIfPresent(out, "loginDocumentation", definition.loginDocumentation());
         out.put("sandboxedArguments", definition.sandboxedArguments());
+        if (definition.ready() != null) {
+            out.put("readyMarker", definition.ready().text());
+            putIfPresent(out, "readyWithinSeconds", definition.ready().withinSeconds());
+        }
         putIfPresent(out, "version", definition.version());
         out.put("artifacts", definition.artifacts().stream()
                 .map(AgentDefinitionJson::writeArtifact).toList());
@@ -121,7 +125,10 @@ public final class AgentDefinitionJson {
                         : strings(source.get("loginArguments")),
                 source.get("loginDocumentation") == null ? null
                         : String.valueOf(source.get("loginDocumentation")),
-                strings(source.get("sandboxedArguments")));
+                strings(source.get("sandboxedArguments")),
+                source.get("readyMarker") == null ? null
+                        : new ReadyMarker(String.valueOf(source.get("readyMarker")),
+                                source.get("readyWithinSeconds") instanceof Number within ? within.intValue() : null));
     }
 
     private static Map<String, Object> writeArtifact(InstallArtifact artifact) {

@@ -120,8 +120,9 @@ interface should learn to show. Inside a task the agent's own prompts are turned
 is the answer - and the measured outcome was a CLI reaching its prompt with no dialog at all. What
 remains is the clearance decision, which this machine *knows* rather than infers: the resolver
 raised it, `Prompts` streams it, and it carries a deadline. The residue worth watching is an agent
-that ships a new dialog, and each agent repository's acceptance covers that through B52
-([index](README.md)).
+that ships a new dialog, and each agent repository's acceptance covers that with the kit's step
+*"the … agent reaches work without being asked anything"*, against the ready marker the agent
+declares.
 
 ## To be checked
 

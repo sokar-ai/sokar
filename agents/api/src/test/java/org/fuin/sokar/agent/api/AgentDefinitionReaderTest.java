@@ -325,4 +325,35 @@ class AgentDefinitionReaderTest {
         // An agent that manages no credential of its own must not get a guessed directory.
         assertThat(read(MINIMAL).configDirectory()).isNull();
     }
+
+    @Test
+    void readsWhatTheAgentShowsOnceAtWorkAndHowLongThatMayTake() {
+        final AgentDefinition definition = read(MINIMAL + """
+                session:
+                  ready_marker: "at work"
+                  ready_within_seconds: 45
+                """);
+
+        assertThat(definition.ready()).isEqualTo(new ReadyMarker("at work", 45));
+        // And through the description the kit reads, unchanged.
+        assertThat(AgentDefinitionJson.read(AgentDefinitionJson.write(definition)).ready())
+                .isEqualTo(new ReadyMarker("at work", 45));
+    }
+
+    @Test
+    void anAgentWithNoStableReadyTextDeclaresNone() {
+        assertThat(read(MINIMAL).ready()).isNull();
+    }
+
+    @Test
+    void refusesABoundWithNothingToBound() {
+        assertThatThrownBy(() -> read(MINIMAL + "session:\n  ready_within_seconds: 30\n"))
+                .isInstanceOf(AgentException.class).hasMessageContaining("none is declared");
+    }
+
+    @Test
+    void refusesAMarkerOfMoreThanOneLineAndABoundPastTheLimit() {
+        assertThatThrownBy(() -> new ReadyMarker("one\ntwo", null)).isInstanceOf(AgentException.class);
+        assertThatThrownBy(() -> new ReadyMarker("ok", ReadyMarker.MOST_SECONDS + 1)).isInstanceOf(AgentException.class);
+    }
 }

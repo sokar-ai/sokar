@@ -123,7 +123,34 @@ public final class AgentDefinitionReader {
                 // and Sokar must not guess it - but never conditional: inside a task the answer
                 // is always yes, which is what the box is for. An agent that needs nothing says
                 // nothing and gets nothing added.
-                strings(optionalSection(root, "sandboxed").get("arguments")));
+                strings(optionalSection(root, "sandboxed").get("arguments")),
+                ready(session, origin));
+    }
+
+    /**
+     * Reads what the agent shows once it has reached work: {@code session.ready_marker}, and how long
+     * that may take, {@code session.ready_within_seconds}.
+     * <p>
+     * Absent is an answer of its own: an agent whose ready screen has no stable text declares nothing,
+     * and a check of it then says it cannot tell rather than passing.
+     *
+     * @param session The {@code session} block, empty when there is none.
+     * @param origin Name used in error messages.
+     * @return The marker, or {@code null} when none is declared.
+     */
+    private static @Nullable ReadyMarker ready(Map<?, ?> session, String origin) {
+        final String text = optional(session, "ready_marker");
+        final Object within = session.get("ready_within_seconds");
+        if (text == null || text.isBlank()) {
+            if (within != null) {
+                throw new AgentException(origin + ": 'ready_within_seconds' bounds a 'ready_marker', and none is declared");
+            }
+            return null;
+        }
+        if (within != null && !(within instanceof Integer)) {
+            throw new AgentException(origin + ": 'ready_within_seconds' is a number of seconds, not '" + within + "'");
+        }
+        return new ReadyMarker(text, (Integer) within);
     }
 
     /**

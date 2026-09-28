@@ -1,0 +1,2 @@
+title: "An agent can declare what it shows once it has reached work ('session: ready_marker', optionally 'ready_within_seconds'), and the acceptance kit's step 'the … agent reaches work without being asked anything' waits for it without typing anything, failing with the screen when a question comes first and saying it cannot tell when nothing is declared. A second step bounds an unattended run, so one parked at a question fails instead of being waited out. 'sokar agents --verbose' shows the marker."
+type: added
