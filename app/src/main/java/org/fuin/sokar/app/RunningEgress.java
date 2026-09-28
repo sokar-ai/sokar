@@ -331,12 +331,7 @@ public final class RunningEgress {
                 : String.join(System.lineSeparator(), kept) + System.lineSeparator(),
                 StandardCharsets.UTF_8);
 
-        final Path pidFile = state.resolve("dnsmasq.pid");
-        if (!Files.isRegularFile(pidFile)) {
-            throw new IOException("the resolver's pid file is missing, so it cannot be told");
-        }
-        context.runner().runOrFail(org.fuin.sokar.core.process.Command.of(
-                "kill", "-HUP", Files.readString(pidFile, StandardCharsets.UTF_8).strip()));
+        signalResolver(state);
     }
 
     /**
@@ -364,12 +359,7 @@ public final class RunningEgress {
         Files.writeString(servers, added.toString(), StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);
 
-        final Path pidFile = state.resolve("dnsmasq.pid");
-        if (!Files.isRegularFile(pidFile)) {
-            throw new IOException("the resolver's pid file is missing, so it cannot be told");
-        }
-        context.runner().runOrFail(org.fuin.sokar.core.process.Command.of(
-                "kill", "-HUP", Files.readString(pidFile, StandardCharsets.UTF_8).strip()));
+        signalResolver(state);
     }
 
     /**
@@ -469,5 +459,25 @@ public final class RunningEgress {
                     "the run was widened; the project file was not: " + written.detail());
         }
         return new Effect(Outcome.WIDENED, names, true, null, file);
+    }
+
+    /**
+     * Tells the task's resolver to read its servers file again.
+     * <p>
+     * Through the record's verified identity, as a poststop reap is: the pid alone may belong to
+     * something else by now, and a signal is not a thing to send to a guess.
+     *
+     * @param state The task's state directory.
+     * @throws IOException If there is no resolver to tell.
+     */
+    private void signalResolver(Path state) throws IOException {
+        final Path pidFile = state.resolve("dnsmasq.pid");
+        if (!Files.isRegularFile(pidFile)) {
+            throw new IOException("the resolver's pid file is missing, so it cannot be told");
+        }
+        final long pid = org.fuin.sokar.wire.HelperPid.verified(pidFile).map(ProcessHandle::pid)
+                .orElseThrow(() -> new IOException("the resolver named in " + pidFile
+                        + " is not running any more, so it cannot be told"));
+        context.runner().runOrFail(org.fuin.sokar.core.process.Command.of("kill", "-HUP", String.valueOf(pid)));
     }
 }

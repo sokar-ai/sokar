@@ -35,6 +35,9 @@ class RunningEgressTest {
         return new SokarContext(runner, new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0);
     }
 
+    /** The process recorded as the task's resolver: this one. */
+    private static final long RESOLVER = ProcessHandle.current().pid();
+
     /** A running task with the two files a live widening touches. */
     private Path task(String container, String securityClass) throws IOException {
         runner.answering("ps", container + "\tUp 4 minutes\t1788500000\t0\n");
@@ -45,7 +48,8 @@ class RunningEgressTest {
                 .writeTo(state.resolve("sidecar.json"));
         Files.writeString(state.resolve(DnsPolicy.SERVERS_FILE),
                 "# written by sokar\nserver=/declared.test/192.0.2.53\n", StandardCharsets.UTF_8);
-        Files.writeString(state.resolve("dnsmasq.pid"), "4711", StandardCharsets.UTF_8);
+        // A live process stands in for the resolver: the record is verified before it is signalled.
+        org.fuin.sokar.wire.HelperPid.record(state.resolve("dnsmasq.pid"));
         return state;
     }
 
@@ -67,7 +71,7 @@ class RunningEgressTest {
         assertThat(Files.readString(state.resolve(DnsPolicy.SERVERS_FILE)))
                 .contains("server=/docs.example.test/192.0.2.53");
         // And signalled rather than restarted: a restart is a window in which nothing resolves.
-        assertThat(runner.lines()).anyMatch(line -> line.equals("kill -HUP 4711"));
+        assertThat(runner.lines()).anyMatch(line -> line.equals("kill -HUP " + RESOLVER));
         // The watcher reads this and lets the first connection through without asking.
         assertThat(GrantedNames.all(state)).containsExactly("docs.example.test");
     }
@@ -223,7 +227,7 @@ class RunningEgressTest {
                 .doesNotContain("server=/example.test/")
                 .as("a name nobody withdrew is untouched").contains("server=/declared.test/");
         assertThat(org.fuin.sokar.wire.GrantedNames.all(state)).doesNotContain("example.test");
-        assertThat(runner.lines()).anyMatch(line -> line.contains("kill -HUP 4711"));
+        assertThat(runner.lines()).anyMatch(line -> line.contains("kill -HUP " + RESOLVER));
     }
 
     @Test

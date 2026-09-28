@@ -1,0 +1,2 @@
+title: "Removing a task stops its resolver and its firewall log reader, and with them the container's monitor: their records now carry a start time, which the clean-up verifies before it signals, so every removed task no longer left three processes running."
+type: fixed

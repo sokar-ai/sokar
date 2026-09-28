@@ -1,0 +1,2 @@
+title: "A new task no longer inherits the clearance decisions of a removed task of the same name: removing a task renames its clearance journal, which stays as a record, so an address allowed for the old task is not open in the new one without being asked."
+type: fixed

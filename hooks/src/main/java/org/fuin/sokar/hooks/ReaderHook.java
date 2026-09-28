@@ -71,8 +71,10 @@ public class ReaderHook extends Hook {
                         stateDirectory.resolve("reader.err").toFile()))
                 .start();
 
-        Files.writeString(stateDirectory.resolve(PID_FILE), String.valueOf(reader.pid()),
-                StandardCharsets.UTF_8);
+        // With its start time, as every helper's record is: poststop verifies both before it signals,
+        // and a bare pid is refused - which left this process, and conmon above it, running after
+        // every task was removed.
+        org.fuin.sokar.wire.HelperPid.record(stateDirectory.resolve(PID_FILE), reader.toHandle());
 
         // Long enough to catch a reader that cannot bind at all, which is the common failure and
         // is silent otherwise.

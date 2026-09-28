@@ -110,14 +110,28 @@ final class ClearanceWiring {
 
         final java.util.List<String> command = watcherCommand(context, project.name(), task,
                 pid.get(), container, mode);
+        try {
+            // Left by an earlier run of the same task: waiting for it to appear would return at once.
+            java.nio.file.Files.deleteIfExists(state.resolve("clearance.sock"));
+        } catch (java.io.IOException ex) {
+            // The watcher unlinks it itself before binding; only the wait below is less exact.
+        }
 
         try {
-            new ProcessBuilder(command)
+            final Process watcher = new ProcessBuilder(
+                    org.fuin.sokar.core.process.Scope.around("sokar " + container + " watcher", command))
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("clearance.log").toFile())
                     .start();
             // The container pid in here belongs to this run; a resume replaces it with the new one.
             recorder.record("watcher", command, java.util.Map.of(), TaskHelpers.AFTER);
+            // Returned only once it listens: it follows the event log from where it starts, so a
+            // connection the agent makes before then is dropped and never seen - measured, when the
+            // watcher's start began to go through the user manager and took a round trip longer.
+            if (!listening(state.resolve("clearance.sock"), WATCHER_PATIENCE, watcher::isAlive)) {
+                err.println("sokar: the clearance watcher is not listening yet; see " + state.resolve("clearance.log"));
+                err.flush();
+            }
             out.println("clearance " + mode + ", log at " + state.resolve("clearance.log"));
             out.flush();
         } catch (java.io.IOException ex) {
@@ -126,5 +140,33 @@ final class ClearanceWiring {
             err.println("sokar: could not start the clearance watcher: " + ex.getMessage());
             err.flush();
         }
+    }
+
+    /** How long a start waits for its watcher to listen. */
+    static final java.time.Duration WATCHER_PATIENCE = java.time.Duration.ofSeconds(10);
+
+    /**
+     * Waits until a socket is there, the process that would make it has exited, or the patience runs out.
+     *
+     * @param socket The socket.
+     * @param patience How long to wait.
+     * @param alive Whether the process that makes it still runs.
+     * @return {@code true} once it exists.
+     */
+    static boolean listening(java.nio.file.Path socket, java.time.Duration patience,
+            java.util.function.BooleanSupplier alive) {
+        final long until = System.nanoTime() + patience.toNanos();
+        while (!java.nio.file.Files.exists(socket)) {
+            if (System.nanoTime() > until || !alive.getAsBoolean()) {
+                return false;
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return true;
     }
 }

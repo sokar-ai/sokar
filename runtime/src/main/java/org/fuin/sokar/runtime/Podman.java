@@ -420,7 +420,12 @@ public class Podman {
      * @param container Container name or id.
      */
     public void start(String container) {
-        runner.runOrFail(withNetworkConfiguration(podman("start", container)));
+        // In a scope of its own: 'podman start' leaves the container's monitor (conmon), its network
+        // and whatever the hooks start in the caller's control group, and a monitor that dies takes the
+        // container with it - measured, when the caller was the daemon and the daemon was stopped.
+        final Command start = withNetworkConfiguration(podman("start", container));
+        runner.runOrFail(new Command(org.fuin.sokar.core.process.Scope.around("sokar " + container, start.arguments()),
+                start.workingDirectory(), start.environment(), start.input()));
     }
 
     /**

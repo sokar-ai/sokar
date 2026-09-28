@@ -1,0 +1,2 @@
+title: "Stopping, restarting or losing the daemon no longer stops the tasks it started: what a task leaves running - the container's monitor, its network, its resolver and its helpers - runs in a systemd scope of its own under sokar.slice, whoever started it, and the scope ends with the task. A task start returns once its clearance watcher listens."
+type: fixed

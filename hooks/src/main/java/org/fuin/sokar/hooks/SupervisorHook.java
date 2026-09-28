@@ -68,8 +68,10 @@ public class SupervisorHook extends Hook {
 
         // Deliberately not waited for: it has to outlive this hook. A child survives its parent,
         // and poststop reaps it from the recorded pid.
-        Files.writeString(state_.resolve(PID_FILE), String.valueOf(resolver.pid()),
-                StandardCharsets.UTF_8);
+        // With its start time, as every helper's record is: poststop verifies both before it signals,
+        // and a bare pid is refused - which left this process, and conmon above it, running after
+        // every task was removed.
+        org.fuin.sokar.wire.HelperPid.record(state_.resolve(PID_FILE), resolver.toHandle());
 
         // Give it long enough to fail loudly. A configuration error kills dnsmasq immediately, and
         // reporting that here beats a container that resolves nothing for reasons nobody logged.

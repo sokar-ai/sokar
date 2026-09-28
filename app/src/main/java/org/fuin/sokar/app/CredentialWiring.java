@@ -102,7 +102,7 @@ final class CredentialWiring {
                         "--socket", socket.toString(),
                         "--pid-file", state.resolve("relay.pid").toString()));
         try {
-            new ProcessBuilder(command)
+            new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + container + " relay", command))
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("relay.log").toFile())
                     .start();
@@ -271,7 +271,7 @@ final class CredentialWiring {
 
         try {
             java.nio.file.Files.deleteIfExists(tokenFile);
-            new ProcessBuilder(command)
+            new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + container + " vault", command))
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("vault.log").toFile())
                     .start();
@@ -374,7 +374,7 @@ final class CredentialWiring {
 
         try {
             java.nio.file.Files.deleteIfExists(socket);
-            new ProcessBuilder(command)
+            new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + container + " ssh-agent", command))
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("ssh-agent.log").toFile())
                     .start();

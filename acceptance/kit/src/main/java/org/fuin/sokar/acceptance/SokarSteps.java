@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.cucumber.java.After;
 import io.cucumber.java.en.Given;
+import io.cucumber.java.en.When;
 import java.io.IOException;
 
 /**
@@ -139,6 +140,10 @@ public class SokarSteps {
      * asked of it would be answered about somebody else's. The socket's path is fixed, so the account's
      * daemon is stopped for the scenario and started again after it - inside this account only, and
      * only if it was running.
+     * <p>
+     * <strong>A systemd unit, as the account's daemon is</strong>, restarted on failure the same way: what
+     * a scenario proves about stopping or losing a daemon has to be proved of one whose unit's control
+     * group is what systemd stops.
      *
      * @throws IOException If the machine cannot be reached.
      */
@@ -146,11 +151,50 @@ public class SokarSteps {
     public void aDaemonOfItsOwn() throws IOException {
         final Ssh.Output stopped = world.run(DAEMON_STOP);
         assertThat(stopped.status()).as("could not stop the account's daemon:%n%s", stopped.all()).isZero();
-        world.daemon(stopped.out().contains(WAS_RUNNING), null);
+        world.daemon(stopped.out().contains(WAS_RUNNING), UNIT);
+        theDaemonIsStartedAgain();
+    }
+
+    /**
+     * Starts the scenario's daemon's unit, and waits until the daemon answers.
+     *
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("the daemon is started again")
+    public void theDaemonIsStartedAgain() throws IOException {
         final Ssh.Output started = world.run(DAEMON_START);
         assertThat(started.status()).as("the scenario's daemon did not answer:%n%s", started.all()).isZero();
-        world.daemon(world.daemonWasRunning(), started.out().lines().findFirst().orElseThrow().strip());
     }
+
+    /**
+     * Stops the scenario's daemon the way an operator stops one: through its unit.
+     *
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("the daemon's unit is stopped")
+    public void theDaemonsUnitIsStopped() throws IOException {
+        final Ssh.Output stopped = world.run("systemctl --user stop " + UNIT + " && ! " + DAEMON_ASK);
+        assertThat(stopped.status()).as("the daemon still answers after its unit was stopped:%n%s", stopped.all())
+                .isZero();
+    }
+
+    /**
+     * Kills the scenario's daemon as a crash would, and waits for systemd to bring it back.
+     *
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("the daemon crashes and systemd restarts it")
+    public void theDaemonCrashes() throws IOException {
+        final Ssh.Output crashed = world.run("before=$(systemctl --user show -p MainPID --value " + UNIT + ");"
+                + " systemctl --user kill -s KILL " + UNIT + ";"
+                + " for i in $(seq 100); do now=$(systemctl --user show -p MainPID --value " + UNIT + ");"
+                + " if [ \"$now\" != 0 ] && [ \"$now\" != \"$before\" ] && " + DAEMON_ASK + "; then exit 0; fi;"
+                + " sleep 0.2; done; systemctl --user status " + UNIT + " --no-pager; exit 1");
+        assertThat(crashed.status()).as("systemd did not bring the daemon back:%n%s", crashed.all()).isZero();
+    }
+
+    /** The scenario's daemon's unit. */
+    static final String UNIT = "sokar-acceptance-sokard";
 
     /** Printed by {@link #DAEMON_STOP} when there was a daemon of the account's to start again. */
     static final String WAS_RUNNING = "the daemon of this account was running";
@@ -163,10 +207,15 @@ public class SokarSteps {
     static final String DAEMON_ASK = "printf '{\"method\":\"org.varlink.service.GetInfo\",\"parameters\":{}}\\0'"
             + " | timeout 5 sokar daemon connect 2>/dev/null | grep -q vendor";
 
-    /** Starts a daemon detached from the session, prints its pid, and waits until it answers. */
+    /**
+     * Starts the daemon as a transient unit with this scenario's vault and PATH, and waits until it answers.
+     * The unit's manager has a PATH of its own, so the daemon is named by the path this session finds.
+     */
     static final String DAEMON_START = "if " + DAEMON_ASK + "; then echo 'another daemon answers on the socket'; exit 1; fi;"
-            + " log=$(mktemp); setsid sokard > \"$log\" 2>&1 < /dev/null & echo $!;"
-            + " for i in $(seq 50); do " + DAEMON_ASK + " && exit 0; sleep 0.2; done; cat \"$log\"; exit 1";
+            + " systemd-run --user --quiet --collect --unit=" + UNIT + " -p Restart=on-failure -p RestartSec=1"
+            + " --setenv=PATH=\"$PATH\" ${SOKAR_VAULT:+--setenv=SOKAR_VAULT=\"$SOKAR_VAULT\"} \"$(command -v sokard)\""
+            + " || exit 1; for i in $(seq 50); do " + DAEMON_ASK + " && exit 0; sleep 0.2; done;"
+            + " journalctl --user -u " + UNIT + " -n 20 --no-pager; exit 1";
 
     /**
      * Stops the scenario's daemon and starts the account's again, whether the scenario passed or not.
@@ -175,9 +224,9 @@ public class SokarSteps {
      */
     @After
     public void stopTheScenariosDaemon() throws IOException {
-        final String pid = world.daemonPid();
-        if (pid != null) {
-            world.machine().run("kill " + Shell.quote(pid) + " 2>/dev/null; true");
+        if (world.daemonUnit() != null) {
+            world.machine().run("systemctl --user stop " + UNIT + " 2>/dev/null; systemctl --user reset-failed "
+                    + UNIT + " 2>/dev/null; true");
         }
         if (world.daemonWasRunning()) {
             world.machine().run("systemctl --user start sokard");

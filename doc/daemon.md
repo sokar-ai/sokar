@@ -67,6 +67,15 @@ directory holds each task's state, and systemd removes what it creates when the 
 daemon and the CLI both create the directory themselves, so nothing is gained and a stopped daemon
 would take running tasks' state with it.
 
+**A task outlives the daemon that started it.** Stopping a unit stops every process in its control
+group, and a task started through the daemon would otherwise have its container's monitor
+(`conmon`), its network, its resolver and its helpers there - stopping, restarting or losing the
+daemon ended the task. So everything a task leaves running is started in a transient scope of its
+own under `sokar.slice`, by the daemon and by the CLI alike: `systemctl --user status sokar.slice`
+shows them, one scope per helper and one for the container's monitor, each named after its task.
+A scope ends by itself once nothing in it runs, so removing a task leaves none behind. On a machine
+without a user manager the processes are started as they are.
+
 **No `sokard.socket`, so no socket activation** — which is what an interface would most like, since
 the first connection through a forward would then start the daemon by itself and a stale socket
 would stop being a category at all. It needs the service to accept a listening file descriptor

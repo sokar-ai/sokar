@@ -82,7 +82,7 @@ final class GateWiring {
         }
 
         try {
-            final ProcessBuilder builder = new ProcessBuilder(command)
+            final ProcessBuilder builder = new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + container + " gate", command))
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("gate.log").toFile());
             builder.environment().put("SOKAR_GATE_TOKEN", java.util.Objects.requireNonNull(workspace.token(),

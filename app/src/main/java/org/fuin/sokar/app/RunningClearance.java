@@ -169,7 +169,7 @@ public final class RunningClearance {
                 final List<String> command = ClearanceWiring.watcherCommand(context,
                         sidecar.project(), taskOf(container, sidecar.project()), pid.get(),
                         container, mode);
-                new ProcessBuilder(command).redirectErrorStream(true)
+                new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + container + " watcher", command)).redirectErrorStream(true)
                         .redirectOutput(state.resolve("clearance.log").toFile()).start();
                 rememberWatcher(state, command);
                 out.println("clearance " + mode + ", log at " + state.resolve("clearance.log"));

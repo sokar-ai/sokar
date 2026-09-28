@@ -453,7 +453,8 @@ class SokarDaemonTest {
                 "/usr/bin/sokar", state.toString()).writeTo(state.resolve("sidecar.json"));
         Files.writeString(state.resolve(org.fuin.sokar.shield.DnsPolicy.SERVERS_FILE),
                 "server=/declared.test/192.0.2.53\n");
-        Files.writeString(state.resolve("dnsmasq.pid"), "4711");
+        // A live process stands in for the resolver: its record is verified before it is signalled.
+        org.fuin.sokar.wire.HelperPid.record(state.resolve("dnsmasq.pid"));
 
         serving(dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {

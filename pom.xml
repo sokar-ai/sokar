@@ -420,6 +420,12 @@
                         <!-- Panama downcalls are a restricted operation and will be blocked
                              outright in a future release without this. -->
                         <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
+                        <!-- A unit test runs what it starts as it is, on every machine: with a
+                             systemd user manager, task processes would otherwise go into scopes of
+                             their own here and not on a CI runner, and a test would pass on one. -->
+                        <environmentVariables>
+                            <SOKAR_TASK_SCOPES>off</SOKAR_TASK_SCOPES>
+                        </environmentVariables>
                     </configuration>
                 </plugin>
 

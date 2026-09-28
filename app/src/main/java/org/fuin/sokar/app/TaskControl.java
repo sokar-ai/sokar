@@ -243,6 +243,7 @@ public final class TaskControl {
 
         if (purge) {
             context.podman().remove(container);
+            closeJournal(container);
         } else {
             context.podman().stop(container);
             // Written on the way down, while the answer is still knowable. Whoever removes this
@@ -563,7 +564,10 @@ public final class TaskControl {
                 command = reusingToken(command);
             }
             try {
-                final ProcessBuilder builder = new ProcessBuilder(command)
+                // A scope of its own, as at the first start: a task resumed through the daemon must not
+                // hand its helpers to the daemon's control group.
+                final ProcessBuilder builder = new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + state.getFileName() + " " + helper.name(),
+                        command))
                         .redirectErrorStream(true)
                         .redirectOutput(ProcessBuilder.Redirect
                                 .appendTo(state.resolve(helper.name() + ".log").toFile()));
@@ -620,5 +624,29 @@ public final class TaskControl {
                 context.podman().imageId(image[0])
                         .filter(now -> !now.equals(image[1]))
                         .map(now -> image[0])).orElse(null);
+    }
+
+    /**
+     * Keeps a removed task's clearance journal, under a name no later task will read.
+     * <p>
+     * A container name no longer carries a timestamp, so the next task of the same project and name
+     * gets the same one - and a watcher reads its journal back so that a resumed task is not asked
+     * twice. Left in place, the journal handed every decision of a removed task to a new one: measured,
+     * when a grant from an earlier run left an address open that the new task never asked for. Renamed
+     * rather than deleted, because it is an audit record.
+     *
+     * @param container The removed task's container.
+     */
+    private void closeJournal(String container) {
+        final Path journal = context.paths().clearanceJournal(container);
+        if (!Files.isRegularFile(journal)) {
+            return;
+        }
+        try {
+            Files.move(journal, journal.resolveSibling(container + ".removed-" + System.currentTimeMillis() + ".jsonl"));
+        } catch (java.io.IOException ex) {
+            // Kept where it is: the next task of this name then starts with its decisions, which is
+            // what happened before this existed - worse, but nothing is lost.
+        }
     }
 }

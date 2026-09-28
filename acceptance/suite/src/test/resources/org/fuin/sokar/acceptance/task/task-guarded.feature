@@ -139,6 +139,8 @@ Feature: A task in a guarded project, from its image to what it hands back
       podman exec {task} sh -c 'curl -s -o /dev/null --max-time 12 https://pypi.org/'
       address=$(awk -F '\t' '$1 == "pypi.org" { print $2; exit }' {state}/granted-addresses)
       [ -n "$address" ] && echo "an address is recorded against the name"
+      # What the watcher decided, shown so that a failure below says why.
+      sed 's/^/watcher: /' {state}/clearance.log
       sokar shield egress --task {task} --remove-domain pypi.org --dry-run
       podman exec {task} getent hosts pypi.org >/dev/null && echo "after a dry run: resolves" || echo "after a dry run: does not resolve"
       sokar shield egress --task {task} --remove-domain pypi.org

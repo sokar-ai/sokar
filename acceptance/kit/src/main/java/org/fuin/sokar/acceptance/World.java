@@ -43,7 +43,7 @@ public final class World implements AutoCloseable {
 
     private boolean daemonWasRunning;
 
-    private @Nullable String daemonPid;
+    private @Nullable String daemonUnit;
 
     /** Every project the kit made in this run, in any scenario - removed once the run is over. */
     private static final java.util.Set<String> PROJECTS = java.util.Collections.synchronizedSet(
@@ -148,11 +148,11 @@ public final class World implements AutoCloseable {
      * Remembers the daemon this scenario runs, and whether the account's has to be started again.
      *
      * @param wasRunning {@code true} if the account's daemon was stopped for this scenario.
-     * @param pid The scenario's daemon's process, or {@code null} for none.
+     * @param unit The scenario's daemon's unit, or {@code null} for none.
      */
-    public void daemon(boolean wasRunning, @Nullable String pid) {
+    public void daemon(boolean wasRunning, @Nullable String unit) {
         daemonWasRunning = wasRunning;
-        daemonPid = pid;
+        daemonUnit = unit;
     }
 
     /**
@@ -165,12 +165,12 @@ public final class World implements AutoCloseable {
     }
 
     /**
-     * The process of the daemon this scenario runs.
+     * The unit of the daemon this scenario runs.
      *
-     * @return Its pid, or {@code null} for none.
+     * @return Its name, or {@code null} for none.
      */
-    public @Nullable String daemonPid() {
-        return daemonPid;
+    public @Nullable String daemonUnit() {
+        return daemonUnit;
     }
 
     /**

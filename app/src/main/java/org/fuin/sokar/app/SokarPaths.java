@@ -500,8 +500,9 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
      * Under the state directory, not beside the rest of the task's files. Everything else a task
      * writes is in the runtime directory, which the kernel clears at logout and
      * {@code task stop --remove} deletes - and a record of what an agent tried to reach that goes
-     * when the task goes is not an audit record. Named by the container, so it is per run: a
-     * decision made for one run of a task is not silently in force for the next.
+     * when the task goes is not an audit record. Named by the container, and renamed when the task
+     * is removed, so a decision made for one task is not silently in force for the next one of the
+     * same name.
      *
      * @param container Container name.
      * @return The journal file.
