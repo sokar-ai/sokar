@@ -68,9 +68,13 @@ RUN set -eux; \
 # Extended keys on, so a modified Enter reaches an agent that asks for one: with it
 # off, agents in a task warned at every start that Shift+Enter may not work. '-q',
 # because a tmux older than the option would otherwise complain about the line.
+# And xterm-like clients are told they take modified keys: tmux asks a client for
+# them only when its terminal-features say so, and a client that answers the
+# terminal queries plainly - the interface's does - is otherwise never asked.
 RUN mkdir -p /etc/sokar \
     && printf 'set -g history-limit 10000\n' > /etc/sokar/tmux.conf \
     && printf 'set -gq extended-keys on\n' >> /etc/sokar/tmux.conf \
+    && printf "set -asq terminal-features 'xterm*:extkeys'\n" >> /etc/sokar/tmux.conf \
     && if infocmp tmux-256color >/dev/null 2>&1; then \
         printf 'set -g default-terminal "tmux-256color"\n' >> /etc/sokar/tmux.conf; \
     elif infocmp screen-256color >/dev/null 2>&1; then \
@@ -98,5 +102,5 @@ ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin
 ENV LANG=C.UTF-8
 
 LABEL org.fuin.sokar.project="uc"
-LABEL org.fuin.sokar.recipe="0be812316215606d"
+LABEL org.fuin.sokar.recipe="c5f3f1e65deebfd5"
 LABEL org.fuin.sokar.security-class="guarded"

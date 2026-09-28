@@ -138,7 +138,8 @@ class ContainerfileTest {
         assertThat(Containerfile.render(project))
                 .contains("history-limit " + Containerfile.SCROLLBACK)
                 .contains("/etc/sokar/tmux.conf")
-                .contains("set -gq extended-keys on");
+                .contains("set -gq extended-keys on")
+                .contains("set -asq terminal-features 'xterm*:extkeys'");
     }
 
     @Test

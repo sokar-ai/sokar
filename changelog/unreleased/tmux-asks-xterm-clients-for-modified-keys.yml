@@ -1,0 +1,2 @@
+title: "The tmux inside a task tells xterm-like clients they take modified keys, so it asks them for a modified Enter even when the client answers its terminal queries plainly, as the interface's does."
+type: fixed
