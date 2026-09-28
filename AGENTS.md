@@ -86,7 +86,10 @@ package runs nothing when it installs. It then measures the three things that de
 the binary the login PATH finds, the daemon's executable, the hooks the descriptors name - and
 stops unless all three are the account's, and it checks the machine-wide package did not change.
 Going back to the package means removing those binaries, hooks and that unit: the machine-wide
-install refuses while a copy in `~/.local/bin` shadows it.
+install refuses while a copy in `~/.local/bin` shadows it. **A non-login shell still finds the package's
+`sokar`**: `~/.local/bin` is on PATH only once a login shell has read the profile, so `ssh
+user@host 'sokar …'` runs `/usr/bin/sokar` - use `bash -lc`, or the full path. The daemon and the
+hooks are not affected: they name the account's copy by path.
 
 The scenarios that start a task drive the **stub** and name it, with `--agent stub`: a machine a
 person develops on carries real agents too, and a scenario that left the choice to Sokar would be
