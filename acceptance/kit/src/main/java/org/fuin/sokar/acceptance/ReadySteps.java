@@ -61,7 +61,7 @@ public class ReadySteps {
         final Ready ready = declared(agent).orElseThrow(() -> new AssertionError("The " + agent
                 + " agent declares no ready marker, so whether it reached work without being asked cannot be told."
                 + " It declares one as 'session: ready_marker:' in its manifest."));
-        world.terminal().await(ready.text(), ready.bound());
+        world.terminal().awaitShown(ready.text(), ready.bound());
     }
 
     /**
