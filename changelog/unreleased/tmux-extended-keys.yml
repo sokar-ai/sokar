@@ -1,0 +1,2 @@
+title: "The tmux inside a task has extended keys on, so a modified Enter reaches an agent that asks for one; agents no longer warn at every start that Shift+Enter may not work. Images rebuild once for it."
+type: fixed

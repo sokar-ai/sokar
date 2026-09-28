@@ -64,8 +64,13 @@ RUN set -eux; \
 # default is 'screen', which is eight. Chosen at build time by asking this image
 # what it can resolve, because a default-terminal naming an entry the image lacks
 # is worse than the eight colours it was meant to replace.
+#
+# Extended keys on, so a modified Enter reaches an agent that asks for one: with it
+# off, agents in a task warned at every start that Shift+Enter may not work. '-q',
+# because a tmux older than the option would otherwise complain about the line.
 RUN mkdir -p /etc/sokar \
     && printf 'set -g history-limit 10000\n' > /etc/sokar/tmux.conf \
+    && printf 'set -gq extended-keys on\n' >> /etc/sokar/tmux.conf \
     && if infocmp tmux-256color >/dev/null 2>&1; then \
         printf 'set -g default-terminal "tmux-256color"\n' >> /etc/sokar/tmux.conf; \
     elif infocmp screen-256color >/dev/null 2>&1; then \
@@ -93,5 +98,5 @@ ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin
 ENV LANG=C.UTF-8
 
 LABEL org.fuin.sokar.project="uc"
-LABEL org.fuin.sokar.recipe="d7e76362d2bc98a6"
+LABEL org.fuin.sokar.recipe="0be812316215606d"
 LABEL org.fuin.sokar.security-class="guarded"
