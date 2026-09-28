@@ -59,4 +59,17 @@ class AgentDescriptionTest {
                 .contains("SOKAR_E2E_PROMPT_FLAG='-p' ").endsWith("SOKAR_E2E_ENDPOINT='socket' ");
     }
 
+    @Test
+    void findsTheAgentBinaryAmongWhatTheModulesLeftInTarget() {
+        // What a leg found on 2026-09-28: the agent API's jars and bill share the prefix.
+        final List<String> found = List.of(
+                "/home/build/sokar/agents/api/target/sokar-agent-api-0.1.0-SNAPSHOT-cyclonedx.json",
+                "/home/build/sokar/agents/api/target/sokar-agent-api-0.1.0-SNAPSHOT.jar",
+                "/home/build/sokar/agents/api/target/sokar-agent-api-0.1.0-SNAPSHOT-sources.jar",
+                "/home/build/sokar/agents/one/target/sokar-agent-one-0.1.0-SNAPSHOT.jar",
+                "/home/build/sokar/agents/one/target/sokar-agent-one",
+                "/home/build/sokar/agents/one/target/sokar-agent-one-0.1.0-SNAPSHOT-cyclonedx.json");
+
+        assertThat(Leg.agentBinaries(found)).containsExactly("/home/build/sokar/agents/one/target/sokar-agent-one");
+    }
 }

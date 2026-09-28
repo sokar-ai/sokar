@@ -400,8 +400,8 @@ public final class Leg {
      * @throws IOException If the agent cannot be found or described.
      */
     static String described(Ssh build) throws IOException {
-        final List<String> agents = build.run("ls -1 " + REPO + "/agents/*/target/sokar-agent-* 2>/dev/null")
-                .out().lines().map(String::strip).filter(line -> !line.isEmpty()).toList();
+        final List<String> agents = agentBinaries(build.run("ls -1 " + REPO + "/agents/*/target/sokar-agent-* 2>/dev/null")
+                .out().lines().toList());
         if (agents.size() != 1) {
             throw new IOException("tier 1 drives the one agent this build makes, and it made " + agents.size()
                     + ": " + agents);
@@ -413,6 +413,24 @@ public final class Leg {
         final String name = agents.getFirst().substring(agents.getFirst().lastIndexOf("sokar-agent-")
                 + "sokar-agent-".length());
         return assignments(name, AgentDescription.parse(describe.out()));
+    }
+
+    /**
+     * Keeps the agent binaries out of what a module's {@code target} holds.
+     * <p>
+     * A binary is named after its module, {@code agents/<name>/target/sokar-agent-<name>}, with no
+     * extension; the agent API's module holds {@code sokar-agent-api-0.1.0-SNAPSHOT.jar} and its bill
+     * under the same prefix, and the first version of this counted six of them.
+     *
+     * @param paths What {@code ls} found.
+     * @return The binaries.
+     */
+    static List<String> agentBinaries(List<String> paths) {
+        return paths.stream().map(String::strip).filter(path -> {
+            final String[] parts = path.split("/");
+            return parts.length >= 3 && "target".equals(parts[parts.length - 2])
+                    && parts[parts.length - 1].equals("sokar-agent-" + parts[parts.length - 3]);
+        }).toList();
     }
 
     /**
