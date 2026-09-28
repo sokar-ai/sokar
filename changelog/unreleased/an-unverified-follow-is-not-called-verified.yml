@@ -1,0 +1,2 @@
+title: "A task started in a project followed with --unverified no longer reports its configuration as verified: the source line says it is unverified, and that whoever can push to the repository decides what the task may reach"
+type: fixed

@@ -13,12 +13,13 @@ Without `sokar.acceptance.host` the module is skipped, so an ordinary build is u
 report lands in `acceptance/suite/target/acceptance.html`, and on GitHub as inline annotations and
 a job summary - see the kit's README for both.
 
-## Why this exists beside `buildtools/e2e-tier1.sh`
+## What it covers
 
-That suite runs commands over ssh **without a pty**, so `isTerminal()` is false in everything it
-does. Every behavior gated on that is invisible to it - the offer to start a stopped task, color on
-work that exists nowhere else, a passphrase read without being echoed - and each of those was
-checked by hand until it was written down here.
+Every command a person types, and what a task is promised end to end: its image, its hardening, the
+credential it never sees, the names and ports it may reach, the gate its work leaves by, and what a
+refused start leaves behind. A scenario can drive a terminal - the offer to start a stopped task,
+color on work that exists nowhere else, a passphrase read without being echoed all exist only
+there - or assert the absence of one, which is half of every such behavior.
 
 ## Writing a scenario
 

@@ -279,6 +279,22 @@ public class TerminalSteps {
      */
     @Given("a project called {string} of class {string} with a file in it")
     public void aProjectOfClass(String name, String securityClass) throws IOException {
+        aProjectSaying(name, securityClass, "");
+    }
+
+    /**
+     * Creates a small git project on the machine whose project file says more than its name, class
+     * and base image - the egress sets it declares, a snippet its image runs.
+     *
+     * @param name The project's name and directory.
+     * @param securityClass Its class: {@code offline}, {@code guarded} or {@code online}.
+     * @param more YAML appended to the project file, right after its image block's {@code base_image}:
+     *        indented by two spaces it continues that block (a {@code snippet}), unindented it starts
+     *        its own ({@code egress}).
+     * @throws IOException If the machine cannot be reached.
+     */
+    @Given("a project called {string} of class {string} whose project file also says:")
+    public void aProjectSaying(String name, String securityClass, String more) throws IOException {
         // Built by running the commands rather than by writing files from here: a fixture the
         // suite creates is a fixture that can be right while the product is wrong.
         // Built by running the commands rather than by writing files from here: a fixture the
@@ -304,8 +320,14 @@ public class TerminalSteps {
                 + "'project:' '  name: \"" + name + "\"' '  security_class: \"" + securityClass
                 + "\"' "
                 + "'image:' '  base_image: \"ubuntu:24.04\"' > project.yml");
+        if (!more.isBlank()) {
+            world.run("cd ~/" + name + " && printf '%s\\n' " + more.lines().map(Shell::quote)
+                    .collect(java.util.stream.Collectors.joining(" ")) + " >> project.yml");
+        }
         world.run("cd ~/" + name + " && git add -A && git commit -q -m initial");
-        world.run("sokar project follow " + name + " ~/" + name + " --unverified");
+        final Ssh.Output followed = world.run("sokar project follow " + name + " ~/" + name + " --unverified");
+        // Said here rather than at the first task start, which is minutes later and reads as a broken build.
+        assertThat(followed.status()).as("following %s failed:%n%s", name, followed.all()).isZero();
     }
 
     /** Left inside a fixture's .git, never committed: what says a directory is one a run made. */
@@ -372,7 +394,33 @@ public class TerminalSteps {
      */
     @When("a script runs {string} about the task")
     public void aScriptRunsAboutTheTask(String command) throws IOException {
-        world.output(world.run(World.aboutTask(World.expand(command), world.task().container())));
+        world.output(world.run(World.aboutTask(World.expand(command), world.task())));
+    }
+
+    /**
+     * Runs a script of several lines with no terminal, in {@code bash}.
+     * <p>
+     * For a check that needs a file made first or two commands compared - which a scenario would
+     * otherwise spread over steps that share nothing but the machine.
+     *
+     * @param script What to run, with {@code ${NAME}} expanded from the runner's environment.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("a script runs:")
+    public void aScriptRunsLines(String script) throws IOException {
+        world.output(world.run("bash -c " + Shell.quote(World.expand(script))));
+    }
+
+    /**
+     * Runs a script of several lines with no terminal about the task this scenario started.
+     *
+     * @param script What to run, with {@code {task}} and {@code {state}} where the task's container
+     *        name and its state directory go.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("a script runs about the task:")
+    public void aScriptRunsLinesAboutTheTask(String script) throws IOException {
+        world.output(world.run("bash -c " + Shell.quote(World.aboutTask(World.expand(script), world.task()))));
     }
 
     /**
@@ -461,6 +509,20 @@ public class TerminalSteps {
                 .map(String::strip).toList();
         final String all = world.output().all();
         assertThat(any).as("output was:%n%s", all).anyMatch(all::contains);
+    }
+
+    /**
+     * Asserts the last script wrote a line that matches a pattern, for a report whose columns are
+     * padded to whatever the widest entry was.
+     *
+     * @param pattern A regular expression one whole line must match.
+     */
+    @Then("its output has a line matching {string}")
+    public void itsOutputHasALineMatching(String pattern) {
+        final java.util.regex.Pattern line = java.util.regex.Pattern.compile(pattern);
+        final String all = world.output().all();
+        assertThat(all.lines().map(String::strip).anyMatch(each -> line.matcher(each).matches()))
+                .as("no line matches %s in:%n%s", pattern, all).isTrue();
     }
 
     /** Asserts the last script painted nothing - the other half of every color scenario. */

@@ -70,6 +70,22 @@ public class LiveTaskSteps {
     }
 
     /**
+     * Starts a task of a name the scenario chooses and leaves it running.
+     * <p>
+     * For scenarios that share one project, and so one image: each names its own task, because a
+     * start of a task that is already running is refused.
+     *
+     * @param task The task's name.
+     * @param project Project directory in the operator's home.
+     * @param agent Which agent to run.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("a task called {string} is started in {string} for the {string} agent and left running")
+    public void aNamedTaskIsStarted(String task, String project, String agent) throws IOException {
+        started(world.run(startCommand(task, project, agent, null)));
+    }
+
+    /**
      * Starts a task and leaves it running, through a provider the scenario names.
      *
      * @param project Project directory in the operator's home.
@@ -91,8 +107,22 @@ public class LiveTaskSteps {
      * @return The command.
      */
     static String startCommand(String project, String agent, @Nullable String provider) {
+        return startCommand(null, project, agent, provider);
+    }
+
+    /**
+     * Builds the command that starts a task of a given name and leaves it running.
+     *
+     * @param task The task's name, or {@code null} for the default.
+     * @param project Project directory in the operator's home.
+     * @param agent Which agent to run.
+     * @param provider The provider, or {@code null} for the agent's default.
+     * @return The command.
+     */
+    static String startCommand(@Nullable String task, String project, String agent, @Nullable String provider) {
         // --clearance deny: a scenario must never raise a prompt on somebody's desktop and then wait for it.
-        return "timeout " + START_SECONDS + " sokar task start --project " + Shell.quote(TaskSteps.aName(project))
+        return "timeout " + START_SECONDS + " sokar task start "
+                + (task == null ? "" : Shell.quote(TaskSteps.aName(task)) + " ") + "--project " + Shell.quote(TaskSteps.aName(project))
                 + " --repository " + Shell.quote(TaskSteps.aName(project))
                 + " --agent " + Shell.quote(agent)
                 + (provider == null ? "" : " --provider " + Shell.quote(provider))

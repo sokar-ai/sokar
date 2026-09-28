@@ -70,6 +70,23 @@ class ProjectSourceTest {
     }
 
     @Test
+    void aCloneFollowedWithoutAnAnchorIsNotCalledVerified(@TempDir final Path dir) throws IOException {
+        final SokarContext context = context(dir);
+        new FollowedProjects(context.paths().followed()).write(
+                new FollowedProjects.Followed("acme", "/srv/acme", "a1b2c3", "2026-09-19T00:00:00Z", "APPLIED",
+                        "", "", "", true));
+        Files.createDirectories(context.paths().followedClone("acme"));
+        Files.writeString(context.paths().followedClone("acme").resolve("project.yml"), "project:\n  name: \"acme\"\n");
+
+        final ProjectSource.Found found = ProjectSource.resolve(context, "acme");
+
+        // Applied, and nobody checked a signature on it: a task start said "verified" about exactly this.
+        assertThat(found.commit()).isEqualTo("a1b2c3");
+        assertThat(found.unverified()).isTrue();
+        assertThat(found.verified()).isFalse();
+    }
+
+    @Test
     void aProjectNobodyFollowsStillResolvesToWhereItWasRecorded(@TempDir final Path dir)
             throws IOException {
         final SokarContext context = context(dir);

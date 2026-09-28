@@ -136,7 +136,7 @@ public final class Leg {
 
             // Before anything here runs podman, because that is the only moment the fault shows.
             // With NoNewPrivileges=yes the unit could not set up rootless podman's user namespace
-            // after a boot, and every daemon started any other way - by hand here, by tier 1, or
+            // after a boot, and every daemon started any other way - by hand here, by a scenario, or
             // after somebody had run podman at a terminal - sailed past it. The unit's own
             // [Service] properties are applied to one podman call that has to make that namespace,
             // and a pause process that already exists would prove nothing, so it is refused.
@@ -159,15 +159,24 @@ public final class Leg {
             // ~/.local/bin before /usr/libexec, so an unprivileged install is a supported shape
             // rather than a shortcut - and it is the shape a task actually runs in: rootless.
             //
-            // All four copies matter. An earlier version of this driver left out the providers
-            // and the binary, and the leg failed with "No provider 'anthropic' is declared" -
-            // which reads like a broken machine and was a broken transcription.
+            // Every copy matters. An earlier version of this driver left out the providers and the
+            // binary, and the leg failed with "No provider 'anthropic' is declared" - which reads
+            // like a broken machine and was a broken transcription. The agent is the one this build
+            // made, found rather than named; the daemon is started by the scenarios that ask it.
             step("installing as a package would");
+            final List<String> agents = agentBinaries(build.run("ls -1 " + REPO + "/agents/*/target/sokar-agent-*"
+                    + " 2>/dev/null").out().lines().toList());
+            if (agents.isEmpty()) {
+                throw new IOException("the build made no agent, so no scenario that starts a task can run");
+            }
             run(build, "mkdir -p ~/.local/bin ~/.local/share/sokar/agents "
-                    + "~/.local/share/sokar/providers"
+                    + "~/.local/share/sokar/providers ~/.local/share/sokar/egress"
                     + " && cp " + REPO + "/hooks/target/sokar-hook-* ~/.local/bin/"
-                    + " && cp " + REPO + "/app/target/sokar ~/.local/bin/"
+                    + " && cp " + REPO + "/app/target/sokar " + REPO + "/daemon/target/sokard ~/.local/bin/"
                     + " && cp " + REPO + "/providers/*.yaml ~/.local/share/sokar/providers/"
+                    + " && cp " + REPO + "/egress/*.yaml ~/.local/share/sokar/egress/"
+                    + " && cp " + String.join(" ", agents.stream().map(AgentLeg::quote).toList())
+                    + " ~/.local/share/sokar/agents/"
                     + " && ~/.local/bin/sokar setup");
 
             step("what sokar thinks of this machine");
@@ -177,10 +186,6 @@ public final class Leg {
             System.out.println(build.run("podman --version; cd " + REPO
                     + " && PATH=$HOME/.local/bin:$PATH sokar doctor 2>&1 "
                     + "|| echo '(sokar doctor failed)'").all().strip());
-
-            step("tier 1, on " + os);
-            run(build, "cd " + REPO + " && PATH=$HOME/.local/bin:$PATH " + described(build)
-                    + "bash buildtools/e2e-tier1.sh");
 
             if (into != null) {
                 step("fetching the binaries");
@@ -389,33 +394,6 @@ public final class Leg {
     }
 
     /**
-     * Reads the agent the build made, and says what tier 1 needs of it as variable assignments.
-     * <p>
-     * Found by looking rather than named: this repository builds one agent, and a driver that
-     * named it would be the one place outside {@code agents/} that did. More than one, or none, is
-     * a build that is not the one this leg expects, and it stops rather than picking.
-     *
-     * @param build The machine it was built on.
-     * @return {@code NAME='value' ...} and a trailing space, to go before the command.
-     * @throws IOException If the agent cannot be found or described.
-     */
-    static String described(Ssh build) throws IOException {
-        final List<String> agents = agentBinaries(build.run("ls -1 " + REPO + "/agents/*/target/sokar-agent-* 2>/dev/null")
-                .out().lines().toList());
-        if (agents.size() != 1) {
-            throw new IOException("tier 1 drives the one agent this build makes, and it made " + agents.size()
-                    + ": " + agents);
-        }
-        final Ssh.Output describe = build.run(AgentLeg.quote(agents.getFirst()) + " describe");
-        if (describe.status() != 0) {
-            throw new IOException(agents.getFirst() + " describe failed: " + describe.all().strip());
-        }
-        final String name = agents.getFirst().substring(agents.getFirst().lastIndexOf("sokar-agent-")
-                + "sokar-agent-".length());
-        return assignments(name, AgentDescription.parse(describe.out()));
-    }
-
-    /**
      * Keeps the agent binaries out of what a module's {@code target} holds.
      * <p>
      * A binary is named after its module, {@code agents/<name>/target/sokar-agent-<name>}, with no
@@ -431,20 +409,6 @@ public final class Leg {
             return parts.length >= 3 && "target".equals(parts[parts.length - 2])
                     && parts[parts.length - 1].equals("sokar-agent-" + parts[parts.length - 3]);
         }).toList();
-    }
-
-    /**
-     * Writes the variables tier 1 reads, each quoted for the shell.
-     *
-     * @param agent The agent's name.
-     * @param description What it said about itself.
-     * @return {@code NAME='value' ...} and a trailing space.
-     */
-    static String assignments(String agent, AgentDescription description) {
-        final StringBuilder line = new StringBuilder("SOKAR_E2E_AGENT=" + AgentLeg.quote(agent) + " ");
-        description.environment().forEach((key, value) -> line.append(key).append('=')
-                .append(AgentLeg.quote(value)).append(' '));
-        return line.toString();
     }
 
     private static void run(Ssh ssh, String command) throws IOException {

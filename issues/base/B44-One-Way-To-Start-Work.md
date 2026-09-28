@@ -311,8 +311,7 @@ Points 5 and 6 are the frontend's, asked for on the channel on 2026-09-11.
   token it already had, or reports that it did not.
 - `remove` on a running task refuses; `remove --force` stops and removes; `HOLDS_WORK` and
   `NOTHING_KNOWS` still refuse, **after a reboot as well**, which is the case that fails today.
-- Every one of these is exercised from a terminal by
-  [B27](B27-Testing-What-A-Person-Actually-Does.md). The whole defect was invisible to anything
+- Every one of these is exercised from a terminal by the acceptance suite. The whole defect was invisible to anything
   that did not type what a person types.
 
 ## To be checked

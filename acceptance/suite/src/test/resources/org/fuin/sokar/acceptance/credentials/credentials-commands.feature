@@ -73,3 +73,33 @@ Feature: The credentials commands
     Then it exits non-zero
     And its output contains "offers no key with that fingerprint right now"
     And its output contains "Nothing was recorded"
+
+  Scenario: git gets the token for an https remote out of the vault
+    # Asked through git itself, which runs the helper chain the way a fetch does, rather than
+    # through an imitation of its protocol. The token is public by construction.
+    Given a vault of this scenario's own, unlocked with the passphrase "acceptance"
+    When a script runs:
+      """
+      printf 'a-token-for-the-acceptance-run' | sokar vault put git.token.forge.invalid --type token >/dev/null
+      printf 'protocol=https\nhost=forge.invalid\n\n' \
+          | git -c credential.helper="$(command -v sokar) vault credential --entry git.token.forge.invalid" credential fill
+      """
+    Then it exits zero
+    And its output contains "password=a-token-for-the-acceptance-run"
+
+  Scenario: a credential declared against the vault is ready, and forgetting it leaves the value
+    # The record half, with no value involved at any point - the property that lets an interface do
+    # the same over a socket no secret may cross.
+    Given a vault of this scenario's own, unlocked with the passphrase "acceptance"
+    When a script runs:
+      """
+      printf 'a-token-for-the-acceptance-run' | sokar vault put git.token.forge.invalid --type token >/dev/null
+      sokar credentials forget https://forge.invalid/acme/ >/dev/null 2>&1
+      sokar credentials declare https://forge.invalid/acme/ --kind token --vault git.token.forge.invalid \
+          && sokar credentials check https://forge.invalid/acme/x.git \
+          && sokar credentials forget https://forge.invalid/acme/
+      """
+    Then it exits zero
+    And its output contains "ready"
+    And its output contains "still in the vault"
+    And its output does not contain "a-token-for-the-acceptance-run"

@@ -18,15 +18,32 @@ class WorldTest {
 
     @Test
     void putsTheTaskWhereTheCommandSaysQuoted() {
-        assertThat(World.aboutTask("sokar talk held {task}", "sokar-p-shell-1790000000000"))
+        assertThat(World.aboutTask("sokar talk held {task}", task("sokar-p-shell-1790000000000", null)))
                 .isEqualTo("sokar talk held 'sokar-p-shell-1790000000000'");
+    }
+
+    @Test
+    void putsTheStateDirectoryWhereTheCommandSaysQuoted() {
+        assertThat(World.aboutTask("cat {state}/hooks.log", task("sokar-p-shell-1", "/run/user/1/sokar/sokar-p-shell-1")))
+                .isEqualTo("cat '/run/user/1/sokar/sokar-p-shell-1'/hooks.log");
     }
 
     @Test
     void refusesACommandAboutTheTaskThatDoesNotSayWhere() {
         // Run as written, it would act on no task and fail in a way that reads as the product's.
-        assertThatThrownBy(() -> World.aboutTask("sokar talk held", "sokar-p-shell-1"))
+        assertThatThrownBy(() -> World.aboutTask("sokar talk held", task("sokar-p-shell-1", null)))
                 .isInstanceOf(AssertionError.class).hasMessageContaining("does not say where");
+    }
+
+    @Test
+    void refusesTheStateDirectoryOfATaskWhoseStartNamedNone() {
+        // Replaced by nothing, the command would read the root of the machine rather than the task's files.
+        assertThatThrownBy(() -> World.aboutTask("ls {state}", task("sokar-p-shell-1", null)))
+                .isInstanceOf(AssertionError.class).hasMessageContaining("did not say where");
+    }
+
+    private static World.Task task(String container, @org.jspecify.annotations.Nullable String state) {
+        return new World.Task(container, state, "");
     }
 
     @Test

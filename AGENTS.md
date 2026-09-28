@@ -8,9 +8,9 @@ because a rule without its reason gets discarded by the next person.
 ## Before you propose a push
 
 **`mvn test` is not "the tests".** It runs surefire, which is unit tests only - a test that needs
-podman belongs in `buildtools/e2e-tier1.sh`, and one that needs a machine belongs in the acceptance
-suite. Both are invisible to surefire, so "1131 tests green" can be true while the product is
-broken in ways CI will find fifteen minutes and two rented machines later.
+podman or a machine belongs in the acceptance suite, which surefire never sees. So "1131 tests
+green" can be true while the product is broken in ways CI will find fifteen minutes and two rented
+machines later.
 
 **So the acceptance suite runs against a real machine before a push is suggested, not after.**
 
@@ -67,21 +67,18 @@ contract with no checkout of this one. What is in `agents/` is the contract and
 the **stub**, which exists so the acceptance suite has something to drive; a
 suite that cannot run is one that quietly stops being maintained.
 
-**Testing by hand rather than by leg.** `buildtools/e2e-tier1.sh` runs once on a machine
-that is then deleted, which is the wrong shape for sitting in front of an interface.
+**Testing by hand rather than by leg.** A leg runs the suite once on a machine that is then
+deleted, which is the wrong shape for sitting in front of an interface.
 `./mvnw -pl buildtools/hetzner exec:java@deploy`, with `SOKAR_VM=user@host` and `SOKAR_VM_KEY`,
 builds the same packages CI would publish and installs them on a machine that stays: it enables
 lingering so tasks survive a logout, restarts the daemon, and prints the socket an interface
 connects to. `-Ddeploy.options=--skip-build` installs what is already in `target/`. The interface is not installed by it - that runs natively where
 the person is and forwards the socket over ssh.
 
-`SOKAR_E2E_AGENT` selects which agent `buildtools/e2e-tier1.sh` drives, defaulting to
-`stub`. Everything else it needs — the tool's name, its prompt flag, its provider, the
-variables it is pointed at a proxy with — is read from that agent's own `describe`
-response, and nothing of one agent is hardcoded: the tool is not looked for at
-`~/.local/bin/<name>`; the proxy variable is not found by matching `*UNIX_SOCKET`, which
-is one agent's spelling and not a rule; and `sokar agents | grep` is not used, because it
-fails under `set -o pipefail` whenever *any* installed agent is unusable.
+The scenarios that start a task drive the **stub** and name it, with `--agent stub`: a machine a
+person develops on carries real agents too, and a scenario that left the choice to Sokar would be
+refused as ambiguous there. What they assert about it - the names it is refused, the host its
+broker reaches - is read from `sokar agents --verbose` rather than written down twice.
 
 ## Code
 
@@ -180,7 +177,7 @@ own, as `shield egress --task` does), and `vault serve` would write its token to
   fails with "expected MEASURED but was FAILED" and throws away the detail the
   object is carrying. `.as("git said: %s", x.detail())` turns a reproduction
   round into a readable CI log.
-- A test that needs podman belongs in `buildtools/e2e-tier1.sh`, not in surefire.
+- A test that needs podman belongs in the acceptance suite, not in surefire.
   Unit tests must run without a container runtime.
 - **Never commit with a failing suite.** Run `./mvnw -B test` as its own step,
   read the result, then commit. Chaining build-and-commit in one command commits
@@ -240,12 +237,10 @@ third prepares a build machine before Maven can use it; the fourth is a test on 
   unpacked. The build only reads `musl.home`; a Maven plugin would be the same downloads and the same
   `make` with more lines around them.
 
-- `buildtools/e2e-tier1.sh` - tier 1, run by `Leg` on a rented machine: 1,300 lines of podman,
-  nft and a real task driven end to end, checked step by step. The eight fields of the agent's
-  description are read in Java by the leg and handed in as its environment, so no build machine
-  needs a second runtime. The rest moves into the Java acceptance suite scenario by scenario, which
-  is B27's work ([index](issues/base/README.md)); until then a shell script that drives shell
-  commands is the honest shape.
+- The acceptance suite is where the end-to-end checks are: a real image, a real container, the
+  firewall, the broker, the gate and the daemon, driven over ssh as a person or a script would. A
+  leg installs the build into the build user's own directories - binaries, hooks, the daemon,
+  providers, egress sets and the agent it made - and runs every scenario against that.
 
 Nothing else in the repository is a script: the package check, the VM deploy, the FFM metadata
 check and the bill comparison are Java.
@@ -398,8 +393,8 @@ strategy in it, never a copy.
 - **The git gate binds loopback, and only one of three ways of asking for it is
   right.** A rootless container cannot reach the host's loopback until pasta is
   told to map it there. Passing `--network pasta:--map-host-loopback,...`
-  **replaces** podman's own pasta defaults: `e2e-tier1` then reports **open
-  egress** with the ruleset still loaded. `pasta_options` in the `containers.conf`
+  **replaces** podman's own pasta defaults: an undeclared address is then
+  **open** with the ruleset still loaded. `pasta_options` in the `containers.conf`
   drop-in keeps those defaults but applies to every container the operator runs.
   What Sokar does is the same setting in a `CONTAINERS_CONF_OVERRIDE` file, for
   the `podman start` it runs itself - defaults kept, other containers untouched

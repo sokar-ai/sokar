@@ -323,7 +323,10 @@ public final class TaskLaunch {
                 projectFile = found.file();
                 verifiedAt = found.commit();
                 project = ProjectReader.read(projectFile);
-                out.println("source         " + verifiedAt + " (followed, verified)");
+                // Said as it is: a follow taken without an anchor checked no signature, and calling
+                // its commit verified is the one line that tells somebody who decides what this task may reach.
+                out.println("source         " + verifiedAt + (found.verified() ? " (followed, verified)"
+                        : " (followed, unverified - whoever can push there decides what tasks here may reach)"));
             }
 
             // Where this project's file is, for an interface that has no filesystem on this
@@ -1126,7 +1129,8 @@ public final class TaskLaunch {
     }
 
     /**
-     * The commit this task's configuration was verified at, or "" when nothing verified it.
+     * The commit this task's configuration was applied at, or "" for a project nobody follows. Whether a
+     * signature was checked on it is the follow's, and {@link ProjectSource.Found#verified()} says which.
      * <p>
      * A field rather than a local, because the start that labels the container happens inside a
      * scope that captures it - and it is written once, where the project is resolved.

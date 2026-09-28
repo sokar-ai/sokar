@@ -361,7 +361,7 @@ Per the rule that a test nobody has watched fail is a test nobody has checked �
   a put fail for a reason nobody can read.
 
 Everything involving a real mount, a real container writing into `out/`, and a read-only `in/`
-belongs in `buildtools/e2e-tier1.sh` — unit tests must run without a container runtime.
+belongs in the acceptance suite — unit tests must run without a container runtime.
 
 ## Alternatives considered
 

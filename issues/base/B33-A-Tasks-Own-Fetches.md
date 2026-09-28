@@ -58,4 +58,4 @@ an authentication failure's clothes.
   without the setting. Until that is done this requirement is somebody else's bug report.
 - **Which images are affected**, if it does. Fedora bases use a different curl and may not be.
 - **Whether the acceptance suite should cover it.** It is a scenario a person would do - start a
-  task, clone something public - and B27 now has the machinery to run exactly that.
+  task, clone something public - and the acceptance suite has the machinery to run exactly that.

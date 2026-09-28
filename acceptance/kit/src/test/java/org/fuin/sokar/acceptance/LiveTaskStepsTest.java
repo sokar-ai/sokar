@@ -30,6 +30,18 @@ class LiveTaskStepsTest {
     }
 
     @Test
+    void namesTheTaskBeforeItsOptionsWhenTheScenarioChoseOne() {
+        assertThat(LiveTaskSteps.startCommand("image", "live", "pi", null))
+                .startsWith("timeout 900 sokar task start 'image' --project 'live' --repository 'live'");
+    }
+
+    @Test
+    void refusesATaskNameThatIsNotOne() {
+        assertThatThrownBy(() -> LiveTaskSteps.startCommand("t; rm -rf ~", "live", "pi", null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void refusesSomethingNoProjectCouldBeCalled() {
         assertThatThrownBy(() -> LiveTaskSteps.startCommand("p; rm -rf ~", "pi", null))
                 .isInstanceOf(IllegalArgumentException.class);

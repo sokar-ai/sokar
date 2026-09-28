@@ -44,17 +44,19 @@ public final class ProjectSource {
      *
      * @param outcome Where it came from.
      * @param file The project file, or {@code null} when nothing was found.
-     * @param commit The commit the file was verified at, or "" when nothing verified it.
+     * @param commit The commit the file was applied at, or "" when nothing was applied.
+     * @param unverified {@code true} for a project followed without an anchor, whose commits no
+     *        signature was checked on - whoever can push to its repository decides what it says.
      */
-    public record Found(Outcome outcome, @Nullable Path file, String commit) {
+    public record Found(Outcome outcome, @Nullable Path file, String commit, boolean unverified) {
 
         /**
          * Tells whether a task started from this would run against something checked.
          *
-         * @return {@code true} only for a followed project that has applied a commit.
+         * @return {@code true} only for a project followed with an anchor that has applied a commit.
          */
         public boolean verified() {
-            return outcome == Outcome.FOLLOWED && !commit.isEmpty();
+            return outcome == Outcome.FOLLOWED && !commit.isEmpty() && !unverified;
         }
     }
 
@@ -77,19 +79,19 @@ public final class ProjectSource {
             if (followed != null) {
                 final Path file = context.paths().followedClone(name).resolve("project.yml");
                 return new Found(Outcome.FOLLOWED,
-                        Files.isRegularFile(file) ? file : null, followed.commit());
+                        Files.isRegularFile(file) ? file : null, followed.commit(), followed.unverified());
             }
         } catch (final IOException ex) {
             // A follow record that cannot be read is not a reason to fall through to an unverified
             // file: that would answer the question the wrong way round, quietly.
-            return new Found(Outcome.UNKNOWN, null, "");
+            return new Found(Outcome.UNKNOWN, null, "", false);
         }
         final String recorded =
                 new ProjectRegistry(context.paths().projectRegistry()).all().get(name);
         if (recorded != null && Files.isRegularFile(Path.of(recorded))) {
-            return new Found(Outcome.RECORDED, Path.of(recorded), "");
+            return new Found(Outcome.RECORDED, Path.of(recorded), "", false);
         }
-        return new Found(Outcome.UNKNOWN, null, "");
+        return new Found(Outcome.UNKNOWN, null, "", false);
     }
 
     /**

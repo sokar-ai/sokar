@@ -41,6 +41,10 @@ public final class World implements AutoCloseable {
 
     private @Nullable String vault;
 
+    private boolean daemonWasRunning;
+
+    private @Nullable String daemonPid;
+
     /** Every project the kit made in this run, in any scenario - removed once the run is over. */
     private static final java.util.Set<String> PROJECTS = java.util.Collections.synchronizedSet(
             new java.util.LinkedHashSet<>());
@@ -138,6 +142,35 @@ public final class World implements AutoCloseable {
      */
     public void vault(@Nullable String path) {
         vault = path;
+    }
+
+    /**
+     * Remembers the daemon this scenario runs, and whether the account's has to be started again.
+     *
+     * @param wasRunning {@code true} if the account's daemon was stopped for this scenario.
+     * @param pid The scenario's daemon's process, or {@code null} for none.
+     */
+    public void daemon(boolean wasRunning, @Nullable String pid) {
+        daemonWasRunning = wasRunning;
+        daemonPid = pid;
+    }
+
+    /**
+     * Tells whether the account's daemon was stopped for this scenario.
+     *
+     * @return {@code true} if it has to be started again.
+     */
+    public boolean daemonWasRunning() {
+        return daemonWasRunning;
+    }
+
+    /**
+     * The process of the daemon this scenario runs.
+     *
+     * @return Its pid, or {@code null} for none.
+     */
+    public @Nullable String daemonPid() {
+        return daemonPid;
     }
 
     /**
@@ -366,16 +399,24 @@ public final class World implements AutoCloseable {
      * A container name carries a timestamp and a run id, so a scenario cannot write it down; it names
      * the task this scenario started instead, as a person would copy it from {@code sokar task list}.
      *
+     * {@code {state}} is the task's state directory on the machine, where its logs and helpers' files are.
+     *
      * @param command The command as written in the scenario.
-     * @param container The task's container name.
+     * @param task The task this scenario started.
      * @return The command with the name in place, quoted for the shell.
      */
-    public static String aboutTask(String command, String container) {
-        if (!command.contains("{task}")) {
+    public static String aboutTask(String command, Task task) {
+        if (!command.contains("{task}") && !command.contains("{state}")) {
             throw new AssertionError("The step is about the task and the command does not say where: "
                     + command);
         }
-        return command.replace("{task}", Shell.quote(container));
+        final String state = task.state();
+        if (command.contains("{state}") && state == null) {
+            throw new AssertionError("The command names the task's state directory and its start did not say"
+                    + " where that is: " + command);
+        }
+        return command.replace("{task}", Shell.quote(task.container()))
+                .replace("{state}", state == null ? "" : Shell.quote(state));
     }
 
     /**

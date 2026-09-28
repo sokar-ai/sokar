@@ -59,3 +59,27 @@ Feature: The task commands
     When a script runs "sokar task attach sokar-nothing-here"
     Then it exits non-zero
     And its output does not contain "[Y/n]"
+
+  Scenario: preparing an image says what it would build, and a dry run builds nothing
+    Given a project called "prepared" of class "guarded" with a file in it
+    When a script runs "sokar task prepare --project prepared --agent stub --dry-run"
+    Then it exits zero
+    And its output has a line matching "agent +stub.*"
+    And its output has a line matching "rebuild +reuse whatever is still valid"
+    And its output contains "nothing was built"
+
+  Scenario: preparing a project this machine does not have names what it has
+    When a script runs "sokar task prepare --project no-such-project --dry-run"
+    Then it exits non-zero
+    And its output contains "no project 'no-such-project' here"
+
+  Scenario Outline: changing a task's clearance refuses what is not a task or not a mode
+    When a script runs "sokar task clearance <task> <mode> --dry-run"
+    Then it exits non-zero
+    And its output contains "<says>"
+
+    Examples:
+      | task                | mode  | says                                 |
+      | sokar-nope-t-1      | bogus | expected one of allow, deny, off, prompt |
+      | not-a-task          | allow | not-a-task is not a Sokar task       |
+      | sokar-nope-t-1      | allow | nothing here knows sokar-nope-t-1    |

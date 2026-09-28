@@ -1,6 +1,6 @@
 Feature: The commands a machine answers about itself
 
-  Every group's entry point, and the five commands that take no group. A command that vanished,
+  Every group's entry point, and the commands that take no group. A command that vanished,
   was renamed, or stopped parsing its own options shows up here before anybody types it.
 
   Scenario Outline: every command group answers for itself
@@ -21,9 +21,11 @@ Feature: The commands a machine answers about itself
     Then it exits zero
 
     Examples:
-      | command  |
-      | agents   |
-      | projects |
+      | command    |
+      | agents     |
+      | providers  |
+      | completion |
+      | projects   |
       | setup    |
       | doctor   |
       | panic    |
@@ -51,3 +53,34 @@ Feature: The commands a machine answers about itself
     When a script runs "sokar unlock"
     Then it exits non-zero
     And its output contains "vault unlock"
+
+  Scenario: setup registers the hooks for this account, and says they touch no other container
+    # Run on a machine that is already set up, so it rewrites what is there; never --uninstall, which
+    # would take the firewall from every task after it.
+    When a script runs "sokar setup"
+    Then it exits zero
+    And its output contains "installed"
+    And its output contains "50-sokar.conf"
+    And its output contains "only fire for containers carrying Sokar's own annotation"
+
+  Scenario: the providers say whether the credential each needs is stored, without showing it
+    Given the environment variable "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" is set
+    And a vault of this scenario's own, unlocked with the passphrase "acceptance"
+    And the vault holds the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" as "anthropic" of kind "api-key"
+    When a script runs "sokar providers"
+    Then it exits zero
+    And its output contains "stored as 'anthropic' (api-key)"
+    And its output does not contain the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL"
+    When a script runs "sokar vault lock"
+    And a script runs "sokar providers"
+    Then its output contains "unknown - vault locked"
+
+  Scenario Outline: a completion script is given for a shell that has one, and refused for one that has not
+    When a script runs "sokar completion <shell>"
+    Then its output contains "<says>"
+
+    Examples:
+      | shell | says                                |
+      | bash  | complete -F _sokar_completions sokar |
+      | zsh   | #compdef sokar                      |
+      | fish  | no completion script for 'fish'     |

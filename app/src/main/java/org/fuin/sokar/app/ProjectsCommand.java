@@ -60,7 +60,8 @@ public class ProjectsCommand implements Callable<Integer>, SokarFactory.ContextA
         final List<ProjectInventory.Summary> projects = new ProjectInventory(context).projects();
 
         if (projects.isEmpty()) {
-            out.println("No projects yet. One appears here the first time you run a task with it.");
+            out.println("No projects yet. One appears here when this machine follows its repository:"
+                    + " sokar project follow <name> <url>");
             out.flush();
             return 0;
         }

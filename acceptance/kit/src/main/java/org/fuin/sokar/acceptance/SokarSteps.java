@@ -50,7 +50,21 @@ public class SokarSteps {
         final Ssh.Output made = world.machine().run("mktemp -d");
         assertThat(made.status()).as("could not make a directory for the scenario's vault:%n%s", made.all()).isZero();
         world.vault(made.out().strip() + "/vault.bin");
-        theVaultIsUnlocked(passphrase);
+        // Made by 'vault init', typed twice at the prompt as a person does: an unlock only caches a
+        // passphrase, and a scenario that believed it had a vault had none - 'vault devices' found
+        // nothing, and an unlock with a wrong passphrase was accepted, there being nothing to open.
+        try (Terminal terminal = world.openTerminal()) {
+            terminal.type("sokar vault init");
+            terminal.await("passphrase");
+            terminal.type(passphrase);
+            terminal.await("again");
+            terminal.type(passphrase);
+            terminal.await("created");
+            terminal.await("cached");
+            assertThat(terminal.seen()).as("the passphrase was echoed").doesNotContain(passphrase);
+        }
+        final Ssh.Output exists = world.run("test -f \"$SOKAR_VAULT\"");
+        assertThat(exists.status()).as("'vault init' made no vault at %s", world.vault()).isZero();
     }
 
     /**
@@ -116,6 +130,59 @@ public class SokarSteps {
         // passed on a wrong passphrase until 2026-09-27. Whether the vault opens is asked of the machine.
         final Ssh.Output open = world.run("sokar vault list");
         assertThat(open.status()).as("the vault did not open with that passphrase:%n%s", open.all()).isZero();
+    }
+
+    /**
+     * Gives the scenario a daemon of its own, reading the scenario's vault.
+     * <p>
+     * The account's daemon reads the account's vault, so a question about this scenario's credential
+     * asked of it would be answered about somebody else's. The socket's path is fixed, so the account's
+     * daemon is stopped for the scenario and started again after it - inside this account only, and
+     * only if it was running.
+     *
+     * @throws IOException If the machine cannot be reached.
+     */
+    @Given("a daemon of this scenario's own")
+    public void aDaemonOfItsOwn() throws IOException {
+        final Ssh.Output stopped = world.run(DAEMON_STOP);
+        assertThat(stopped.status()).as("could not stop the account's daemon:%n%s", stopped.all()).isZero();
+        world.daemon(stopped.out().contains(WAS_RUNNING), null);
+        final Ssh.Output started = world.run(DAEMON_START);
+        assertThat(started.status()).as("the scenario's daemon did not answer:%n%s", started.all()).isZero();
+        world.daemon(world.daemonWasRunning(), started.out().lines().findFirst().orElseThrow().strip());
+    }
+
+    /** Printed by {@link #DAEMON_STOP} when there was a daemon of the account's to start again. */
+    static final String WAS_RUNNING = "the daemon of this account was running";
+
+    /** Stops the account's daemon, if systemd runs one, and says whether it did. */
+    static final String DAEMON_STOP = "if systemctl --user is-active -q sokard 2>/dev/null; then"
+            + " systemctl --user stop sokard && echo '" + WAS_RUNNING + "'; fi";
+
+    /** What asks a daemon whether it is there: the socket file outlives the process that made it. */
+    static final String DAEMON_ASK = "printf '{\"method\":\"org.varlink.service.GetInfo\",\"parameters\":{}}\\0'"
+            + " | timeout 5 sokar daemon connect 2>/dev/null | grep -q vendor";
+
+    /** Starts a daemon detached from the session, prints its pid, and waits until it answers. */
+    static final String DAEMON_START = "if " + DAEMON_ASK + "; then echo 'another daemon answers on the socket'; exit 1; fi;"
+            + " log=$(mktemp); setsid sokard > \"$log\" 2>&1 < /dev/null & echo $!;"
+            + " for i in $(seq 50); do " + DAEMON_ASK + " && exit 0; sleep 0.2; done; cat \"$log\"; exit 1";
+
+    /**
+     * Stops the scenario's daemon and starts the account's again, whether the scenario passed or not.
+     *
+     * @throws IOException If the machine cannot be reached.
+     */
+    @After
+    public void stopTheScenariosDaemon() throws IOException {
+        final String pid = world.daemonPid();
+        if (pid != null) {
+            world.machine().run("kill " + Shell.quote(pid) + " 2>/dev/null; true");
+        }
+        if (world.daemonWasRunning()) {
+            world.machine().run("systemctl --user start sokard");
+        }
+        world.daemon(false, null);
     }
 
     /**

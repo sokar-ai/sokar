@@ -1,0 +1,2 @@
+title: "What buildtools/e2e-tier1.sh checked - the image, the container's hardening, the credential broker, the names and ports a task may reach, widening and narrowing a running task, the gate, what a failed or refused start leaves behind, the daemon's answers and the pre-push guard - is Cucumber scenarios in the acceptance suite, and the script is gone. Every command a person types has a scenario."
+type: changed
