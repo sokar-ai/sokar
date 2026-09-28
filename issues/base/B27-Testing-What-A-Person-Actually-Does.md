@@ -1,6 +1,7 @@
 # B27 — Testing What A Person Actually Does
 
-**Status:** open, and it changes how everything else is verified. Raised on 2026-09-09 by the
+**Status:** in progress - the suite is built and runs everywhere; what tier 1 still checks in shell
+is what is left. It changes how everything else is verified. Raised on 2026-09-09 by the
 operator, after a day of being handed test instructions: *"I wonder why I should do all these user
 tests on my own."*
 
@@ -9,7 +10,7 @@ suite".
 
 ## There is a suite, and it cannot reach any of this
 
-`buildtools/e2e-tier1.sh` is 1177 lines of bash and runs on two rented machines in parallel on
+`buildtools/e2e-tier1.sh` was 1177 lines of bash (1357 on 2026-09-28) and runs on two rented machines in parallel on
 every merge to main. It covers the failures that actually happen: the agent CLI never reaching the
 image, the firewall applied late or not at all, a credential in the wrong variable, an agent
 reaching for a host its definition never declared.
@@ -55,70 +56,30 @@ case — so that a release is judged by something other than somebody trying it.
   pipe is a different program.
 - **Both targets:** the local VM during development, the rented machines in CI.
 
-## The eleven scenarios that run nowhere
+## Built, and measured
 
-**Three feature files are tagged `@slow`, and nothing in this project runs them.** CI excludes them
-by name - `Leg.java:190` passes `-Dcucumber.filter.tags=not @slow`, with the reason that each needs
-a task image and a leg has already built one - and no other job, schedule or script runs them
-instead. Every green build reports *"Tests run: 91, Skipped: 11"*, which reads as eleven tests
-somebody chose to skip rather than eleven that have never run anywhere.
-
-What is in them is not the cheap end:
-
-| File | Scenarios | What it covers |
-|---|---|---|
-| `task-restart.feature` | 4 | A task that outlived the machine: what it says it belongs to, what starting it again reports, what its logs say about the reboot, and that what it held reads as unreadable rather than as nothing. |
-| `task-session.feature` | 3 | Work carrying on while nobody is attached, a process started before a disconnect still running after it, and the cleanup afterwards. |
-| `task-inside.feature` | 4 | The workspace holding the project, the prompt naming the task, a bare `push` reaching the gate rather than the mirror, and leaving a shell with work in it keeping the task. |
-
-**This stopped being theoretical on 2026-09-12.** The launch path was changed that day to run a
-task's agent inside the task's own session, precisely so that work carries on while nobody is
-attached and a re-attachment finds it - which is `task-session.feature`, scenario for scenario.
-It shipped on unit tests. The scenarios that describe the behaviour existed, were correct, and ran
-nowhere; the thing that actually verified it was a person at a terminal reporting that his agent
-had vanished.
-
-**The exclusion was reasonable and its consequence was not recorded.** A leg is six minutes and an
-image build is minutes each; refusing to pay that on every push is right. What is missing is the
-*somewhere else* - and until there is one, the honest reading of a green build is "the fast
-scenarios pass".
-
-Three answers are possible and none has been chosen:
-
-- **A nightly or weekly leg that runs only `@slow`**, on one machine rather than two. It pays the
-  image build once and nobody waits for it.
-- **The local VM**, where the image is already built and a run costs only the scenarios. That
-  makes them part of what runs before a push rather than part of CI - which is where
-  [AGENTS.md](../../AGENTS.md) already sends a person, and it would have caught this one.
-- **Retire the tag and pay the minutes**, if it turns out to be less than it looks now that a leg
-  caches images between scenarios.
-
-Whichever it is, **a scenario that runs nowhere should be visible as that** rather than as a skip:
-a build that says "11 skipped" beside 91 passes invites nobody to ask which eleven.
+- **The suite:** `acceptance/suite`, Cucumber run by Maven, driving a machine through the kit
+  (`sokar-acceptance-kit`, published so the agent repositories use the same steps). A scenario gets
+  a real terminal - sshj, `allocatePTY` then `startShell`, in the kit's `Terminal` - or asserts the
+  absence of one, and reports as a test case.
+- **Both targets, one property:** `-Dsokar.acceptance.host` points it at the local VM or at a rented
+  machine; the Hetzner leg runs it after tier 1 on each of its two machines.
+- **Nothing runs nowhere any more.** The eleven `@slow` scenarios were excluded from CI and ran
+  nowhere until `57f730a` (2026-09-12) made the leg run every scenario - and fixed the three faults
+  that had hidden behind the exclusion, recorded in `Leg`'s comment. Measured 2026-09-28: 92
+  scenarios on the ubuntu26.04 VM and on both Hetzner legs, 0 skipped, the `@slow` ones among them.
+- **It runs twice on one machine.** Measured 2026-09-28: the VM suite green, 92 of 92, finishing at
+  05:32Z and again at 06:21Z on the same account. Only the package was reinstalled between the two;
+  nothing the first run left behind was cleaned up.
 
 ## To be checked
 
-- **Which SSH client.** Two facts narrow it: the key in use is **ed25519**, and **BouncyCastle is
-  already a managed dependency** of this build, so ed25519 support costs nothing new either way.
-  - **SSHJ** — smallest API for expect-style work: `allocatePTY(term, cols, rows, modes)` then
-    `startShell()`. Recommended unless the next point decides otherwise.
-  - **Apache MINA SSHD** — more control over pty modes, and it is also a server, which this does
-    not need. Worth it only if asserting on echo behaviour needs the modes set explicitly.
-  - **`ssh -tt` as a subprocess** — no dependency at all, and the pty is allocated where it
-    matters, on the far side. Costs the ability to set window size and pty modes, and turns every
-    assertion into subprocess parsing.
-- **What happens to the 1177 lines.** They work and they cover things worth keeping. Porting them
+- **What happens to tier 1's 1357 lines.** They work and they cover things worth keeping. Porting them
   wholesale is weeks; keeping both means two places to add a case. A third answer - port only what
   needs a terminal and leave the rest - splits the report in two, which is half of what this
   requirement is asking for.
 - **Where the line sits.** A scenario against a real machine costs minutes and can be flaky; a unit
   test costs milliseconds and cannot see a pty. Deciding what belongs in each is the difference
   between a suite people trust and one they re-run until it passes.
-- **What a scenario cleans up.** These leave containers, images, mirrors and a vault behind. The
-  suite has to be able to run twice on the same machine, which the manual testing has repeatedly
-  shown is where the interesting failures are.
-- **Where the `@slow` scenarios run**, per the section above. Nightly leg, local VM before a push,
-  or retire the tag - and whichever it is, a build has to stop reporting "never ran anywhere" as
-  "skipped".
 - **Whether the local VM is provisioned by the suite or assumed.** Assuming it is faster and makes
   "works on my machine" a real hazard; provisioning it is slower and is the thing being tested.
