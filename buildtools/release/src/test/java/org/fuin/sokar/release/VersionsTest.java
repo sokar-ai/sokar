@@ -49,6 +49,30 @@ class VersionsTest {
     }
 
     @Test
+    void aPinsReleaseMayHaveMoreThanThreeNumbersAndIsComparedByThem() {
+        // GraalVM tags graal-25.3.4.1 beside jdk-25.0.2, and the numbers order them.
+        assertThat(Versions.isRelease("25.3.4.1")).isTrue();
+        assertThat(Versions.isRelease("25")).isFalse();
+        assertThat(Versions.isRelease("25.0.4.1+1")).isFalse();
+        assertThat(Versions.verdict("25.0.2", "25.4.4.1.1", false)).isEqualTo(Verdict.YES);
+        assertThat(Versions.verdict("25.3.4.1", "25.3.4", false)).isEqualTo(Verdict.ROLLBACK);
+    }
+
+    @Test
+    void theNextPatchKeepsASnapshotASnapshot() {
+        assertThat(Versions.nextPatch("1.0.0-SNAPSHOT")).isEqualTo("1.0.1-SNAPSHOT");
+        assertThat(Versions.nextPatch("1.0.3")).isEqualTo("1.0.4");
+        assertThat(Versions.nextPatch("1.0.9")).isEqualTo("1.0.10");
+    }
+
+    @Test
+    void aModuleVersionOfAnotherShapeHasNoInventedSuccessor() {
+        assertThat(Versions.nextPatch("1.0")).isNull();
+        assertThat(Versions.nextPatch("1.0.0-rc1")).isNull();
+        assertThat(Versions.nextPatch("${revision}")).isNull();
+    }
+
+    @Test
     void theVerdictReadsAsTheWordAWorkflowCompares() {
         assertThat(Verdict.ROLLBACK.word()).isEqualTo("rollback");
     }

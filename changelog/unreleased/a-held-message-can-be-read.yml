@@ -1,0 +1,2 @@
+title: "A person decides about a message after reading it: 'sokar talk read <task> <id>' and the daemon's ReadHeld show a held message, or one the filter refused, in full - who wrote it, when, to which peer, why, and its text; at the terminal every control character is written out rather than acting. 'sokar talk release' and Release deliver a refused message after all, straight to its transport and recorded as delivered despite the filter; what a person refused for good, and what the filter could not check, is readable and never sent."
+type: added

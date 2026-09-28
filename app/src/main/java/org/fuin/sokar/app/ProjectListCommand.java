@@ -6,14 +6,14 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Spec;
 
 /**
- * Lists the projects this machine has run tasks for.
+ * Lists the projects this machine follows, and what each holds.
  * <p>
  * The same rendering {@code sokar project} does with no verb. It exists so the verb can be written
  * where a reader expects one, beside {@code delete}.
  */
 @Command(name = "list",
         mixinStandardHelpOptions = true,
-        description = "Lists the projects this machine has run tasks for.")
+        description = "Lists the projects this machine follows, and what each holds.")
 public class ProjectListCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
     @Spec

@@ -89,7 +89,8 @@ public class SokarSteps {
     }
 
     /**
-     * Unlocks the vault - creating it on a machine that has none - without a prompt.
+     * Unlocks the vault the machine already has. With none, the unlock refuses and names
+     * {@code vault init}; a scenario that needs a vault makes one with "a vault of this scenario's own".
      * <p>
      * The interactive unlock, with the passphrase typed and not echoed, is a scenario of its own;
      * this is the setup for every scenario that merely needs the vault open.

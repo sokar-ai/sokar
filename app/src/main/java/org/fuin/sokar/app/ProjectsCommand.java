@@ -28,7 +28,7 @@ import picocli.CommandLine.Spec;
         subcommands = { ProjectListCommand.class,
                 ProjectFollowCommand.class, ProjectFollowingCommand.class,
                 ProjectUnfollowCommand.class },
-        description = "Lists and removes the projects this machine has run tasks for.")
+        description = "Follows project repositories, and lists the projects this machine follows.")
 public class ProjectsCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
     @Spec

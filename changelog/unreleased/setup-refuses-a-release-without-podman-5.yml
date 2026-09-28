@@ -1,0 +1,2 @@
+title: "The setup script asks the system's package source which podman it offers before it installs anything, and refuses with exit 3 when that is older than podman 5 - Ubuntu 24.04 is refused rather than prepared into a machine 'sokar doctor' fails."
+type: fixed

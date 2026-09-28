@@ -17,7 +17,7 @@ import picocli.CommandLine.Spec;
  */
 @Command(name = "release",
         mixinStandardHelpOptions = true,
-        description = "Releases one held message, or refuses it.")
+        description = "Releases a held message, or one the filter refused, after reading it; or refuses it.")
 public class TalkReleaseCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
     @Parameters(index = "0", paramLabel = "<task>", description = "Container name of the task.")
@@ -50,13 +50,26 @@ public class TalkReleaseCommand implements Callable<Integer>, SokarFactory.Conte
             err.flush();
             return 1;
         }
-        final MessageRelease.Result result = new MessageRelease().decide(mailbox, id, refuse);
+        final MessageRelease.Result result = new MessageRelease().decide(mailbox, id, refuse,
+                MessageRelease.peersOf(context, container));
         return switch (result.outcome()) {
             case RELEASED -> {
                 out.println("released  " + result.message()
                         + " - the next pass sends it, subject to the peer's mode");
                 out.flush();
                 yield 0;
+            }
+            case DELIVERED_DESPITE_FILTER -> {
+                // Said as what it is, never as 'released': the filter refused it and a person sent it.
+                out.println("delivered " + result.message() + " despite the filter's refusal, as you decided;"
+                        + " a peer that checks what it receives may refuse it again");
+                out.flush();
+                yield 0;
+            }
+            case NOT_DELIVERABLE -> {
+                err.println("sokar: " + result.message() + " cannot be sent: " + result.detail());
+                err.flush();
+                yield 1;
             }
             case REFUSED -> {
                 out.println("refused   " + result.message() + " - the sender has been told");

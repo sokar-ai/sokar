@@ -1,7 +1,10 @@
 package org.fuin.sokar.machines;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -77,9 +80,10 @@ class SnapshotsTest {
 
     @Test
     void leavesNoPlaceholderUnreplaced() {
-        // A stray @NAME@ would reach the machine as a literal and fail somewhere unhelpful.
-        assertThat(Snapshots.recipe("ubuntu")).doesNotContain("@");
-        assertThat(Snapshots.recipe("fedora")).doesNotContain("@");
+        // A stray @NAME@ would reach the machine as a literal and fail somewhere unhelpful. An '@' alone
+        // is an image pulled by its digest.
+        assertThat(Snapshots.recipe("ubuntu")).doesNotContainPattern("@[A-Z0-9]+@");
+        assertThat(Snapshots.recipe("fedora")).doesNotContainPattern("@[A-Z0-9]+@");
     }
 
     @Test
@@ -92,7 +96,81 @@ class SnapshotsTest {
     @Test
     void pullsTheBaseImagesAsTheUserThatWillRunThem() {
         // Rootless podman keeps its own store per user; pulled as root they would be invisible.
-        assertThat(Snapshots.recipe("ubuntu"))
-                .contains("su - build -c 'podman pull -q docker.io/library/ubuntu:24.04'");
+        assertThat(Snapshots.recipe("ubuntu", contents()))
+                .contains("su - build -c 'podman pull -q docker.io/library/ubuntu@" + UBUNTU
+                        + " && podman tag docker.io/library/ubuntu@" + UBUNTU + " docker.io/library/ubuntu:24.04'");
+    }
+
+    @Test
+    void pullsEachImageByItsDigestAndGivesItTheNameTasksAskFor() {
+        // By tag alone, two snapshots a week apart hold different bytes under one name; by digest alone,
+        // a task naming the tag pulls it again.
+        assertThat(Snapshots.recipe("fedora", contents()))
+                .contains("podman pull -q docker.io/library/alpine@" + ALPINE)
+                .contains("podman tag docker.io/library/alpine@" + ALPINE + " docker.io/library/alpine:3.20")
+                .doesNotContain("podman pull -q docker.io/library/ubuntu:24.04");
+    }
+
+    @Test
+    void takesTheJdkFromWhatThePomPins() {
+        assertThat(Snapshots.recipe("ubuntu", contents()))
+                .contains("curl -fsSL https://github.example/graalvm-community-jdk-25i4_linux-x64_bin.tar.gz")
+                .contains("echo '" + "b".repeat(64) + "  /tmp/graalvm.tar.gz' | sha256sum -c -");
+    }
+
+    @Test
+    void theBuiltContentsAreThePomsFiltered() {
+        // The resource the build filters, read the way a snapshot build reads it.
+        final Snapshots.Contents pinned = Snapshots.Contents.pinned();
+
+        assertThat(pinned.graalvmSha256()).matches("[0-9a-f]{64}");
+        assertThat(pinned.images()).extracting(Snapshots.Image::name)
+                .containsExactly("docker.io/library/ubuntu:24.04", "docker.io/library/alpine:3.20");
+    }
+
+    @Test
+    void refusesContentsTheBuildDidNotFilter() {
+        final Map<String, String> values = new HashMap<>(values());
+        values.put("graalvm.sha256", "${machines.graalvm.sha256}");
+
+        assertThatThrownBy(() -> Snapshots.Contents.of(values::get)).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("was it filtered");
+    }
+
+    @Test
+    void refusesAJdkWithoutADigestOrOverPlainHttp() {
+        final Map<String, String> digest = new HashMap<>(values());
+        digest.put("graalvm.sha256", "latest");
+        final Map<String, String> http = new HashMap<>(values());
+        http.put("graalvm.url", "http://github.example/jdk.tar.gz");
+
+        assertThatThrownBy(() -> Snapshots.Contents.of(digest::get)).hasMessageContaining("not a SHA-256 digest");
+        assertThatThrownBy(() -> Snapshots.Contents.of(http::get)).hasMessageContaining("not an https address");
+    }
+
+    @Test
+    void refusesAnImageWithoutADigestOrWithoutATag() {
+        final Map<String, String> digest = new HashMap<>(values());
+        digest.put("image.ubuntu.digest", "24.04");
+        final Map<String, String> tag = new HashMap<>(values());
+        tag.put("image.alpine", "docker.io/library/alpine");
+
+        assertThatThrownBy(() -> Snapshots.Contents.of(digest::get)).hasMessageContaining("not an image digest");
+        assertThatThrownBy(() -> Snapshots.Contents.of(tag::get)).hasMessageContaining("names no tag");
+    }
+
+    private static final String UBUNTU = "sha256:" + "c".repeat(64);
+
+    private static final String ALPINE = "sha256:" + "d".repeat(64);
+
+    private static Map<String, String> values() {
+        return Map.of("graalvm.url", "https://github.example/graalvm-community-jdk-25i4_linux-x64_bin.tar.gz",
+                "graalvm.sha256", "b".repeat(64),
+                "image.ubuntu", "docker.io/library/ubuntu:24.04", "image.ubuntu.digest", UBUNTU,
+                "image.alpine", "docker.io/library/alpine:3.20", "image.alpine.digest", ALPINE);
+    }
+
+    private static Snapshots.Contents contents() {
+        return Snapshots.Contents.of(values()::get);
     }
 }

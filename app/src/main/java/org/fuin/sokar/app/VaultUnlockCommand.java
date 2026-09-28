@@ -103,6 +103,17 @@ public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.Conte
             return VaultLockCommand.lock(context, out);
         }
 
+        if (!context.vault().exists()) {
+            // Refused before anything is asked: a passphrase cached for a vault that does not exist
+            // opens nothing, and the first 'vault put' then made the vault with it - typed once, so
+            // a typo became the passphrase with nothing to compare it against. 'vault init' asks twice.
+            err.println("sokar: there is no vault at " + context.vault().path() + " to unlock -"
+                    + " create it with 'sokar vault init', which sets the passphrase and caches it;"
+                    + " nothing was cached");
+            err.flush();
+            return 1;
+        }
+
         if (!KernelKeyring.available()) {
             err.println("sokar: libkeyutils is not available, so the passphrase cannot be cached");
             err.flush();
@@ -122,9 +133,9 @@ public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.Conte
         try {
             final char[] passphrase = tiers.require();
             // Caching an unverified passphrase moves the failure to the next command, where it
-            // reads as a possibly corrupt vault. Nothing to verify against on a first run.
+            // reads as a possibly corrupt vault.
             final var vault = context.vault();
-            if (vault.exists() && !vault.accepts(passphrase)) {
+            if (!vault.accepts(passphrase)) {
                 err.println("sokar: that passphrase does not open " + vault.path()
                         + " - nothing was cached");
                 err.flush();

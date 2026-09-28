@@ -7,16 +7,19 @@ The [cheat sheet](cheat-sheet.md) is the other way round: it starts from what yo
 do rather than from the command tree. Every key a project file can carry is in
 [the project file](project-file.md).
 
-## The eleven groups
+## The fourteen groups
 
 | | |
 |---|---|
 | [`task`](#task) | Runs and inspects agent tasks. |
 | [`shield`](#shield) | Inspects and changes what a task may reach. |
 | [`vault`](#vault) | Manages stored credentials. |
+| [`credentials`](#credentials) | Records which credential each destination is connected to with. |
 | [`gate`](#gate) | Reviews and forwards what an agent pushed. |
+| [`talk`](#talk) | Shows and moves the messages a task exchanges with other tasks. |
 | [`agents`](#agents) | Lists the agents installed on this machine. |
-| [`projects`](#projects) | Lists the projects this machine has run tasks for. |
+| [`providers`](#providers) | Lists the model providers declared here, and what the vault holds for each. |
+| [`project`](#project) | Follows project repositories, and lists the projects this machine follows. |
 | [`setup`](#setup) | Installs the OCI hooks into this user's podman configuration. |
 | [`doctor`](#doctor) | Reports paths and process hardening state. |
 | [`panic`](#panic) | Stops every running task and every helper, without removing anything. |
@@ -94,6 +97,7 @@ Credentials, and the broker that lets a task use one without ever holding it.
 
 | Command | What it does |
 |---|---|
+| `sokar vault init` | Creates an empty vault and sets its passphrase, asked twice. |
 | `sokar vault login AGENT` | Runs an agent's own login and stores the credential it produces. |
 | `sokar vault import AGENT` | Copies a credential the agent already holds on this host into the vault. |
 | `sokar vault put NAME` | Stores a credential, read from standard input, under the name of the provider it is for. |
@@ -103,14 +107,17 @@ Credentials, and the broker that lets a task use one without ever holding it.
 | `sokar vault unlock` | Caches the vault passphrase in the kernel keyring for this session. |
 | `sokar vault lock` | Drops the cached passphrase. The next command asks for it again. |
 | `sokar vault passphrase` | Re-encrypts the vault under a different passphrase. |
+| `sokar vault devices` | Lists what can open this vault - the passphrase and each device - and what each is worth. |
+| `sokar vault revoke ID` | Removes a device's way into the vault. The last way in is never removed. |
 | `sokar vault serve` | Serves the credential proxy for one task on a unix socket. |
 | `sokar vault relay` | Forwards a port in a task's namespace to the broker socket. |
 | `sokar vault agent` | Runs an ssh-agent that signs with a key from the vault. |
+| `sokar vault credential` | Answers git's credential protocol from the vault. |
 
 **Three ways a credential gets in**, and they are not interchangeable: `login` runs the agent's own
 authentication in a throwaway container and needs nothing installed on the machine; `import` copies
-what an already-signed-in install is holding; `put` takes a value you have. The last three commands
-are started per task rather than typed.
+what an already-signed-in install is holding; `put` takes a value you have. `serve`, `relay` and
+`agent` are started per task rather than typed, and `credential` is run by git.
 
 ## gate
 
@@ -131,6 +138,47 @@ Nothing an agent pushes reaches a real upstream without passing through here.
 
 `check` is run by the hook `protect` installs, not by hand. `serve` is started per task.
 
+## credentials
+
+Which secret a destination is connected to with, and where that secret lives. No command here reads
+or prints a value.
+
+| Command | What it does |
+|---|---|
+| `sokar credentials list` | Lists the credentials this machine connects out with. |
+| `sokar credentials declare MATCH --kind=KIND` | Records what a destination wants and where its value lives: `--vault`, `--file`, `--env` or `--agent`. |
+| `sokar credentials check URL` | Says which credential a URL would use, and whether it would work. |
+| `sokar credentials forget MATCH` | Forgets a credential record. The value itself is left alone. |
+| `sokar credentials keys` | Lists the ssh keys this account has, without reading any of them. |
+| `sokar credentials trust-host HOST [--fingerprint=SHA256:...]` | Shows the keys a host offers, and records the one you confirm. |
+
+## talk
+
+A task has a mailbox, and these are the commands for what goes through it. Each names the task by
+its container name.
+
+| Command | What it does |
+|---|---|
+| `sokar talk peers --project=NAME` | Lists the peers a project's tasks may address. |
+| `sokar talk held TASK` | Lists the messages waiting for a person, kept rather than delivered. |
+| `sokar talk read TASK ID` | Shows a held message, or one the filter refused, in full - who wrote it, when, to whom, why, and what it says. |
+| `sokar talk release TASK ID [--refuse]` | Sends a held message on its way, or delivers a refused one after all; `--refuse` refuses it for good. |
+| `sokar talk hold TASK PEER [--release] [--mode=MODE]` | Holds everything for a peer, releases it, or sets how much is asked: `prompt`, `allow`, `deny` or `off`. |
+| `sokar talk say TASK PEER [--kind=KIND] [--context=ID]` | Writes a person's own message into a conversation; the text is read from standard input. |
+| `sokar talk pass TASK` | Moves the task's messages along once, rather than waiting for the daemon. |
+| `sokar talk verify TASK` | Walks the task's message record and names the first entry that does not check out. |
+| `sokar talk key [--as=PRINCIPAL] [--publish]` | Prints this machine's signing key as a peer's `allowed_signers` line. |
+
+**Read before you release.** A held message is waiting for a decision, and `talk read` is how that
+decision is about what the message says: it shows the text exactly as written, with every control
+character written out rather than acting on your terminal. Released or refused, a message is never
+edited - the record shows what the task said.
+
+**A message the filter refused can be sent after all**, by a person who has read it. It goes straight
+to its peer's transport, and the record says it went despite the filter. A peer that checks what it
+receives may refuse it again. What a person refused for good, and what the filter could not check at
+all, can be read and never sent.
+
 ## agents
 
 ```
@@ -144,19 +192,32 @@ definition rather than from a build log.
 ## project
 
 ```
+sokar project follow NAME URL [--signed-by=<key> | --unverified] [--dry-run] [--accept-rewrite]
+sokar project following
 sokar project list
-sokar project delete PROJECT [--dry-run] [--force]
+sokar project unfollow NAME [--dry-run] [--force]
 ```
 
-Lists the projects this machine has run tasks for, and removes what Sokar built for one.
-`sokar projects` and a bare `sokar project` both list, as `sokar tasks` and a bare `sokar task` do:
-a command whose name is a noun answers the question it looks like it is asking.
+**A project comes to be on a machine by the machine following its repository**, and by nothing
+else: `follow` takes the project's configuration from that repository from now on, checked against
+the key given with `--signed-by`. `--unverified` follows without a key, and says everywhere
+afterwards that whoever can push there decides what tasks here may reach. `following` lists the
+follows and what each last applied; `list` lists the projects and what each holds. `sokar projects`
+and a bare `sokar project` both list.
 
-**`delete` does not delete the project.** The project file, the checkout and the real upstream are
-the operator's and are not touched. What goes is the gate mirror, the task image, the build
-directory, the registry entry and every task with it - all of which a later run rebuilds, which is
-what makes it safe to offer. It refuses while work is waiting unreviewed at the gate, while tasks
-are still up, and when a task will not give up what it holds.
+`unfollow` stops following and removes what Sokar built for the project - the gate mirror, the task
+image, the build directory and its tasks. The repository and the real upstream are not touched. It
+refuses while work waits unreviewed at the gate or tasks are still up; `--dry-run` says what would go.
+
+## providers
+
+```
+sokar providers
+```
+
+Lists the model providers declared on this machine - by the agent packages, or by a file under
+`~/.local/share/sokar/providers` - which agents each serves, and what the vault holds for it. It
+never shows a value, and says so when the vault is locked rather than reporting nothing stored.
 
 ## setup
 

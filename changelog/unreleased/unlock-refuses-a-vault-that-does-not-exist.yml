@@ -1,0 +1,2 @@
+title: "'sokar vault unlock' on a machine with no vault refuses, names 'sokar vault init' and caches nothing. It used to cache the passphrase and exit 0, and the first 'vault put' then made the vault with a passphrase typed once. The guides now start with 'vault init'."
+type: fixed

@@ -2312,7 +2312,8 @@ type TalkEvent (
   task: string,
   # When it happened, RFC 3339.
   at: string,
-  # taken, queued, sent, deferred, held, delivered or duplicate.
+  # taken, queued, sent, deferred, held, delivered, duplicate, refused (by a person) or overridden
+  # (delivered by a person although the filter refused it).
   event: string,
   # The message's file name.
   message: string,
@@ -2346,10 +2347,50 @@ method Say(
   outcome: string
 )
 
-# Releases one held message, or refuses it for good.
+# Reads one message a person is asked to decide about, in full, so they decide about what it says
+# rather than releasing it unread: a held one, one the filter refused, or one it could not check.
+#
+# Looked up exactly as Release looks it up. A refused message holds what was refused, secrets
+# included, and is shown to the person asking - at the operator's word, so a person can still decide
+# to deliver it. It is never in the stream or the record, which stay without content.
+method ReadHeld(
+  # Container name of the task.
+  task: string,
+  # Message id or file name, as Talk, Release and 'sokar talk held' take it.
+  id: string
+) -> (
+  # FOUND, NO_SUCH_MESSAGE or AMBIGUOUS.
+  outcome: string,
+  # held, refused-by-filter, refused-by-person or unchecked, or "". What Release can do with it follows
+  # from this: held and refused-by-filter can be sent, the other two never.
+  standing: string,
+  # The file, or "".
+  message: string,
+  # The message id, or "".
+  id: string,
+  # ROLE_USER when a person wrote it, ROLE_AGENT when a task did, or "".
+  role: string,
+  # The peer it was going to or came from, or "".
+  peer: string,
+  # question, answer, status, review-request or handover, or "".
+  kind: string,
+  # When this host first recorded it, RFC 3339, or "".
+  at: string,
+  # Its parts, in order, exactly as written: render them as text and never interpret them - no
+  # markup, no link resolved, nothing fetched. A part that is not text is named by its media type.
+  text: []string,
+  # Why it is held, or, for a refused one, the filter's own answer - which rules it broke.
+  reason: string
+)
+
+# Releases one held message, or refuses it for good - or, for one the filter refused, delivers it
+# after all, or keeps it refused as a person's decision.
 #
 # Released or refused, never edited: what the record shows a task said has to be what the task
-# said.
+# said. A refused message delivered after all goes straight to its transport, never through the
+# filter's accepted directory, and the record says it went despite the filter. An external peer's
+# own filter checks it again. What a person refused for good, and what the filter could not check,
+# is never sent.
 method Release(
   # Container name of the task.
   task: string,
@@ -2358,12 +2399,14 @@ method Release(
   # Whether to refuse it for good. The sender is told.
   refuse: ?bool
 ) -> (
-  # RELEASED, REFUSED, NO_SUCH_MESSAGE or AMBIGUOUS.
+  # RELEASED, REFUSED, DELIVERED_DESPITE_FILTER, NOT_DELIVERABLE, NO_SUCH_MESSAGE or AMBIGUOUS.
   outcome: string,
   # The file it acted on, or "".
   message: string,
   # The message id, or "".
-  id: string
+  id: string,
+  # Why, for NOT_DELIVERABLE. "" otherwise.
+  detail: string
 )
 
 # Holds a peer, releases it, or changes how much is asked before a message reaches it.

@@ -274,6 +274,13 @@ as well, with no descriptor or plugin harness.
 BouncyCastle, and folding the release tools in would put an SSH client on the classpath of every
 package build and tie the two versions together. An agent's difference is configuration or a
 strategy in it, never a copy.
+**Pins beside the CLI are pom properties, and a release is taken once it has aged.** A runtime, a
+tool, a JDK or a base image is declared under `sokar.release.pin.<name>.*` (the property holding it,
+where it is read upstream, where its digest and download address are read and written) and asked
+about and moved with `--pin <name>`; the tool reads no script, so a script gets its pins filtered in.
+`--min-age 3d`, or `sokar.release.min-age`, answers `update=no` and `waiting=` for a release younger
+than that - it never offers the one before instead, and a release whose date cannot be read is not old
+enough. An update moves the module's patch version, `1.0.0-SNAPSHOT` to `1.0.1-SNAPSHOT` too.
 
 ## Facts that were expensive to learn
 
@@ -304,8 +311,8 @@ strategy in it, never a copy.
   process.
 - **Verify a passphrase before caching it.** A wrong one accepted now fails at the next command,
   where it reads as a corrupt store rather than as a typo. `vault unlock` opens the vault first and
-  caches nothing when it cannot. Nothing to verify against on a first run, which is also the run
-  that sets the passphrase.
+  caches nothing when it cannot. With no vault it refuses and names `vault init`, which asks twice:
+  a first unlock used to set the passphrase, typed once, with nothing to compare a typo against.
 - **Locking is a verb, and it does not reach a running task.** `sokar vault lock` drops the cached
   passphrase; a task that is already up read its credential when its proxy started and holds it in
   that process's memory until the task stops. The command says so when any task is running, because

@@ -152,7 +152,14 @@ you, which is why it is worth reading before the first task rather than after.
 > whole design exists to prevent. Authenticate on the node, once, and store the
 > result below.
 
-**Three ways in, and the first works on a machine where nothing is installed yet:**
+**First make the vault, once per machine.** It asks for the passphrase twice, so a typo
+cannot quietly become it, and leaves the vault unlocked for this session:
+
+```
+sokar vault init
+```
+
+**Then three ways in, and the first works on a machine where nothing is installed yet:**
 
 | Your situation | How to get a credential into the vault |
 |---|---|
@@ -260,8 +267,9 @@ asks for the passphrase itself when the vault is locked.
 
 Some details worth knowing:
 
-- The **first** `unlock` on a machine with no vault sets the passphrase. There is
-  no separate init step.
+- `sokar vault init` makes the vault and sets the passphrase. `unlock` on a machine
+  with no vault refuses and says so, rather than caching a passphrase that opens
+  nothing.
 - `sokar vault remove <name>` deletes an entry. Removing one that is not there is
   not an error, so a cleanup script can run twice.
 - `unlock` caches the passphrase in the kernel keyring for the rest of the
@@ -269,8 +277,8 @@ Some details worth knowing:
   command asks. Locking needs nothing restarted, but it does not reach a task that
   is already running: its proxy read the credential when it started and holds it
   until the task stops. `sokar vault lock` says so when any task is up.
-- When a vault already exists, `unlock` opens it before caching and refuses a
-  passphrase that does not fit, so a typo fails there rather than at the next
+- `unlock` opens the vault before caching and refuses a passphrase that does not
+  fit, so a typo fails there rather than at the next
   command.
 - For automation, `--passphrase-command 'pass show sokar'` or
   `--systemd-credential <file>` replace the prompt entirely.
@@ -293,7 +301,7 @@ Start again:
 ```
 sokar vault lock
 mv ~/.local/share/sokar/vault.bin ~/.local/share/sokar/vault.bin.old
-sokar vault unlock
+sokar vault init
 printf '%s' 'sk-ant-your-real-key' | sokar vault put anthropic --type api-key
 ```
 

@@ -33,12 +33,13 @@ class UpdateTest {
 
         assertThat(update(claude, manifest(), "2.1.267", false)).as(report()).isEqualTo(0);
 
+        // The operator's rule: the patch moves with the pin, and a snapshot stays one until a release is cut.
         assertThat(claude.read("pom.xml")).contains("<agent.cli.version>2.1.267</agent.cli.version>")
-                .contains("<version>1.0.0-SNAPSHOT</version>");
+                .contains("<version>1.0.1-SNAPSHOT</version>");
         assertThat(claude.read("src/main/resources/agent/claude.yaml")).contains("sha256: \"" + NEW_DIGEST + "\"")
                 .doesNotContain(AgentRepository.OLD_DIGEST);
         assertThat(claude.read("CHANGELOG.md")).contains("- Claude Code pinned to 2.1.267 (was 2.1.236).");
-        assertThat(stdout()).contains("unchanged - the CI run number already orders snapshot packages")
+        assertThat(stdout()).contains("1.0.0-SNAPSHOT -> 1.0.1-SNAPSHOT")
                 .contains("written. Review the diff, then: Pin Claude Code 2.1.267");
     }
 

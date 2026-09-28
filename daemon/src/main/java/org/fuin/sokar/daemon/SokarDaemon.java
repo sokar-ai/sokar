@@ -1314,12 +1314,30 @@ public final class SokarDaemon {
             replies.last(Map.of("message", written, "outcome", "WRITTEN"));
         });
 
+        server.method("ReadHeld", (parameters, replies) -> {
+            final org.fuin.sokar.app.MessageRead.Held held = new org.fuin.sokar.app.MessageRead()
+                    .read(mailboxOf(context, parameters), text(parameters, "id"));
+            final Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("outcome", held.outcome().name());
+            answer.put("standing", held.standing());
+            answer.put("message", held.message());
+            answer.put("id", held.id());
+            answer.put("role", held.role());
+            answer.put("peer", held.peer());
+            answer.put("kind", held.kind());
+            answer.put("at", held.at());
+            answer.put("text", held.text());
+            answer.put("reason", held.reason());
+            replies.last(answer);
+        });
+
         server.method("Release", (parameters, replies) -> {
             final org.fuin.sokar.app.MessageRelease.Result result =
                     new org.fuin.sokar.app.MessageRelease().decide(mailboxOf(context, parameters),
-                            text(parameters, "id"), flag(parameters, "refuse"));
+                            text(parameters, "id"), flag(parameters, "refuse"),
+                            org.fuin.sokar.app.MessageRelease.peersOf(context, text(parameters, "task")));
             replies.last(Map.of("outcome", result.outcome().name(), "message", result.message(),
-                    "id", result.id()));
+                    "id", result.id(), "detail", result.detail()));
         });
 
         server.method("Moderate", (parameters, replies) -> {

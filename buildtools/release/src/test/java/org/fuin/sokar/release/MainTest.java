@@ -85,6 +85,27 @@ class MainTest {
         assertThat(asked).hasSize(1);
     }
 
+    @Test
+    void passesThePinAndTheAgeThrough() throws IOException {
+        final java.util.Map<String, String> properties = new java.util.LinkedHashMap<>();
+        properties.put("pin.fd.version", "10.5.0");
+        properties.put("sokar.release.pin.fd.property", "pin.fd.version");
+        properties.put("sokar.release.pin.fd.upstream", "github-latest https://api.github.com/repos/fd/releases/latest");
+        final String pom = Files.writeString(directory.resolve("pom.xml"),
+                AgentRepository.pom("sokar-agent-pi", "1.0.0-SNAPSHOT", "0.85.0", properties)).toString();
+
+        // The age is read, and an unreadable one stops the question before upstream is asked anything.
+        assertThat(run("upstream-version", "--pom", pom, "--pin", "fd", "--min-age", "soon")).isEqualTo(2);
+        assertThat(stderr()).contains("3d or 72h");
+        assertThat(asked).isEmpty();
+        // Asked of the pin's own upstream.
+        assertThat(run("upstream-version", "--pom", pom, "--pin", "fd")).isEqualTo(2);
+        assertThat(asked).containsExactly(URI.create("https://api.github.com/repos/fd/releases/latest"));
+        assertThat(run("update", "11.0.0", "--pin=fd", "--dry-run", "--pom", pom)).isEqualTo(0);
+        assertThat(out.toString(StandardCharsets.UTF_8)).contains("fd            10.5.0 -> 11.0.0")
+                .contains("--dry-run: nothing written");
+    }
+
     private String built() throws IOException {
         return Files.writeString(directory.resolve("built.json"), CompareBillsTest.bill()).toString();
     }

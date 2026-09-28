@@ -105,6 +105,28 @@ class VaultLockCommandTest {
     }
 
     @Test
+    void refusesToUnlockAVaultThatDoesNotExistAndNamesInit(@TempDir Path dir) {
+
+        // It used to cache the passphrase and exit 0, and the first 'vault put' then made the vault
+        // with it - typed once, with nothing to compare a typo against. Measured by Agent Frontend.
+        final SokarContext context = context(dir);
+        try {
+            assertThat(execute(context, "vault", "unlock",
+                    "--passphrase-command", "printf 'correct horse battery staple\\n'"))
+                    .isEqualTo(1);
+            assertThat(err.toString()).contains("there is no vault at").contains("sokar vault init")
+                    .contains("nothing was cached");
+            if (KernelKeyring.available()) {
+                assertThat(keyring(context).read()).isEmpty();
+            }
+        } finally {
+            if (KernelKeyring.available()) {
+                keyring(context).forget();
+            }
+        }
+    }
+
+    @Test
     void saysWhatLockingDoesNotReach(@TempDir Path dir) {
 
         // A running task's proxy read its credential when it started and holds it in its own

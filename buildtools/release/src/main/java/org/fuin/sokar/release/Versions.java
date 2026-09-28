@@ -1,7 +1,9 @@
 package org.fuin.sokar.release;
 
 import java.util.Arrays;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jspecify.annotations.Nullable;
 
 /**
  * What a pinned version looks like, how two compare, and what an update job does about them.
@@ -15,6 +17,17 @@ public final class Versions {
      * property and be found as a build failure two steps later.
      */
     public static final Pattern VERSION = Pattern.compile("\\d+\\.\\d+\\.\\d+");
+
+    /**
+     * Two numbers or more: what a pin other than the agent's CLI may be.
+     * <p>
+     * GraalVM tags its releases {@code graal-25.3.4.1}, and a JDK line is not three numbers either. The
+     * agent's CLI stays at {@link #VERSION}, which is what its packaging assumes.
+     */
+    public static final Pattern RELEASE = Pattern.compile("\\d+(?:\\.\\d+)+");
+
+    /** A module version whose patch an update may move: three numbers, then optionally {@code -SNAPSHOT}. */
+    private static final Pattern MODULE = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-SNAPSHOT)?");
 
     private Versions() {
         throw new UnsupportedOperationException("Utility class");
@@ -51,6 +64,35 @@ public final class Versions {
      */
     public static boolean isVersion(String text) {
         return VERSION.matcher(text).matches();
+    }
+
+    /**
+     * Whether a text is a release of a pin other than the CLI.
+     *
+     * @param text anything
+     * @return true for two or more dot-separated numbers
+     */
+    public static boolean isRelease(String text) {
+        return RELEASE.matcher(text).matches();
+    }
+
+    /**
+     * The module version an update moves to: the next patch, a snapshot staying a snapshot.
+     * <p>
+     * The operator's rule for the agent repositories, whose poms stay snapshots until a release is cut:
+     * {@code 1.0.0-SNAPSHOT} becomes {@code 1.0.1-SNAPSHOT}, {@code 1.0.3} becomes {@code 1.0.4}. Anything
+     * else is left alone, since its successor would be invented.
+     *
+     * @param version the module's version
+     * @return the next one, or null when it is not a shape this knows
+     */
+    public static @Nullable String nextPatch(String version) {
+        final Matcher matcher = MODULE.matcher(version);
+        if (!matcher.matches()) {
+            return null;
+        }
+        return matcher.group(1) + "." + matcher.group(2) + "." + (Long.parseLong(matcher.group(3)) + 1)
+                + (matcher.group(4) == null ? "" : matcher.group(4));
     }
 
     /**
@@ -97,7 +139,7 @@ public final class Versions {
     }
 
     private static int[] numbers(String version) {
-        if (!isVersion(version)) {
+        if (!isRelease(version)) {
             throw new IllegalArgumentException("not a version: " + version);
         }
         return Arrays.stream(version.split("\\.")).mapToInt(Integer::parseInt).toArray();

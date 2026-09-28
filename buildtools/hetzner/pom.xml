@@ -23,6 +23,38 @@
              copy of this is what let four copies of it disagree. -->
         <maven.deploy.skip>false</maven.deploy.skip>
         <skipPublishing>false</skipPublishing>
+
+        <!-- What a snapshot a CI leg boots from is made of, filtered into machines.properties for
+             Snapshots. Moved by the release tooling's update of a named pin, never by hand: the
+             machines workflow asks upstream every day and opens one pull request per pin that has a
+             release at least three days old, and a merged one rebuilds the snapshots. -->
+        <machines.graalvm.version>25.0.2</machines.graalvm.version>
+        <machines.graalvm.url>https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-25.0.2/graalvm-community-jdk-25.0.2_linux-x64_bin.tar.gz</machines.graalvm.url>
+        <machines.graalvm.sha256>e0be791c8fda4d03b6b0a0cb824fef3149736170057b3a515252b44419606af0</machines.graalvm.sha256>
+        <!-- By digest, and tagged by name after the pull: a tag is rebuilt in place, so it has no
+             age to wait for and names different bytes from one day to the next. -->
+        <machines.image.ubuntu>docker.io/library/ubuntu:24.04</machines.image.ubuntu>
+        <machines.image.ubuntu.digest>sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3</machines.image.ubuntu.digest>
+        <machines.image.alpine>docker.io/library/alpine:3.20</machines.image.alpine>
+        <machines.image.alpine.digest>sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc</machines.image.alpine.digest>
+
+        <sokar.release.min-age>3d</sokar.release.min-age>
+        <!-- GraalVM tags its builds graal-25.x beside the older jdk-25.0.x, and names the file after
+             neither, so the download address is read from the release with its digest. Line 25:
+             a JDK 26 build is a decision, not an update. -->
+        <sokar.release.pin.graalvm.label>GraalVM</sokar.release.pin.graalvm.label>
+        <sokar.release.pin.graalvm.property>machines.graalvm.version</sokar.release.pin.graalvm.property>
+        <sokar.release.pin.graalvm.upstream>github-releases https://api.github.com/repos/graalvm/graalvm-ce-builds/releases?per_page=100 graal-</sokar.release.pin.graalvm.upstream>
+        <sokar.release.pin.graalvm.channel>25</sokar.release.pin.graalvm.channel>
+        <sokar.release.pin.graalvm.digest>github-asset https://api.github.com/repos/graalvm/graalvm-ce-builds/releases/tags/graal-{version} graalvm-community-jdk-.*_linux-x64_bin\.tar\.gz</sokar.release.pin.graalvm.digest>
+        <sokar.release.pin.graalvm.sha256>machines.graalvm.sha256</sokar.release.pin.graalvm.sha256>
+        <sokar.release.pin.graalvm.url>machines.graalvm.url</sokar.release.pin.graalvm.url>
+        <sokar.release.pin.ubuntu-image.label>The ubuntu base image</sokar.release.pin.ubuntu-image.label>
+        <sokar.release.pin.ubuntu-image.property>machines.image.ubuntu.digest</sokar.release.pin.ubuntu-image.property>
+        <sokar.release.pin.ubuntu-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/ubuntu/tags/24.04</sokar.release.pin.ubuntu-image.upstream>
+        <sokar.release.pin.alpine-image.label>The alpine base image</sokar.release.pin.alpine-image.label>
+        <sokar.release.pin.alpine-image.property>machines.image.alpine.digest</sokar.release.pin.alpine-image.property>
+        <sokar.release.pin.alpine-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/alpine/tags/3.20</sokar.release.pin.alpine-image.upstream>
     </properties>
 
     <dependencies>
@@ -62,6 +94,12 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

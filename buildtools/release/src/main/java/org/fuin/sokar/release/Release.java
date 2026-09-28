@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import org.fuin.sokar.wire.Json;
@@ -23,7 +24,7 @@ import org.jspecify.annotations.Nullable;
  * @param licenses where a release's declared license is read, or null when the agent records none
  */
 public record Release(Pom pom, String agent, Path definition, Upstream upstream, @Nullable String channel,
-        DigestSource digests, @Nullable NpmTree npm, @Nullable LicenseSource licenses) {
+        DigestSource digests, @Nullable NpmTree npm, @Nullable LicenseSource licenses) implements Tracked {
 
     /** Property prefix, so every name the tool reads is findable in one search. */
     static final String PREFIX = "sokar.release.";
@@ -39,19 +40,28 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
      * @throws Stop refused when a property is missing or malformed
      */
     public static Release of(Pom pom) throws Stop {
-        final String[] upstream = words(pom, "upstream", 2);
         final String[] digest = pom.required(PREFIX + "digest").strip().split("\\s+");
         final String npmPackage = pom.optional(PREFIX + "npm.package");
         return new Release(pom,
                 pom.required(PREFIX + "agent"),
                 pom.root().resolve(pom.required(PREFIX + "definition")),
-                upstream(pom, upstream),
+                cliUpstream(pom),
                 pom.optional(PREFIX + "channel"),
                 digestSource(pom, digest),
                 npmPackage == null ? null : new NpmTree(npmPackage,
                         pom.root().resolve(Optional.ofNullable(pom.optional(PREFIX + "npm.directory")).orElse("src/main/npm")),
                         pom.required(PREFIX + "npm.image")),
                 licenseSource(pom));
+    }
+
+    @Override
+    public String pinned() throws Stop {
+        return pom.pinned();
+    }
+
+    @Override
+    public String label() {
+        return agent;
     }
 
     private static @Nullable LicenseSource licenseSource(Pom pom) throws Stop {
@@ -177,22 +187,43 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
         return pom.root().resolve("target/classes").resolve(resources.relativize(definition));
     }
 
-    private static String[] words(Pom pom, String name, int count) throws Stop {
-        final String[] words = pom.required(PREFIX + name).strip().split("\\s+");
-        if (words.length != count) {
-            throw Stop.refused(pom.file() + ": " + PREFIX + name + " takes " + count + " words, found " + words.length);
+    private static Upstream cliUpstream(Pom pom) throws Stop {
+        final Upstream upstream = upstream(pom.file() + ": " + PREFIX + "upstream", pom.required(PREFIX + "upstream"));
+        // The CLI's version is three numbers and its package is built around that; the kinds that answer
+        // anything else are for pins.
+        if (!(upstream instanceof Upstream.Pointer || upstream instanceof Upstream.Npm
+                || upstream instanceof Upstream.GithubLatest)) {
+            throw Stop.refused(pom.file() + ": " + PREFIX + "upstream is pointer, npm or github-latest for the CLI");
         }
-        return words;
+        return upstream;
     }
 
-    private static Upstream upstream(Pom pom, String[] words) throws Stop {
+    /**
+     * Reads where a version is found upstream.
+     *
+     * @param where the property, for a refusal
+     * @param spec the kind and its address, for example {@code npm https://registry.npmjs.org/x}
+     * @return the upstream
+     * @throws Stop refused when the kind is unknown or takes other words
+     */
+    static Upstream upstream(String where, String spec) throws Stop {
+        final String[] words = spec.strip().split("\\s+");
+        final String kind = words[0];
+        final int expected = "github-releases".equals(kind) ? 3 : 2;
+        if (words.length != expected) {
+            throw Stop.refused(where + ": '" + kind + "' takes " + (expected - 1) + " word(s) after it, found "
+                    + (words.length - 1));
+        }
         final URI address = URI.create(words[1]);
-        return switch (words[0]) {
+        return switch (kind) {
             case "pointer" -> new Upstream.Pointer(address);
             case "npm" -> new Upstream.Npm(address);
             case "github-latest" -> new Upstream.GithubLatest(address);
-            default -> throw Stop.refused(pom.file() + ": " + PREFIX + "upstream is pointer, npm or github-latest, not "
-                    + words[0]);
+            case "github-releases" -> new Upstream.GithubReleases(address, words[2]);
+            case "node-lts" -> new Upstream.NodeLts(address);
+            case "docker-hub" -> new Upstream.DockerHub(address);
+            default -> throw Stop.refused(where + " is pointer, npm, github-latest, github-releases, node-lts or"
+                    + " docker-hub, not " + kind);
         };
     }
 
@@ -243,6 +274,27 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
         String source(@Nullable String channel);
 
         /**
+         * Reads when a version was published, for the age a release has to reach before it is taken.
+         *
+         * @param web where to read
+         * @param version the version, as {@link #version} answered it
+         * @param channel the channel it was read from, or null
+         * @param env the environment, for a token
+         * @return when it was published
+         * @throws Stop unanswered when there is no readable date: a release of unknown age is not old enough
+         */
+        Instant published(Web web, String version, @Nullable String channel, Map<String, String> env) throws Stop;
+
+        /**
+         * Whether what this answers is a digest rather than a version: one image tag, rebuilt in place.
+         *
+         * @return true when two answers are compared for equality only
+         */
+        default boolean byDigest() {
+            return false;
+        }
+
+        /**
          * A plain-text file per channel beside the releases, as Anthropic serves them.
          *
          * @param base the address the channel name is appended to
@@ -265,6 +317,14 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
             @Override
             public String source(@Nullable String channel) {
                 return "channel " + channel;
+            }
+
+            // Anthropic's layout: the manifest beside each release carries its build date.
+            @Override
+            public Instant published(Web web, String version, @Nullable String channel, Map<String, String> env)
+                    throws Stop {
+                final URI address = URI.create(base + "/" + version + "/manifest.json");
+                return date(field(parse(read(web, address, Map.of()), address), "buildDate"), address);
             }
 
         }
@@ -294,6 +354,13 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
             @Override
             public String source(@Nullable String channel) {
                 return "dist-tag " + (channel == null ? "latest" : channel);
+            }
+
+            @Override
+            public Instant published(Web web, String version, @Nullable String channel, Map<String, String> env)
+                    throws Stop {
+                final Object times = field(parse(read(web, registry, Map.of()), registry), "time");
+                return date(times instanceof Map<?, ?> all ? all.get(version) : null, registry);
             }
 
             /**
@@ -335,6 +402,191 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
             @Override
             public String source(@Nullable String channel) {
                 return "newest release";
+            }
+
+            @Override
+            public Instant published(Web web, String version, @Nullable String channel, Map<String, String> env)
+                    throws Stop {
+                final Object latest = parse(read(web, api, githubHeaders(api, env)), api);
+                final Object tag = field(latest, "tag_name");
+                if (!(tag instanceof String name) || !version.equals(name.startsWith("v") ? name.substring(1) : name)) {
+                    // Moved on between the two reads: the date would be another release's.
+                    throw Stop.unanswered("the newest release is no longer " + version + " but '" + tag + "'");
+                }
+                return date(field(latest, "published_at"), api);
+            }
+
+        }
+
+        /**
+         * The newest of a GitHub repository's releases whose tag has a prefix - for a repository that
+         * publishes more than one line, as GraalVM does ({@code graal-25.3.4.1} beside {@code jdk-25.0.2}).
+         * <p>
+         * Drafts and pre-releases are not releases. A channel keeps to one line: {@code 25} takes
+         * {@code 25.4.4.1.1} and never {@code 26.0.1}.
+         *
+         * @param api the API address of the repository's releases list
+         * @param prefix what a tag starts with before its version
+         */
+        record GithubReleases(URI api, String prefix) implements Upstream {
+
+            @Override
+            public String version(Web web, @Nullable String channel, Map<String, String> env) throws Stop {
+                String newest = null;
+                for (final Map.Entry<String, Map<?, ?>> release : releases(web, env).entrySet()) {
+                    final String version = release.getKey();
+                    if ((channel == null || version.startsWith(channel + "."))
+                            && (newest == null || Versions.compare(version, newest) > 0)) {
+                        newest = version;
+                    }
+                }
+                if (newest == null) {
+                    throw Stop.unanswered(api + " lists no release tagged '" + prefix + "<version>'"
+                            + (channel == null ? "" : " on line " + channel));
+                }
+                return newest;
+            }
+
+            @Override
+            public String source(@Nullable String channel) {
+                return "newest release tagged " + prefix + (channel == null ? "" : channel + ".") + "*";
+            }
+
+            @Override
+            public Instant published(Web web, String version, @Nullable String channel, Map<String, String> env)
+                    throws Stop {
+                final Map<?, ?> release = releases(web, env).get(version);
+                if (release == null) {
+                    throw Stop.unanswered(api + " no longer lists " + prefix + version);
+                }
+                return date(release.get("published_at"), api);
+            }
+
+            private Map<String, Map<?, ?>> releases(Web web, Map<String, String> env) throws Stop {
+                final Object listed = parse(read(web, api, githubHeaders(api, env)), api);
+                if (!(listed instanceof java.util.List<?> all)) {
+                    throw Stop.unanswered(api + " did not answer with a list of releases");
+                }
+                final Map<String, Map<?, ?>> found = new java.util.LinkedHashMap<>();
+                for (final Object each : all) {
+                    if (each instanceof Map<?, ?> release && release.get("tag_name") instanceof String tag
+                            && tag.startsWith(prefix) && !Boolean.TRUE.equals(release.get("draft"))
+                            && !Boolean.TRUE.equals(release.get("prerelease"))
+                            && Versions.isRelease(tag.substring(prefix.length()))) {
+                        found.put(tag.substring(prefix.length()), release);
+                    }
+                }
+                return found;
+            }
+
+        }
+
+        /**
+         * Node's own index of releases, the long-term-support ones only.
+         * <p>
+         * A channel is a line, by its major ({@code 22}) or its name ({@code jod}); without one, the newest
+         * LTS of any line - which moves the major, and a major move is said as one.
+         *
+         * @param index the address of {@code index.json}
+         */
+        record NodeLts(URI index) implements Upstream {
+
+            @Override
+            public String version(Web web, @Nullable String channel, Map<String, String> env) throws Stop {
+                String newest = null;
+                for (final Map.Entry<String, Map<?, ?>> release : releases(web).entrySet()) {
+                    final String version = release.getKey();
+                    if (onLine(version, release.getValue(), channel)
+                            && (newest == null || Versions.compare(version, newest) > 0)) {
+                        newest = version;
+                    }
+                }
+                if (newest == null) {
+                    throw Stop.unanswered(index + " lists no LTS release" + (channel == null ? "" : " on line " + channel));
+                }
+                return newest;
+            }
+
+            @Override
+            public String source(@Nullable String channel) {
+                return "newest Node LTS" + (channel == null ? "" : " on line " + channel);
+            }
+
+            @Override
+            public Instant published(Web web, String version, @Nullable String channel, Map<String, String> env)
+                    throws Stop {
+                final Map<?, ?> release = releases(web).get(version);
+                if (release == null) {
+                    throw Stop.unanswered(index + " no longer lists v" + version);
+                }
+                return date(release.get("date"), index);
+            }
+
+            private static boolean onLine(String version, Map<?, ?> release, @Nullable String channel) {
+                if (channel == null) {
+                    return true;
+                }
+                return version.startsWith(channel + ".")
+                        || release.get("lts") instanceof String name && name.equalsIgnoreCase(channel);
+            }
+
+            private Map<String, Map<?, ?>> releases(Web web) throws Stop {
+                final Object listed = parse(read(web, index, Map.of()), index);
+                if (!(listed instanceof java.util.List<?> all)) {
+                    throw Stop.unanswered(index + " did not answer with a list of releases");
+                }
+                final Map<String, Map<?, ?>> found = new java.util.LinkedHashMap<>();
+                for (final Object each : all) {
+                    // 'lts' is false for a current release and the line's name for a long-term one.
+                    if (each instanceof Map<?, ?> release && release.get("lts") instanceof String
+                            && release.get("version") instanceof String tag && tag.startsWith("v")
+                            && Versions.isRelease(tag.substring(1))) {
+                        found.put(tag.substring(1), release);
+                    }
+                }
+                return found;
+            }
+
+        }
+
+        /**
+         * One image tag on Docker Hub, followed by its digest: the tag stays, what it names is rebuilt.
+         *
+         * @param tag the API address of the tag, for example
+         *     {@code https://hub.docker.com/v2/repositories/library/ubuntu/tags/24.04}
+         */
+        record DockerHub(URI tag) implements Upstream {
+
+            @Override
+            public String version(Web web, @Nullable String channel, Map<String, String> env) throws Stop {
+                if (channel != null) {
+                    throw Stop.unanswered("an image tag has no channels, and was asked for '" + channel + "'");
+                }
+                final Object digest = field(parse(read(web, tag, Map.of()), tag), "digest");
+                if (!(digest instanceof String found) || !Digests.IMAGE.matcher(found).matches()) {
+                    throw Stop.unanswered(tag + " gives '" + digest + "' as the tag's digest, which is not one");
+                }
+                return found;
+            }
+
+            @Override
+            public String source(@Nullable String channel) {
+                return "the digest of " + tag;
+            }
+
+            @Override
+            public Instant published(Web web, String version, @Nullable String channel, Map<String, String> env)
+                    throws Stop {
+                final Object answered = parse(read(web, tag, Map.of()), tag);
+                if (!version.equals(field(answered, "digest"))) {
+                    throw Stop.unanswered(tag + " no longer names " + version);
+                }
+                return date(field(answered, "tag_last_pushed"), tag);
+            }
+
+            @Override
+            public boolean byDigest() {
+                return true;
             }
 
         }
@@ -449,6 +701,13 @@ public record Release(Pom pom, String agent, Path definition, Upstream upstream,
         } catch (JsonException ex) {
             throw Stop.unanswered(address + " did not answer with JSON: " + ex.getMessage(), ex);
         }
+    }
+
+    private static Instant date(@Nullable Object value, URI address) throws Stop {
+        if (!(value instanceof String text) || text.isBlank()) {
+            throw Stop.unanswered(address + " gives no date for the release");
+        }
+        return Age.published(text, address.toString());
     }
 
     private static @Nullable Object field(@Nullable Object parsed, String name) {

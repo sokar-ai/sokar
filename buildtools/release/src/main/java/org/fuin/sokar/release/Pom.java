@@ -22,10 +22,11 @@ import org.xml.sax.SAXException;
  * @param file where it is
  * @param text its content, which is what a rewrite starts from so a person's formatting survives
  * @param artifactId the module's own artifact id
- * @param version the module's own version
+ * @param version the module's own version, or null for a module that inherits its parent's
  * @param properties the {@code <properties>} it declares, as written
  */
-public record Pom(Path file, String text, String artifactId, String version, Map<String, String> properties) {
+public record Pom(Path file, String text, String artifactId, @Nullable String version,
+        Map<String, String> properties) {
 
     /** Where the pinned CLI version is written by hand, and everything else is filtered from. */
     public static final String PIN = "agent.cli.version";
@@ -36,7 +37,7 @@ public record Pom(Path file, String text, String artifactId, String version, Map
      * @param file where it is
      * @param text its content
      * @param artifactId the module's own artifact id
-     * @param version the module's own version
+     * @param version the module's own version, or null
      * @param properties its properties
      */
     public Pom {
@@ -50,7 +51,7 @@ public record Pom(Path file, String text, String artifactId, String version, Map
      *
      * @param file the pom
      * @return what it declares
-     * @throws Stop refused when it cannot be read or declares no own artifact id and version
+     * @throws Stop refused when it cannot be read or declares no own artifact id
      */
     public static Pom read(Path file) throws Stop {
         final String text;
@@ -70,8 +71,9 @@ public record Pom(Path file, String text, String artifactId, String version, Map
         }
         final String artifactId = child(project, "artifactId");
         final String version = child(project, "version");
-        if (artifactId == null || version == null) {
-            throw Stop.refused(file + " declares no own artifactId and version");
+        // A version may be inherited - a module of a reactor has none of its own, and an update leaves it be.
+        if (artifactId == null) {
+            throw Stop.refused(file + " declares no own artifactId");
         }
         final Map<String, String> properties = new HashMap<>();
         final Element declared = element(project, "properties");

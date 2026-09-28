@@ -72,18 +72,22 @@ public final class Main {
                     ? usage(err, "merge-tree-bill <package.cdx.json> <tree.cdx.json>")
                     : new MergeTreeBill(out, err).merge(Path.of(rest.get(0)), Path.of(rest.get(1)));
             case "upstream-version" -> {
-                final Options options = Options.parse(rest, Set.of("--channel", "--upstream", "--pom"), Set.of());
+                final Options options = Options.parse(rest,
+                        Set.of("--channel", "--upstream", "--pom", "--pin", "--min-age"), Set.of());
                 yield options == null || !options.positional().isEmpty()
-                        ? usage(err, "upstream-version [--channel C] [--upstream VERSION] [--pom FILE]")
+                        ? usage(err, "upstream-version [--pin NAME] [--channel C] [--upstream VERSION] [--min-age 3d]"
+                                + " [--pom FILE]")
                         : new UpstreamVersion(out, err, web, env).answer(options.pom(), options.value("--channel"),
-                                options.value("--upstream"));
+                                options.value("--upstream"), options.value("--pin"), options.value("--min-age"));
             }
             case "update" -> {
-                final Options options = Options.parse(rest, Set.of("--pom"), Set.of("--dry-run"));
+                final Options options = Options.parse(rest, Set.of("--pom", "--pin"), Set.of("--dry-run"));
+                final String pin = options == null ? null : options.value("--pin");
+                final Update update = new Update(out, err, web, relock, env);
                 yield options == null || options.positional().size() != 1
-                        ? usage(err, "update <version> [--dry-run] [--pom FILE]")
-                        : new Update(out, err, web, relock, env).pin(options.pom(), options.positional().getFirst(),
-                                options.flag("--dry-run"));
+                        ? usage(err, "update <version> [--pin NAME] [--dry-run] [--pom FILE]")
+                        : pin == null ? update.pin(options.pom(), options.positional().getFirst(), options.flag("--dry-run"))
+                        : update.pin(options.pom(), pin, options.positional().getFirst(), options.flag("--dry-run"));
             }
             case "check-pin" -> {
                 final Options options = Options.parse(rest, Set.of("--definition", "--pom"), Set.of("--offline"));

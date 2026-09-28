@@ -111,6 +111,12 @@ Feature: The vault commands
     When a script runs "sokar vault list"
     Then it exits zero
 
+  Scenario: a vault that does not exist is not unlocked, and init is named instead
+    When a script runs "SOKAR_VAULT=$(mktemp -d)/vault.bin sokar vault unlock --passphrase-command 'printf acceptance'"
+    Then it exits non-zero
+    And its output contains "sokar vault init"
+    And its output contains "nothing was cached"
+
   Scenario: the passphrase is changed only by somebody who knows the current one
     Given a vault of this scenario's own, unlocked with the passphrase "acceptance"
     When a script runs "sokar vault passphrase --passphrase-command 'printf wrong' --new-passphrase-command 'printf changed'"

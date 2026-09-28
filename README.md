@@ -140,7 +140,7 @@ sokar setup
 # dnsmasq without nftset support opens nothing while resolving everything.
 sokar doctor
 
-# The vault, and a credential in it. The first unlock sets the passphrase.
+# The vault, and a credential in it. 'vault init' makes it and asks for the passphrase twice.
 #
 # 'vault login' runs the agent's own login in a throwaway container and stores what it
 # produces - so nothing has to be installed here first, and no key goes through your shell
@@ -150,7 +150,7 @@ sokar doctor
 #
 # However it gets there, it never enters the container: the agent is given a task-scoped
 # token, and a proxy swaps in the real key on the way out.
-sokar vault unlock
+sokar vault init
 sokar vault login claude
 
 # Follow the project's repository. A project exists on a machine because the machine
@@ -194,7 +194,7 @@ sudo /usr/share/sokar/selinux/install-selinux-policy.sh
 # dnsmasq without nftset support opens nothing while resolving everything.
 sokar doctor
 
-# The vault, and a credential in it. The first unlock sets the passphrase.
+# The vault, and a credential in it. 'vault init' makes it and asks for the passphrase twice.
 #
 # 'vault login' runs the agent's own login in a throwaway container and stores what it
 # produces - so nothing has to be installed here first, and no key goes through your shell
@@ -204,7 +204,7 @@ sokar doctor
 #
 # However it gets there, it never enters the container: the agent is given a task-scoped
 # token, and a proxy swaps in the real key on the way out.
-sokar vault unlock
+sokar vault init
 sokar vault login claude
 
 # Follow the project's repository. A project exists on a machine because the machine

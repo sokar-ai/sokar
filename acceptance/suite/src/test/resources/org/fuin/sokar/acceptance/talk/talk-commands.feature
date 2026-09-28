@@ -1,6 +1,6 @@
 Feature: The talk commands
 
-  Eight commands for the conversations between tasks. Most act on one task's mailbox, and the first
+  Nine commands for the conversations between tasks. Most act on one task's mailbox, and the first
   thing each must do is refuse a task that has none, rather than act on nothing. The rest is asked of
   one running task: what is held, what a person writes into it, how a peer is held and released, and
   whether the record still checks out. The kit removes the task and its project afterwards.
@@ -14,6 +14,7 @@ Feature: The talk commands
       | peers   |
       | pass    |
       | held    |
+      | read    |
       | release |
       | hold    |
       | verify  |
@@ -38,6 +39,7 @@ Feature: The talk commands
       | verify  |          |
       | pass    |          |
       | hold    | somebody |
+      | read    | a-message |
       | release | a-message |
 
   @slow
@@ -71,6 +73,10 @@ Feature: The talk commands
     When a script runs "sokar talk hold {task} somebody --release" about the task
     Then it exits zero
     And its output contains "not held"
+    # Nothing held answers to it, and nothing a filter refused ever would.
+    When a script runs "sokar talk read {task} no-such-message" about the task
+    Then it exits non-zero
+    And its output contains "is called 'no-such-message'"
     When a script runs "sokar talk release {task} no-such-message" about the task
     Then it exits non-zero
     And its output contains "is called 'no-such-message'"

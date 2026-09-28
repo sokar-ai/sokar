@@ -55,35 +55,125 @@ public final class Snapshots {
     /** The unprivileged user a leg connects as. */
     private static final String USER = "build";
 
-    /**
-     * The JDK a leg builds with.
-     * <p>
-     * <strong>Not on the PATH, deliberately.</strong> The remote build names it -
-     * {@code JAVA_HOME=/opt/graalvm} - so a machine where somebody installed a different java does
-     * not quietly build with that one instead.
-     * <p>
-     * Left out of the first rebuild of these snapshots and found the hard way: the build died on
-     * "The JAVA_HOME environment variable is not defined correctly", because an inventory that
-     * asked dpkg what was installed never thought to look in {@code /opt}.
-     */
-    private static final String GRAALVM_VERSION = "25.0.2";
-
-    /**
-     * The published digest of that archive.
-     * <p>
-     * Everything else this project installs is verified - the agent CLI by SHA-256, npm by
-     * lockfile integrity, the musl toolchain by digest - and a JDK fetched over TLS and trusted
-     * because the host answered is the one exception nobody decided to make.
-     */
-    private static final String GRAALVM_SHA256 =
-            "e0be791c8fda4d03b6b0a0cb824fef3149736170057b3a515252b44419606af0";
-
     /** Where the JDK goes, because that is where the remote build looks for it. */
     private static final String GRAALVM_HOME = "/opt/graalvm";
 
-    /** Base images every task starts from, pulled once here rather than per run. */
-    private static final List<String> IMAGES =
-            List.of("docker.io/library/ubuntu:24.04", "docker.io/library/alpine:3.20");
+    /**
+     * What a snapshot is made of, as the pom pins it: the JDK a leg builds with and the base images every
+     * task starts from.
+     * <p>
+     * <strong>The JDK is not on the PATH, deliberately.</strong> The remote build names it -
+     * {@code JAVA_HOME=/opt/graalvm} - so a machine where somebody installed a different java does not
+     * quietly build with that one instead. Left out of the first rebuild of these snapshots and found the
+     * hard way: the build died on "The JAVA_HOME environment variable is not defined correctly", because an
+     * inventory that asked dpkg what was installed never thought to look in {@code /opt}.
+     * <p>
+     * <strong>Everything here is verified.</strong> The JDK by its published digest - the agent CLI is
+     * checked by SHA-256, npm by lockfile integrity, the musl toolchain by digest, and a JDK trusted because
+     * the host answered was the one exception nobody decided to make. The base images by digest too: a tag is
+     * rebuilt in place, so two snapshots built a week apart would otherwise hold different bytes under one
+     * name.
+     *
+     * @param graalvmUrl where the JDK archive is downloaded
+     * @param graalvmSha256 its digest
+     * @param images the base images, pulled once here rather than per run
+     */
+    record Contents(String graalvmUrl, String graalvmSha256, List<Image> images) {
+
+        /** The resource the pom's pins are filtered into. */
+        static final String RESOURCE = "machines.properties";
+
+        /**
+         * Reads what the pom pins.
+         *
+         * @return the contents
+         * @throws IllegalStateException when the resource is missing, unfiltered or pins something malformed -
+         *     a build fault, never a machine's
+         */
+        static Contents pinned() {
+            final java.util.Properties read = new java.util.Properties();
+            try (java.io.InputStream in = Snapshots.class.getResourceAsStream(RESOURCE)) {
+                if (in == null) {
+                    throw new IllegalStateException(RESOURCE + " is not on the classpath");
+                }
+                read.load(in);
+            } catch (IOException ex) {
+                throw new java.io.UncheckedIOException(ex);
+            }
+            return of(read::getProperty);
+        }
+
+        /**
+         * Reads contents from named values.
+         *
+         * @param values the value of each name, or null
+         * @return the contents
+         * @throws IllegalStateException when a value is missing, left unfiltered or malformed
+         */
+        static Contents of(java.util.function.Function<String, @Nullable String> values) {
+            final String url = value(values, "graalvm.url");
+            if (!url.startsWith("https://")) {
+                throw new IllegalStateException("graalvm.url is not an https address: " + url);
+            }
+            final String sha256 = value(values, "graalvm.sha256");
+            if (!sha256.matches("[0-9a-f]{64}")) {
+                throw new IllegalStateException("graalvm.sha256 is not a SHA-256 digest: " + sha256);
+            }
+            final List<Image> images = new java.util.ArrayList<>();
+            for (final String image : List.of("ubuntu", "alpine")) {
+                images.add(new Image(value(values, "image." + image), value(values, "image." + image + ".digest")));
+            }
+            return new Contents(url, sha256, List.copyOf(images));
+        }
+
+        private static String value(java.util.function.Function<String, @Nullable String> values, String name) {
+            final String value = values.apply(name);
+            if (value == null || value.isBlank() || value.contains("${")) {
+                throw new IllegalStateException(RESOURCE + " pins no " + name + " - was it filtered? found: " + value);
+            }
+            return value.strip();
+        }
+
+    }
+
+    /**
+     * A base image, by the name tasks use and the digest it is pulled by.
+     *
+     * @param name the name with its tag, for example {@code docker.io/library/ubuntu:24.04}
+     * @param digest what that tag named when it was pinned
+     */
+    record Image(String name, String digest) {
+
+        /**
+         * Checks the two.
+         *
+         * @param name the name
+         * @param digest the digest
+         */
+        Image {
+            if (!digest.matches("sha256:[0-9a-f]{64}")) {
+                throw new IllegalStateException(name + " is pinned to '" + digest + "', which is not an image digest");
+            }
+            if (repository(name).equals(name)) {
+                throw new IllegalStateException(name + " names no tag, and a task asks for a tagged image");
+            }
+        }
+
+        /**
+         * The reference it is pulled by.
+         *
+         * @return the repository and the digest
+         */
+        String pinned() {
+            return repository(name) + "@" + digest;
+        }
+
+        private static String repository(String name) {
+            final int colon = name.lastIndexOf(':');
+            return colon > name.lastIndexOf('/') ? name.substring(0, colon) : name;
+        }
+
+    }
 
     private Snapshots() {
         throw new UnsupportedOperationException("Utility class");
@@ -216,12 +306,23 @@ public final class Snapshots {
      * @return A script.
      */
     static String recipe(String os) {
+        return recipe(os, Contents.pinned());
+    }
+
+    /**
+     * Returns what to run on a fresh machine to make it one a leg can use, from given contents.
+     *
+     * @param os Which operating system.
+     * @param contents What goes on it.
+     * @return A script.
+     */
+    static String recipe(String os, Contents contents) {
         return TEMPLATE
                 .replace("@PACKAGES@", packages(os))
-                .replace("@DOWNLOAD@", download())
+                .replace("@DOWNLOAD@", contents.graalvmUrl())
                 .replace("@GRAALVM@", GRAALVM_HOME)
-                .replace("@SHA256@", GRAALVM_SHA256)
-                .replace("@PULLS@", pulls())
+                .replace("@SHA256@", contents.graalvmSha256())
+                .replace("@PULLS@", pulls(contents.images()))
                 .replace("@USER@", USER);
     }
 
@@ -247,21 +348,13 @@ public final class Snapshots {
                 + "&& apt-get clean && rm -rf /var/lib/apt/lists/*";
     }
 
-    /**
-     * Returns where the JDK comes from.
-     *
-     * @return A download URL.
-     */
-    private static String download() {
-        return "https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-"
-                + GRAALVM_VERSION + "/graalvm-community-jdk-" + GRAALVM_VERSION
-                + "_linux-x64_bin.tar.gz";
-    }
-
-    private static String pulls() {
+    // By digest, then tagged by the name a task asks for: pulled by digest alone it has no name, and a
+    // task naming the tag would pull it again - whatever the tag names that day.
+    private static String pulls(List<Image> images) {
         final StringBuilder out = new StringBuilder();
-        for (final String image : IMAGES) {
-            out.append("su - ").append(USER).append(" -c 'podman pull -q ").append(image)
+        for (final Image image : images) {
+            out.append("su - ").append(USER).append(" -c 'podman pull -q ").append(image.pinned())
+                    .append(" && podman tag ").append(image.pinned()).append(' ').append(image.name())
                     .append("'\n");
         }
         return out.toString().strip();

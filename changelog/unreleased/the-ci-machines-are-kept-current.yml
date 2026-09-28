@@ -1,0 +1,2 @@
+title: "The snapshots a CI leg boots from pin GraalVM and their base images in sokar-machines' pom, the images by digest, and a daily job opens one pull request per pin with a release at least three days old; merging one rebuilds the snapshots, for this repository's legs and every agent repository's."
+type: changed

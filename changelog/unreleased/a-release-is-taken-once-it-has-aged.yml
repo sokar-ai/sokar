@@ -1,0 +1,2 @@
+title: "The release tooling takes an upstream release only once it has aged ('upstream-version --min-age 3d', or 'sokar.release.min-age'), reading its date from npm, GitHub, a release manifest, Node's index or Docker Hub, and waits rather than offering an older one. It also follows pins beside the agent's CLI - a runtime, a tool, a JDK, a base image by digest - declared as pom properties and moved one per call with '--pin', and an update now moves a snapshot's patch version too."
+type: added

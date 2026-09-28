@@ -18,6 +18,9 @@ public final class Digests {
     /** 64 lowercase hexadecimal characters and nothing else. */
     public static final Pattern SHA256 = Pattern.compile("[0-9a-f]{64}");
 
+    /** What an image is pinned by: its manifest's digest, the algorithm named. */
+    public static final Pattern IMAGE = Pattern.compile("sha256:[0-9a-f]{64}");
+
     private Digests() {
         throw new UnsupportedOperationException("Utility class");
     }

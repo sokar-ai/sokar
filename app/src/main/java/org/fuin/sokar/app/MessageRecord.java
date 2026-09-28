@@ -56,6 +56,12 @@ public final class MessageRecord {
     /** It arrived again after having been delivered. */
     public static final String DUPLICATE = "duplicate";
 
+    /** A person refused it for good. Recorded so a refusal by a person stays final. */
+    public static final String REFUSED = "refused";
+
+    /** A person delivered it after reading it, although the filter had refused it. */
+    public static final String OVERRIDDEN = "overridden";
+
     private final Path file;
 
     /**

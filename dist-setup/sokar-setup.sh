@@ -109,6 +109,38 @@ fi
 
 say "preparing ${PRETTY_NAME:-$ID} for Sokar, tasks running as '$USER_NAME'"
 
+# ---------------------------------------------------------------- podman 5, before anything else
+
+# Asked of this system's own package source before anything is installed: Sokar refuses podman 4,
+# and a release that offers only podman 4 - Ubuntu 24.04 offers 4.9.3 - would otherwise be
+# "prepared" into a machine 'sokar doctor' fails. Measured on a fresh 24.04 by the interface's
+# wizard. Taking podman from a newer release is not an option either: on 24.04 it upgrades libc and
+# some 150 packages with it. So the release is refused, by what it offers rather than by its name.
+say "the podman this system offers"
+if [ "$SHOW" = yes ]; then
+    if [ "$FAMILY" = apt ]; then
+        printf '   $ %s\n' "apt-get update -qq && apt-cache policy podman"
+    else
+        printf '   $ %s\n' "dnf -q repoquery --latest-limit=1 --queryformat '%{version}' podman"
+    fi
+    note "anything older than podman 5 stops here, before a package is installed"
+else
+    if [ "$FAMILY" = apt ]; then
+        apt-get update -qq
+        OFFERED="$(LC_ALL=C apt-cache policy podman | sed -n 's/^ *Candidate: *//p')"
+    else
+        OFFERED="$(dnf -q repoquery --latest-limit=1 --queryformat '%{version}' podman 2>/dev/null | tail -1)"
+    fi
+    # An epoch ('1:5.4.2') and a Debian revision ('5.4.2+ds1-2') both come after or before the major.
+    OFFERED_MAJOR="$(printf '%s' "${OFFERED#*:}" | sed -n 's/^\([0-9][0-9]*\).*/\1/p')"
+    if [ -z "$OFFERED_MAJOR" ] || [ "$OFFERED_MAJOR" -lt 5 ]; then
+        echo "sokar-setup: ${PRETTY_NAME:-$ID} offers podman ${OFFERED:-nothing}, and Sokar needs podman 5 or newer." >&2
+        echo "Nothing was installed. Ubuntu 26.04, Debian 13 and current Fedora offer it." >&2
+        exit 3
+    fi
+    note "podman $OFFERED"
+fi
+
 # ---------------------------------------------------------------- packages
 
 say "the packages Sokar shells out to"

@@ -18,8 +18,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * Moves a module to a new upstream version, doing exactly what a person would.
  * <p>
- * It writes the pin, the digest or the lockfile, the module's own version once it is released, and
- * one changelog line. Everything else that names the version is filtered from the pin, so it cannot
+ * It writes the pin, the digest or the lockfile, the module's own next patch version, and one
+ * changelog line. Everything else that names the version is filtered from the pin, so it cannot
  * be left behind. The digest is never taken from a caller.
  */
 public final class Update {
@@ -112,26 +112,133 @@ public final class Update {
             report.put("lockfile", relocked(release, tree, version, writes));
         }
 
-        String pomText = Texts.replaceOnce(pom.text(), PIN, "<" + Pom.PIN + ">" + version + "</" + Pom.PIN + ">",
+        final String pomText = Texts.replaceOnce(pom.text(), PIN, "<" + Pom.PIN + ">" + version + "</" + Pom.PIN + ">",
                 Pom.PIN + " in pom.xml");
-        final String bumped = bumped(pom.version());
-        if (bumped != null) {
-            pomText = Texts.replaceOnce(pomText,
-                    Pattern.compile("(<artifactId>" + Pattern.quote(pom.artifactId()) + "</artifactId>\\s*<version>)[^<]+(</version>)"),
-                    "$1" + Matcher.quoteReplacement(bumped) + "$2", "the module's own version");
-            report.put("this module", pom.version() + " -> " + bumped);
-        } else {
-            report.put("this module", pom.version() + ", unchanged - the CI run number already orders snapshot packages");
+        writes.put(pom.file(), bumped(pom, pomText, report));
+        noted(pom, release.agent(), version, was, true, writes, report);
+        return written(release.agent(), version, dryRun, writes, report);
+    }
+
+    /**
+     * Moves a named pin to a new version, or an image pin to a new digest.
+     *
+     * @param pomFile the module's pom
+     * @param name the pin, as {@code sokar.release.pin.<name>} declares it
+     * @param version the release to pin, or the digest for a pin followed by one
+     * @param dryRun whether to say what would change and write nothing
+     * @return {@link #DONE}, {@link Stop#REFUSED} or {@link Stop#UNANSWERED}
+     */
+    public int pin(Path pomFile, String name, String version, boolean dryRun) {
+        try {
+            return move(Pin.of(Pom.read(pomFile), name), version, dryRun);
+        } catch (Stop stop) {
+            err.println(stop.getMessage());
+            if (stop.code() == Stop.UNANSWERED) {
+                err.println("This is not the same as 'there is no such version'.");
+            }
+            return stop.code();
         }
-        writes.put(pom.file(), pomText);
+    }
 
+    private int move(Pin pin, String version, boolean dryRun) throws Stop {
+        if (!pin.accepts(version)) {
+            throw Stop.refused("'" + version + "' is not " + (pin.upstream().byDigest() ? "an image digest" : "a version"));
+        }
+        final Pom pom = pin.pom();
+        final String was = pin.pinned();
+        if (was.equals(version)) {
+            out.println("already pinned to " + version + " - nothing to do");
+            return DONE;
+        }
+        final Map<Path, String> writes = new LinkedHashMap<>();
+        final Map<String, String> report = new LinkedHashMap<>();
+        report.put(pin.name(), was + " -> " + version);
+        // Old value -> new value, for every property that spells the pin out inside a longer one.
+        final Map<String, String> moved = new LinkedHashMap<>();
+        moved.put(was, version);
+        String pomText = property(pom.text(), pin.property(), version);
+
+        final Optional<Pin.Artifact> artifact = pin.digests().artifact(web, version, env);
+        if (artifact.isPresent()) {
+            final String sha256 = java.util.Objects.requireNonNull(pin.sha256());
+            moved.put(pom.required(sha256), artifact.get().sha256());
+            pomText = property(pomText, sha256, artifact.get().sha256());
+            report.put("sha256", artifact.get().sha256());
+            final String url = pin.url();
+            final String address = artifact.get().url();
+            if (url != null) {
+                if (address == null) {
+                    throw Stop.refused(pom.file() + ": " + Pin.PREFIX + pin.name() + ".url names " + url
+                            + ", but its digest source gives no download address");
+                }
+                moved.put(pom.required(url), address);
+                pomText = property(pomText, url, address);
+                report.put("url", address);
+            }
+        }
+        final Optional<String> image = pin.imageDigest(web, version);
+        if (image.isPresent()) {
+            final String imageProperty = java.util.Objects.requireNonNull(pin.imageProperty());
+            moved.put(pom.required(imageProperty), image.get());
+            pomText = property(pomText, imageProperty, image.get());
+            report.put("image", image.get());
+        }
+        for (final String follower : pin.follows()) {
+            String value = pom.required(follower);
+            for (final Map.Entry<String, String> change : moved.entrySet()) {
+                value = value.replace(change.getKey(), change.getValue());
+            }
+            if (value.equals(pom.required(follower))) {
+                // It spells out none of the old values, so it would silently keep naming them - or never did.
+                throw Stop.refused(follower + " follows " + pin.name() + " but names none of " + moved.keySet());
+            }
+            pomText = property(pomText, follower, value);
+            report.put(follower, value);
+        }
+        writes.put(pom.file(), bumped(pom, pomText, report));
+        noted(pom, pin.label(), version, was, false, writes, report);
+        return written(pin.label(), version, dryRun, writes, report);
+    }
+
+    private static String property(String pomText, String name, String value) throws Stop {
+        if (value.chars().anyMatch(c -> c == '<' || c == '&' || c == '\n' || c == '\r')) {
+            throw Stop.refused("'" + value + "' cannot be written into " + name + " as it stands");
+        }
+        return Texts.replaceOnce(pomText, Pattern.compile("(<" + Pattern.quote(name) + ">)[^<]*(</" + Pattern.quote(name) + ">)"),
+                "$1" + Matcher.quoteReplacement(value) + "$2", name + " in pom.xml");
+    }
+
+    // The operator's rule: the patch moves with the pin, a snapshot staying one; an inherited version stays.
+    private static String bumped(Pom pom, String pomText, Map<String, String> report) throws Stop {
+        final String version = pom.version();
+        final String next = version == null ? null : Versions.nextPatch(version);
+        if (next == null) {
+            report.put("this module", (version == null ? "its parent's version" : version) + ", unchanged");
+            return pomText;
+        }
+        report.put("this module", version + " -> " + next);
+        return Texts.replaceOnce(pomText,
+                Pattern.compile("(<artifactId>" + Pattern.quote(pom.artifactId()) + "</artifactId>\\s*<version>)[^<]+(</version>)"),
+                "$1" + Matcher.quoteReplacement(next) + "$2", "the module's own version");
+    }
+
+    // The CLI's changelog is required; a pin's is written where the module keeps one.
+    private static void noted(Pom pom, String label, String version, String was, boolean required,
+            Map<Path, String> writes, Map<String, String> report) throws Stop {
         final Path changelogFile = pom.root().resolve("CHANGELOG.md");
-        final String changelog = Changelog.note(read(changelogFile), release.agent(), version, was);
+        if (!required && !Files.isRegularFile(changelogFile)) {
+            report.put("changelog", "none - there is no CHANGELOG.md beside the pom");
+            return;
+        }
+        final String changelog = Changelog.note(read(changelogFile), label, version, was);
         writes.put(changelogFile, changelog);
-        final Matcher entry = Changelog.entry(release.agent()).matcher(changelog);
+        final Matcher entry = Changelog.entry(label).matcher(changelog);
         report.put("changelog", entry.find() ? entry.group() : "");
+    }
 
-        report.forEach((label, value) -> out.println("  " + String.format("%-13s", label) + " " + value));
+    private int written(String label, String version, boolean dryRun, Map<Path, String> writes,
+            Map<String, String> report) throws Stop {
+        report.forEach((key, value) -> out.println("  " + String.format("%-13s", key) + " " + value));
         if (dryRun) {
             out.println();
             out.println("--dry-run: nothing written");
@@ -145,7 +252,7 @@ public final class Update {
             }
         }
         out.println();
-        out.println("written. Review the diff, then: Pin " + release.agent() + " " + version);
+        out.println("written. Review the diff, then: Pin " + label + " " + version);
         return DONE;
     }
 
@@ -195,15 +302,6 @@ public final class Update {
         }
         return Texts.replaceOnce(definition, DIGEST_LINE,
                 "$1\n$2license: \"" + Matcher.quoteReplacement(license) + "\"", "pinned sha256 in " + file.getFileName());
-    }
-
-    // Only a released module moves - a snapshot is not three numbers - since its successor would be invented.
-    private static @Nullable String bumped(String version) {
-        if (!Versions.isVersion(version)) {
-            return null;
-        }
-        final String[] parts = version.split("\\.");
-        return parts[0] + "." + parts[1] + "." + (Integer.parseInt(parts[2]) + 1);
     }
 
     private static @Nullable String installed(String lockfile, String packageName) throws Stop {
