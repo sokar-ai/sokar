@@ -58,7 +58,9 @@ final class VersionOrder {
 
         final String release = version.substring(0, version.indexOf('~'));
         final String base = version.contains(LOCAL) ? version.substring(0, version.indexOf(LOCAL)) : version;
-        final long run = Long.parseLong(base.substring(base.indexOf(SNAPSHOT) + SNAPSHOT.length()));
+        // A kept machine's build carries a dotted run, 180.1.1, to outrank what it has; CI's next is 181.
+        final String runText = base.substring(base.indexOf(SNAPSHOT) + SNAPSHOT.length());
+        final long run = Long.parseLong(runText.contains(".") ? runText.substring(0, runText.indexOf('.')) : runText);
         final String next = release + SNAPSHOT + (run + 1);
 
         report.check(order.greater(release, version), "it still sorts below the release " + release,

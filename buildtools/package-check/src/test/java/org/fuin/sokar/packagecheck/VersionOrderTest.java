@@ -39,6 +39,16 @@ class VersionOrderTest {
     }
 
     @Test
+    void takesTheNextCiBuildFromADottedRunAKeptMachineWasGiven() {
+        assumeDpkg();
+
+        VersionOrder.check("0.1.0~snapshot.180.1.1+local.20260928T061041", false, DPKG, out.report);
+
+        assertThat(out.report.failures()).as(out.text()).isZero();
+        assertThat(out.text()).contains("the next CI build 0.1.0~snapshot.181 takes the machine back");
+    }
+
+    @Test
     void failsAnOrderingThatComparesBuildNumbersAsText() {
         VersionOrder.check("0.1.0~snapshot.177", true, LEXICAL, out.report);
 
