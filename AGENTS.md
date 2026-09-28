@@ -1262,6 +1262,17 @@ one copy.
 - **Dot files and directories are not checked in.** `.gitignore` ignores `.*` and names only the
   exceptions a build needs. Anything true of one machine goes in `.AGENTS.md`, which that rule
   ignores by itself.
+- **A Java repository builds in one language.** Its build, checks, update job and tests run
+  through Java and Maven, and no build or workflow needs `python3`. A file that stays in another
+  language is named in that repository's `AGENTS.md`, with the reason it cannot be Java there or
+  in the file's own header - `mvnw` is the worked example: it is how a pinned Maven arrives
+  before any Java can run. And no repository carries a copy of a helper another one carries: in
+  2026-09 four copies of the same Python helpers had already drifted apart, one with a
+  key-cleaning step the others lacked. The drift is the argument, not the tidiness.
+- **Java code is null-checked when it compiles.** Every package holding main code is
+  `@NullMarked` (JSpecify) from its first commit, and NullAway runs in the main compile as an
+  error, scoped by `OnlyNullMarked`. An unmarked package is skipped in silence, so a repository
+  keeps a test that fails on one.
 
 ## Security rules that are not negotiable
 
