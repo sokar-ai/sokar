@@ -20,6 +20,13 @@ import org.jspecify.annotations.Nullable;
  * an interface. This puts the packages CI would publish onto a machine that stays, and leaves a
  * daemon running for a person to connect to. The interface is not installed: it runs where the
  * person is and forwards the socket over ssh, and the last thing printed is what it needs.
+ * <p>
+ * <strong>Two scopes.</strong> {@link Scope#MACHINE} installs the package with {@code dpkg}, which
+ * changes the {@code sokar} every account on the machine runs. {@link Scope#ACCOUNT} unpacks the same
+ * package into the connecting account's own directories and writes that account's user unit, so a
+ * test install on a shared machine changes nothing any other account runs - a user's own copy of the
+ * binaries, hooks, providers and sets already wins over the package's, and a user unit of the same
+ * name replaces the package's for that account.
  */
 final class Deploy {
 
@@ -32,6 +39,22 @@ final class Deploy {
 
     /** How often to look for the daemon's socket after a restart, one second apart. */
     private static final int SOCKET_PATIENCE = 15;
+
+    /** The user unit an account install writes, which replaces the package's for that account only. */
+    private static final String ACCOUNT_UNIT = "$HOME/.config/systemd/user/sokard.service";
+
+    /** Where an account install puts the binaries and the hooks - found before the package's. */
+    static final String ACCOUNT_BIN = ".local/bin";
+
+    /** Who an install changes. */
+    enum Scope {
+
+        /** Every account: the package, installed with {@code dpkg}. */
+        MACHINE,
+
+        /** The connecting account only: the package's files in its own directories. */
+        ACCOUNT
+    }
 
     /** The machine, as the caller sees it. */
     interface Remote {
@@ -88,6 +111,25 @@ final class Deploy {
      */
     static int deploy(String vm, Path repository, @Nullable String run, boolean skipBuild, Remote remote, Build build,
             PrintStream out) throws IOException {
+        return deploy(vm, repository, run, skipBuild, Scope.MACHINE, remote, build, out);
+    }
+
+    /**
+     * Deploys, to the whole machine or to one account.
+     *
+     * @param vm Where to install, as {@code user@host}.
+     * @param repository The checkout the packages are built in.
+     * @param run The run number to build as, or {@code null} to ask the machine.
+     * @param skipBuild Whether to install what is already in {@code target}.
+     * @param scope Who the install changes.
+     * @param remote The machine.
+     * @param build How to build here.
+     * @param out Where to report.
+     * @return The exit code.
+     * @throws IOException If the machine or the build could not be reached.
+     */
+    static int deploy(String vm, Path repository, @Nullable String run, boolean skipBuild, Scope scope, Remote remote,
+            Build build, PrintStream out) throws IOException {
         final String user = vm.substring(0, vm.indexOf('@'));
         final String number = run != null ? run : outranking(remote);
         say(out, "building as ~snapshot." + number + " (above anything that machine has or is offered)");
@@ -106,22 +148,30 @@ final class Deploy {
             return 1;
         }
         // A package built earlier may no longer outrank what the machine is offered, and apt would
-        // replace it within the hour. Measured on 2026-09-28: built at 177.1.1, offered 180 by then.
+        // replace it within the hour. Not so for an account's copy, which apt does not know about.
         final Optional<String> built = highestRun(List.of(deb.get().getFileName().toString()));
-        if (built.isEmpty() || compareDotted(built.get(), number) < 0) {
+        if (scope == Scope.MACHINE && (built.isEmpty() || compareDotted(built.get(), number) < 0)) {
             out.println(deb.get().getFileName() + " is run " + built.orElse("unknown") + ", below " + number
                     + ", so apt would replace it with a published build; build again rather than skip it");
             return 1;
         }
-        say(out, "installing " + deb.get().getFileName());
         final Path stub = repository.resolve("agents/stub/target/sokar-agent-stub");
-        if (!install(deb.get(), Files.isExecutable(stub) ? stub : null, remote, out)) {
-            return 1;
-        }
+        final String machineWide = packaged(remote);
+        if (scope == Scope.ACCOUNT) {
+            say(out, "installing " + deb.get().getFileName() + " into " + user + "'s own directories, without dpkg");
+            if (!installInAccount(deb.get(), Files.isExecutable(stub) ? stub : null, remote, out)) {
+                return 1;
+            }
+        } else {
+            say(out, "installing " + deb.get().getFileName());
+            if (!install(deb.get(), Files.isExecutable(stub) ? stub : null, remote, out)) {
+                return 1;
+            }
 
-        say(out, "checking nothing shadows what was just installed");
-        if (!unshadowed(remote, out)) {
-            return 1;
+            say(out, "checking nothing shadows what was just installed");
+            if (!unshadowed(remote, out)) {
+                return 1;
+            }
         }
 
         // Without it systemd stops everything the user owns at their last logout, conmon included,
@@ -131,9 +181,25 @@ final class Deploy {
         }
 
         say(out, "restarting the daemon");
-        final String socket = restart(remote, out);
+        final String socket = restart(remote, scope == Scope.ACCOUNT ? ACCOUNT_UNIT : UNIT, out);
         if (socket == null) {
             return 1;
+        }
+
+        if (scope == Scope.ACCOUNT) {
+            // Measured, not assumed: each of the three is found by a different rule, and one of them
+            // naming the package is a test of something nobody meant to test.
+            say(out, "what " + user + " now runs");
+            if (!runsItsOwn(remote, out)) {
+                return 1;
+            }
+            say(out, "what every other account runs");
+            final String after = packaged(remote);
+            out.println("the package: " + (after.isEmpty() ? "not installed" : after));
+            if (!after.equals(machineWide)) {
+                out.println("the machine-wide package changed from " + machineWide + " - an account install must not");
+                return 1;
+            }
         }
 
         say(out, "add this machine in the interface");
@@ -213,6 +279,100 @@ final class Deploy {
         return 0;
     }
 
+    /**
+     * The version of the package installed for every account.
+     *
+     * @param remote The machine.
+     * @return The version, or an empty string when none is installed.
+     */
+    private static String packaged(Remote remote) throws IOException {
+        final Ssh.Output version = remote.run("dpkg-query -W -f='${Version}' sokar 2>/dev/null");
+        return version.status() == 0 ? version.out().strip() : "";
+    }
+
+    /**
+     * Unpacks the package into the account's own directories and writes the account's user unit.
+     * <p>
+     * No {@code dpkg}: the package runs nothing when it installs - hooks are registered per user by
+     * {@code sokar setup} - so its files are all there is to it. Each binary is written beside itself
+     * and moved over, because a copy over a binary that is running fails with "Text file busy".
+     */
+    static boolean installInAccount(Path deb, @Nullable Path stub, Remote remote, PrintStream out) throws IOException {
+        final String remoteDeb = "/tmp/" + deb.getFileName();
+        remote.upload(deb, remoteDeb);
+        if (!must(remote, accountInstall(remoteDeb), out)) {
+            return false;
+        }
+        if (stub != null) {
+            remote.upload(stub, "/tmp/sokar-agent-stub");
+            if (!must(remote, "install -D -m 0755 /tmp/sokar-agent-stub \"$HOME/.local/share/sokar/agents/sokar-agent-stub\"", out)) {
+                return false;
+            }
+        }
+        out.println("installed: " + remote.run("\"$HOME/" + ACCOUNT_BIN + "/sokar\" --version").out().strip());
+        return true;
+    }
+
+    /**
+     * Builds the script that puts a package's files into the account running it.
+     *
+     * @param remoteDeb The package, already on the machine.
+     * @return One shell script, stopping at the first thing that fails.
+     */
+    static String accountInstall(String remoteDeb) {
+        final String bin = "\"$HOME/" + ACCOUNT_BIN + "\"";
+        return "set -e; d=$(mktemp -d); dpkg-deb -x " + AgentLeg.quote(remoteDeb) + " \"$d\"; "
+                + "mkdir -p " + bin + " \"$HOME/.local/share/sokar/providers\" \"$HOME/.local/share/sokar/egress\" "
+                + "\"$HOME/.config/systemd/user\"; "
+                + "for f in \"$d\"/usr/bin/sokar \"$d\"/usr/bin/sokard \"$d\"/usr/libexec/sokar/hooks/*; do "
+                + "install -m 0755 \"$f\" " + bin + "/.sokar-new && mv -f " + bin + "/.sokar-new " + bin
+                + "/\"$(basename \"$f\")\"; done; "
+                + "install -m 0644 \"$d\"/usr/share/sokar/providers/*.yaml \"$HOME/.local/share/sokar/providers/\"; "
+                + "install -m 0644 \"$d\"/usr/share/sokar/egress/*.yaml \"$HOME/.local/share/sokar/egress/\"; "
+                + "sed 's|^ExecStart=/usr/bin/sokard|ExecStart=%h/" + ACCOUNT_BIN + "/sokard|' "
+                + "\"$d\"/usr/lib/systemd/user/sokard.service > " + ACCOUNT_UNIT + "; "
+                + "grep -q '^ExecStart=%h/" + ACCOUNT_BIN + "/sokard$' " + ACCOUNT_UNIT + "; "
+                + bin + "/sokar setup; "
+                + "rm -rf \"$d\" " + AgentLeg.quote(remoteDeb);
+    }
+
+    /**
+     * Checks that the login PATH, the daemon and the hook descriptors all name the account's copy.
+     */
+    private static boolean runsItsOwn(Remote remote, PrintStream out) throws IOException {
+        final String home = remote.run("echo \"$HOME\"").out().strip();
+        final String own = home + "/" + ACCOUNT_BIN + "/";
+        final String path = remote.run("bash -lc 'command -v sokar'").out().strip();
+        final String daemon = remote.run("readlink \"/proc/$(systemctl --user show -p MainPID --value sokard)/exe\"")
+                .out().strip();
+        final List<String> hooks = hookPaths(remote.run("cat \"$HOME\"/.config/containers/oci/hooks.d/sokar-hook-*.json")
+                .out());
+        out.println("PATH finds  " + path);
+        out.println("daemon runs " + daemon);
+        hooks.forEach(hook -> out.println("hook        " + hook));
+        final boolean all = path.startsWith(own) && daemon.startsWith(own) && !hooks.isEmpty()
+                && hooks.stream().allMatch(hook -> hook.startsWith(own));
+        if (!all) {
+            out.println("not everything names " + own + " - the account's install does not decide what runs");
+        }
+        return all;
+    }
+
+    /**
+     * Reads the executables that hook descriptors name.
+     *
+     * @param descriptors The descriptors, one after the other.
+     * @return Every {@code "path"} they give.
+     */
+    static List<String> hookPaths(String descriptors) {
+        final Matcher matcher = Pattern.compile("\"path\"\\s*:\\s*\"([^\"]+)\"").matcher(descriptors);
+        final List<String> paths = new ArrayList<>();
+        while (matcher.find()) {
+            paths.add(matcher.group(1));
+        }
+        return paths;
+    }
+
     private static boolean install(Path deb, @Nullable Path stub, Remote remote, PrintStream out) throws IOException {
         final String remoteDeb = "/tmp/" + deb.getFileName();
         remote.upload(deb, remoteDeb);
@@ -254,7 +414,9 @@ final class Deploy {
             out.println("  " + found + " says: " + remote.run(AgentLeg.quote(found) + " --version").all().strip());
         }
         out.println("  the package says: " + remote.run(PACKAGED + " --version").all().strip());
-        out.println("Remove the shadowing copy, or everything after this measures the wrong binary.");
+        out.println("Remove the shadowing copy, or everything after this measures the wrong binary. An account's"
+                + " own install (--account) is undone by removing the binaries and hooks it put in ~/.local/bin and"
+                + " ~/.config/systemd/user/sokard.service.");
         return false;
     }
 
@@ -264,9 +426,9 @@ final class Deploy {
      * The socket is not removed by hand: the daemon unlinks it on a signal and refuses to bind over
      * one that still answers, and deleting the file here would walk straight past that second guard.
      */
-    private static @Nullable String restart(Remote remote, PrintStream out) throws IOException {
-        if (remote.run("test -f " + UNIT).status() != 0) {
-            out.println("the installed package has no " + UNIT + "; nothing here starts a daemon without one");
+    private static @Nullable String restart(Remote remote, String unit, PrintStream out) throws IOException {
+        if (remote.run("test -f " + unit).status() != 0) {
+            out.println("there is no " + unit + "; nothing here starts a daemon without one");
             return null;
         }
         if (!must(remote, "systemctl --user daemon-reload && systemctl --user enable sokard"

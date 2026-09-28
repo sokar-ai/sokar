@@ -1,0 +1,2 @@
+title: "'sokar-machines deploy --account' installs a build into the connecting user's own directories only - binaries, hooks, providers, egress sets and that user's own daemon unit - without dpkg, so a test install on a shared machine changes nothing any other account runs. It measures what the login PATH, the daemon and the hook descriptors now name, and stops unless all three are that account's copy."
+type: added

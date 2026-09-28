@@ -133,6 +133,77 @@ class DeployTest {
     }
 
     @Test
+    void installsIntoOneAccountWithoutDpkgAndMeasuresWhatItNowRuns() throws IOException {
+        final Path deb = deb();
+        accountRunsItsOwn();
+
+        final int code = Deploy.deploy("core@host", repository, "7.1", true, Deploy.Scope.ACCOUNT, machine, run -> 0, out);
+
+        assertThat(code).as(text()).isZero();
+        assertThat(machine.uploads).containsEntry(deb, "/tmp/" + deb.getFileName());
+        // Nothing machine-wide: no package manager, and so nothing another account runs changes.
+        assertThat(machine.commands).noneMatch(command -> command.contains("dpkg -i") || command.contains("dpkg -r"));
+        assertThat(machine.commands).anyMatch(command -> command.startsWith("set -e; d=$(mktemp -d); dpkg-deb -x"));
+        assertThat(text()).contains("PATH finds  /home/core/.local/bin/sokar")
+                .contains("daemon runs /home/core/.local/bin/sokard")
+                .contains("hook        /home/core/.local/bin/sokar-hook-nft")
+                .contains("the package: 0.1.0~snapshot.182.1");
+    }
+
+    @Test
+    void refusesAnAccountInstallWhoseDaemonStillRunsThePackage() throws IOException {
+        deb();
+        accountRunsItsOwn();
+        machine.answer("readlink", "/usr/bin/sokard\n");
+
+        final int code = Deploy.deploy("core@host", repository, "7.1", true, Deploy.Scope.ACCOUNT, machine, run -> 0, out);
+
+        assertThat(code).isEqualTo(1);
+        assertThat(text()).contains("daemon runs /usr/bin/sokard").contains("not everything names /home/core/.local/bin/");
+    }
+
+    @Test
+    void installsAnAccountsCopyEvenBelowWhatAptOffers() throws IOException {
+        // apt does not know an account's copy, so it cannot replace it.
+        deb();
+        accountRunsItsOwn();
+        machine.answer("LC_ALL=C apt-cache madison", "     sokar | 0.1.0~snapshot.180 | https://x snapshots/main amd64 Packages\n");
+
+        final int code = Deploy.deploy("core@host", repository, null, true, Deploy.Scope.ACCOUNT, machine, run -> 0, out);
+
+        assertThat(code).as(text()).isZero();
+    }
+
+    @Test
+    void pointsTheAccountsUnitAtTheAccountsDaemonAndChecksItDid() {
+        final String script = Deploy.accountInstall("/tmp/sokar_1_amd64.deb");
+
+        assertThat(script).startsWith("set -e;").doesNotContain("sudo")
+                .contains("dpkg-deb -x '/tmp/sokar_1_amd64.deb'")
+                .contains("s|^ExecStart=/usr/bin/sokard|ExecStart=%h/.local/bin/sokard|")
+                .contains("grep -q '^ExecStart=%h/.local/bin/sokard$'")
+                .contains("\"$HOME/.local/bin\"/sokar setup");
+    }
+
+    @Test
+    void readsTheExecutablesTheHookDescriptorsName() {
+        assertThat(Deploy.hookPaths("""
+                {"version":"1.0.0","hook":{"path":"/home/core/.local/bin/sokar-hook-nft","args":["x"]}}
+                {"version": "1.0.0", "hook": {"path" : "/usr/libexec/sokar/hooks/sokar-hook-reader"}}
+                """)).containsExactly("/home/core/.local/bin/sokar-hook-nft", "/usr/libexec/sokar/hooks/sokar-hook-reader");
+    }
+
+    private void accountRunsItsOwn() {
+        machine.answer("dpkg-query -W", "0.1.0~snapshot.182.1");
+        machine.answer("echo \"$HOME\"", "/home/core\n");
+        machine.answer("bash -lc 'command -v sokar'", "/home/core/.local/bin/sokar\n");
+        machine.answer("readlink", "/home/core/.local/bin/sokard\n");
+        machine.answer("cat \"$HOME\"/.config/containers/oci/hooks.d",
+                "{\"hook\":{\"path\":\"/home/core/.local/bin/sokar-hook-nft\"}}");
+        machine.answer("echo \"/run/user", "/run/user/1008/sokar/sokard.sock\n");
+    }
+
+    @Test
     void readsTheAgentNamesUnderTheHeader() {
         assertThat(Deploy.agents("NAME   FROM\nfirst  /usr/libexec\nsecond /home/x\n\n")).containsExactly("first", "second");
     }

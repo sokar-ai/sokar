@@ -93,9 +93,11 @@ public final class Main {
                                 daemon as an unprivileged user, and leaves it running. What
                                 deletes it is 'sweep --mine'.
                        deploy   --vm <user@host> --key <file> [--repo <dir>] [--skip-build]
-                                [--run <n>] - builds here and installs on a machine somebody
-                                keeps, with lingering on and the daemon restarted. --vm and --key
-                                default to SOKAR_VM and SOKAR_VM_KEY.
+                                [--run <n>] [--account] - builds here and installs on a machine
+                                somebody keeps, with lingering on and the daemon restarted. --vm
+                                and --key default to SOKAR_VM and SOKAR_VM_KEY. --account installs
+                                into that user's own directories only, changing nothing any other
+                                account runs.
 
                   --mine                 delete what this run created, whatever its age. What a
                                          job uses to clean up after itself - deleting by age
@@ -341,8 +343,10 @@ public final class Main {
         String repo = ".";
         String run = System.getenv("SOKAR_SNAPSHOT_RUN");
         boolean skipBuild = false;
+        Deploy.Scope scope = Deploy.Scope.MACHINE;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
+                case "--account" -> scope = Deploy.Scope.ACCOUNT;
                 case "--vm" -> vm = value(args, ++at);
                 case "--key" -> key = value(args, ++at);
                 case "--repo" -> repo = value(args, ++at);
@@ -373,7 +377,7 @@ public final class Main {
                     ssh.upload(local, target);
                 }
             };
-            return Deploy.deploy(vm, root, run == null || run.isBlank() ? null : run, skipBuild, remote,
+            return Deploy.deploy(vm, root, run == null || run.isBlank() ? null : run, skipBuild, scope, remote,
                     number -> build(root, number), System.out);
         }
     }

@@ -69,11 +69,24 @@ suite that cannot run is one that quietly stops being maintained.
 
 **Testing by hand rather than by leg.** A leg runs the suite once on a machine that is then
 deleted, which is the wrong shape for sitting in front of an interface.
-`./mvnw -pl buildtools/hetzner exec:java@deploy`, with `SOKAR_VM=user@host` and `SOKAR_VM_KEY`,
-builds the same packages CI would publish and installs them on a machine that stays: it enables
-lingering so tasks survive a logout, restarts the daemon, and prints the socket an interface
-connects to. `-Ddeploy.options=--skip-build` installs what is already in `target/`. The interface is not installed by it - that runs natively where
-the person is and forwards the socket over ssh.
+`./mvnw -pl buildtools/hetzner compile exec:java@deploy`, with `SOKAR_VM=user@host` and
+`SOKAR_VM_KEY`, builds the same packages CI would publish and installs them on a machine that stays:
+it enables lingering so tasks survive a logout, restarts the daemon, and prints the socket an
+interface connects to. `-Ddeploy.options=--skip-build` installs what is already in `target/`. The
+interface is not installed by it - that runs natively where the person is and forwards the socket
+over ssh. `compile` first, because `exec:java` runs whatever classes `target/` holds. Its plugin
+also needs `sokar-ffm-check` and `sokar-cpu-check`, which are not published: install them once with
+`./mvnw -pl buildtools/ffm-check,buildtools/cpu-check -am install -DskipTests`.
+
+**`--account` installs into one account only**, for a machine several people or agents share. The
+machine-wide install replaces the `sokar` every account runs from its next restart; `--account`
+unpacks the same package into that user's `~/.local/bin` and `~/.local/share/sokar`, writes the
+user's own `sokard.service` pointing at that copy, and runs `sokar setup` - no `dpkg`, because the
+package runs nothing when it installs. It then measures the three things that decide what runs -
+the binary the login PATH finds, the daemon's executable, the hooks the descriptors name - and
+stops unless all three are the account's, and it checks the machine-wide package did not change.
+Going back to the package means removing those binaries, hooks and that unit: the machine-wide
+install refuses while a copy in `~/.local/bin` shadows it.
 
 The scenarios that start a task drive the **stub** and name it, with `--agent stub`: a machine a
 person develops on carries real agents too, and a scenario that left the choice to Sokar would be
