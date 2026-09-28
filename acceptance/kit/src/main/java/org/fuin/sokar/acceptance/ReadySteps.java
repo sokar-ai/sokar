@@ -47,21 +47,63 @@ public class ReadySteps {
     record Ready(String text, Duration bound) {
     }
 
+    /** How long the marker has to stay on the screen: a prompt drawn and then covered by a dialog is not work. */
+    static final Duration STEADY = Duration.ofSeconds(3);
+
+    /** How often the screen is read. */
+    private static final Duration POLL = Duration.ofMillis(500);
+
+    /** The last screen read, for a failure to show and for the step that expects one. */
+    private String screen = "";
+
     /**
-     * Asserts that the agent in the open terminal reached work with nothing asked first.
+     * Asserts that the agent attached in a task reached work with nothing asked first.
+     * <p>
+     * <strong>Read from the screen tmux renders in the task, not from the stream.</strong> An agent that
+     * draws its prompt and then a dialog over it leaves the prompt's text in the stream while the screen
+     * shows only the dialog - measured with a real agent, whose setup wizard passed a stream check. So the
+     * pane is read as tmux draws it, and the marker has to <em>stay</em> there for {@link #STEADY}: seen
+     * once, between the prompt being drawn and the dialog covering it, it would pass the same way.
      * <p>
      * Types nothing. An agent that declares no marker makes this fail saying it cannot tell - a check
      * that passed without knowing what to look for would be the quiet kind of wrong this exists to end.
      *
      * @param agent The agent, as a scenario names it.
+     * @param task The task it was started in.
+     * @param project The task's project.
      * @throws IOException If the machine cannot be reached.
      */
-    @Then("the {string} agent reaches work without being asked anything")
-    public void theAgentReachesWork(String agent) throws IOException {
+    @Then("the {string} agent in task {string} of {string} reaches work without being asked anything")
+    public void theAgentReachesWork(String agent, String task, String project) throws IOException {
         final Ready ready = declared(agent).orElseThrow(() -> new AssertionError("The " + agent
                 + " agent declares no ready marker, so whether it reached work without being asked cannot be told."
                 + " It declares one as 'session: ready_marker:' in its manifest."));
-        world.terminal().awaitShown(ready.text(), ready.bound());
+        final String container = container(project, task);
+        final Steady steady = new Steady(ready.text(), STEADY);
+        // The agent's bound counts from its session existing, not from the step: before that the task is
+        // still being built and started, which the agent has no say in - measured, a first image build
+        // took most of a 30-second bound. Until then a start may take what any start may.
+        java.time.Instant deadline = java.time.Instant.now().plusSeconds(LiveTaskSteps.START_SECONDS);
+        boolean session = false;
+        while (true) {
+            final java.util.Optional<String> pane = capture(container);
+            if (pane.isPresent() && !session) {
+                session = true;
+                deadline = java.time.Instant.now().plus(ready.bound());
+            }
+            screen = pane.orElse("");
+            if (steady.seen(screen, java.time.Instant.now())) {
+                return;
+            }
+            if (java.time.Instant.now().isAfter(deadline)) {
+                throw new AssertionError(!session
+                        ? "No session to read appeared in " + container + " within " + LiveTaskSteps.START_SECONDS + "s"
+                        : "The " + agent + " agent did not show \"" + ready.text() + "\" for " + STEADY.toSeconds()
+                                + "s on end within " + ready.bound().toSeconds() + "s of its session starting."
+                                + " The screen in " + container + ":\n" + screen);
+            }
+            pause();
+        }
     }
 
     /**
@@ -71,19 +113,94 @@ public class ReadySteps {
      * failed is not known to notice anything.
      *
      * @param agent The agent.
-     * @param shown What the terminal must show instead - the question.
+     * @param task The task it was started in.
+     * @param project The task's project.
+     * @param shown What the screen must show instead - the question.
      * @throws IOException If the machine cannot be reached.
      */
-    @Then("waiting for the {string} agent to reach work fails, and the terminal shows {string}")
-    public void waitingForTheAgentFails(String agent, String shown) throws IOException {
+    @Then("waiting for the {string} agent in task {string} of {string} to reach work fails, and the screen shows {string}")
+    public void waitingForTheAgentFails(String agent, String task, String project, String shown) throws IOException {
         try {
-            theAgentReachesWork(agent);
+            theAgentReachesWork(agent, task, project);
         } catch (AssertionError expected) {
-            assertThat(world.terminal().seen()).as("what stopped the agent").contains(shown);
+            assertThat(screen).as("what stopped the agent").contains(shown);
             return;
         }
         throw new AssertionError("The " + agent + " agent reached work, although it was expected to ask \""
                 + shown + "\" first");
+    }
+
+    /**
+     * Names a task's container, as Sokar names it.
+     *
+     * @param project The project.
+     * @param task The task.
+     * @return The container's name.
+     */
+    static String container(String project, String task) {
+        return "sokar-" + TaskSteps.aName(project) + "-" + TaskSteps.aName(task);
+    }
+
+    /**
+     * Reads the screen tmux draws in a task, as text: joined lines, no colour, spaces as spaces.
+     *
+     * @param container The task's container.
+     * @return The screen, or empty while there is no session to read yet.
+     * @throws IOException If the machine cannot be reached.
+     */
+    private java.util.Optional<String> capture(String container) throws IOException {
+        final Ssh.Output pane = world.run("podman exec " + Shell.quote(container) + " tmux capture-pane -p -J");
+        return pane.status() == 0 ? java.util.Optional.of(pane.out()) : java.util.Optional.empty();
+    }
+
+    private static void pause() {
+        try {
+            Thread.sleep(POLL.toMillis());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while waiting for the agent", ex);
+        }
+    }
+
+    /**
+     * Whether a text has stayed on the screen for long enough.
+     */
+    static final class Steady {
+
+        private final String text;
+
+        private final Duration duration;
+
+        private java.time.@Nullable Instant since;
+
+        /**
+         * Constructor.
+         *
+         * @param text What has to stay.
+         * @param duration For how long.
+         */
+        Steady(String text, Duration duration) {
+            this.text = text;
+            this.duration = duration;
+        }
+
+        /**
+         * Takes one reading of the screen.
+         *
+         * @param screen What the screen shows now.
+         * @param now When it was read.
+         * @return {@code true} once the text has been on every reading for the whole duration.
+         */
+        boolean seen(String screen, java.time.Instant now) {
+            if (!screen.contains(text)) {
+                since = null;
+                return false;
+            }
+            if (since == null) {
+                since = now;
+            }
+            return !now.isBefore(since.plus(duration));
+        }
     }
 
     /**

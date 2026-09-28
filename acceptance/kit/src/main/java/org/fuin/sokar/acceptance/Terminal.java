@@ -131,29 +131,6 @@ public final class Terminal implements AutoCloseable {
     }
 
     /**
-     * Waits until the terminal shows the given text on the screen, for as long as given.
-     * <p>
-     * Unlike {@link #await(String, Duration)}, which matches the raw stream, this matches what the screen
-     * shows: a redrawn line whose gaps tmux wrote as cursor moves still reads as the words it is.
-     *
-     * @param text What to wait for, as it reads on the screen.
-     * @param patience How long to allow.
-     * @return Everything seen so far, raw.
-     * @throws IOException If the terminal cannot be read.
-     */
-    public String awaitShown(String text, Duration patience) throws IOException {
-        final Instant deadline = Instant.now().plus(patience);
-        while (!ScreenText.of(seen.toString()).contains(text)) {
-            if (Instant.now().isAfter(deadline)) {
-                throw new AssertionError("Waited " + patience.toSeconds() + "s for \"" + text
-                        + "\" on the screen. What the terminal showed:\n" + ScreenText.of(seen.toString()));
-            }
-            drain();
-        }
-        return seen.toString();
-    }
-
-    /**
      * Returns everything the terminal has shown so far.
      *
      * @return The output, with any escape sequences the far end sent.

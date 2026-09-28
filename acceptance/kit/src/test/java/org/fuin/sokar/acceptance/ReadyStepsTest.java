@@ -28,6 +28,34 @@ class ReadyStepsTest {
     }
 
     @Test
+    void passesOnlyOnceTheMarkerHasStayedOnTheScreenLongEnough() {
+        final ReadySteps.Steady steady = new ReadySteps.Steady("Welcome back!", Duration.ofSeconds(3));
+        final java.time.Instant start = java.time.Instant.parse("2026-09-28T14:00:00Z");
+
+        assertThat(steady.seen("Welcome back!", start)).isFalse();
+        assertThat(steady.seen("Welcome back!", start.plusSeconds(2))).isFalse();
+        assertThat(steady.seen("Welcome back!", start.plusSeconds(3))).isTrue();
+    }
+
+    @Test
+    void startsOverWhenADialogCoversTheMarker() {
+        // Measured with a real agent: its welcome drawn first, a setup wizard over it a moment later.
+        final ReadySteps.Steady steady = new ReadySteps.Steady("Welcome back!", Duration.ofSeconds(3));
+        final java.time.Instant start = java.time.Instant.parse("2026-09-28T14:00:00Z");
+
+        steady.seen("Welcome back!", start);
+        assertThat(steady.seen("Setup step 1 of 5", start.plusSeconds(1))).isFalse();
+        assertThat(steady.seen("Welcome back!", start.plusSeconds(3))).isFalse();
+        assertThat(steady.seen("Welcome back!", start.plusSeconds(5))).isFalse();
+        assertThat(steady.seen("Welcome back!", start.plusSeconds(6))).isTrue();
+    }
+
+    @Test
+    void namesTheTasksContainerAsSokarDoes() {
+        assertThat(ReadySteps.container("ready", "attended")).isEqualTo("sokar-ready-attended");
+    }
+
+    @Test
     void boundsAnUnattendedRunWithTimeout() {
         assertThat(ReadySteps.boundedCommand("live", "pi", 90)).startsWith("timeout 90 sokar task start --project 'live'");
     }

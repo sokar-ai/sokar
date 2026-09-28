@@ -23,8 +23,9 @@ headless:
 session:
   supports_resume: false
   # What the stub shows once it is at work, attached, having asked nothing - the text a check
-  # waits for. A workspace holding '.sokar-stub-asks' makes it ask one question first, which is
-  # how a check proves it notices an agent that asks.
+  # waits for. A workspace holding '.sokar-stub-asks' makes it ask one question first, and one
+  # holding '.sokar-stub-covers' makes it draw this text and then a setup question over it, as a
+  # real agent was measured to - which is how a check proves it notices either.
   ready_marker: "stub: at work, nothing asked"
   ready_within_seconds: 30
 
@@ -67,6 +68,7 @@ install:
     - "RUN printf '%s\\n' \\"
     - "      '#!/bin/sh' \\"
     - "      '[ \"$1\" = \"--version\" ] && { echo \"${agent.cli.version} (Sokar stub agent)\"; exit 0; }' \\"
+    - "      '[ -z \"$1\" ] && [ -t 0 ] && [ -e /workspace/.sokar-stub-covers ] && { echo \"stub: at work, nothing asked\"; sleep 1; printf \"\\033[2J\\033[HSetup step 1 of 5 \"; read answer; }' \\"
     - "      '[ -z \"$1\" ] && [ -t 0 ] && { [ -e /workspace/.sokar-stub-asks ] && { printf \"Trust this folder? [y/N] \"; read answer; }; echo \"stub: at work, nothing asked\"; exec cat; }' \\"
     - "      'getent hosts example.com >/dev/null 2>&1 && echo \"stub: example.com resolved\" || echo \"stub: example.com did not resolve\"' \\"
     - "      'getent hosts example.net >/dev/null 2>&1 && echo \"stub: example.net resolved\" || echo \"stub: example.net refused\"' \\"
