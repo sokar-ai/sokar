@@ -36,4 +36,10 @@ class ReadyStepsTest {
     void refusesABoundOfNothing() {
         assertThatThrownBy(() -> ReadySteps.boundedCommand("live", "pi", 0)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void refusesAProviderThatIsNotAName() {
+        // Quoted where it goes; refused before, so a scenario naming nonsense fails in the kit, not the shell.
+        assertThatThrownBy(() -> TaskSteps.aName("open router; rm")).isInstanceOf(IllegalArgumentException.class);
+    }
 }

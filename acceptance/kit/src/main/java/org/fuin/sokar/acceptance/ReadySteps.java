@@ -99,7 +99,30 @@ public class ReadySteps {
      */
     @When("a task nobody is watching is started in {string} for the {string} agent and ends within {int} seconds")
     public void anUnattendedTaskEndsWithin(String project, String agent, int seconds) throws IOException {
-        final Ssh.Output output = world.run(boundedCommand(project, agent, seconds));
+        endsWithin(boundedCommand(project, agent, seconds), seconds);
+    }
+
+    /**
+     * Starts an unattended task, served by a provider the scenario names, that has to end within a bound.
+     * <p>
+     * For an agent whose default provider the suite holds no key for: a run that ends at once on a
+     * refused credential passes any bound and proves nothing about a question.
+     *
+     * @param project Project directory in the operator's home.
+     * @param agent Which agent to run.
+     * @param provider Which provider serves it.
+     * @param seconds How long the whole run may take.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("a task nobody is watching is started in {string} for the {string} agent through {string} and ends within {int} seconds")
+    public void anUnattendedTaskThroughEndsWithin(String project, String agent, String provider, int seconds)
+            throws IOException {
+        endsWithin(boundedCommand(project, agent, seconds) + " --provider " + Shell.quote(TaskSteps.aName(provider)),
+                seconds);
+    }
+
+    private void endsWithin(String command, int seconds) throws IOException {
+        final Ssh.Output output = world.run(command);
         world.output(output);
         assertThat(output.status()).as("the run did not end within %ds - an agent waiting on a question looks"
                 + " exactly like this; it said:%n%s", seconds, world.redact(output.all())).isNotEqualTo(TIMED_OUT);
