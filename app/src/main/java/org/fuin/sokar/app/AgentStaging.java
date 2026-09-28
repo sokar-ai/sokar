@@ -36,12 +36,35 @@ final class AgentStaging {
             Project project, SokarPaths paths, org.fuin.sokar.core.process.CommandRunner runner,
             PrintWriter out) {
 
+        return stage(agent.name(), agent.executable(), agent.definition().packaged(), project, paths,
+                runner, out);
+    }
+
+    /**
+     * Copies what an agent ships into the build context, given what is known about it.
+     *
+     * @param name The agent's name, for messages.
+     * @param executable The binary it was found at; a relative source is read beside it.
+     * @param trees What its definition says it ships.
+     * @param project The project being built.
+     * @param paths Where the build context is.
+     * @param runner Runs the unpacking.
+     * @param out Where progress is reported.
+     * @return Build lines, empty when the agent ships nothing.
+     * @throws org.fuin.sokar.agent.api.AgentException If a declared tree is missing or cannot be staged.
+     */
+    static java.util.List<String> stage(String name, java.nio.file.Path executable,
+            java.util.List<org.fuin.sokar.agent.api.PackagedTree> trees, Project project, SokarPaths paths,
+            org.fuin.sokar.core.process.CommandRunner runner, PrintWriter out) {
+
         final java.util.List<String> lines = new java.util.ArrayList<>();
-        for (final var tree : agent.definition().packaged()) {
-            final java.nio.file.Path source = java.nio.file.Path.of(tree.source());
+        for (final var tree : trees) {
+            final java.nio.file.Path source = source(executable, tree.source());
             if (!java.nio.file.Files.exists(source)) {
-                out.println("missing   " + source + ", which " + agent.name() + " says it ships");
-                continue;
+                // Refused, not reported: an image built without the tree starts a task with no tool
+                // in it, and the one line saying so was easy to miss among the rest.
+                throw new org.fuin.sokar.agent.api.AgentException(name + " ships " + tree.target()
+                        + " from " + source + ", and nothing is there - reinstall the agent");
             }
             final java.nio.file.Path staged = paths.buildContext(project.name())
                     .resolve(tree.stagingName());
@@ -58,13 +81,29 @@ final class AgentStaging {
                     markStaged(source, staged);
                 }
             } catch (java.io.IOException | RuntimeException ex) {
-                out.println("missing   could not stage " + source + ": " + ex.getMessage());
-                continue;
+                throw new org.fuin.sokar.agent.api.AgentException("could not stage " + source + " for "
+                        + name + ": " + CliErrors.reason(ex), ex);
             }
             lines.add("COPY " + tree.stagingName() + " " + tree.target());
             out.println("packaged  " + tree.target() + " from this agent's own package");
         }
         return java.util.List.copyOf(lines);
+    }
+
+    /**
+     * Finds what an agent ships, from where it says.
+     * <p>
+     * A relative path is read beside the agent's binary, so a copy of the agent in one account's
+     * directory ships its own tree. It used to resolve against whatever directory {@code sokar} was
+     * started in, which the CLI and the daemon do not share - and which is nothing to do with the agent.
+     *
+     * @param executable The agent's binary.
+     * @param declared The path its definition gives.
+     * @return The path to read.
+     */
+    static java.nio.file.Path source(java.nio.file.Path executable, String declared) {
+        final java.nio.file.Path path = java.nio.file.Path.of(declared);
+        return path.isAbsolute() ? path : executable.toAbsolutePath().resolveSibling(path);
     }
 
     /** Records which source a staged directory came from, so it is not unpacked twice. */

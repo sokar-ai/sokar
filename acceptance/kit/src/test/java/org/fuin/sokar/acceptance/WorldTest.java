@@ -17,6 +17,19 @@ class WorldTest {
     }
 
     @Test
+    void putsTheTaskWhereTheCommandSaysQuoted() {
+        assertThat(World.aboutTask("sokar talk held {task}", "sokar-p-shell-1790000000000"))
+                .isEqualTo("sokar talk held 'sokar-p-shell-1790000000000'");
+    }
+
+    @Test
+    void refusesACommandAboutTheTaskThatDoesNotSayWhere() {
+        // Run as written, it would act on no task and fail in a way that reads as the product's.
+        assertThatThrownBy(() -> World.aboutTask("sokar talk held", "sokar-p-shell-1"))
+                .isInstanceOf(AssertionError.class).hasMessageContaining("does not say where");
+    }
+
+    @Test
     void leavesACommandWithoutPlaceholdersAlone() {
         assertThat(World.expand("sokar task list")).isEqualTo("sokar task list");
     }

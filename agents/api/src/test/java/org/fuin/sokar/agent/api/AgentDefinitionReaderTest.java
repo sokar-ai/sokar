@@ -238,15 +238,37 @@ class AgentDefinitionReaderTest {
     }
 
     @Test
-    void refusesAPackagedPathThatIsNotAbsolute() {
+    void readsARelativePackagedSourceAsBesideTheAgent() {
 
-        // A relative path would be resolved against whatever directory the build happened to run
-        // in, which is not something an agent definition can know.
+        // Resolved beside the agent's binary where it is staged, so a copy of the agent in one
+        // account ships its own tree. It was refused while it meant "wherever the build ran".
+        assertThat(read(MINIMAL + """
+                install:
+                  packaged:
+                    - source: uc/tree.tar.gz
+                      target: /opt/uc
+                """).packaged()).containsExactly(new PackagedTree("uc/tree.tar.gz", "/opt/uc"));
+    }
+
+    @Test
+    void refusesARelativePackagedSourceThatLeavesTheAgentsDirectory() {
         assertThatThrownBy(() -> read(MINIMAL + """
                 install:
                   packaged:
-                    - source: ./uc
+                    - source: ../elsewhere/uc
                       target: /opt/uc
+                """))
+                .isInstanceOf(AgentException.class)
+                .hasMessageContaining("stays beside the agent's binary");
+    }
+
+    @Test
+    void refusesAPackagedTargetThatIsNotAbsolute() {
+        assertThatThrownBy(() -> read(MINIMAL + """
+                install:
+                  packaged:
+                    - source: /usr/share/uc
+                      target: opt/uc
                 """))
                 .isInstanceOf(AgentException.class)
                 .hasMessageContaining("must be an absolute path");

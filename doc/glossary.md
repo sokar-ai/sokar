@@ -74,8 +74,7 @@ client describes a node by how it reaches it — which, given the above, is the 
 anyway: the way you reach a node names the user as well as the machine, and a hostname does not.
 
 > **Not to be confused with `nodejs`**, which is the egress set granting npm, yarn and the Node.js
-> runtime downloads. The set was called `node` until this page was written; it was renamed because
-> one word for two things is one too many.
+> runtime downloads. One word for two things is one too many, so the two are spelled apart.
 
 ## Operator
 
@@ -316,8 +315,8 @@ A broker is a [helper](#helper): one per task, and it dies with it.
 would use: `prompt` asks a person and the answer takes effect on the waiting connection, `allow`
 lets it through, `deny` refuses it, `off` does not ask at all.
 
-`off` is the most consequential state a task can be in and is therefore reported, not inferred:
-until a task said so, nothing an interface listed could mark it.
+`off` is the most consequential state a task can be in and is therefore reported, not inferred: a
+state a task does not say is one nothing an interface lists can mark.
 
 ## Helper
 

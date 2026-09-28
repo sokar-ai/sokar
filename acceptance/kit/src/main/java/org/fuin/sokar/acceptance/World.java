@@ -361,6 +361,24 @@ public final class World implements AutoCloseable {
     }
 
     /**
+     * Puts a task's container name where a command says {@code {task}}.
+     * <p>
+     * A container name carries a timestamp and a run id, so a scenario cannot write it down; it names
+     * the task this scenario started instead, as a person would copy it from {@code sokar task list}.
+     *
+     * @param command The command as written in the scenario.
+     * @param container The task's container name.
+     * @return The command with the name in place, quoted for the shell.
+     */
+    public static String aboutTask(String command, String container) {
+        if (!command.contains("{task}")) {
+            throw new AssertionError("The step is about the task and the command does not say where: "
+                    + command);
+        }
+        return command.replace("{task}", Shell.quote(container));
+    }
+
+    /**
      * Closes what this scenario opened: its terminal. The connection is the run's and outlives it.
      *
      * @throws IOException If the terminal cannot be closed.

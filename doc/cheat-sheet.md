@@ -40,8 +40,8 @@ sokar vault lock                 # drop it; the next command asks again
 sokar vault passphrase           # re-encrypt under a new passphrase
 ```
 
-There is no default bound on `--for`. A bound that arrived as a default would start asking people
-for a passphrase they never used to be asked for.
+There is no default bound on `--for`. A default bound would ask for a passphrase in the middle of
+work that never set one.
 
 ## Describe a project
 

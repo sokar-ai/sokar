@@ -2,10 +2,8 @@ package org.fuin.sokar.app;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import org.fuin.sokar.core.project.Project;
-import org.fuin.sokar.core.project.ProjectReader;
 import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -38,9 +36,10 @@ public class TalkHoldCommand implements Callable<Integer>, SokarFactory.ContextA
             description = "prompt, allow, deny or off. Default: leaves it as it is.")
     private @Nullable String mode;
 
-    @Option(names = { "-p", "--project" }, paramLabel = "<file>",
-            description = "Project file, which decides whether unread work may leave.")
-    private Path project = Path.of("project.yml");
+    @Option(names = { "-p", "--project" }, paramLabel = "<name>",
+            description = "The project, which decides whether unread work may leave, as 'sokar"
+                    + " project list' prints it. Default: the task's own.")
+    private @Nullable String projectName;
 
     @Spec
     private CommandSpec spec;
@@ -62,7 +61,15 @@ public class TalkHoldCommand implements Callable<Integer>, SokarFactory.ContextA
             err.flush();
             return 1;
         }
-        final Project read = ProjectReader.read(project);
+        // A name, like every other command since projects stopped being pointed at by file; this one
+        // still read project.yml from wherever it was run, which was nowhere a task's project lives.
+        final String name = projectName != null ? projectName : new TaskInventory(context).projectOf(container);
+        if (name == null) {
+            err.println("sokar: " + container + " names no project; say which, with --project");
+            err.flush();
+            return 2;
+        }
+        final Project read = GateSupport.byName(context, name);
         final Moderation moderation = new Moderation(mailbox);
         // Bare, it holds; with --release it releases; with only --mode it changes the mode and
         // leaves the hold as it was, because "set this to prompt" is not "and hold it too".

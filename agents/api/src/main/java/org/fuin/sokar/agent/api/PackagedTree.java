@@ -17,7 +17,9 @@ package org.fuin.sokar.agent.api;
  * choice: it is one file for the packagers to carry and one file for an operator to check, and
  * unpacking it once beats copying tens of thousands of files for every task.
  *
- * @param source Absolute path on the host, installed there by the agent's own package.
+ * @param source Path on the host, installed there by the agent's own package: absolute, or relative to
+ *        the directory the agent's binary is in - so a copy of the agent in one account's directory
+ *        ships its own tree.
  * @param target Absolute path inside the image.
  */
 public record PackagedTree(String source, String target) {
@@ -25,12 +27,16 @@ public record PackagedTree(String source, String target) {
     /**
      * Constructor with all data.
      *
-     * @param source Absolute path on the host.
+     * @param source Path on the host, absolute or beside the agent's binary.
      * @param target Absolute path inside the image.
      */
     public PackagedTree {
-        if (source == null || !source.startsWith("/")) {
-            throw new AgentException("A packaged source must be an absolute path: " + source);
+        if (source == null || source.isBlank()) {
+            throw new AgentException("A packaged source must name a path: " + source);
+        }
+        // Beside the binary means beside it: '..' would make a relative path mean anywhere.
+        if (!source.startsWith("/") && java.util.List.of(source.split("/")).contains("..")) {
+            throw new AgentException("A relative packaged source stays beside the agent's binary: " + source);
         }
         if (target == null || !target.startsWith("/")) {
             throw new AgentException("A packaged target must be an absolute path: " + target);

@@ -128,6 +128,20 @@ Where a publisher offers no digest, say so rather than dropping the field:
 
 An artifact marked `unverified` with no `reason` is rejected. A gap that has to
 be written down is a gap somebody notices; a missing field is a habit.
+
+**A tool that is a tree of files ships in the agent's own package** instead, under
+`packaged`, and is copied into the image rather than fetched:
+
+```yaml
+  packaged:
+    - source: example/tree.tar.gz   # beside the agent's binary; or an absolute path
+      target: /opt/example
+```
+
+A relative `source` is read beside the agent's binary, so a copy of the agent in
+one account's `~/.local/share/sokar/agents` ships its own tree, and `..` is
+refused. **A declared tree that is not there refuses the task**: an image built
+without it would start a task with no tool in it.
 `sokar agents --supply-chain` lists every artifact and marks the unverified ones,
 so an audit reads the roster rather than the build logs.
 
@@ -202,9 +216,9 @@ answers the question an operator actually has:
 
 - **build** — unit tests, the native binary, the `.deb` and the `.rpm`. On a pinned
   `ubuntu-24.04` runner, never `ubuntu-latest`: a native image links glibc dynamically, so it must
-  be compiled against the oldest glibc it has to run on. 24.04 is no longer a machine Sokar runs
-  on - it needs podman 5, which 24.04 will never ship - but it is still where the binary should be
-  compiled, because one built there starts anywhere a newer Sokar does.
+  be compiled against the oldest glibc it has to run on. 24.04 is not a machine Sokar runs on -
+  it needs podman 5, which 24.04 does not ship - but it is where the binary is compiled, because
+  one built there starts anywhere a newer Sokar does.
 - **publish** — the packages to Artifactory, and a check that they are *indexed* rather than
   merely stored. A `.deb` uploaded without `deb.distribution`, `deb.component` and
   `deb.architecture` is accepted and never appears in the index, with no error anywhere.

@@ -45,7 +45,8 @@ reading two different files.
 
 **`shield egress --task` keeps working without a project**, because a running task names its own -
 asking for it again would be asking somebody to repeat what the machine already knows. `talk pass
-<task>` follows the same rule since 2026-09-28: `--project` is taken from the task when not given,
+<task>` and `talk hold <task> <peer>` follow the same rule since 2026-09-28 - `talk hold` had still
+read `project.yml` from wherever it was run -: `--project` is taken from the task when not given,
 and refused only for a task that records none - before, it looked up a project called `null`. That was
 `required = true` for an hour and wrong.
 

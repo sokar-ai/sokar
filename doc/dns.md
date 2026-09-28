@@ -64,9 +64,9 @@ the address the host machine resolves at task start is measurably not the one th
 minute later. dnsmasq adds whatever it actually answered, so what the container was told and what
 it may reach cannot drift apart.
 
-The IPv6 half is there for the same measured reason: a declared name that answered AAAA was
-reachable by name and blocked by address, and that reached the operator as a clearance prompt for a
-bare IPv6 address they could not place.
+The IPv6 half is there for the same measured reason: without it, a declared name that answers AAAA is
+reachable by name and blocked by address, and reaches the operator as a clearance prompt for a bare
+IPv6 address they cannot place.
 
 ### `--nftset` has to be compiled in
 

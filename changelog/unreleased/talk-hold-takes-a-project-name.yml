@@ -1,0 +1,2 @@
+title: "'sokar talk hold' takes the project by name, as every other command does, and defaults to the task's own: it still read project.yml from the directory it was run in. The credentials and talk commands have acceptance scenarios, and the kit a step for a command about the task a scenario started."
+type: fixed

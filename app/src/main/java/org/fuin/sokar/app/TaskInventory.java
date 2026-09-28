@@ -205,6 +205,20 @@ public final class TaskInventory {
     }
 
     /**
+     * Returns the project a task records on its container.
+     * <p>
+     * What a command about one task defaults to when no project is named: asking for it again would
+     * be asking somebody to repeat what the machine already knows.
+     *
+     * @param container The task's container name.
+     * @return The project, or {@code null} when there is no such task or it records none.
+     */
+    public @Nullable String projectOf(String container) {
+        return tasks().stream().filter(task -> task.name().equals(container)).map(Task::project)
+                .filter(java.util.Objects::nonNull).findFirst().orElse(null);
+    }
+
+    /**
      * Returns every task on this machine, running or stopped.
      *
      * @return Tasks, in the order the runtime lists them.

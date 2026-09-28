@@ -71,6 +71,22 @@ class OptionsThatWereNullTest {
     }
 
     @Test
+    void talkHoldTakesTheProjectTheTaskRecordsNotAFileInTheCurrentDirectory(@TempDir Path dir) throws IOException {
+        final SokarContext context = context(dir);
+        new Mailbox(context.paths().mailbox("sokar-uc-shell-1")).create();
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1788500000\t0\n");
+        final Path state = Files.createDirectories(dir.resolve("run/sokar/sokar-uc-shell-1"));
+        new org.fuin.sokar.wire.Sidecar(org.fuin.sokar.wire.Sidecar.VERSION, "uc", "guarded",
+                state.resolve("r.nft").toString(), state.resolve("dns.conf").toString(), "/usr/bin/sokar",
+                state.toString()).writeTo(state.resolve("sidecar.json"));
+
+        execute(context, "talk", "hold", "sokar-uc-shell-1", "somebody");
+
+        // It read ./project.yml once, wherever it was run; now it names the task's project, 'uc'.
+        assertThat(err.toString()).contains("'uc'").doesNotContain("project.yml");
+    }
+
+    @Test
     void vaultServeRefusesToStartWithoutAFileForItsToken(@TempDir Path dir) {
 
         final int code = execute(context(dir), "vault", "serve", "--socket", dir.resolve("s").toString(),

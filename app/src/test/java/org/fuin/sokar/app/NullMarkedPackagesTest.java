@@ -23,7 +23,17 @@ class NullMarkedPackagesTest {
     void everyPackageWithMainCodeIsNullMarked() throws IOException {
         final Path root = Path.of("").toAbsolutePath().getParent();
 
+        // A wrong root finds no packages at all and would pass on nothing, so it must find this one.
+        assertThat(packages(root)).as("packages found under %s", root)
+                .contains("app/src/main/java/org/fuin/sokar/app");
         assertThat(unmarked(root)).as("packages NullAway skips, because nothing marks them").isEmpty();
+    }
+
+    @Test
+    void findsNothingToCheckUnderARootWithoutTheRepository(@org.junit.jupiter.api.io.TempDir Path root) throws IOException {
+        // What the check above guards against: an empty walk, which reports no unmarked package.
+        assertThat(packages(root)).isEmpty();
+        assertThat(unmarked(root)).isEmpty();
     }
 
     @Test
@@ -38,12 +48,15 @@ class NullMarkedPackagesTest {
     }
 
     private static List<String> unmarked(Path root) throws IOException {
+        return packages(root).stream().filter(directory -> !marked(root.resolve(directory))).toList();
+    }
+
+    private static List<String> packages(Path root) throws IOException {
         try (Stream<Path> files = Files.walk(root)) {
             return files.filter(path -> path.toString().endsWith(".java"))
                     .filter(path -> root.relativize(path).toString().contains("src/main/java/"))
                     .filter(path -> !root.relativize(path).toString().contains("/target/"))
                     .map(Path::getParent).distinct()
-                    .filter(directory -> !marked(directory))
                     .map(directory -> root.relativize(directory).toString()).sorted().toList();
         }
     }

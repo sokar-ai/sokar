@@ -365,6 +365,17 @@ public class TerminalSteps {
     }
 
     /**
+     * Runs a command with no terminal about the task this scenario started.
+     *
+     * @param command What to run, with {@code {task}} where the task's container name goes.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @When("a script runs {string} about the task")
+    public void aScriptRunsAboutTheTask(String command) throws IOException {
+        world.output(world.run(World.aboutTask(World.expand(command), world.task().container())));
+    }
+
+    /**
      * Runs a command with no terminal and a secret on its standard input.
      * <p>
      * How a credential reaches a vault from a script: never on the command line, which every

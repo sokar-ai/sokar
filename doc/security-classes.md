@@ -131,8 +131,7 @@ is the whole of what it claims. It reads every byte of a provider's answer,
 matches a watched member name whether it is spelled plainly or with `\uXXXX` escapes, joins a name
 split across two reads, and - because JSON allows unlimited whitespace between a name and its colon
 - keeps waiting for that colon across however many reads the whitespace fills, rather than across a
-fixed window. Each of those closed a way past it that had been measured, the last one after the
-first three were already in place.
+fixed window. Each of those closes a way past it that was measured.
 
 **What it therefore does not promise.** The decision is a list of member names -
 `access_token`, `refresh_token`, `id_token` - so a provider that calls its credential something
@@ -151,9 +150,9 @@ read is not evidence. Two cases fail closed with `502`:
   a shape the scan does not look for at all.
 
 **So the proxy asks for `identity` itself**, replacing whatever `Accept-Encoding` the agent sent.
-Claude Code asks for `gzip, deflate, br`, and the provider compresses exactly when asked - measured
-on 2026-09-14, `br` with that header and uncompressed with `identity` or with none. Until the proxy
-asked, every answer to a task running Claude Code was withheld and the agent reported an API error.
+Claude Code asks for `gzip, deflate, br`, and the provider compresses exactly when asked - measured:
+`br` with that header, uncompressed with `identity` or with none. Without it, every answer to a task
+running Claude Code would be withheld, and the agent would report an API error.
 
 An answer with no body is not refused, decided on the bytes that arrived rather than on a declared
 length. **This has an availability cost and it is deliberate:** a provider that starts answering in

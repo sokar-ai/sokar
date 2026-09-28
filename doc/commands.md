@@ -69,8 +69,8 @@ discards them), or nothing could say what it holds. They were one command with a
 them, which is a verb whose meaning depends on a word people do not read.
 
 **The container is kept when you leave an attached shell.** `--rm` on `start` is how you say you
-want it thrown away — it used to be the other way round, and the command a person reaches for
-first removed what it had just made.
+want it thrown away. Keeping is the default because the command a person reaches for first must not
+remove what it has just made.
 
 ## shield
 

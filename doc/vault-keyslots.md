@@ -18,8 +18,8 @@ Everything from the magic to the content nonce is **authenticated as additional 
 in the header can be changed without invalidating the content's tag — not the KDF parameters, not a
 wrapped key, not a device's recorded name.
 
-**There is one version, and no migration.** Version 2 was a hard cut, decided while the only vaults
-that existed were a tester's own. A file of any other version is refused rather than half read; the
+**There is one version, and no migration.** A file of any other version is refused rather than half
+read; the
 message says to create the vault again with `sokar vault init`, which is possible because everything
 a vault holds can be entered again.
 

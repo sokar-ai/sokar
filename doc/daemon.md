@@ -58,7 +58,7 @@ this one through an ssh forward, when nobody is logged in at it.
 The first rootless podman call sets up the user namespace through the setuid `newuidmap` and
 `newgidmap` and starts podman's pause process; no-new-privileges forbids exactly that. Under it the
 daemon works only while something outside the unit has already run podman, so it passes on a machine
-somebody has been using and reports podman missing on a fresh boot. Measured on 2026-09-13: with it,
+somebody has been using and reports podman missing on a fresh boot. Measured: with it,
 `newuidmap: write to uid_map failed: Operation not permitted`; without it, rootless networking
 through `pasta`.
 

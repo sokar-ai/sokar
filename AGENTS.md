@@ -1,17 +1,16 @@
 # Working on Sokar
 
-Conventions and hard-won facts for anyone — human or agent — changing this
-codebase. Everything here is either visible in the code or was established by
-measurement; where a rule exists because something went wrong, the failure is
-named, because a rule without its reason gets discarded by the next person.
+Conventions and facts for anyone — human or agent — changing this
+codebase. Everything here is either visible in the code or established by
+measurement; every rule carries its reason, stated so that it stays true,
+because a rule without its reason gets discarded by the next person.
 
 ## Before you propose a push
 
 **`mvn test` is not "the tests".** It runs surefire, which is unit tests only - a test that needs
 podman belongs in `buildtools/e2e-tier1.sh`, and one that needs a machine belongs in the acceptance
 suite. Both are invisible to surefire, so "1131 tests green" can be true while the product is
-broken in ways CI will find fifteen minutes and two rented machines later. That happened three
-times on 2026-09-11, each time reported as green from here.
+broken in ways CI will find fifteen minutes and two rented machines later.
 
 **So the acceptance suite runs against a real machine before a push is suggested, not after.**
 
@@ -20,12 +19,11 @@ SOKAR_VM=user@host SOKAR_VM_KEY=<key> ./mvnw -q -pl buildtools/hetzner exec:java
 ./mvnw -pl acceptance/suite verify -Dsokar.acceptance.host=<ip> 2>&1 | tee suite.log
 ```
 
-Two things about that second line, both learned the hard way:
+About that second line:
 
 - **Do not pipe it into `grep`.** The pipeline buffers and you see nothing at all until it ends,
-  which is indistinguishable from a hang and was read as one. `tee` shows each scenario as it
-  happens.
-- **It is slower here than in CI, not faster.** Measured on 2026-09-11: half an hour locally
+  which is indistinguishable from a hang. `tee` shows each scenario as it happens.
+- **It is slower here than in CI, not faster.** Measured: half an hour locally
   against six minutes on a rented `cpx42`, because the scenarios that build images and wait up to
   480s for a prompt dominate, and a VM on a desktop is slower at both. What it buys is not speed -
   it is an answer without spending a CI round and two rented machines, and one you can watch and
@@ -49,8 +47,8 @@ a comment that turns into a `switch`. Sokar discovers agents at runtime by
 scanning a directory and asking each binary to describe itself over varlink.
 
 This is enforced, not trusted: `app/src/test/java/.../AgentIsolationTest.java`
-is an ArchUnit test that fails the build. It was verified to bite by introducing
-`if (registry.find("claude") …)` and watching the build fail with file and line.
+is an ArchUnit test that fails the build. It bites: introducing
+`if (registry.find("claude") …)` fails the build with file and line.
 If you find yourself wanting an exception, the answer is a new field in the agent
 definition YAML, not a branch in Sokar.
 
@@ -65,8 +63,8 @@ agent in its own repository is *able* to resolve.
 [sokar-claude-code](https://github.com/sokar-ai/sokar-claude-code),
 [sokar-pi](https://github.com/sokar-ai/sokar-pi) and
 [sokar-omp](https://github.com/sokar-ai/sokar-omp) — building against that published
-contract with no checkout of this one. What remains in `agents/` is the contract and
-the **stub**, which exists so the acceptance suite still has something to drive; a
+contract with no checkout of this one. What is in `agents/` is the contract and
+the **stub**, which exists so the acceptance suite has something to drive; a
 suite that cannot run is one that quietly stops being maintained.
 
 **Testing by hand rather than by leg.** `buildtools/e2e-tier1.sh` runs once on a machine
@@ -80,9 +78,9 @@ the person is and forwards the socket over ssh.
 `SOKAR_E2E_AGENT` selects which agent `buildtools/e2e-tier1.sh` drives, defaulting to
 `stub`. Everything else it needs — the tool's name, its prompt flag, its provider, the
 variables it is pointed at a proxy with — is read from that agent's own `describe`
-response. Three things were hardcoded before a second agent drove it: the tool was
-looked for at `~/.local/bin/<name>`; the proxy variable was found by matching
-`*UNIX_SOCKET`, which is one agent's spelling and not a rule; and `sokar agents | grep`
+response, and nothing of one agent is hardcoded: the tool is not looked for at
+`~/.local/bin/<name>`; the proxy variable is not found by matching `*UNIX_SOCKET`, which
+is one agent's spelling and not a rule; and `sokar agents | grep` is not used, because it
 fails under `set -o pipefail` whenever *any* installed agent is unusable.
 
 ## Code
@@ -103,32 +101,30 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
 - **A comment in `pom.xml` is one line too**, same rule and same reason. Build
   files attract essays about traps; name the trap and stop.
 - **US spelling** in prose and comments: behavior, recognize, serialize, license,
-  defense. Changed from British-leaning on 2026-09-07 and swept through the
-  repository in one commit, identifiers included - `GitGate.initialize()` was
-  `initialise()`. Two words were left alone because they are not errors in US
-  usage and changing 65 of them would have been diff noise: *afterwards* and
-  *towards*.
+  defense. Identifiers included - `GitGate.initialize()`, not `initialise()`. Two
+  words stay as they are because they are not errors in US usage and changing
+  their 65 uses would be diff noise: *afterwards* and *towards*.
 - Prefer a small named method over a comment explaining a block.
 
 ### Nullness is checked when it compiles
 
 **NullAway runs in every main compile, as an error.** Error Prone with only NullAway enabled, in the
 root POM's `default-compile` execution, scoped by `OnlyNullMarked`. Test code is not checked: a test
-passes `null` on purpose to watch a refusal. Turned on 2026-09-28 against 210 findings; four were
-defects a person would have met - `sokar doctor` threw instead of reporting an unreadable record,
-`shield egress` and `talk pass` looked up a project called `null` (`talk pass` now takes the task's
-own, as `shield egress --task` does), and `vault serve` would write its token to no file at all. Each has a test now, watched to fail against the old code.
+passes `null` on purpose to watch a refusal. The reason is measured: of 210 findings, four were
+defects a person would meet - `sokar doctor` threw instead of reporting an unreadable record,
+`shield egress` and `talk pass` looked up a project called `null` (`talk pass` takes the task's
+own, as `shield egress --task` does), and `vault serve` would write its token to no file at all. Each has a test, watched to fail against the unfixed code.
 
 - **A package without `@NullMarked` is skipped in silence.** Measured: a dereference of a `@Nullable`
   result, planted in the acceptance kit, failed the build with the kit marked and compiled green
-  without its `package-info.java`. Three packages had none. `NullMarkedPackagesTest` now fails on any
-  package with main code that is not marked, so a new package carries it from its first commit.
+  without its `package-info.java`. `NullMarkedPackagesTest` fails on any package with main code that
+  is not marked, so a new package carries it from its first commit.
 - **NullAway trusts what this repository does not annotate.** `System.getenv(...).length()` passes: a
   JDK method is assumed non-null. So a planted defect that proves the check runs has to dereference
-  something declared `@Nullable` here, such as `Json.parse` - the first plant here used `getenv` and
-  proved nothing.
+  something declared `@Nullable` here, such as `Json.parse` - a plant that uses `getenv` proves
+  nothing.
 - **Only what is compiled is checked.** An incremental build leaves an up-to-date module alone, and
-  NullAway with it: `-pl daemon -am` reported nothing for `app`'s hundred findings. Judge with `clean`.
+  NullAway with it: `-pl daemon -am` reports nothing for findings in `app`. Judge with `clean`.
 - **The compiler's lists append.** `app` declares picocli's processor, which writes the native image's
   metadata; a `default-compile` execution in the root that replaced `annotationProcessorPaths` would
   drop it with every unit test green and fail only in the shipped binary. Both lists carry
@@ -148,36 +144,36 @@ own, as `shield egress --task` does), and `vault serve` would write its token to
 
 - **Descriptive method names, not `testXxx`.** All 775 test methods read as
   sentences — `refusesADomainThatIsBothAllowedAndRefused`,
-  `readsTheDomainsAnAgentNeeds`. There is no `testXxx` left; do not reintroduce it.
-- **A family of guards needs one that has fired, or their green means nothing.** Agent Smith's,
-  2026-09-27, from four bills of materials across four repositories: one compared an empty set, two
-  compared five Java libraries that cannot change, one was shipped and compared by no job at all,
-  and one compared 140 components and had stopped a release. **All four were green in the same
-  way.** The working one is the instrument - it is what made the other three visible, and a project
-  holding only the first three would have had no reason to look. So when several checks of one kind
-  all pass, ask which of them has ever failed; if the answer is none, that is the finding.
+  `readsTheDomainsAnAgentNeeds`. There is no `testXxx`; do not introduce one.
+- **A family of guards needs one that has fired, or their green means nothing.** Guards comparing
+  bills of materials show it: one that compares an empty set, one that compares five Java libraries
+  that cannot change, one whose bill is shipped and compared by no job at all, and one that compares
+  140 components and has stopped a release are **all green in the same way.** The working one is
+  the instrument - it is what makes the others visible, and a project holding only the others has
+  no reason to look. So when several checks of one kind all pass, ask which of them has ever failed;
+  if the answer is none, that is the finding.
 - **Every guard must be proven to fail.** A test that has never failed is a test
   nobody has checked. When adding a rule, deliberately violate it once and watch
-  it break, then keep the negative case if it can be expressed as a test. This is
-  how the ArchUnit rule, the FFM metadata check, the domain-coverage check, the
-  git-gate firewall rule and the package freshness rule were all validated.
-- **Watch the RIGHT thing fail.** Breaking the rule is only half of it. The agent
-  name-collision check survived its own mutation: it asserted the "ignored"
-  message, which is built from the losing side and stayed word-for-word identical
-  while the register held the other copy. It was testing the reporter, not the
-  behavior. Assert on what the system DOES - which binary the `FROM` column names,
+  it break, then keep the negative case if it can be expressed as a test. The
+  ArchUnit rule, the FFM metadata check, the domain-coverage check, the git-gate
+  firewall rule and the package freshness rule are all validated this way.
+- **Watch the RIGHT thing fail.** Breaking the rule is only half of it. An agent
+  name-collision check that asserts the "ignored" message survives its own
+  mutation: the message is built from the losing side and stays word-for-word
+  identical while the register holds the other copy. That tests the reporter, not
+  the behavior. Assert on what the system DOES - which binary the `FROM` column names,
   which container exists, what a host can reach - never on what it says about
-  itself. Two sibling near-misses the same day: a grep that matched the fixture's
+  itself. The same trap in two other shapes: a grep that matches the fixture's
   own name (a task called `lockedrun`, greped for "locked"), and a test for a
   state a constructor forbids. If a mutation leaves a check green, the check is
   the thing that is broken.
 - **Test observable behavior**, not internals: the generated ruleset, the
   packaged file list, what a container can actually reach.
 - **A fixture must not inherit the machine's configuration.** `git init` takes
-  its branch name from `init.defaultBranch`, so a test that pushed `main` into a
-  fixture built without `--initial-branch` produced an upstream whose HEAD named
+  its branch name from `init.defaultBranch`, so a test that pushes `main` into a
+  fixture built without `--initial-branch` produces an upstream whose HEAD names
   a branch that was never created - and `git fetch origin`, which asks for HEAD
-  when given no refspec, then failed. Green on a laptop that sets the option,
+  when given no refspec, then fails. Green on a laptop that sets the option,
   red on CI which does not. Run the suite with `GIT_CONFIG_GLOBAL=/dev/null`
   before trusting anything that shells out to git.
 - **Keep the reason in the assertion.** `assertThat(x.reason()).isEqualTo(MEASURED)`
@@ -187,8 +183,8 @@ own, as `shield egress --task` does), and `vault serve` would write its token to
 - A test that needs podman belongs in `buildtools/e2e-tier1.sh`, not in surefire.
   Unit tests must run without a container runtime.
 - **Never commit with a failing suite.** Run `./mvnw -B test` as its own step,
-  read the result, then commit. Chaining build-and-commit in one command has
-  already put two red commits in this history.
+  read the result, then commit. Chaining build-and-commit in one command commits
+  without anyone reading the result, and puts red commits in the history.
 
 ## Building
 
@@ -232,8 +228,10 @@ The build is Java and Maven; a file in another language is listed here with the 
 be. The first two run on the operator's machine, which has Sokar's native binaries and no Java; the
 third prepares a build machine before Maven can use it; the fourth is a test on its way into Java:
 
-- `selinux/install-selinux-policy.sh` - the `.deb` and `.rpm` ship it and run it while the package
-  installs, to compile and load the SELinux module. An install hook is shell by nature.
+- `selinux/install-selinux-policy.sh` - the `.deb` and `.rpm` ship it, and an administrator runs it
+  once with `sudo` to compile and load the SELinux module; `sokar doctor` names the command. The
+  packages run nothing when they install. It runs where there is no Java, and loading a policy
+  module is shell by nature.
 - `dist-setup/sokar-setup.sh` - published beside the packages and run as root on a machine that has
   nothing yet: no package, no daemon, no Java. A Java version would need the runtime it is there to
   install.
@@ -243,24 +241,24 @@ third prepares a build machine before Maven can use it; the fourth is a test on 
   `make` with more lines around them.
 
 - `buildtools/e2e-tier1.sh` - tier 1, run by `Leg` on a rented machine: 1,300 lines of podman,
-  nft and a real task driven end to end, checked step by step. What it decided in `python3` - the
-  eight fields of the agent's description - is read in Java by the leg since 2026-09-28 and handed
-  in as its environment, so no build machine needs a second runtime. The rest moves into the Java
-  acceptance suite scenario by scenario, which is B27's work ([index](issues/base/README.md)); until
-  then a shell script that drives shell commands is the honest shape.
+  nft and a real task driven end to end, checked step by step. The eight fields of the agent's
+  description are read in Java by the leg and handed in as its environment, so no build machine
+  needs a second runtime. The rest moves into the Java acceptance suite scenario by scenario, which
+  is B27's work ([index](issues/base/README.md)); until then a shell script that drives shell
+  commands is the honest shape.
 
-Nothing else in the repository is a script: `check-packages.sh`, `deploy-vm.sh`,
-`check-ffm-metadata.sh` and `compare-bills.py` were replaced by Java in 2026-09 and are gone.
+Nothing else in the repository is a script: the package check, the VM deploy, the FFM metadata
+check and the bill comparison are Java.
 The `sh -c` commands the Java sends - into a container from `Podman`, `TaskControl` and
 `TaskWorkspace`, over ssh from the kit's `Machine` and the legs - are not scripts: there a shell is
 the interface, and what they decide is decided in Java before they are sent.
 
 **The shared release tooling is `sokar-release`**, published to Central like `sokar-machines`, and
 what the agent repositories' update jobs and builds call: comparing, adding to and merging bills,
-the upstream version lookup, the version move, the pin check. Two decisions shaped it, both taken
-with the agents that live with it on 2026-09-13. **Commands, not a Maven plugin**: the update job is
-not a lifecycle phase - it runs on a schedule and opens a pull request - and what does run in a
-build is called through `exec-maven-plugin` just as well, with no descriptor or plugin harness.
+the upstream version lookup, the version move, the pin check. Two choices shape it.
+**Commands, not a Maven plugin**: the update job is not a lifecycle phase - it runs on a schedule
+and opens a pull request - and what does run in a build is called through `exec-maven-plugin` just
+as well, with no descriptor or plugin harness.
 **A separate artifact, not part of `sokar-machines`**: that one brings an SSH stack, sshj and
 BouncyCastle, and folding the release tools in would put an SSH client on the classpath of every
 package build and tie the two versions together. An agent's difference is configuration or a
@@ -277,10 +275,9 @@ strategy in it, never a copy.
   `response.headers().map()` contains `:status` beside the real ones, so relaying
   "every header that is not hop-by-hop" into an HTTP/1.1 response emits an illegal
   name and the client discards the whole reply. It surfaces as a connection error,
-  not a header error: the agent said `Unable to connect to API` after 21 responses
-  that were all HTTP 200. `VaultProxy.forwardable` drops anything starting with a
-  colon. A relay built on an HTTP/1.1-only client cannot hit this, which is why it
-  is specific to this rewrite.
+  not a header error: the agent reports `Unable to connect to API` while every response
+  is HTTP 200. `VaultProxy.forwardable` drops anything starting with a
+  colon. A relay built on an HTTP/1.1-only client cannot hit this.
 - **A secret goes in through standard input or an environment, never an argument.**
   `/proc/<pid>/cmdline` is world-readable and `/proc` is mounted without `hidepid` on both
   supported distributions, measured; `/proc/<pid>/environ` is owner-only. `vault put` reads the
@@ -302,19 +299,19 @@ strategy in it, never a copy.
   passphrase; a task that is already up read its credential when its proxy started and holds it in
   that process's memory until the task stops. The command says so when any task is running, because
   an operator who believes otherwise has locked nothing they think they locked. `unlock --forget`
-  is the same operation under its older name and goes through the same code.
+  is the same operation under another name and goes through the same code.
 - **A token printed in full defeats the type that hides it.** `TaskToken.toString` and
   `PhantomToken.toString` both abbreviate because tokens end up in log lines by accident - and
-  `gate serve` then wrote `token.value()` into `gate.log`, which the daemon streams to whatever is
-  tailing it. Print the token, not its value.
+  `token.value()` written into `gate.log` reaches whatever is tailing it, since the daemon streams
+  that log. Print the token, not its value.
 - **An unmodifiable map is not a copied one.** `Map.copyOf` loses insertion order, and the egress
   report is read in the order its sources were consulted - the agent's hosts, then its provider's,
   then the project's, grouped by the set that granted them. A report whose order changes between
   runs cannot be diffed against yesterday's. Wrap a `LinkedHashMap` instead.
-- **A registry that two processes write is a directory of files, not one document.** The project
-  registry began as a single JSON file, which meant read-modify-write: 24 concurrent starts kept
-  one entry and lost 23, measured, and both writers went through the same temporary file so the
-  document moved into place could have been a mixture of the two. One file per project removes the
+- **A registry that two processes write is a directory of files, not one document.** A registry
+  kept as a single JSON file means read-modify-write: 24 concurrent starts keep one entry and lose
+  23, measured, and writers sharing one temporary file can move a mixture of two documents into
+  place. One file per project removes the
   class of problem - different projects never touch the same file, the same project writes the same
   bytes - rather than guarding it with a lock.
 - **A remote client has no filesystem, so the daemon hands out paths rather than taking them on
@@ -326,8 +323,8 @@ strategy in it, never a copy.
   like a fault in the daemon.
 - **A unix socket file outlives the process that made it.** Nothing unlinks it on SIGTERM, and
   the next server unlinks it before binding - so a check written as "is the socket file there?"
-  answers yes for a daemon that died hours ago. The acceptance suite's daemon section skipped
-  itself that way and reported success; it now asks `org.varlink.service.GetInfo` through
+  answers yes for a daemon that died hours ago, and a test guarded by it skips itself and reports
+  success. The acceptance suite's daemon section asks `org.varlink.service.GetInfo` through
   `sokar daemon connect` and believes the answer, not the file.
 - **A stdio bridge to the daemon must copy bytes, not lines.** `sokar daemon connect` exists so
   that `ssh host sokar daemon connect` speaks varlink down the ssh session with no socket file on
@@ -342,7 +339,7 @@ strategy in it, never a copy.
   but the loop sleeps 200 ms between chunks so a backlog drains at roughly 320 KB/s whatever the
   transport can do. The sleep is there so a live tail does not spin; changing it is a deliberate
   decision, not a tidy-up.
-- **A failure is held, not swept up.** The container is kept by default now, and `--rm` has to be
+- **A failure is held, not swept up.** The container is kept by default, and `--rm` has to be
   decided before a run - but the run worth looking at is the one that went wrong, which is known
   only afterwards. So a non-zero exit stops the container through `TaskControl` and leaves it even
   when `--rm` was given: workspace, logs and unpushed commits intact, `task start` to go back in,
@@ -378,7 +375,7 @@ strategy in it, never a copy.
 - **A rootless container reaches the host at `169.254.1.2`.**
   `host.containers.internal` is a name podman writes into the container's
   `/etc/hosts`; it does not resolve on the host. Resolving it host-side returns
-  null, which once silently removed a firewall rule and made every push hang.
+  null, and a firewall rule built from that answer is silently left out - every push then hangs.
 - **`XDG_DATA_HOME` is podman's container storage.** Redirecting it in a test
   rebuilds every layer and leaves undeletable directories owned by mapped uids.
   Redirect something narrower.
@@ -386,11 +383,11 @@ strategy in it, never a copy.
   without the base-URL variable the agent falls back to its own compiled-in
   endpoint. Both must be set. Residual DNS lookups for the provider are *not*
   evidence of a bypass — check the proxy's request log, which exists for this.
-- **The snapshot builder names the modules it warms `~/.m2` with**, and one of them
-  (`agents/claude`) moved to its own repository. Maven then refuses before compiling
-  anything, so the warm-up produces *no output at all* and the only message is the
-  builder's own "failed with exit code 1". Every snapshot build failed that way,
-  whatever the image, until it was pointed at `agents/stub`.
+- **The snapshot builder names the modules it warms `~/.m2` with**, so each one must
+  exist in this repository: `agents/stub` does, `agents/claude` is in its own repository.
+  Naming a missing one makes Maven refuse before compiling anything, so the warm-up
+  produces *no output at all* and the only message is the builder's own "failed with
+  exit code 1" - for every snapshot build, whatever the image.
 - **A local build shadows a packaged one and says nothing** - hooks and agents
   alike, by design, so either can be tried without uninstalling. That is how an
   install of today's package leaves yesterday's firewall hooks running.
@@ -411,8 +408,8 @@ strategy in it, never a copy.
   slirp4netns podman ignores it in silence, so `task start` asks
   (`podman info -f {{.Host.RootlessNetworkCmd}}`), binds every interface and says
   why. **Bringing a task back replays the gate command it recorded**, so a task first run
-  under pasta comes back bound to `127.0.0.1` even if podman has since been switched
-  to slirp4netns, and the push then hangs. Deciding the bind again on resume would
+  under pasta comes back bound to `127.0.0.1` even if podman has been switched
+  to slirp4netns in between, and the push then hangs. Deciding the bind again on resume would
   contradict the recorded-command design that makes resume reconstructible at all.
 - **`dnsmasq --nftset` is load-bearing, and its absence is silent.** It is what
   makes a declared domain reachable rather than merely resolvable. A dnsmasq
@@ -474,43 +471,43 @@ strategy in it, never a copy.
   into the state directory on the way down, while it is still knowable, and read back by
   whoever removes the task later; it cannot go stale, because a stopped container's
   filesystem does not change. A stopped task with no note at all is refused rather than
-  guessed at. Measured before this existed: a task stopped first and purged afterwards was
-  removed silently, with its unpushed commit, reporting success.
+  guessed at. Without it, a task stopped first and removed afterwards is removed silently,
+  with its unpushed commit, reporting success.
 - **A rescue that pushed nothing must not report success**, because the caller removes a
-  container on the strength of that answer. In a repository with no initial commit the push
-  asked for `HEAD` before it committed, printed `nothing to push`, exited zero, and the
-  container was removed as rescued while the mirror never saw a ref. Commit first, and exit
+  container on the strength of that answer. In a repository with no initial commit, a push that
+  asks for `HEAD` before committing prints `nothing to push` and exits zero, and the container is
+  removed as rescued while the mirror never sees a ref. Commit first, and exit
   non-zero when there is genuinely nothing.
 - **The guard covers `sokar task remove` and nothing else.** A `podman rm` typed
   directly, or a tidy-up script, still destroys a workspace without a word: nothing Sokar
   writes can stop the runtime's own command.
-- **The clearance watcher has two ways in, and only one of them broadcast.** When it starts
+- **The clearance watcher has two ways in, and both must broadcast.** When it starts
   its own reader, events arrive as varlink `Report` calls and subscribers see them on the way
   past. When the reader hook is already running inside the container - the normal case - the
-  watcher *follows the file* that hook appends to, and that path reached the hub without ever
-  reaching a subscriber. A client subscribed to a live task saw nothing at all while the log
-  beside it recorded the decisions. Both ways in now call `ClearanceService.publish`.
+  watcher *follows the file* that hook appends to. A path that reaches the hub without reaching a
+  subscriber leaves a client subscribed to a live task seeing nothing at all while the log beside
+  it records the decisions. Both ways in call `ClearanceService.publish`.
 - **A decision that lives only in the watcher is a retry loop.** The hub deduplicates in a map in
   its own process, and a resumed task starts a fresh watcher that re-reads its events file from
-  the beginning - so every destination already decided arrived again within seconds and was asked
-  about a second time. An agent refused once only had to keep retrying until something restarted
-  the watcher. Decisions are now appended to `~/.local/state/sokar/clearance/<container>.jsonl` and
+  the beginning - so every destination already decided arrives again within seconds and is asked
+  about a second time, and an agent refused once only has to keep retrying until something
+  restarts the watcher. Decisions are appended to `~/.local/state/sokar/clearance/<container>.jsonl` and
   read back on start. Under the *state* directory because everything else a task writes is under
   the runtime one, which the kernel clears at logout and `task stop --remove` deletes outright: a
   record of what an agent reached that disappears with the task is not a record. Named by the
   container, so a decision belongs to one run and is not silently in force for the next.
 - **A restored allow has to be put back into the firewall, not only remembered.** A resumed task
   gets a fresh namespace and a ruleset the hook rebuilds from the project, so an address cleared
-  last time is no longer in it. Remembering the answer alone leaves the hub saying allow while the
+  in an earlier run is not in it. Remembering the answer alone leaves the hub saying allow while the
   packets are still dropped and nothing will ever ask again - worse than either honest state.
 - **`nft add element` answers `File exists` for an address already in the set.** A watcher
   restarted against a container that kept running re-applies every decision it recorded, so this
   is the normal case rather than an edge one. `EgressPolicy.allow` treats it as the outcome asked
   for; anything else is still a failure.
 - **A notification that is closed rather than replaced destroys the only evidence it existed.**
-  An expired clearance prompt left the destination blocked forever and took the question off the
-  screen, so an operator who had been away could not tell it from one that was never raised. The
-  timeout now sends a second `Notify` carrying the first notification's id, without actions and
+  Closing an expired clearance prompt leaves the destination blocked forever and takes the question
+  off the screen, so an operator who has been away cannot tell it from one that was never raised. The
+  timeout sends a second `Notify` carrying the first notification's id, without actions and
   with urgency dropped from critical to normal - critical notifications never expire on their own,
   which is also why the millisecond timeout passed to the first one does nothing.
 - **A question on a stream has to carry its own answer.** A subscriber that saw a prompt and never
@@ -536,8 +533,8 @@ strategy in it, never a copy.
   path.** The gate, the credential broker, the relay and the clearance watcher are all the CLI
   with different arguments. Inside `sokard` - or anything else that is not `sokar` - that
   question answers with the wrong binary, and the container comes up with helpers missing and
-  nothing saying so: measured, a daemon-started task had no gate and no clearance watcher while
-  reporting that it had started. `SokarBinary.path()` is the one answer; it prefers the running
+  nothing saying so: measured, a daemon-started task has no gate and no clearance watcher while
+  reporting that it started. `SokarBinary.path()` is the one answer; it prefers the running
   process when that is itself `sokar`, so a local build still shadows a packaged one.
 - **Take the helper census before stopping anything.** Stopping a container fires the
   poststop hook, which reaps the helpers and deletes their pid files - so a count taken
@@ -548,14 +545,14 @@ strategy in it, never a copy.
   answered. Helpers therefore record whether they must be up *before* the container or need
   the *running* container, and are started in that order.
 - **Every helper of a given name writes the same pid file**, so starting a second one leaves
-  the first named by nothing and reapable by nothing. Measured: two resumes of an already
-  running task left two `shield watch` processes re-parented to init, and the later
-  `task stop` reported "4 of 4 stopped" while they went on running. A running task now
-  answers `already up; nothing to resume`, and a recorded helper that is still alive is not
-  started twice.
+  the first named by nothing and reapable by nothing. Measured without a guard: two resumes of
+  a running task leave two `shield watch` processes re-parented to init, and `task stop`
+  reports "4 of 4 stopped" while they go on running. A running task therefore answers
+  `already up; nothing to resume`, and a recorded helper that is still alive is not started
+  twice.
 - **The runtime's state is a phrase, not a word.** `Exited (143) Less than a second ago` is
-  twice the width of the column it was printed in, and ran into the next one - in the very
-  listing an operator reads to find the name of the task to resume.
+  twice the width of a listing column and runs into the next one - in the very listing an
+  operator reads to find the name of the task to resume.
 - **No hook fires for a container that never started.** The poststop hook reaps every
   helper the state directory records a pid for, which covers a container that ran. A
   refused ruleset or an image that will not build leaves the credential proxy, gate and
@@ -570,7 +567,7 @@ strategy in it, never a copy.
   runtime reports an exit code and discards the hook's stderr, so `Hook.execute`
   logs the reason to `hooks.log` as well.
 - **Prior art in this space has usually hit the problem first.** Where something is
-  unclear, look at how others solved it — and read it for *what* to do, never for
+  unclear, look at how others solved it - and read it for *what* to do, never for
   prose or code to copy: Sokar is a ground-up rewrite and Apache-2.0 attribution is
   taken seriously here. Note where they have *not* solved something either; a gap in
   somebody else's implementation is as informative as a solution, and cheaper to find
@@ -586,7 +583,7 @@ strategy in it, never a copy.
 - **The dialect's path belongs on the endpoint, never in the agent.** One provider serves
   different wire formats under different paths - OpenRouter answers the OpenAI dialect at
   `/api/v1` and Anthropic's at `/api`. An agent that hardcodes one cannot be pointed at a second
-  provider without being rebuilt, which is exactly what it cost before.
+  provider without being rebuilt.
 
 - **Adding a field to a record that crosses varlink is two edits, and the compiler checks
   neither.** The server reads the new field, the client has to send it, and a missing one arrives
@@ -608,13 +605,13 @@ strategy in it, never a copy.
   in the container and hands nobody the node. The image carries `curl`, `ca-certificates`, `git`,
   `openssh-client` and `tmux`, and nothing else.
 
-- **Ctrl-C left a task running without its gate, its broker or its watcher.** A `finally` covers
-  every way an attached `task start` can end except the one that happens: a signal reaches the whole
-  foreground process group, so the helpers — plain children, not detached — die with the CLI while
-  the container, its ruleset and its resolver keep running. Measured on the test machine: a
+- **Ctrl-C must not leave a task running without its gate, its broker or its watcher.** A `finally`
+  covers every way an attached `task start` can end except a signal: a signal reaches the whole
+  foreground process group, so the helpers - plain children, not detached - die with the CLI while
+  the container, its ruleset and its resolver keep running. Measured without a shutdown hook: a
   container up eleven minutes with the agent still working inside, nothing to push through and no
   way to reach the provider. `Teardown` arms a shutdown hook so the cleanup runs on a signal too,
-  and it takes a lock rather than a flag — the runtime waits for hook threads and not for the main
+  and it takes a lock rather than a flag - the runtime waits for hook threads and not for the main
   thread, so a hook that saw "somebody else has it" and returned would let the process exit with
   the container half stopped. **Measured, not assumed:** the native image runs shutdown hooks on
   SIGINT, SIGTERM and SIGHUP, with no `--install-exit-handlers` in the build arguments.
@@ -624,72 +621,70 @@ strategy in it, never a copy.
   interrupted may hold commits that never reached the gate.
 
 - **Not every `sokar-` container is a task.** `vault login` runs an agent's own login in a
-  throwaway container, which carries the prefix so a cleanup can find it — and it turned up in
-  `sokar task list`, where every column describes something it does not have. `ContainerName`
-  splits `isSokar` (Sokar made it) from `isTask` (it has a workspace, a gate, a ruleset and a
-  clearance). The prefix alone cannot make that split: `login` is a legal project name, so
-  `sokar-login-shell-25471` is a real task, and what separates them is that a login carries only a
-  timestamp where a task carries a task name and a run id.
+  throwaway container, which carries the prefix so a cleanup can find it - and has none of what a
+  `sokar task list` column describes. `ContainerName` splits `isSokar` (Sokar made it) from
+  `isTask` (it has a workspace, a gate, a ruleset and a clearance). The prefix alone cannot make
+  that split: `login` is a legal project name, so `sokar-login-shell-25471` is a real task, and what
+  separates them is that a login carries only a timestamp where a task carries a task name and a
+  run id.
 
-- **An agent's permission prompts are turned off by Sokar's decision, not by an option.** The
-  manifest declares only *how* — `sandboxed: arguments:`, because the flag is the agent's own and
-  guessing it would be wrong for every other agent. Whether is never asked: inside a task the
-  answer is always yes, since an agent stopping to ask whether it may run a command is asking
-  about a restriction the container already imposes, and in an unattended run nobody is there to
-  answer. Both start paths go through `AgentDefinition.sandboxedCommand()` so the attached and
-  unattended runs cannot drift — reported as an attached claude asking for approval, which
-  unattended would have been a hang.
+- **An agent's permission prompts are turned off by Sokar, not by an option.** The manifest
+  declares only *how* - `sandboxed: arguments:`, because the flag is the agent's own and guessing it
+  would be wrong for every other agent. Whether is never asked: inside a task the answer is always
+  yes, since an agent stopping to ask whether it may run a command is asking about a restriction
+  the container already imposes, and in an unattended run nobody is there to answer. Both start
+  paths go through `AgentDefinition.sandboxedCommand()` so the attached and unattended runs cannot
+  drift - an attached run that asks for approval is, unattended, a hang.
 
-- **Fetching is not checking out.** The workspace script filled `.git` and stopped, so every task
-  began in a directory holding nothing but `.git` and an agent asked to change a project could not
-  see one file of it. The checkout is guarded on an **unborn HEAD**, not on an empty directory:
-  the same script runs again on resume, and a workspace holding the agent's commits or its
-  uncommitted edits must survive that. Which branch is asked of the mirror rather than assumed —
-  and `git remote set-head -a` is not enough on its own: a mirror made by `git init --bare` has
-  HEAD on `refs/heads/main` whatever was pushed into it, so for a project on `master` it fails
-  outright and only the candidate list finds the branch. Measured; that is how an empty gate
-  mirror is created.
+- **Fetching is not checking out.** A workspace script that fills `.git` and stops leaves the task
+  in a directory holding nothing but `.git`, and an agent asked to change a project cannot see one
+  file of it. The checkout is guarded on an **unborn HEAD**, not on an empty directory: the same
+  script runs again on resume, and a workspace holding the agent's commits or its uncommitted edits
+  must survive that. Which branch is asked of the mirror rather than assumed - and
+  `git remote set-head -a` is not enough on its own: a mirror made by `git init --bare` has HEAD on
+  `refs/heads/main` whatever was pushed into it, so for a project on `master` it fails outright and
+  only the candidate list finds the branch. Measured: that is how an empty gate mirror is created.
 
-- **A shell exits with its last command's status, which is not a verdict on the task.** A typo at
-  the prompt made leaving a session print "it failed, so nothing was removed" and keep the
-  container. The attached path now separates the two: the code still reaches the caller the way
-  ssh reports a remote command's status, while the cleanup is told the session ended normally.
-  Only a signal — which never reaches that line — counts as unfinished.
+- **A shell exits with its last command's status, which is not a verdict on the task.** Taken as
+  one, a typo at the prompt makes leaving a session print "it failed, so nothing was removed" and
+  keep the container. The attached path separates the two: the code still reaches the caller the
+  way ssh reports a remote command's status, while the cleanup is told the session ended normally.
+  Only a signal - which never reaches that line - counts as unfinished.
 
-- **`sokar setup` is not re-run by a package upgrade, and nothing noticed.** The descriptors and
-  the `containers.conf.d` drop-in are written once by `setup`; the package replaces only the
-  binaries. Every check asked whether the files were *there*, so a descriptor from an older
-  release reported `ACTIVE` while podman went on running what it said. `Registration.STALE`
+- **`sokar setup` is not re-run by a package upgrade, so an installed file can be stale.** The
+  descriptors and the `containers.conf.d` drop-in are written once by `setup`; the package replaces
+  only the binaries. A check that asks only whether the files are *there* reports a descriptor from
+  an older release as `ACTIVE` while podman goes on running what it says. `Registration.STALE`
   compares contents, `outdated()` names the files, and `task start` refuses on it like any other
-  non-`ACTIVE` state — a container with no firewall looks entirely normal, so this must stop
-  rather than warn. Note the asymmetry it fixes: a hook that is *added* was always caught, because
-  the missing file has a new name; one whose contents changed was not.
+  non-`ACTIVE` state - a container with no firewall looks entirely normal, so this must stop rather
+  than warn. Note the asymmetry: a hook that is *added* is caught by presence alone, because the
+  missing file has a new name; one whose contents changed is caught only by comparing.
 
 - **Bringing a task back does not attach.** It starts the container and its helpers and returns,
-  so "go back in" promised something it does not do. Both that output and the kept-task message
-  name `task attach` as the separate step. Since the cut there is no separate verb for it at all:
+  so its output must not promise "go back in". Both that output and the kept-task message name
+  `task attach` as the separate step. There is no separate verb for bringing a task back:
   `task start` creates or resumes, deciding from the task's state.
 
-- **A fact about a container belongs on the container.** Project and security class were written
-  only into `sidecar.json` under `$XDG_RUNTIME_DIR`, which the system destroys when the user's last
-  session ends - so after a reboot every surviving task listed both as `-`, and bringing one
-  back failed obscurely because the fail-closed nft hook could no longer read the sidecar its
-  annotation still pointed at. They are now podman **labels** as well. Labels rather than
-  annotations because only labels come back from `podman ps`: an annotation would cost one
-  `inspect` per row of a list an interface redraws. Splitting `k=v,k=v` is safe for these two -
-  a project name is `[a-z0-9][a-z0-9-]*` and a class is an enum - in a way splitting the container
-  name on its hyphens is not, which is why the name is still never parsed.
+- **A fact about a container belongs on the container.** Project and security class are written
+  into `sidecar.json` under `$XDG_RUNTIME_DIR`, which the system destroys when the user's last
+  session ends, and as podman **labels** as well: with the sidecar alone, every task surviving a
+  reboot lists both as `-`, and bringing one back fails obscurely because the fail-closed nft hook
+  cannot read the sidecar its annotation still points at. Labels rather than annotations because
+  only labels come back from `podman ps`: an annotation would cost one `inspect` per row of a list
+  an interface redraws. Each label is read on its own, by name (see `{{.Labels}}` below), and the
+  container name is never parsed for them: splitting it on its hyphens cannot tell a project name,
+  which may contain hyphens, from the task name after it.
 
 - **A dialog caused by a flag cannot be answered by that flag.** `--dangerously-skip-permissions`
   makes the CLI open with a bypass-mode warning defaulting to "No, exit"; it is consent, not a
-  permission prompt. Answered by a settings file the agent declares, through the
-  `ContainerSetup` seam that already existed for exactly this. **The API-key dialog beside it is
-  refused rather than solved**: it fires on a collision between two payment models on one account,
-  and suppressing it would answer "bill it that way" for somebody.
+  permission prompt. Answered by a settings file the agent declares, through the `ContainerSetup`
+  seam, which exists for exactly this. **The API-key dialog beside it is refused rather than
+  solved**: it fires on a collision between two payment models on one account, and suppressing it
+  would answer "bill it that way" for somebody.
 
 - **"Run this command first" is a defect when the command is always the same.** `sokar setup`
   writes the hook descriptors and the podman drop-in, and being told to run it is a thing people
-  forget - which is how a machine ends up with an installation nobody completed. A task start now
+  forget - which is how a machine ends up with an installation nobody completed. A task start
   repairs the two states that are only ever "write the files", `MISSING` and `STALE`, and says so.
   It still cannot be the package's job: podman reads descriptors per user, so an install script
   running as root does not know whose configuration to write, and a system-wide `hooks_dir` would
@@ -699,33 +694,32 @@ strategy in it, never a copy.
   sorts later. Those two still refuse - one is a broken installation, the other is somebody else's
   file.
 
-- **The same destruction, guarded on one path and not the other.** `/workspace` lives in the
-  container's own writable layer, so removing the container destroys it. `task remove` asks
-  `unhandedWork` first and refuses with `HOLDS_WORK`, offering `--rescue`; the end of an attached
-  run removed without asking, so walking out of a shell discarded what a removal would have
-  refused to touch. Now both ask. It is only answerable while the container runs - which it still
-  is at that moment, because the shell was an `exec` beside `sleep infinity`. Keeping only when
-  there is actually something held is what stops this refilling `task list` with dead containers.
+- **The same destruction is guarded on both paths.** `/workspace` lives in the container's own
+  writable layer, so removing the container destroys it. `task remove` asks `unhandedWork` first
+  and refuses with `HOLDS_WORK`, offering `--rescue`; the end of an attached run asks too, or
+  walking out of a shell would discard what a removal refuses to touch. It is only answerable while
+  the container runs - which it still is at that moment, because the shell is an `exec` beside
+  `sleep infinity`. Keeping only when there is actually something held is what stops this refilling
+  `task list` with dead containers.
 
-- **A destructive command used as a query is a missing query.** Whether a workspace held changes
-  nobody had pushed was answerable only by running a removal and reading the refusal.
-  `task status` asks the same `unhandedWork` without touching anything. Note what it cannot do:
-  the workspace is inside the container, so once a task is stopped the only source is the note
-  `task stop` wrote on the way out - and a task stopped by a reboot or a kill has neither. It says
-  "cannot be read while the task is stopped" rather than "nothing", because nothing would read as
-  nothing to lose.
+- **A destructive command used as a query is a missing query.** Whether a workspace holds changes
+  nobody has pushed is not left to running a removal and reading the refusal: `task status` asks
+  the same `unhandedWork` without touching anything. Note what it cannot do: the workspace is
+  inside the container, so once a task is stopped the only source is the note `task stop` wrote on
+  the way out - and a task stopped by a reboot or a kill has neither. It says "cannot be read while
+  the task is stopped" rather than "nothing", because nothing would read as nothing to lose.
 
-- **`TaskInventory` computes sixteen fields and `task list` rendered five.** The daemon hands an
-  interface all of them; the CLI showed a third of what the machine already knew.
+- **`task list` shows what `TaskInventory` already computes.** `TaskInventory` computes sixteen
+  fields and the daemon hands an interface all of them; a CLI rendering five shows a third of what
+  the machine already knows.
 
-- **The age was computed, kept, and then thrown away by the renderer.** `ContainerSummary.since()`
-  is an instant precisely so "how long has it been like this" is answerable, and `task list`
-  dropped it because the runtime's phrase was twice its column's width. `Age.compact` renders the
-  instant instead - and refuses a future one, because a negative age in a column is a bug somebody
-  has to explain rather than information.
+- **The age is rendered, not thrown away.** `ContainerSummary.since()` is an instant precisely so
+  "how long has it been like this" is answerable, and the runtime's phrase is twice its column's
+  width, so `Age.compact` renders the instant instead - and refuses a future one, because a
+  negative age in a column is a bug somebody has to explain rather than information.
 
 - **A login container is never reused**, because its name carries the millisecond it was made. So
-  one still on the machine is litter, and `vault login` now sweeps them before it does anything
+  one still on the machine is litter, and `vault login` sweeps them before it does anything
   expensive - which covers what a teardown structurally cannot, a kill or a power cut. The login
   *image* is the expensive part and is deliberately kept.
 
@@ -734,91 +728,84 @@ strategy in it, never a copy.
   output is read by scripts as well as by people. Two things are painted: work that exists nowhere
   else, and a clearance of `off`.
 
-- **A bare `git push` in a task used to miss the gate and report success.** Checking the workspace
-  out from a remote-tracking branch makes it track `sokar/main`, so `git push` with no arguments
-  landed on `refs/heads/main` in the mirror: nothing appeared in `gate pending`, and the push said
-  it worked. The clone now sets `remote.sokar.push = HEAD:$SOKAR_TASK_REF`, so the obvious command
-  goes where the work is meant to go. **Both settings were measured, not assumed:** with one
-  remote git 2.53 falls back to it and `remote.pushDefault` is redundant - it earns its place only
-  when an agent adds a second remote, where without it a bare push fails with "no destination
-  configured" and with it still reaches the gate.
+- **A bare `git push` in a task reaches the gate.** Checking the workspace out from a
+  remote-tracking branch makes it track `sokar/main`, so on its own `git push` with no arguments
+  lands on `refs/heads/main` in the mirror: nothing appears in `gate pending`, and the push says it
+  worked. The clone sets `remote.sokar.push = HEAD:$SOKAR_TASK_REF`, so the obvious command goes
+  where the work is meant to go. **Both settings are measured, not assumed:** with one remote git
+  2.53 falls back to it and `remote.pushDefault` is redundant - it earns its place only when an
+  agent adds a second remote, where without it a bare push fails with "no destination configured"
+  and with it still reaches the gate.
 
 - **Counts cross the boundary; the sentence stays where it is read.** The note a stopping task
-  writes used to hold the rendered phrase - "2 commits and 3 changed files" - which meant putting
-  English, a fixed plural rule and an unsplittable string on the wire, and a client could neither
-  show one number nor sort by it. It is now versioned JSON with the two counts, and `Held.phrase()`
-  words them for a terminal. **A note an older Sokar wrote is parsed back rather than discarded:**
-  it is our own wording in one of three shapes, and answering "nobody looked" about a task that was
-  actually measured would destroy the work this exists to protect. An unknown *version*, though, is
-  refused - the same rule as the sidecar, because a misread answer here decides whether work is
-  destroyed.
+  writes is versioned JSON with the two counts, and `Held.phrase()` words them for a terminal. A
+  rendered phrase - "2 commits and 3 changed files" - on the wire means English, a fixed plural
+  rule and an unsplittable string, and a client can neither show one number nor sort by it. **A
+  note in the rendered-phrase form is parsed back rather than discarded:** it is our own wording in
+  one of three shapes, and answering "nobody looked" about a task that was actually measured would
+  destroy the work this exists to protect. An unknown *version*, though, is refused - the same rule
+  as the sidecar, because a misread answer here decides whether work is destroyed.
 
 - **`readable: false` is not "holds nothing".** Holding nothing is readable with two zeros; not
   readable means nobody could look. `WorkHeld` is asked per task and never on a listing, because it
   runs git inside the container - a call per row of a list a client redraws.
 
-- **A task cannot be resumed across a restart, and podman explained that badly.** The state
+- **A task cannot be resumed across a restart, and podman explains that badly.** The state
   directory is under `$XDG_RUNTIME_DIR`, which the system clears when the user's last session ends
   - and the container bind-mounts the broker socket out of it, so `podman start` fails with crun's
   "cannot stat .../vault.sock". No helper can be started that brings the socket back, because the
-  directory recording which helpers there were went with it. `resume` now detects the missing
+  directory recording which helpers there were went with it. `resume` detects the missing
   directory before asking podman, and says what happened plus how to get the workspace out:
   **`podman cp <task>:/workspace` works on a container that cannot start**, measured.
 
 - **A stack trace is not a message, and it is not nothing either.** Every refusal here is one line
-  beginning "sokar:", and an unhandled exception put sixteen frames of picocli on somebody's
-  terminal. `CliErrors.failures(paths)` writes them to `$XDG_STATE_HOME/sokar/failures.log` -
-  **kept rather than offered behind a flag**, because the failure nobody can reproduce is exactly
-  the one worth having a trace for. The terminal gets the sentence and the path; `doctor` names the
-  file once it exists. **The command's name goes in it, never its arguments:** `--upstream
+  beginning "sokar:", and an unhandled exception puts sixteen frames of picocli on the terminal.
+  `CliErrors.failures(paths)` writes them to `$XDG_STATE_HOME/sokar/failures.log` - **kept rather
+  than offered behind a flag**, because the failure nobody can reproduce is exactly the one worth
+  having a trace for. The terminal gets the sentence and the path; `doctor` names the file once it
+  exists. **The command's name goes in it, never its arguments:** `--upstream
   https://user:token@host` is a credential, and a log is where that must not end up. Owner-only,
-  because a message can quote anything. A test caught the first version logging the root command,
-  so every failure was called "sokar" and named nothing.
+  because a message can quote anything. The name logged is the command that failed, not the root
+  command, which would call every failure "sokar" and name nothing; a test checks it.
 
-- **What a listing offers and what a reader accepts were two rules.** `Logs` filtered on `.log`
-  and `Tail` checked `.log` again, separately - so they could drift, and they were both wrong the
-  same way: `events.jsonl` (what the firewall blocked) and `reader.err` are logs whose names do not
-  say so, and both were hidden. One rule now, `TaskInventory.isLog`, used by the listing, the wire
-  and the CLI. **It stays an allow-list:** the same directory holds `vault.token`, the live phantom
-  token, beside the sockets and the ruleset - "everything that is not a secret" has to be right
-  forever, including about files a later release adds, while "these names" fails closed.
+- **What a listing offers and what a reader accepts are one rule.** Two separate `.log` checks, in
+  `Logs` and in `Tail`, could drift, and a `.log` filter is wrong for both the same way:
+  `events.jsonl` (what the firewall blocked) and `reader.err` are logs whose names do not say so.
+  One rule, `TaskInventory.isLog`, is used by the listing, the wire and the CLI. **It stays an
+  allow-list:** the same directory holds `vault.token`, the live phantom token, beside the sockets
+  and the ruleset - "everything that is not a secret" has to be right forever, including about
+  files a later release adds, while "these names" fails closed.
 
 - **The shape of a name is not evidence that it names something.** `task logs sokar-does-not`
-  passed the `isTask` check, found no state directory, and answered "either nothing wrote one, or
-  the machine has restarted since it ran" - a sentence about a task that exists, said about one
-  that never did. The rule is **exists as a container OR has logs**, not existence alone: a
-  container somebody removed by hand leaves its state directory, and those logs are worth reading
+  passes the `isTask` check and finds no state directory, and answering "either nothing wrote one,
+  or the machine has restarted since it ran" would be a sentence about a task that exists, said
+  about one that never did. The rule is **exists as a container OR has logs**, not existence alone:
+  a container somebody removed by hand leaves its state directory, and those logs are worth reading
   precisely then.
 
 - **`{{.Labels}}` is Go's map formatting, not `k=v,k=v`.** podman renders `map[a:b c:d]` - space
-  separated, colon separated. The first version of the label read invented the comma form, and the
-  test fixture invented it too, so **the parser and its test agreed with each other and with
-  nothing else**: every task on a real machine listed no project after a reboot, which is the exact
-  failure the labels were added to fix. The format now asks for one value at a time -
+  separated, colon separated. A label read that assumes the comma form, with a test fixture that
+  assumes it too, makes **the parser and its test agree with each other and with nothing else**:
+  every task on a real machine lists no project after a reboot, which is the exact failure the
+  labels exist to fix. The format asks for one value at a time -
   `{{index .Labels "org.fuin.sokar.project"}}` - which answers the value or empty, so there is no
   shape to get wrong and no other label on the container can affect it. **A fixture written from
   the same assumption as the code proves the assumption, not the behaviour.**
 
-- **JUnit's versions are one set or they are three guesses.** `junit-platform-suite` was picked by
-  asking Central what was newest, which put platform 1.14 beside the Jupiter 5.12 the fuin BOM
-  pins. It worked - by declaration order - and stopped working the moment somebody moved the
-  artifact one level deeper, with `NoClassDefFoundError` and failsafe's "versions of JUnit jars not
-  properly aligned". The build now imports `org.junit:junit-bom` **before** the fuin BOM, at the
-  version **Cucumber is built against**: aligning down to 5.12 is coherent and makes the acceptance
-  suite discover no tests at all.
+- **JUnit's versions are one set or they are three guesses.** Picking `junit-platform-suite` by
+  asking Central what is newest puts platform 1.14 beside the Jupiter 5.12 the fuin BOM pins. That
+  works only by declaration order, and moving the artifact one level deeper breaks it with
+  `NoClassDefFoundError` and failsafe's "versions of JUnit jars not properly aligned". The build
+  imports `org.junit:junit-bom` **before** the fuin BOM, at the version **Cucumber is built
+  against**: aligning down to 5.12 is coherent and makes the acceptance suite discover no tests at
+  all.
 
 - **A suite that opens a connection per scenario is a suite that gets refused.** Around eighty
-  ssh connect/disconnect cycles in two minutes, and CI answered "Connection refused" to two of
+  ssh connect/disconnect cycles in two minutes, and CI answers "Connection refused" to two of
   them. One connection for the run, a channel per scenario: measured at 80 connections to 2, and
-  15.7s to 8.5s. It never showed locally, because a hop to a VM on the same host is fast and
+  15.7s to 8.5s. It does not show locally, because a hop to a VM on the same host is fast and
   forgiving in a way a rented server is not.
-
 ## What the finished requirements measured
-
-Rescued from the requirement index on 2026-09-12, when the rule arrived that a finished issue is
-deleted whole. Each of these was a line in a *"what was here and is finished"* section that claimed
-its lesson already lived here - and for most of them it did not. Deleting the section first would
-have lost every one.
 
 - **An environment is not an argument list.** Every variable a container gets is named on podman's
   command line without its value, and podman copies the value from Sokar's own environment: an
@@ -843,8 +830,8 @@ have lost every one.
   through standard input and comes back only as a name, a kind and a length.
 
 - **A backup nobody recorded is not a backup you can list.** `gate backup <file>` writes a bundle
-  wherever an operator names it and forgets it, so the missing part was never the listing - it was
-  the record. And a restore refuses with `HOLDS_WORK` naming the refs, because unreviewed pushes
+  wherever an operator names it, so it records each one - a backup is listable only because it is
+  recorded. And a restore refuses with `HOLDS_WORK` naming the refs, because unreviewed pushes
   exist only in the mirror and overwriting one destroys the only copy.
 
 - **A listing must not reach the network.** A triggered fetch is its own method rather than a flag
@@ -856,47 +843,44 @@ have lost every one.
   whoever can forward the daemon socket can already run commands there. The session is a terminal
   **in the container** rather than on the node, because `sokar` is not installed in a task image.
 
-- **A clearance answer must survive a restart.** It is never asked twice for a task - across a
-  restart, which is where it used to leak - and is written to a record that outlives the task. A
-  question nobody answered is replaced on screen by one saying so, and reaches a client as a
-  verdict rather than as silence.
+- **A clearance answer must survive a restart.** It is never asked twice for a task - including
+  across a restart, which is where a repeated question comes from - and is written to a record
+  that outlives the task. A question nobody answered is replaced on screen by one saying so, and
+  reaches a client as a verdict rather than as silence.
 
-- **A defect recorded from one environment is a measurement, not a fact about the product.** One
-  was written up with a stack trace and three reproductions - `Console.readPassword()` throwing in
-  the native image - and did not survive contact with the same binary a day later: at a pty, over
-  `ssh -tt`, and through the acceptance kit, all working, with `git log` over the code empty in
-  between. What that report lacked is what would have made it checkable: the exact command, the
-  terminal it ran under, and **whether the process was sandboxed** - which was the one difference
-  nobody had written down. Ask for those three before believing a defect only one machine has seen.
+- **A defect recorded from one environment is a measurement, not a fact about the product.** A
+  report of `Console.readPassword()` throwing in the native image, with a stack trace and three
+  reproductions, does not reproduce with the same binary at a pty, over `ssh -tt`, or through the
+  acceptance kit, with no code change in between. What makes such a report checkable is the exact
+  command, the terminal it ran under, and **whether the process was sandboxed**. Ask for those
+  three before believing a defect only one machine has seen.
 
-  Two things from it are still live rather than historical. **A minimal native image built on
-  GraalVM 25.3.4 reads a passphrase correctly, and the product pins 25.0.2** - if that fault was
-  ever real it lives in that gap, and it is the one hypothesis worth keeping. And should it return,
-  driving `tcgetattr`/`tcsetattr` through FFM reads a line with echo off in both runtimes, proven
-  at a pty; it is the same mechanism `KernelKeyring` already uses, so it is in idiom rather than a
-  new one.
+  Two facts about it hold. **A minimal native image built on GraalVM 25.3.4 reads a passphrase
+  correctly, and the product pins 25.0.2** - if that fault exists it lives in that gap, and it is
+  the one hypothesis worth keeping. And should it appear, driving `tcgetattr`/`tcsetattr` through
+  FFM reads a line with echo off in both runtimes, proven at a pty; it is the same mechanism
+  `KernelKeyring` already uses, so it is in idiom rather than a new one.
 
 - **An agent's first-run dialogs are that agent's business, and answering them inside a task is not
-  a choice.** Rescued from B24 on 2026-09-13, when first-run consent moved to the agent
-  repositories. What stays here is the seam: `TaskLaunch.placeAgentFiles` places the files an agent
-  declares - the agent decides what is in them, Sokar writes the bytes, and nothing in Sokar
-  branches on an agent's name. A task with **no credential** gets an *empty token* rather than no
-  files at all, because two of Claude Code's three files have nothing to do with a credential:
-  returning early walked a task started without one into every dialog, by a route nobody had
-  looked at. Measured 2026-09-10: `prepared 2 file(s)`, and the CLI reached its prompt with no
+  a choice.** First-run consent is handled in the agent repositories. What stays here is the seam:
+  `TaskLaunch.placeAgentFiles` places the files an agent declares - the agent decides what is in
+  them, Sokar writes the bytes, and nothing in Sokar branches on an agent's name. A task with **no
+  credential** gets an *empty token* rather than no files at all, because two of Claude Code's
+  three files have nothing to do with a credential: returning early walks a task started without
+  one into every dialog. Measured: `prepared 2 file(s)`, and the CLI reached its prompt with no
   dialog in between.
 
-  **A stub that cannot ask questions cannot notice an agent that does.** Two first-run dialogs
-  shipped past a green suite because the only agent that suite ever ran had none. Which dialogs
-  each agent shows, and what answers them, is recorded in that agent's own repository.
+  **A stub that cannot ask questions cannot notice an agent that does.** A suite whose only agent
+  has no first-run dialogs stays green past an agent that has them. Which dialogs each agent shows,
+  and what answers them, is recorded in that agent's own repository.
 
 ## The agent repositories consume what this one publishes
 
 **Push this repository first, and wait for it to publish.** The three agent repositories resolve
 `sokar-machines` and `sokar-acceptance-kit` as snapshots from Central, and Sokar's own `main` build
-is what puts them there. Pushing both within a few minutes races: on 2026-09-10 an agent's leg
-started eleven minutes before the publish it needed and resolved the previous snapshot, failing
-with the usage text of tooling that predated the command asked of it.
+is what puts them there. Pushing both within a few minutes races: an agent's leg that starts before
+the publish it needs resolves the previous snapshot and fails with the usage text of tooling that
+predates the command asked of it.
 
 `settings.xml` already sets `updatePolicy` to `always`, so nothing is stale that the repository
 has. What cannot be fixed in a workflow is an artifact that does not exist yet.
@@ -904,25 +888,24 @@ has. What cannot be fixed in a workflow is an artifact that does not exist yet.
 ## The rented test machines
 
 Both acceptance legs boot a prepared Hetzner snapshot, found by label, and destroy the server in
-a `finally`. It is all Java now, in `buildtools/hetzner`:
+a `finally`. It is Java, in `buildtools/hetzner`:
 `org.fuin.sokar.machines.Main leg` runs a leg, `... sweep` deletes what a run left behind, and
-`... snapshot --os <os> --repo .` builds the image a leg boots. There is no Python left under
-`buildtools/ci/`; there were four copies of the same helpers across this repository and the three
-agents, and they had already drifted - one grew a key-cleaning step the others lacked.
+`... snapshot --os <os> --repo .` builds the image a leg boots. There is no Python under
+`buildtools/ci/`: one set of helpers serves this repository and the three agents, because copies
+of the same helpers drift.
 
-**The builder used to live outside the repository, and the cost of that showed.** Nobody could
-rebuild an image, so nobody did, and the pair in use had been taken on a 320 GB machine to hold
-1.6 GB of content - a snapshot only restores onto a disk at least as big as the one it came from,
-so every leg rented the one type big enough, at 0.1114 EUR/h. Rebuilt at 40 GB the choice came
-back. **The builder compiles Sokar on the machine before taking the image**, which is what makes
-the list below true rather than aspirational: the first two rebuilds were checked by booting them
-and running a hello-world native image, and shipped without a JDK and then without musl, because
-hello-world links nothing statically and needs no JDK on the machine at all.
+**The builder lives in the repository, so anyone can rebuild an image.** A snapshot only restores
+onto a disk at least as big as the one it came from: an image taken on a 320 GB machine to hold
+1.6 GB of content makes every leg rent the one type big enough, at 0.1114 EUR/h, and an image taken
+at 40 GB leaves the choice open. **The builder compiles Sokar on the machine before taking the
+image**, which is what makes the list below true rather than aspirational: booting an image and
+running a hello-world native image proves neither a JDK nor musl, because hello-world links nothing
+statically and needs no JDK on the machine at all.
 
 The Ubuntu leg runs **26.04**, not 24.04. 24.04 ships podman 4.9.3 and always will - podman is
-in `universe` and a stable release does not change major versions - and Sokar now refuses podman
-4, so a 24.04 machine could not run the suite at all. Mixing a newer release's podman into 24.04
-was measured and is not an option either: it upgrades libc6 2.39 to 2.43 and 154 other packages,
+in `universe` and a stable release does not change major versions - and Sokar refuses podman
+4, so a 24.04 machine cannot run the suite at all. Mixing a newer release's podman into 24.04
+is not an option either: measured, it upgrades libc6 2.39 to 2.43 and 154 other packages,
 which is a dist-upgrade wearing a 24.04 label. The cost of the move is that the published binary
 is built against a newer glibc, because a native image links it dynamically and FFM rules out a
 static one.
@@ -933,7 +916,7 @@ and a musl-built zlib, `gcc`/`glibc-devel`/`zlib-devel`, podman with `ubuntu:24.
 from building the project once. The checkout itself is deleted - it goes stale immediately, the
 dependency cache does not. 1.48 GB, about EUR 0.018 a month; a run boots one in about a minute.
 
-Provisioning a machine that can build Sokar took nine attempts, four of which failed on the
+Provisioning a machine that can build Sokar has to get each of these right, and each fails on the
 provisioning rather than on the suite:
 
 - **Hetzner's Fedora image ships SELinux `permissive`.** The targeted policy is installed and
@@ -945,23 +928,23 @@ provisioning rather than on the suite:
   an agent that cannot authenticate with **nothing in the audit log**. Compile and load it while
   the checkout is still there, and check `semodule -l` afterwards.
 - **`install -d -o build` sets ownership on the last component only**, so `/home/build/.local`
-  stayed root-owned and rootless podman would not start. A single root-owned directory in a
+  stays root-owned and rootless podman will not start. A single root-owned directory in a
   user's home reads as a Sokar permissions bug.
 - **An ordinary user has no `sudo`**, which is correct - so nothing in a run may assume it.
   Install into the operator's own directories, which is the shape a task runs in anyway.
 - **Verify by compiling, not by inspecting.** "`gcc` is present" is not "native-image works": a
   missing compiler surfaces twenty minutes into a build as *"Default native-compiler executable
   'gcc' not found"*. The check builds a real probe twice, once ordinarily and once
-  `--static --libc=musl` as the hooks need. An earlier version reported a compiler missing that
-  was there, because its scratch directory came from `mktemp -d` as root while `javac` ran as
-  the build user - a check that fails for its own reasons is worse than no check.
+  `--static --libc=musl` as the hooks need. A scratch directory from `mktemp -d` as root while
+  `javac` runs as the build user makes the check report a compiler missing that is there - a
+  check that fails for its own reasons is worse than no check.
 - **Do not rebuild the image to test a change to the provisioning.** Provision once with
-  `--keep` and iterate against the live server over SSH. Every defect above was found at the end
-  of a fifteen-minute cycle and would have been found in under a minute that way.
+  `--keep` and iterate against the live server over SSH. A rebuild is a fifteen-minute cycle;
+  against the live server, a defect like those above shows in under a minute.
 - **`eu-central` is a network zone, not a location.** `servers.create()` takes a location;
   `fsn1`, `nbg1` and `hel1` all sit in that zone. Passing the zone fails.
-- **Do not hard-code a location.** Availability is per datacentre and changes: on 2026-09-06
-  `fsn1` offered *zero* server types while `nbg1` and `hel1` offered eighteen. The failure is
+- **Do not hard-code a location.** Availability is per datacentre and changes: measured, `fsn1`
+  offered *zero* server types while `nbg1` and `hel1` offered eighteen. The failure is
   `unsupported location for server type`, which reads like a wrong type or a bad token rather
   than a full datacentre. `hetzner.location_for()` asks which location in `eu-central` currently
   has the type and uses that.
@@ -973,7 +956,7 @@ provisioning rather than on the suite:
 - **Three repositories rent from one project, and nothing coordinates them.** The core's two
   acceptance legs plus an agent's two can ask for six machines at once; the API answers
   `resource_limit_exceeded` and the run dies after having built everything. Creating a server
-  now waits and retries on that one error - and only that one, because a bad image or a full
+  waits and retries on that one error - and only that one, because a bad image or a full
   datacentre is not something waiting fixes. The agent repositories also run their legs
   `max-parallel: 1`, so each takes one machine at a time rather than two.
 - **Name a run's servers after the run *and the leg*.** Both matrix legs share `GITHUB_RUN_ID`,
@@ -985,8 +968,7 @@ provisioning rather than on the suite:
 and `sokar-bom`.** Nothing else, because nothing else is a contract anyone outside resolves: the
 first two are what an agent compiles against, the kit is what its acceptance scenarios drive a
 machine with, and the BOM is the one place a repository building against Sokar reads a version
-from - decided 2026-09-09, when the kit was split out of the acceptance module and the three agent
-repositories were found importing a JUnit set that only coexisted by declaration order. The
+from, so that no agent repository imports a JUnit set that only coexists by declaration order. The
 packages go to
 Artifactory, `sokar-dist-deb` and `sokar-dist-rpm`, together with the agents' — an agent
 package declares `Depends: sokar`, so split across repositories the dependency would not
@@ -1010,27 +992,27 @@ resolve from one configured source.
   building anything. Run it after rotating the token.
 
 **The bill of materials a package installs is the package's own.** `dist-deb`'s `makeBom`, from its
-own dependencies - app, sokard, hooks and what they link, 19 components on 2026-09-28 - so its
-subject is `sokar-dist-deb`, not `sokar`; the plugin has no name override. It was the root's
-aggregate over the whole reactor, which named the acceptance kit's cucumber, junit and sshj and the
-release tooling, 42 components that do not ship, and changed with whichever modules the last build
-included. `buildtools/package-check` asserts what it must and must not name. **`makeBom` skips itself
+own dependencies - app, sokard, hooks and what they link, 19 components - so its subject is
+`sokar-dist-deb`, not `sokar`; the plugin has no name override. The root's aggregate over the whole
+reactor is not it: that names the acceptance kit's cucumber, junit and sshj and the release tooling,
+42 components that do not ship, and changes with whichever modules the last build included.
+`buildtools/package-check` asserts what it must and must not name. **`makeBom` skips itself
 under `-o`**, so build the packages online.
 
 **The published binary is the one the acceptance suite tested.** The Ubuntu leg fetches its
 binaries back before the server is destroyed and the publish job packages those, rather than
 compiling its own. Two reasons: a hosted runner has no musl cross-compiler, so the static
-hooks cannot be built there at all; and until this changed, the suite exercised one build
-while the packages shipped another. **Ubuntu, not Fedora** — a native image links glibc
+hooks cannot be built there at all; and a binary compiled for the packages is not the build
+the suite exercised. **Ubuntu, not Fedora** — a native image links glibc
 dynamically, so one built on Fedora will not start on Ubuntu 24.04 while the reverse runs on
 both. Both packages carry identical bytes, so there is one binary to get right. The leg
-writes a manifest beside the binaries and the publish job reads it, because the two lists
-drifted when they were written down twice.
+writes a manifest beside the binaries and the publish job reads it, because two lists
+written down twice drift.
 
 **So no acceptance leg has a package installed, and a scenario about a packaged file cannot pass on
 one.** A leg builds on the machine and stages into `~/.local/share/sokar`; `/usr/share/sokar` is not
 there. `exec:java@deploy` does install the `.deb`, so such a scenario is green on the VM and red on both
-legs - measured on 2026-09-27, when a bill check passed 102/0 on the VM and failed 10 of 10 in CI.
+legs - measured: a bill check passed 102/0 on the VM and failed 10 of 10 in CI.
 What the package holds is checked on the package, in `buildtools/package-check`.
 
 ## The interface contract
@@ -1044,21 +1026,21 @@ when a method is registered without appearing in it, appears in it without being
 reads a parameter it does not describe, or throws an error it does not name.
 
 - **The trailing `1` is the compatibility promise**, and it is varlink's own convention -
-  `org.fuin.sokar.Clearance1` already followed it. Within one number the interface only grows:
+  `org.fuin.sokar.Clearance1` follows it too. Within one number the interface only grows:
   new methods, new `?` parameters, new reply fields. Nothing that exists may be removed, renamed,
   retyped or given a new meaning. A change that cannot be made that way becomes `Tasks2`, served
   *beside* `Tasks1` for at least one release, because a fleet is not upgraded at once.
 - **Adding an enum value is explicitly not breaking**, so the contract requires clients to
   tolerate unknown ones. `Outcome` will gain entries.
-- **Parameter names must be varlink identifiers.** Hyphens are not: `credential-type` and
-  `token-hours` had to become `credentialType` and `tokenHours` before the description could be
-  written truthfully, which is the sort of thing an IDL catches and an ad-hoc map does not.
-- **Derive nothing on the client side that the daemon can send.** A clearance prompt now carries
+- **Parameter names must be varlink identifiers.** Hyphens are not, so the parameters are
+  `credentialType` and `tokenHours`, not `credential-type` and `token-hours` - a description that
+  uses the hyphenated names cannot be written at all, which is the sort of thing an IDL catches and an ad-hoc map does not.
+- **Derive nothing on the client side that the daemon can send.** A clearance prompt carries
   its own `key` because a client rebuilding it from the other fields is one separator away from
   answering a prompt that does not exist, while the task stays blocked.
 - **A client needs to be told which of two things happened when its sentence claims an act, and
   does not when its sentence describes a state.** That is what decides whether a reply gains a
-  value, and it was Agent Frontend's on 2026-09-27 after an outcome was proposed and refused.
+  value.
   `Lock` answers `wasCached` because *"the store is shut"* claims an act and is false for a store
   that was already shut; `SetClearance` answers `UNCHANGED` because *"nothing was restarted"*
   deserves its own sentence. `UnlockWithShare` needs nothing of the kind: it returns `UNLOCKED`
@@ -1085,10 +1067,8 @@ uses the third**, and nobody is without one.
 The Java set upstream is eighteen slugs, among them `spring-boot-patterns`, `jpa-patterns` and
 `java-migration`, which describe nothing here; *the Java set* alone does not say which are meant.
 
-The interface was briefly treated as the repository with no skills, on the true observation that
-neither Java skill applies to it. That was the wrong conclusion from a right fact: the exemption
-was from *those two*, not from having any, and the vendor ships its own set the same way Oracle
-does.
+Neither Java skill applies to the interface, and that exempts it from *those two*, not from having
+any: the vendor ships its own set the same way Oracle does.
 
 **Where they come from here: <https://fuinorg.jfrog.io/artifactory/agent-skills/>**, one package
 per skill, republished rather than pulled from GitHub by each machine. The reason is the one every
@@ -1119,9 +1099,9 @@ artifact's SHA-256; an interrupted transfer otherwise installs a truncated skill
 short one rather than as an error.
 
 **If your harness cannot install a skill, read it.** Unpack it outside the repository - a scratch
-directory - and read its `SKILL.md`. Measured on 2026-09-27: a session here could not write its
-skills directory, and the module it had written without them turned out to send a CI token wherever a
-property pointed. An agent that cannot install and is not told this concludes it has no skills.
+directory - and read its `SKILL.md`. Measured here: a module written by a session that could not
+write its skills directory sent a CI token wherever a property pointed. An agent that cannot install
+and is not told this concludes it has no skills.
 
 **If the JFrog CLI happens to be installed**, `jf agent skills install <slug> --repo agent-skills`
 does the same with resolution and an install record. Do not install it for this — the four commands
@@ -1134,20 +1114,20 @@ forbids a leading zero in a numeric identifier.)
 
 There is a second repository, <https://fuinorg.jfrog.io/artifactory/agent-packages/>, which holds
 no skills. It exists for Agent Packages, which can carry prompts, hooks, instructions and MCP
-declarations as well — this product's own agent configuration, when it ships. The same skills were
-briefly published there too, and that was one conclusion too many: the same 44 skills in two places
-is two copies of one truth, and the unused copy is the one that quietly goes stale.
+declarations as well — this product's own agent configuration, when it ships. The skills are not
+published there as well: the same 44 skills in two places is two copies of one truth, and the
+unused copy is the one that quietly goes stale.
 
 That also makes them the same kind of thing as the packages this build publishes, which is the
 point - an agent's knowledge is a dependency, and a dependency nobody versions is one nobody can
 roll back.
 
-**Why it is a rule rather than a suggestion.** Most of what has cost this project a day was neither
-a design mistake nor a bug: it was a property of the toolchain that somebody had to rediscover.
+**Why it is a rule rather than a suggestion.** Most of what costs this project a day is neither
+a design mistake nor a bug: it is a property of the toolchain that somebody has to rediscover.
 FFM and static linking being mutually exclusive, a reachability-metadata file deciding whether a
 resource exists in the image at all, a passphrase read that works in a JVM and not in a native
-image - each of those is written down further up this file *because* it was learnt the expensive
-way. A skill that carries the same knowledge in advance is the cheaper end of the same lesson.
+image - each of those is written down further up this file *because* it is expensive to learn.
+A skill that carries the same knowledge in advance is the cheaper end of the same lesson.
 
 **What it does not change.** A skill is knowledge, not authority: where it and a measurement from
 this repository disagree, the measurement wins and the disagreement is worth writing down. The
@@ -1159,61 +1139,57 @@ The same text in every repository `project.yml` names. Change it in the channel 
 one copy.
 
 - **The operator pushes. Agents commit and stop.** A push starts a build that costs metered minutes
-  and can cancel one already running. Say what is ready and let him decide when.
+  and can cancel one already running. Say what is ready and let the operator decide when.
 - **A rewrite is cheap only while the commits are yours alone. Ask the remote first.**
   *The operator pushes. Agents commit and stop* - and stop includes stop amending, stop squashing,
-  stop rebasing. A commit stops being yours the moment he takes it, and nothing tells you when that
+  stop rebasing. A commit stops being yours the moment it is pushed, and nothing tells you when that
   happened except asking:
 
       git ls-remote origin refs/heads/main            the tip, and it cannot be stale
       git merge-base --is-ancestor <commit> <tip>     whether the commit is already in it
 
-  `origin/main` and `@{u}` are caches and answer a question about your last fetch. On 2026-09-27 an
-  amend after a push put two commits with one parent and one subject on two sides, and the operator
-  met it as a merge conflict. **The repair is never a force push** - reset onto the remote's commit
-  and re-apply as a new one, because the side that pushes is the side whose history is real. That
-  same reset is also the only safe way to squash, which is why the cure and the correct method are
-  one operation.
-- **Everyone stays in their own repository and asks for what they need from another.** Ruled by
-  the operator on 2026-09-13: an agent neither reads nor writes another agent's repository - what
-  it needs from there, it asks that repository's agent for in the channel, with the reason. The
-  one exception is the coordinating agent, who may **read** the other repositories. Reading does
-  not replace asking: a file shows what is the case, and only the agent who wrote it knows why.
-  **Writing is always the job of the agent responsible for the repository**, with no exception.
+  `origin/main` and `@{u}` are caches and answer a question about your last fetch. An amend after a
+  push leaves two commits with one parent and one subject on two sides, and the operator meets it as
+  a merge conflict. **The repair is never a force push** - reset onto the remote's commit and
+  re-apply as a new one, because the side that pushes is the side whose history is real. That same
+  reset is also the only safe way to squash, which is why the cure and the correct method are one
+  operation.
+- **Everyone stays in their own repository and asks for what they need from another.** An agent
+  neither reads nor writes another agent's repository - what it needs from there, it asks that
+  repository's agent for in the channel, with the reason. The one exception is the coordinating
+  agent, who may **read** the other repositories. Reading does not replace asking: a file shows what
+  is the case, and only the agent who wrote it knows why. **Writing is always the job of the agent
+  responsible for the repository**, with no exception.
 - **The channel is append-only.** An entry begins with `## <UTC timestamp> — <agent>`. Headings
   inside an entry are free; scan for entries by the timestamp, never by `##` alone. Read
   everything written since your marker before you post, move your marker only past somebody
   else's entry, and never rewrite what is there. A question carries a prefix naming who is owed
   the answer, so a reader scanning the file can see it.
 - **When quoting a document that has headings, indent it four spaces rather than fencing it.**
-  A fence hides them from a renderer and not from a scanner, and this file is append-only, so
+  A fence hides them from a renderer and not from a scanner, and the channel is append-only, so
   what a fence lets through cannot be taken out again.
 - **Re-read the channel immediately before appending to it.** An entry that landed between your
-  read and your append makes what you are about to write answer a state that no longer exists —
-  Agent Smith published advice for an experiment that had been settled four minutes earlier, and
-  the read that would have caught it costs nothing. The marker says what to compare against.
+  read and your append makes what you are about to write answer a state that no longer exists,
+  and the read that would have caught it costs nothing. The marker says what to compare against.
 - **Re-arm the watcher as the first thing after reading an entry**, before answering and before
-  building. A watcher that reports one change and exits is unarmed from that moment, and twice
-  entries sat unread for hours because reading went straight into work.
+  building. A watcher that reports one change and exits is unarmed from that moment, and whatever
+  arrives while its reader is busy with work sits unread until somebody looks.
 - **Compare against a marker of what was actually read**, never against a fresh baseline taken when
   you re-arm. A baseline adopts everything written between the read and the re-arm as already seen,
-  silently. Keep the last heading you read and compare against that. Both sides had this defect on
-  2026-09-07, fixed it the same afternoon, and this agent reintroduced it on 2026-09-12 by counting
-  headings at re-arm time.
+  silently. Keep the last heading you read and compare against that.
 - **The file's order is the truth and the headings are a label.** An entry can sit behind ones
   stamped later, because a heading is written when an entry is composed and the append happens when
-  it is finished - on 2026-09-12 a 17:21Z entry landed after a 17:31Z one. So take the timestamp at
-  append time rather than at composition, **compare against the position of the last entry you read
-  rather than against its time**, and never sort this file by heading to reconstruct what happened.
+  it is finished. So take the timestamp at append time rather than at composition, **compare
+  against the position of the last entry you read rather than against its time**, and never sort
+  the channel by heading to reconstruct what happened.
 - **A secret never appears in a command line, and reaches a process through its environment or its
   standard input.** Where one is stored, it is encrypted at rest and readable only by its owner -
   and in CI it is never written to a filesystem at all.
 - **Every file fetched from Artifactory follows redirects** - `curl -L`, `jf rt curl -L`. A file
   large enough is answered with a `302` to its cloud storage, and a fetch without `-L` gets an
-  empty body: the check passes for months and fails the day the file grows. What "large enough"
-  is has not been measured - only that a Debian index crossed it and turned four builds red, on
-  2026-09-18 and before. The `/api/` endpoints answer directly. Let `curl` drop the credentials
-  on that cross-host redirect - the storage URL is signed - and never pass
+  empty body: the check passes for months and fails the day the file grows. Where "large enough"
+  lies is not known; a Debian index is past it. The `/api/` endpoints answer directly. Let `curl`
+  drop the credentials on that cross-host redirect - the storage URL is signed - and never pass
   `--location-trusted`.
 - **The test machines are shared, and so is everything a run resolves from** - `~/.m2`,
   `~/.sokar/handover/` and what a VM has installed. Name what you remove rather than sweeping
@@ -1229,27 +1205,21 @@ one copy.
   finished requirement is deleted, an issue closed unbuilt is deleted, and a design document
   recording an undecided question is deleted when the question is answered. A link to a file
   breaks on all three; a link to the index breaks on none. **Where a repository can enforce
-  this with a test, it does** - three repositories found this defect by accident on 2026-09-20
-  and the fourth will not be so lucky.
+  this with a test, it does** - without one, the defect is found by accident or not at all.
 - **From "both are valid" it does not follow that both should exist.** Two indexes, two markers,
-  two manifests, the same skills in two repositories - every expensive defect of 2026-09-12 had
-  that shape, and not one of them was a wrong fact. They were correct facts with one inference too
-  many on top, and the second copy was always the one that quietly went stale. When a thing is
+  two manifests, the same skills in two repositories - each is a correct fact with one inference
+  too many on top, and the second copy is always the one that quietly goes stale. When a thing is
   right in two forms, publish one and say why.
 - **Measure before you claim.** "It works" means it was run. "It is not the cause" means the
   counter-test was run too. A finding without a measurement is a guess wearing a fact's clothes.
 - **"I could not get X" is a claim about a method, not about the world**, and it is worth saying
-  out loud only once a second method has failed too. On 2026-09-12 a documentation page was
-  reported here as unreadable and its format as undeterminable; `curl` returns that site's chrome
-  and its article body is loaded afterwards, and a fetch that renders the page answered every
-  question about the format in one call. The first report was true about `curl` and false about
-  the page.
+  out loud only once a second method has failed too. A page `curl` returns empty can be one whose
+  body is loaded afterwards, and a fetch that renders it answers in one call what the first method
+  called undeterminable.
 - **Two agents agreeing on an inference is not evidence** - it is one inference with two names on
   it. Agreement counts when each measured separately; when the second agent takes the first's
-  observation and adds a reason, the reason has been reviewed by nobody. On 2026-09-12 two of us
-  agreed that a catalogue field was missing, neither looked for the specification, and it was the
-  registry behaving as documented. **Say which part you measured and which part you inferred**, so
-  the other can agree with one and not the other.
+  observation and adds a reason, the reason has been reviewed by nobody. **Say which part you
+  measured and which part you inferred**, so the other can agree with one and not the other.
 - **An issue is one task.** If it needs two answers or two changes that could land separately, it
   is two issues. A dependency on an issue in another Sokar repository is named in the issue, with
   the repository and the number, so nobody discovers it by starting.
@@ -1266,13 +1236,22 @@ one copy.
   through Java and Maven, and no build or workflow needs `python3`. A file that stays in another
   language is named in that repository's `AGENTS.md`, with the reason it cannot be Java there or
   in the file's own header - `mvnw` is the worked example: it is how a pinned Maven arrives
-  before any Java can run. And no repository carries a copy of a helper another one carries: in
-  2026-09 four copies of the same Python helpers had already drifted apart, one with a
-  key-cleaning step the others lacked. The drift is the argument, not the tidiness.
+  before any Java can run. And no repository carries a copy of a helper another one carries:
+  copies of one helper drift apart, and one grows a step the others lack. The drift is the
+  argument, not the tidiness.
 - **Java code is null-checked when it compiles.** Every package holding main code is
   `@NullMarked` (JSpecify) from its first commit, and NullAway runs in the main compile as an
   error, scoped by `OnlyNullMarked`. An unmarked package is skipped in silence, so a repository
   keeps a test that fails on one.
+- **Documentation and rules say what is true now.** A README, `build.md`, everything under
+  `doc/` and `AGENTS.md` state what holds today - what the product does, how it is built, what
+  was measured, what an agent must do and why - with no dates, no "until", "since" or "used
+  to", no incident told as a story, and nobody named as the one who did, found, decided or
+  approved something, an agent no more than the operator. Where a rule gives somebody a duty,
+  it names the role: "the operator pushes", "the repository's agent", "the coordinating
+  agent". A rule keeps its reason, stated so that it stays true. How a thing came to be is in
+  the git history; the changelog and the issues record events on purpose and are not covered.
+  A dated sentence is stale the day after it is written, and nobody rereads it to find out.
 
 ## Security rules that are not negotiable
 
@@ -1283,10 +1262,10 @@ one copy.
   phantom token; the vault proxy swaps it on the way out. If you find yourself
   passing the real key in, stop and reconsider the design.
 - **What must not leave the container is the credential, not the traffic.** The
-  provider's own host is reachable: withholding it stopped every agent that checks
-  the provider is up before starting, and measured on 2026-09-04 that check ignores
-  the base URL and the socket entirely. What the deny kept in was the phantom token
-  - random, task-scoped, worth nothing to the provider. The real credential never
+  provider's own host is reachable: withholding it stops every agent that checks
+  the provider is up before starting, and that check ignores the base URL and the
+  socket entirely - measured. What a deny would keep in is the phantom token -
+  random, task-scoped, worth nothing to the provider. The real credential never
   enters the container, and that is the property to defend.
 - **Fail closed.** The nft hook refuses to let the container start if the ruleset
   will not load. Keep that property in anything new on the startup path.
@@ -1301,9 +1280,8 @@ description, a note that says when something was measured - is read from the sys
     date -u +"%Y-%m-%dT%H:%MZ"
 
 A model has no clock and no reliable sense of elapsed time, so a timestamp written from memory is a
-guess that looks like a fact. It has already gone wrong here more than once: a channel entry dated
-four hours off, twice; and every timestamp one agent had written in a shared file turned out to be
-composed rather than read, so the file's order was truthful and its dates were not.
+guess that looks like a fact. It can be hours off, and a file whose timestamps were composed rather
+than read can have its entries in the true order and every date wrong.
 
 **The same rule for durations and ages.** "About twenty minutes ago" and "three weeks behind" are
 observations with a date attached, not properties - compute them from two timestamps that were both
@@ -1319,9 +1297,8 @@ One brief line. The reasoning behind a change is a finding, and a finding goes i
 `.sokar.md` or in this file, where it can be found later without `git log`.
 
 **The changelog is part of the change**, written by hand in the same commit: an entry for anything
-that changes what ships or builds, none for issues or notes. Nothing enforces it for now: the check
-was removed on 2026-09-13 by the operator's decision, and requiring an entry returns with B55
-([index](issues/base/README.md)).
+that changes what ships or builds, none for issues or notes. Nothing enforces it; requiring an
+entry is open work in B55 ([index](issues/base/README.md)).
 
 In this repository an entry is **one YAML file under `changelog/unreleased/`**, with at least a
 `title` - one sentence - and a `type`: `added`, `changed`, `deprecated`, `removed`, `fixed`,
@@ -1356,9 +1333,8 @@ in the channel first.** A cross-repository dependency is written as the reposito
 `Sokar B54` - and needs no link; but an index does get linked across repositories where a reader has
 to arrive somewhere, and `issues/README.md` here links `sokar-frontend`'s index that way. Such a
 link breaks silently: no test at either end can see it, because neither repository holds both ends.
-`issues/base/README.md` has moved once already, from `requirements/` on 2026-09-12. So a rename, a
-move or a split of an index is announced with the old path and the new one **before** the commit
-that does it; promised on 2026-09-20 and kept here so it outlives the conversation.
+So a rename, a move or a split of an index is announced with the old path and the new one **before**
+the commit that does it.
 
 **An answered question is deleted the same way**, out of the requirement's own *To be checked*
 section, once what its answer decided has moved into the acceptance criteria, into the design, or
@@ -1378,7 +1354,7 @@ where the point is that both sides share it.
 
 **Every agent repository carries the same three-job build.** Build and unit tests on a pinned
 `ubuntu-24.04` runner - the oldest glibc a native image must run against, and still the right
-place to compile even though Sokar no longer runs there, since 24.04 will never have podman 5.
+place to compile even though Sokar does not run there, since 24.04 will never have podman 5.
 Then publish to Artifactory with a check that the package is *indexed* and not merely stored. Then
 an **acceptance matrix on rented Hetzner machines**, `ubuntu` and `fedora`, installing from the
 package repository rather than from a build tree. The third job is the one that gets left out and

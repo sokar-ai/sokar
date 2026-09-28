@@ -53,7 +53,7 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
         }
         // The task knows its own project, recorded on the container; asking for it again would be
         // asking somebody to repeat what the machine already knows.
-        final String project = projectName != null ? projectName : projectOf(container);
+        final String project = projectName != null ? projectName : new TaskInventory(context).projectOf(container);
         if (project == null) {
             err.println("sokar: " + container + " names no project; say which, with --project");
             err.flush();
@@ -111,10 +111,5 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
             // say its own name still signs; it just says less about itself.
             return "localhost";
         }
-    }
-
-    private @Nullable String projectOf(final String task) {
-        return new TaskInventory(context).tasks().stream().filter(candidate -> candidate.name().equals(task))
-                .map(TaskInventory.Task::project).filter(java.util.Objects::nonNull).findFirst().orElse(null);
     }
 }

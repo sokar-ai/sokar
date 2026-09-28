@@ -107,9 +107,15 @@ out: all six `credentials` commands and all eight `talk` commands run nowhere; `
 and `completion` neither. The internal ones are not counted: a person meets them through a task, a
 fetch or a TAB, not by typing them, and which of them tier 1 asserts is part of porting it.
 
+**Since, the same count:** all six `credentials` and all eight `talk` commands have scenarios
+(`adb18f0`), green on the ubuntu26.04 VM as `core`, 120 of 120 - so **33 of 59 are covered and 26
+owe one**: the 5 run only as setup, the 13 whose `--help` is all that runs, and `vault init`,
+`vault devices`, `vault revoke`, `providers`, `daemon connect`, `project list`, `project following`
+and `completion`.
+
 ## What is left
 
 1. ~~**An inventory**~~ - **done 2026-09-28**, above: 40 commands owe a scenario.
-2. **The missing scenarios**, group by group - `credentials` and `talk` first, as the two groups with
-   nothing at all.
+2. **The missing scenarios**, group by group - `credentials` and `talk` done 2026-09-28; next the
+   eight that nothing runs, then the thirteen that only answer `--help`.
 3. **Tier 1, group by group**, each group's scenarios landing with that part of the script deleted.

@@ -1,0 +1,2 @@
+title: "An agent's packaged tree may be given relative to its binary, so a copy of the agent in one account ships its own; a declared tree that is not there now refuses the task instead of building an image without the tool."
+type: changed

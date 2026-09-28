@@ -45,7 +45,7 @@ credential header the agent sent** — `authorization`, `x-api-key`, `private-to
 
 So an agent that leaks what it holds has leaked something that stops working when the task ends.
 
-Two details that are easy to get wrong and were both paid for once:
+Two details that are easy to get wrong:
 
 - **A socket, not a port.** The filesystem decides who may connect, rather than a firewall rule
   that has to be right. The socket itself is world-writable and its *parent directory* is `0700` —
@@ -63,11 +63,9 @@ All three happen **on the node**. Two details of `vault put` that are the differ
 secret that is written down and one that is not:
 
 - **It never takes the value as an argument.** An argument list is world-readable on the machine.
-- **At a terminal it asks, without echoing.** This was a real leak until 2026-09-08: a typed
-  credential was read through the echoing stream, so pasting one printed it and left it in the
-  scrollback, which many terminals persist to disk. The vault *passphrase* had always been read
-  without echo — the product contradicted itself, and the advice to "store it at the machine rather
-  than over the wire" was recommending the path that wrote the secret down. A piped value is still
+- **At a terminal it asks, without echoing.** A credential read through an echoing stream is printed
+  when it is pasted and stays in the scrollback, which many terminals persist to disk - so storing it
+  at the machine would write it down there. A piped value is still
   read from standard input, because a script has no terminal to not echo to.
 
 `vault import` is the one worth knowing about, because it removes the retyping that invites a typo
@@ -104,7 +102,7 @@ credentials:
 ```
 
 **The kind is said, not guessed.** `https://` may be a token *or* a username and password, so
-reading the kind off the URL only ever worked while git was the only caller. Four kinds:
+the kind cannot be read off the URL once more than git connects out. Four kinds:
 `ssh-key`, `token`, `basic`, `oauth`.
 
 **The longest `match` wins.** A URL is normalised first — `git@host:path` becomes
@@ -138,10 +136,10 @@ after its host — `git.ssh.<host>`, `git.token.<host>`, and the older `ssh.defa
 needs no configuration for the ordinary case and nothing anybody already stored is lost.
 
 **A key goes in as the file you were assigned.** The vault holds the 32-byte signing seed inside
-it, and until 2026-09-19 that conversion did not exist: storing a key file kept its first line,
-warned that it "contains spaces", and failed days later with *illegal base64 character 2d* — an
-error about base64 for a problem about ssh keys. A key protected by a passphrase or of an
-algorithm this does not sign with is now refused by name, with what to do instead.
+it, converted when the file is stored: kept as it is, the file's first line would be stored and fail
+at first use with *illegal base64 character 2d* - an error about base64 for a problem about ssh keys.
+A key protected by a passphrase or of an algorithm this does not sign with is refused by name, with
+what to do instead.
 
 **A key never leaves the vault.** Sokar serves an ssh-agent in its own process for the length of
 the command and points the tool at it, so git asks for a signature and holds nothing it could keep.
