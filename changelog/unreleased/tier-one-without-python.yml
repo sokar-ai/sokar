@@ -1,0 +1,2 @@
+title: "Tier 1 no longer needs python3 on the machine it runs on: the leg reads the agent's description in Java and hands the eight fields to e2e-tier1.sh, which refuses to start without them. No tracked script runs python3 any more."
+type: changed

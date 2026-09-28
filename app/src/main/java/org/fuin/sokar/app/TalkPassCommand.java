@@ -27,7 +27,8 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
     private String container;
 
     @Option(names = { "-p", "--project" }, paramLabel = "<name>",
-            description = "The task's project, for its peers, as 'sokar project list' prints it.")
+            description = "The project whose peers apply, as 'sokar project list' prints it."
+                    + " Default: the task's own.")
     private @Nullable String projectName;
 
     @Spec
@@ -50,8 +51,11 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
             err.flush();
             return 1;
         }
-        if (projectName == null) {
-            err.println("sokar: say which project the task belongs to, with --project");
+        // The task knows its own project, recorded on the container; asking for it again would be
+        // asking somebody to repeat what the machine already knows.
+        final String project = projectName != null ? projectName : projectOf(container);
+        if (project == null) {
+            err.println("sokar: " + container + " names no project; say which, with --project");
             err.flush();
             return 2;
         }
@@ -59,7 +63,7 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
                 HostKey.loadOrCreate(context.paths().messageKey(), "sokar@" + hostName()),
                 context.paths().messageFilter(), context.paths().transportDirectory());
         final MessagePass.Report report = pass.run(mailbox,
-                GateSupport.byName(context, projectName).mail(),
+                GateSupport.byName(context, project).mail(),
                 KnownPeers.of(context));
 
         report.polled().failures().forEach((transport, why) ->
@@ -107,5 +111,10 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
             // say its own name still signs; it just says less about itself.
             return "localhost";
         }
+    }
+
+    private @Nullable String projectOf(final String task) {
+        return new TaskInventory(context).tasks().stream().filter(candidate -> candidate.name().equals(task))
+                .map(TaskInventory.Task::project).filter(java.util.Objects::nonNull).findFirst().orElse(null);
     }
 }

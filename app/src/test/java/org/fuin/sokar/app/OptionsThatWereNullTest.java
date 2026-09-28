@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.fuin.sokar.core.config.XdgPaths;
 import org.fuin.sokar.testing.FakeCommandRunner;
@@ -24,13 +25,15 @@ class OptionsThatWereNullTest {
 
     private final StringWriter err = new StringWriter();
 
+    private final FakeCommandRunner runner = new FakeCommandRunner();
+
     private SokarContext context(Path dir) {
         final XdgPaths xdg = XdgPaths.of(name -> switch (name) {
             case "XDG_STATE_HOME" -> dir.resolve("state").toString();
+            case "XDG_RUNTIME_DIR" -> dir.resolve("run").toString();
             default -> null;
         }, dir);
-        return new SokarContext(new FakeCommandRunner(), new SokarPaths(xdg, dir.resolve("bin")),
-                arguments -> 0);
+        return new SokarContext(runner, new SokarPaths(xdg, dir.resolve("bin")), arguments -> 0);
     }
 
     private int execute(SokarContext context, String... args) {
@@ -41,14 +44,30 @@ class OptionsThatWereNullTest {
     }
 
     @Test
-    void talkPassAsksWhichProjectTheTaskBelongsTo(@TempDir Path dir) throws IOException {
+    void talkPassAsksWhichProjectWhenTheTaskNamesNone(@TempDir Path dir) throws IOException {
         final SokarContext context = context(dir);
         new Mailbox(context.paths().mailbox("sokar-p-shell-1")).create();
 
         final int code = execute(context, "talk", "pass", "sokar-p-shell-1");
 
         assertThat(code).as(err.toString()).isEqualTo(2);
-        assertThat(err.toString()).contains("say which project the task belongs to, with --project");
+        assertThat(err.toString()).contains("sokar-p-shell-1 names no project; say which, with --project");
+    }
+
+    @Test
+    void talkPassTakesTheProjectTheTaskRecordsWhenNoneIsGiven(@TempDir Path dir) throws IOException {
+        final SokarContext context = context(dir);
+        new Mailbox(context.paths().mailbox("sokar-uc-shell-1")).create();
+        runner.answering("ps", "sokar-uc-shell-1\tUp 4 minutes\t1788500000\t0\n");
+        final Path state = Files.createDirectories(dir.resolve("run/sokar/sokar-uc-shell-1"));
+        new org.fuin.sokar.wire.Sidecar(org.fuin.sokar.wire.Sidecar.VERSION, "uc", "guarded",
+                state.resolve("r.nft").toString(), state.resolve("dns.conf").toString(), "/usr/bin/sokar",
+                state.toString()).writeTo(state.resolve("sidecar.json"));
+
+        execute(context, "talk", "pass", "sokar-uc-shell-1");
+
+        // No project file for 'uc' here, so it stops - naming the project it took from the task.
+        assertThat(err.toString()).contains("'uc'").doesNotContain("names no project");
     }
 
     @Test

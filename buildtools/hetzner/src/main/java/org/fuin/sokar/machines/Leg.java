@@ -179,7 +179,8 @@ public final class Leg {
                     + "|| echo '(sokar doctor failed)'").all().strip());
 
             step("tier 1, on " + os);
-            run(build, "cd " + REPO + " && PATH=$HOME/.local/bin:$PATH bash buildtools/e2e-tier1.sh");
+            run(build, "cd " + REPO + " && PATH=$HOME/.local/bin:$PATH " + described(build)
+                    + "bash buildtools/e2e-tier1.sh");
 
             if (into != null) {
                 step("fetching the binaries");
@@ -385,6 +386,47 @@ public final class Leg {
             command.append(" -p ").append(AgentLeg.quote(property));
         }
         return command.append(" podman unshare true").toString();
+    }
+
+    /**
+     * Reads the agent the build made, and says what tier 1 needs of it as variable assignments.
+     * <p>
+     * Found by looking rather than named: this repository builds one agent, and a driver that
+     * named it would be the one place outside {@code agents/} that did. More than one, or none, is
+     * a build that is not the one this leg expects, and it stops rather than picking.
+     *
+     * @param build The machine it was built on.
+     * @return {@code NAME='value' ...} and a trailing space, to go before the command.
+     * @throws IOException If the agent cannot be found or described.
+     */
+    static String described(Ssh build) throws IOException {
+        final List<String> agents = build.run("ls -1 " + REPO + "/agents/*/target/sokar-agent-* 2>/dev/null")
+                .out().lines().map(String::strip).filter(line -> !line.isEmpty()).toList();
+        if (agents.size() != 1) {
+            throw new IOException("tier 1 drives the one agent this build makes, and it made " + agents.size()
+                    + ": " + agents);
+        }
+        final Ssh.Output describe = build.run(AgentLeg.quote(agents.getFirst()) + " describe");
+        if (describe.status() != 0) {
+            throw new IOException(agents.getFirst() + " describe failed: " + describe.all().strip());
+        }
+        final String name = agents.getFirst().substring(agents.getFirst().lastIndexOf("sokar-agent-")
+                + "sokar-agent-".length());
+        return assignments(name, AgentDescription.parse(describe.out()));
+    }
+
+    /**
+     * Writes the variables tier 1 reads, each quoted for the shell.
+     *
+     * @param agent The agent's name.
+     * @param description What it said about itself.
+     * @return {@code NAME='value' ...} and a trailing space.
+     */
+    static String assignments(String agent, AgentDescription description) {
+        final StringBuilder line = new StringBuilder("SOKAR_E2E_AGENT=" + AgentLeg.quote(agent) + " ");
+        description.environment().forEach((key, value) -> line.append(key).append('=')
+                .append(AgentLeg.quote(value)).append(' '));
+        return line.toString();
     }
 
     private static void run(Ssh ssh, String command) throws IOException {

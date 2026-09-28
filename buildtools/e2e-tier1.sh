@@ -155,23 +155,25 @@ else
     fail "'sokar agents' exited $COLLISION_CODE over a collision, though the agent runs"
 fi
 
-DESCRIBE="$("$AGENT" describe 2>/dev/null)"
-CLI_VERSION="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["definition"]["version"])')"
+# What the agent says about itself is read by the leg that runs this, in Java, and arrives as these
+# variables: the script used to read them with eight python3 one-liners, and python3 was then the
+# second runtime every build machine needed. Read rather than assumed, so nothing here names one
+# agent's tool, prompt flag or provider.
+: "${SOKAR_E2E_CLI_VERSION:?not set: tier 1 is run by the leg in sokar-machines, which reads the description of the agent}"
+CLI_VERSION="$SOKAR_E2E_CLI_VERSION"
 # Which variable carries the token is the PROVIDER's fact now, not the agent's, so it is read
 # back from the run rather than from the agent's own description - where it no longer appears.
 TOKEN_ENV=""
-DOMAINS="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print("\n".join(json.load(sys.stdin)["definition"]["allowedDomains"]))')"
-
-# Read rather than assumed, so nothing here names one agent's tool, prompt flag or provider.
-AGENT_BINARY="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["definition"]["binary"])')"
-PROMPT_FLAG="$(echo "$DESCRIBE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["definition"]["headless"].get("promptFlag") or "")')"
-PROVIDER="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("default") or "")')"
-SOCKET_ENV="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("socketEnvironment") or "")')"
-BASE_URL_ENV="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("baseUrlEnvironment") or "")')"
+DOMAINS="${SOKAR_E2E_DOMAINS-}"
+AGENT_BINARY="${SOKAR_E2E_AGENT_BINARY:?not set: see SOKAR_E2E_CLI_VERSION}"
+PROMPT_FLAG="${SOKAR_E2E_PROMPT_FLAG-}"
+PROVIDER="${SOKAR_E2E_PROVIDER-}"
+SOCKET_ENV="${SOKAR_E2E_SOCKET_ENV-}"
+BASE_URL_ENV="${SOKAR_E2E_BASE_URL_ENV-}"
 # socket or url. An agent that can only address a URL is pointed at the broker by a file its
 # own container setup writes, so it declares no variable at all - and the checks below used to
 # read that as "pointed at nothing" and fail. Both sokar-pi and sokar-omp are that shape.
-ENDPOINT="$(echo "$DESCRIBE" | python3 -c 'import json,sys; p=json.load(sys.stdin)["definition"].get("provider") or {}; print(p.get("endpoint") or "socket")')"
+ENDPOINT="${SOKAR_E2E_ENDPOINT:-socket}"
 info "agent $AGENT_NAME, tool $AGENT_BINARY, provider ${PROVIDER:-none}, CLI version $CLI_VERSION"
 
 # ------------------------------------------------------------------ the vault

@@ -96,8 +96,9 @@ shared tool below does not carry it.
      build were word for word the script's; 19 mutations of the checks each turned a unit test red;
      and an rpm built without the bash completion failed naming the file. It also refuses a `target`
      holding more than one package, where the script silently took the first;
-   - `e2e-tier1.sh` - folded into the Java acceptance suite scenario by scenario, which B27 is
-     already doing;
+   - `e2e-tier1.sh` - its `python3` replaced by Java in `Leg` on 2026-09-28; the script itself is
+     folded into the Java acceptance suite scenario by scenario, which B27 is already doing, and is
+     listed under *What stays* until then;
    - `compare-bills.py` - **deleted on 2026-09-27**: no tracked file ran it, and `sokar-release
      compare-bills` is the comparison the agent repositories use - their own copies are gone too;
    - **logic built as shell inside `Leg` and `AgentLeg`** - the command still runs over ssh, but
@@ -181,13 +182,6 @@ tree reports, which is a check after the tree is built, in the same Maven run. *
 three repositories, counter-tested by switching each check off in turn, and `sokar-pi` no longer has
 the script at all.
 
-## Open questions
-
-1. **The order.** The two byte-identical tools first is the obvious start, because they need no
-   strategy and prove the publishing path.
-2. **Whether `e2e-tier1.sh` belongs here or to B27**, which is already moving what a person does
-   into the Java suite.
-
 ## Where it stands, 2026-09-27 evening - what is left to pick up
 
 Stopped here at the operator's word, to be continued. **Agent Coordinator's 20:07Z list (PJ06
@@ -222,12 +216,12 @@ the VM suite was stopped before it finished, so **not yet run**):
 
 1. ~~**`buildtools/check-packages.sh`**~~ - **done 2026-09-28**, see *Sokar's half* above.
 2. ~~**`buildtools/deploy-vm.sh`**~~ - **done 2026-09-28**, see *Sokar's half* above.
-3. **`buildtools/e2e-tier1.sh`** (1355 lines; 8 `python3` calls, lines 159-174, all reading
-   `sokar agents describe` JSON; run by `Leg` at "tier 1, on <os>"). Folding it into the suite is
-   B27's, scenario by scenario, and is days, not an evening. **Minimum for PJ06:** replace the
-   eight calls (e.g. one `sokar` command that prints the fields, or read them in Java in `Leg`),
-   and list the script under *What stays in another language, and why* in `AGENTS.md` with B27 as
-   its way out - the Coordinator accepts either replaced or listed with its reason.
+3. ~~**`buildtools/e2e-tier1.sh`**~~ - **done 2026-09-28** the minimum way: `Leg` reads the agent's
+   `describe` over ssh, parses it in Java (`AgentDescription`, with tests) and hands the eight fields
+   in as `SOKAR_E2E_*` variables, and the script refuses to start without them. It finds the agent by
+   looking - `agents/*/target/sokar-agent-*`, exactly one - because naming it would be the one place
+   outside `agents/` that did. Listed in `AGENTS.md` under *What stays in another language* with B27
+   as its way out. No tracked file outside docs runs `python3` any more.
 4. Then: the VM suite on the whole change, the operator pushes (no Hetzner leg this round, the
    operator's word), and tell Agent Coordinator so PJ06's rule can go into the shared block.
 

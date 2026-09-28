@@ -116,8 +116,8 @@ fails under `set -o pipefail` whenever *any* installed agent is unusable.
 root POM's `default-compile` execution, scoped by `OnlyNullMarked`. Test code is not checked: a test
 passes `null` on purpose to watch a refusal. Turned on 2026-09-28 against 210 findings; four were
 defects a person would have met - `sokar doctor` threw instead of reporting an unreadable record,
-`shield egress` and `talk pass` looked up a project called `null`, and `vault serve` would write its
-token to no file at all. Each has a test now, watched to fail against the old code.
+`shield egress` and `talk pass` looked up a project called `null` (`talk pass` now takes the task's
+own, as `shield egress --task` does), and `vault serve` would write its token to no file at all. Each has a test now, watched to fail against the old code.
 
 - **A package without `@NullMarked` is skipped in silence.** Measured: a dereference of a `@Nullable`
   result, planted in the acceptance kit, failed the build with the kit marked and compiled green
@@ -230,7 +230,7 @@ See [build.md](doc/build.md). Three things that will bite:
 
 The build is Java and Maven; a file in another language is listed here with the reason it cannot
 be. The first two run on the operator's machine, which has Sokar's native binaries and no Java; the
-third prepares a build machine before Maven can use it:
+third prepares a build machine before Maven can use it; the fourth is a test on its way into Java:
 
 - `selinux/install-selinux-policy.sh` - the `.deb` and `.rpm` ship it and run it while the package
   installs, to compile and load the SELinux module. An install hook is shell by nature.
@@ -242,8 +242,15 @@ third prepares a build machine before Maven can use it:
   unpacked. The build only reads `musl.home`; a Maven plugin would be the same downloads and the same
   `make` with more lines around them.
 
-The other scripts under `buildtools/` are being replaced and are not listed. One that
-survives that work comes here with its reason.
+- `buildtools/e2e-tier1.sh` - tier 1, run by `Leg` on a rented machine: 1,300 lines of podman,
+  nft and a real task driven end to end, checked step by step. What it decided in `python3` - the
+  eight fields of the agent's description - is read in Java by the leg since 2026-09-28 and handed
+  in as its environment, so no build machine needs a second runtime. The rest moves into the Java
+  acceptance suite scenario by scenario, which is B27's work ([index](issues/base/README.md)); until
+  then a shell script that drives shell commands is the honest shape.
+
+Nothing else in the repository is a script: `check-packages.sh`, `deploy-vm.sh`,
+`check-ffm-metadata.sh` and `compare-bills.py` were replaced by Java in 2026-09 and are gone.
 
 ## Facts that were expensive to learn
 
