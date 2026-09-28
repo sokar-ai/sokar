@@ -38,7 +38,6 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
 | B75 | [A Login Nobody Measures Is A Login That Does Not Work](B75-A-Login-Nobody-Measures-Is-A-Login-That-Does-Not-Work.md) | open | sokar-claude-code (a stub that fakes a login) | The build runs an agent login end to end and fails when it stops storing, using an agent that fakes one - no account, no network. | two, and the first is whether the stub can carry it | [note](#b75) |
-| B53 | [The Build In One Language](B53-The-Build-In-One-Language.md) | open | sokar-claude-code CC12, CC13, CC14; sokar-pi PI10, PI11, PI12; sokar-omp OM10, OM11, OM12 | The shared tool exists and the agent repositories use it, and each of Sokar's own scripts is replaced or listed with its reason. The rule itself is `sokar-project` PJ06. | none - both were settled by doing the work | [note](#b53) |
 | B76 | [The Code Checked Against The Skills It Was Written Without](B76-The-Code-Checked-Against-The-Skills-It-Was-Written-Without.md) | open | none - every agent opens its own | Every Java module has been read against the skills that apply to it, and each finding is fixed with a test watched to fail or declined with its reason. | one - the order | [note](#b76) |
 | B54 | [Stopping The Daemon Stops The Tasks It Started](B54-Stopping-The-Daemon-Stops-The-Tasks-It-Started.md) | decided | sokar-frontend F33 | Stopping, restarting or losing the daemon does not stop a task; a task ends when something asks that task to end. | one - whether removing a task reaps helpers in its scope | [note](#b54) |
 | B52 | [Knowing An Agent Reached Work](B52-Knowing-An-Agent-Reached-Work.md) | open | sokar-claude-code CC09, sokar-pi PI07, sokar-omp OM07 | An acceptance scenario proves an agent reached work without being asked anything, and fails when a release adds a question - without the kit naming any agent. | none - decided 2026-09-27: a manifest marker, within a bound the agent declares | [note](#b52) |
@@ -173,13 +172,7 @@ which blamed the person and was believed three times in one afternoon. Everythin
 is work that is known to be missing; this is the one row about work that was believed to be
 present.
 
-<a id="b53"></a>**B53 is second, by the operator's decision of 2026-09-13.** The Java repositories carry
-about 6,300 lines of Python and shell, and most of the Python is the same tools copied into three
-repositories - two still byte-identical, three already drifted apart, and none of it tested. The
-shared tool has to exist in Sokar before an agent repository can drop its copies, which is why
-the agent half waits on this one.
-
-<a id="b76"></a>**B76 is next after B53, by the operator's decision of 2026-09-27.** The house skills were
+<a id="b76"></a>**B76 was set to follow B53 by the operator on 2026-09-27; B53 is done since 2026-09-28.** The house skills were
 never used, and the first module read against them had two defects its tests had not found: a
 token sent wherever a property pointed, and a crash that answered the question. Every agent opens
 the same issue in its own repository.
@@ -190,7 +183,7 @@ that crashes goes through the same stop before systemd restarts it. B52 holds up
 repositories; this one ends a person's. Ranked here by Agent Sokar the day it was found; the
 operator re-ranks.
 
-<a id="b52"></a>**B52 is third, under B53 and B54, because three agent repositories are waiting on
+<a id="b52"></a>**B52 sits under B54, because three agent repositories are waiting on
 it and nobody else can build it.** First-run consent moved to the agent repositories on 2026-09-13, and each of them now
 has a task that fails its acceptance when a release adds a dialog. That needs one step all their
 scenarios share, and it lives in the kit because the kit is the only glue those scenarios have:

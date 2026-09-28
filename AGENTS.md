@@ -251,6 +251,20 @@ third prepares a build machine before Maven can use it; the fourth is a test on 
 
 Nothing else in the repository is a script: `check-packages.sh`, `deploy-vm.sh`,
 `check-ffm-metadata.sh` and `compare-bills.py` were replaced by Java in 2026-09 and are gone.
+The `sh -c` commands the Java sends - into a container from `Podman`, `TaskControl` and
+`TaskWorkspace`, over ssh from the kit's `Machine` and the legs - are not scripts: there a shell is
+the interface, and what they decide is decided in Java before they are sent.
+
+**The shared release tooling is `sokar-release`**, published to Central like `sokar-machines`, and
+what the agent repositories' update jobs and builds call: comparing, adding to and merging bills,
+the upstream version lookup, the version move, the pin check. Two decisions shaped it, both taken
+with the agents that live with it on 2026-09-13. **Commands, not a Maven plugin**: the update job is
+not a lifecycle phase - it runs on a schedule and opens a pull request - and what does run in a
+build is called through `exec-maven-plugin` just as well, with no descriptor or plugin harness.
+**A separate artifact, not part of `sokar-machines`**: that one brings an SSH stack, sshj and
+BouncyCastle, and folding the release tools in would put an SSH client on the classpath of every
+package build and tie the two versions together. An agent's difference is configuration or a
+strategy in it, never a copy.
 
 ## Facts that were expensive to learn
 
@@ -994,6 +1008,14 @@ resolve from one configured source.
   cannot reach, and `disable-auto-build-publish: true` stops the action attempting it.
 - **`.github/workflows/artifactory-smoke.yml`** checks all of that in twenty seconds without
   building anything. Run it after rotating the token.
+
+**The bill of materials a package installs is the package's own.** `dist-deb`'s `makeBom`, from its
+own dependencies - app, sokard, hooks and what they link, 19 components on 2026-09-28 - so its
+subject is `sokar-dist-deb`, not `sokar`; the plugin has no name override. It was the root's
+aggregate over the whole reactor, which named the acceptance kit's cucumber, junit and sshj and the
+release tooling, 42 components that do not ship, and changed with whichever modules the last build
+included. `buildtools/package-check` asserts what it must and must not name. **`makeBom` skips itself
+under `-o`**, so build the packages online.
 
 **The published binary is the one the acceptance suite tested.** The Ubuntu leg fetches its
 binaries back before the server is destroyed and the publish job packages those, rather than
