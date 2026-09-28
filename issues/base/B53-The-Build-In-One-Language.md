@@ -82,7 +82,13 @@ shared tool below does not carry it.
    - `install-musl.sh` - **evaluated on 2026-09-27: stays, see *What stays*.** The candidate was a
      download plugin, and it would cover only half: the script also builds zlib from source with
      `./configure` and `make` against the musl compiler it just unpacked;
-   - `deploy-vm.sh` - a command in `sokar-machines`, beside `leg`;
+   - `deploy-vm.sh` - **replaced on 2026-09-28** by `deploy` in `sokar-machines`, beside `leg`, run
+     as `./mvnw -pl buildtools/hetzner exec:java@deploy` with `SOKAR_VM` and `SOKAR_VM_KEY`. The
+     commands still run over ssh; what the script decided in `sed` and `awk` - the run number that
+     outranks what the machine has *and is offered*, compared as numbers; whether a copy on `PATH`
+     shadows the package; the agents the daemon reports - is Java, each with a test that a mutation
+     turned red. The hand-started daemon for a package without a user unit is gone: the package it
+     has just built always has one;
    - `check-packages.sh` - **replaced on 2026-09-28** by `buildtools/package-check`, run in CI's
      "Check the packages" as `exec:java@check`. The whole script, not only the content comparison:
      `dpkg`, `rpm` and podman are still what answer, called from Java, and the install scripts are
@@ -215,8 +221,7 @@ the VM suite was stopped before it finished, so **not yet run**):
 **Left, in this order:**
 
 1. ~~**`buildtools/check-packages.sh`**~~ - **done 2026-09-28**, see *Sokar's half* above.
-2. **`buildtools/deploy-vm.sh`** (154 lines, by hand, see `.AGENTS.md`): a command in
-   `sokar-machines`, beside `leg`. No `python3`.
+2. ~~**`buildtools/deploy-vm.sh`**~~ - **done 2026-09-28**, see *Sokar's half* above.
 3. **`buildtools/e2e-tier1.sh`** (1355 lines; 8 `python3` calls, lines 159-174, all reading
    `sokar agents describe` JSON; run by `Leg` at "tier 1, on <os>"). Folding it into the suite is
    B27's, scenario by scenario, and is days, not an evening. **Minimum for PJ06:** replace the

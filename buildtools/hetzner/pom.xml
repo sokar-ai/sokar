@@ -17,6 +17,8 @@
     <description>Sokar - Renting a test machine and talking to it (BUILD)</description>
 
     <properties>
+        <!-- Options for exec:java@deploy, such as the one that skips the build. -->
+        <deploy.options></deploy.options>
         <!-- Published: the agent repositories rent the same machines from their own CI, and a
              copy of this is what let four copies of it disagree. -->
         <maven.deploy.skip>false</maven.deploy.skip>
@@ -80,6 +82,23 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
+            <!-- 'deploy' by hand, bound to no phase; the machine comes from SOKAR_VM and SOKAR_VM_KEY. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>deploy</id>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.fuin.sokar.machines.Main</mainClass>
+                            <commandlineArgs>deploy --repo ${maven.multiModuleProjectDirectory} ${deploy.options}</commandlineArgs>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -30,7 +30,7 @@ closing output rather than leaving a machine that quietly cannot message.
 Everything Sokar knows how to do, it does through the daemon. **Preparing a machine is the one thing
 that cannot**, because the machine being prepared has no daemon yet, no packages, and no work user
 for the daemon to run as. Today that knowledge exists as prose in `build.md` and as steps in
-`buildtools/deploy-vm.sh`, which is a developer's tool for a machine they already have.
+`sokar-machines`' `deploy` command, which is a developer's tool for a machine they already have.
 
 So the interface is about to reimplement it. **That is the failure this issue exists to prevent**:
 two descriptions of how a Sokar machine is made, drifting apart, with the one that runs as root

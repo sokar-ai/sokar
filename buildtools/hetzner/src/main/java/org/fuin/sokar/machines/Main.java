@@ -68,13 +68,16 @@ public final class Main {
         if (args.length > 0 && "lease".equals(args[0])) {
             return lease(args, complain, open);
         }
+        if (args.length > 0 && "deploy".equals(args[0])) {
+            return deploy(args, complain);
+        }
         if (args.length > 0 && !"sweep".equals(args[0])) {
             // Named rather than answered with the usage text alone. A repository that resolves
             // this from a published snapshot can be handed a build older than the command it is
             // asking for, and a bare usage dump reads as a mistake in the workflow rather than
             // as tooling that has not caught up.
             complain.accept("unknown command '" + args[0] + "'. This build of the tooling knows"
-                    + " sweep, snapshot, leg and acceptance - if you expected another, it is"
+                    + " sweep, snapshot, leg, acceptance, lease and deploy - if you expected another, it is"
                     + " older than the caller.");
         }
         if (args.length == 0 || !"sweep".equals(args[0])) {
@@ -89,6 +92,10 @@ public final class Main {
                                 [--type <t>] - rents a machine, installs Sokar, starts the
                                 daemon as an unprivileged user, and leaves it running. What
                                 deletes it is 'sweep --mine'.
+                       deploy   --vm <user@host> --key <file> [--repo <dir>] [--skip-build]
+                                [--run <n>] - builds here and installs on a machine somebody
+                                keeps, with lingering on and the daemon restarted. --vm and --key
+                                default to SOKAR_VM and SOKAR_VM_KEY.
 
                   --mine                 delete what this run created, whatever its age. What a
                                          job uses to clean up after itself - deleting by age
@@ -326,6 +333,69 @@ public final class Main {
                     key == null ? null : java.nio.file.Path.of(key)));
         }
         return 0;
+    }
+
+    private static int deploy(String[] args, Consumer<String> complain) throws IOException {
+        String vm = System.getenv("SOKAR_VM");
+        String key = System.getenv("SOKAR_VM_KEY");
+        String repo = ".";
+        String run = System.getenv("SOKAR_SNAPSHOT_RUN");
+        boolean skipBuild = false;
+        for (int at = 1; at < args.length; at++) {
+            switch (args[at]) {
+                case "--vm" -> vm = at + 1 < args.length ? args[++at] : null;
+                case "--key" -> key = at + 1 < args.length ? args[++at] : null;
+                case "--repo" -> repo = at + 1 < args.length ? args[++at] : null;
+                case "--run" -> run = at + 1 < args.length ? args[++at] : null;
+                case "--skip-build" -> skipBuild = true;
+                default -> {
+                    complain.accept("unknown option: " + args[at]);
+                    return 2;
+                }
+            }
+        }
+        if (vm == null || !vm.contains("@") || key == null || repo == null) {
+            complain.accept("deploy needs --vm <user@host> and --key <file>, or SOKAR_VM and SOKAR_VM_KEY");
+            return 2;
+        }
+        final java.nio.file.Path root = java.nio.file.Path.of(repo).toAbsolutePath().normalize();
+        final String user = vm.substring(0, vm.indexOf('@'));
+        final String host = vm.substring(vm.indexOf('@') + 1);
+        try (Ssh ssh = Ssh.to(host, user, new Credential.InFile(java.nio.file.Path.of(key)))) {
+            final Deploy.Remote remote = new Deploy.Remote() {
+                @Override
+                public Ssh.Output run(String command) throws IOException {
+                    return ssh.run(command);
+                }
+
+                @Override
+                public void upload(java.nio.file.Path local, String target) throws IOException {
+                    ssh.upload(local, target);
+                }
+            };
+            return Deploy.deploy(vm, root, run == null || run.isBlank() ? null : run, skipBuild, remote,
+                    number -> build(root, number), System.out);
+        }
+    }
+
+    /**
+     * Builds the packages CI would publish, with the profiles CI uses and a run number of our own.
+     *
+     * @param root The repository.
+     * @param run The run number.
+     * @return The build's exit code.
+     * @throws IOException If it could not be started.
+     */
+    private static int build(java.nio.file.Path root, String run) throws IOException {
+        final Process maven = new ProcessBuilder(root.resolve("mvnw").toString(), "-B", "-Pnative,dist", "verify",
+                "-DskipTests", "-Dsokar.snapshot.run=" + run).directory(root.toFile()).inheritIO().start();
+        try {
+            return maven.waitFor();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            maven.destroy();
+            throw new IOException("interrupted while building", ex);
+        }
     }
 
     /**
