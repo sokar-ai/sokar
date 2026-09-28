@@ -185,6 +185,20 @@ class PinTest {
     }
 
     @Test
+    void anImageDigestHeldAsBareHexIsRefusedBeforeAnythingIsRead() {
+        pi("22.20.0");
+        write("pom.xml", read("pom.xml").replace("<pin.node.image.digest>" + OLD_IMAGE,
+                "<pin.node.image.digest>" + OLD_IMAGE.substring("sha256:".length())));
+        final Map<String, String> before = files();
+
+        // Moved, the builder would read '@sha256:sha256:<hex>'.
+        assertThat(move("node", "22.21.0", FakeWeb.untouchable())).as(report()).isEqualTo(Stop.REFUSED);
+        assertThat(files()).isEqualTo(before);
+        assertThat(stderr()).contains("pin.node.image.digest holds").contains("sha256:<64 hex>");
+        assertThat(ask("node", FakeWeb.untouchable(), null)).isEqualTo(Stop.UNANSWERED);
+    }
+
+    @Test
     void movingGraalvmTakesTheDownloadAndItsDigestFromTheOneMatchingAsset() {
         machines();
         final FakeWeb web = new FakeWeb().serve(GRAAL_RELEASE.replace("{version}", "25.4.4.1.1"), """

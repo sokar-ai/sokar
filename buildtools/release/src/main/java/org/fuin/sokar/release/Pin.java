@@ -99,6 +99,13 @@ public record Pin(Pom pom, String name, String label, String property, Release.U
         if ((image == null) != (imageProperty == null)) {
             throw Stop.refused(pom.file() + ": " + prefix + "image and " + prefix + "image-property come together");
         }
+        // Written back as Docker Hub gives it, 'sha256:<hex>': held as bare hex, a follower would be rewritten
+        // to '@sha256:sha256:<hex>' - an image reference no registry resolves. Measured by Agent Smith.
+        final String imageDigest = imageProperty == null ? null : pom.optional(imageProperty);
+        if (imageProperty != null && (imageDigest == null || !Digests.IMAGE.matcher(imageDigest).matches())) {
+            throw Stop.refused(pom.file() + ": " + imageProperty + " holds '" + imageDigest
+                    + "', but an image digest is written as sha256:<64 hex>");
+        }
         if (upstream.byDigest() && !(digests instanceof PinDigest.None)) {
             throw Stop.refused(pom.file() + ": a pin followed by its digest has no digest to read besides it");
         }

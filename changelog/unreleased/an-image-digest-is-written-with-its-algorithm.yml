@@ -1,0 +1,2 @@
+title: "A pin whose image digest property holds bare hex rather than 'sha256:<hex>' is refused before anything is read, instead of rewriting the image reference that follows it into '@sha256:sha256:<hex>'."
+type: fixed
