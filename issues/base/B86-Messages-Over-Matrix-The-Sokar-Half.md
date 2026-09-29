@@ -1,6 +1,6 @@
 # B86 — Messages Over Matrix, The Sokar Half
 
-**Status:** open, written 2026-09-29 from `sokar-project` PJ02 at the operator's word, relayed by Agent
+**Status:** specified 2026-09-29, every question decided; not built. Written 2026-09-29 from `sokar-project` PJ02 at the operator's word, relayed by Agent
 Coordinator. Priority: after B28, B30 and B31. The transport itself is `sokar-message-matrix`'s (Agent
 Matrix), and so is starting the homeserver, which ships with the transport's package (operator, 2026-09-29).
 
@@ -22,8 +22,8 @@ Matrix), and so is starting the homeserver, which ships with the transport's pac
 ## The contract as agreed with the transport, 2026-09-29
 
 - `describe`: `scheme: matrix`, `confirms: read`,
-  `credentials: [{"name":"SOKAR_MATRIX_ACCESS_TOKEN","as":"env"}]`, `hosts` from the package's installed
-  configuration, `attests: []` until `sender` has its evidence file.
+  `credentials: [{"name":"SOKAR_MATRIX_ACCESS_TOKEN","as":"env"}]`, `hosts: []` (changed 2026-09-29: the
+  egress comes from the project's declared homeserver, below), `attests: []` until `sender` has its evidence file.
 - `send <file> <sig> --to <room id>` prints `{"reference":"<event id>"}`; Sokar keeps it as
   `sent/<message>.receipt.json`. A room id may have no `:server` part; Sokar splits an address at its first
   colon only.
@@ -37,40 +37,171 @@ Matrix), and so is starting the homeserver, which ships with the transport's pac
 ## What must be true, in `sokar`
 
 1. **The peer table resolves every peer of a Matrix project to the project's room**, and delivery on the
-   way in keeps only what names one of this host's tasks in `metadata.to`.
-2. **A task's account is provisioned when it starts and deleted when it is removed**, by a host-side
-   credential that can create accounts, kept in the vault. The first account registered on a fresh
-   homeserver becomes its administrator, so the host's provisioning account registers first. Deleting an
-   account needs its own password or the administrator's rights; whichever is used is kept in the vault,
-   never in a task.
-3. **The transport's token reaches it from the vault as `SOKAR_MATRIX_ACCESS_TOKEN`**, never on a command
+   way in keeps only what is signed by a key listed for a peer *of that project* and names one of that
+   project's tasks in `metadata.to`. Anything else is held, and the operator told.
+2. **No task touches Matrix.** A task's account, its token and every call to the homeserver are the
+   host's; the container has neither the token nor a route to the homeserver.
+3. **A task's account is made when the task starts and deactivated when it is removed**, by the account's
+   provisioning account, which is the homeserver's administrator. No per-task password exists after the
+   account is made.
+4. **The transport's token reaches it from the vault as `SOKAR_MATRIX_ACCESS_TOKEN`**, never on a command
    line and never in a container.
-4. **`describe.hosts` feeds what the host lets the transport reach**, and a task reaches none of it.
-5. **`receipt` is asked about what was sent, by the account of the task it was for**, and the answer is
+5. **The homeserver is one endpoint Sokar names**: the project's declared URL, or the account's own on
+   loopback. The host's egress for a project's messages is that URL and nothing else; `describe.hosts`
+   stays `[]`.
+6. **`receipt` is asked about what was sent, by the account of the task it was for**, and the answer is
    recorded as the message's read state.
-6. **One homeserver per machine is not a bridge between projects.** This is PJ02's one open question, and
-   it is this issue's to answer: the gate precedent gives the mechanism - one endpoint named by Sokar, never
-   "the machine" - but a gate is per task and a homeserver is per machine. The answer has to say what keeps
-   two projects' tasks apart on it: separate rooms are not enough on their own, since room membership is
-   not authorization.
-7. **An `offline` project and messaging**: whether it may use a homeserver on loopback, named by Sokar as
-   the gate is, or may not message at all - decided here, not by the first implementation.
+7. **An `offline` project messages through loopback only.**
+8. **A person joins a project's room in one command**, with an account made for them.
+9. **Only a transport a peer names is polled.**
 
-## To be checked
+## Decided 2026-09-29, by the operator
 
-1. The answer to point 6.
-2. The answer to point 7.
-3. Whether the provisioning account's password or the administrator's rights delete a task's account.
-4. **A project on several machines, with one central homeserver** (Agent Matrix, QM7, 2026-09-29). The
-   proposal: the homeserver's URL is the project's, declared in `project.yml`, absent meaning the local one
-   on loopback; each machine holds its own registration token for the central server in its vault, so one
-   machine can be revoked alone; and the egress for a project's messages comes from that declared URL, so
-   `describe.hosts` stays `[]` - which changes what was agreed with the transport.
-5. **Whose the local homeserver is:** one per machine, or one per account that runs Sokar (Agent Frontend,
-   2026-09-29). With a user unit, two work users on one machine are two homeservers on two ports.
-6. **How a person joins the project's room:** an account made for them, an invitation, or a registration
-   token they use with a client of their own (Agent Frontend, 2026-09-29).
-7. **Which transports are polled.** Today every transport whose `describe` says `"poll": true` is polled by
-   every account's daemon, so a transport installed machine-wide is polled by accounts that have no
-   homeserver and no token for it, and answers 78 on every cycle (Agent Matrix, QM8, 2026-09-29). The
-   leaning: poll only a transport whose scheme a peer of one of the account's projects names.
+- **Two projects on one homeserver are kept apart by the host acting and the signature deciding.**
+  No task ever touches Matrix: its account's token stays in the host's vault, and only the host-side
+  transport posts and polls for it. The host joins a task's account to its own project's room and to no
+  other. What arrives is delivered only if it is signed by a key listed for a peer *of that project* and
+  names one of that project's tasks in `metadata.to`; a message crossing from another project's room is
+  held, not delivered. The homeserver is one endpoint Sokar names, as it names a gate - never "the machine".
+- **An `offline` project messages through a homeserver on loopback only.** Sokar names that one
+  endpoint as it names the gate; a declared homeserver URL that is not loopback is refused for an offline
+  project, so its messages never leave the machine.
+- **A task's account is deactivated by the provisioning account's administrator rights.**
+  The provisioning account registers first on a fresh homeserver and so is its administrator; it
+  deactivates a task's account through the admin API when the task is removed. No per-task password is
+  kept: a task's account is made with a random password that is thrown away, and only its access token
+  lives in the vault, until removal.
+- **A central homeserver is the project's, as Agent Matrix proposed.** `project.yml`
+  names the homeserver's URL; absent, it is the account's own on loopback. The project may name a CA file
+  (the transport's `SOKAR_MATRIX_CA_FILE`) and, for development only, `tls_verify: off`
+  (`SOKAR_MATRIX_TLS_VERIFY`). Each machine holds in its vault its own provisioning account on the central
+  server, with the rights to deactivate its tasks' accounts, so one machine can be revoked alone. The
+  host's egress for a project's messages comes from the declared URL, and `describe.hosts` stays `[]` -
+  a change to what was agreed with the transport.
+- **The local homeserver is the account's.** Each account that runs Sokar has its own,
+  a user unit, on a port Sokar picks and keeps in the account's state - as a grant and the vault are the
+  account's. No root, and two work users never share a server's administrator.
+- **A person joins by an account made for them.** `sokar messages join <project>` has
+  the provisioning account make one on the project's homeserver, invite it into the room, and print the
+  login once; the person uses any Matrix client. No registration stays open. Their messages are delivered
+  only once their key is listed as a peer, as for anyone.
+- **Only a transport a peer names is polled.** A daemon polls a transport only if a peer
+  of one of the account's projects names its scheme. One that is named and answers 78 is reported once as
+  misconfigured, not on every cycle.
+
+## The shape
+
+### `project.yml`
+
+```yaml
+messages:
+  homeserver: https://matrix.example.org   # optional; absent: this account's own, on loopback
+  ca_file: certs/intranet-ca.pem            # optional; PEM trusted besides the built-in authorities
+  tls_verify: on                            # optional; off for development only, never with ca_file
+peers:
+  reviewer: { address: "matrix:!room", trust: vouched }
+```
+
+- A peer whose address has the scheme `matrix` is a Matrix peer; the address after the first colon is the
+  room id, which may itself contain no `:server` part.
+- Every Matrix peer of one project names the same room: the project's. Two rooms in one project is refused
+  when the project file is read, naming both.
+- `messages.homeserver` must be https, or http on loopback. For an `offline` project anything but loopback
+  is refused before a task exists, as a gate outside the machine would be.
+- `ca_file` is resolved against the project's repository and read by the host; `tls_verify: off` with a
+  `ca_file` is refused, as the transport refuses it (78).
+- The transport is given `SOKAR_MATRIX_HOMESERVER`, `SOKAR_MATRIX_ACCESS_TOKEN` and, where declared,
+  `SOKAR_MATRIX_CA_FILE` / `SOKAR_MATRIX_TLS_VERIFY` - in its environment, from the host.
+
+### The account's own homeserver
+
+- It is the transport package's user unit, `sokar-matrix-homeserver`, listening on `127.0.0.1` only.
+- Sokar picks its port once, keeps it in the account's state, writes it as `SOKAR_MATRIX_PORT` into
+  `~/.config/sokar/matrix/homeserver.conf` (the unit's `EnvironmentFile`, the package's own file - no
+  second one), and restarts the unit. `SOKAR_MATRIX_SERVER_NAME` stays `localhost`: it is fixed once the
+  database exists.
+- Registration is never open. The unit makes `~/.config/sokar/matrix/registration-token` (0600) before
+  its first start; Sokar reads it and registers the provisioning account **first**, which makes it the
+  administrator. Its password and token go into the vault as reserved entries, hidden like a task's.
+- Sokar starts the unit the first time a project of the account needs it, not at install: an account with
+  no Matrix project runs no homeserver.
+
+### A central homeserver
+
+- Each machine has its own provisioning account there, with administrator rights, its token in that
+  machine's vault - so one machine is revoked alone. How that account is made is the central server's
+  operator's business; Sokar is given its token with `sokar vault put` like any credential, under a
+  name the project file does not need to know (one per homeserver URL).
+- Not measured on a central server yet: that the admin room's `deactivate` holds there as on loopback.
+
+### A task's account
+
+- Made at start, before the task's container exists, by the provisioning account: `@<task>:<server>`,
+  a random password used once to log in and then forgotten; the access token goes into the vault as a
+  reserved entry, like the task's own token, and survives a reboot as that does.
+- Joined to the project's room (made by the provisioning account the first time, invite-only, no guest
+  access, published nowhere) and to no other room.
+- Deactivated when the task is removed: the provisioning account writes
+  `!admin users deactivate @<task>:<server>` into the admin room `#admins:<server>` (Tuwunel has no HTTP
+  call for it; measured by Agent Matrix, 2026-09-29), then the token is dropped from the vault. After
+  that the token is refused (`M_UNKNOWN_TOKEN`) and the login too (`M_USER_DEACTIVATED`).
+- A start whose account cannot be made - homeserver down, provisioning account missing - is refused
+  before anything exists, naming which, as a credential nobody can reach is.
+
+### Sending, receiving, reading
+
+- Sending a message of a task to a Matrix peer runs `send <file> <sig> --to <room id>` with that task's
+  token; the `{"reference": ...}` it prints is kept as `sent/<message>.receipt.json`.
+- Polling runs `poll --into <inbound>` with the provisioning account's token, once per homeserver, not
+  once per task; what arrives is sorted into the tasks' mailboxes by `metadata.to` and the signature,
+  as point 1 says.
+- `receipt <reference> --by <task's account>` is asked for what a task sent, and `read` / `delivered` /
+  `unknown` becomes the message's read state; `unknown` is not an error.
+- Exit codes as agreed: 75 is retried later; 77 and 78 are said once, as a misconfiguration of that
+  homeserver, and not retried every cycle - a certificate the transport does not trust is 78, so a
+  token is never sent to it again and again.
+
+### Polling
+
+- A daemon polls a transport only if a peer of one of the account's projects names its scheme; with no
+  Matrix project, the Matrix transport is never started, whatever `describe` says about `poll`.
+
+### A person joins
+
+- `sokar messages join <project>` has the provisioning account make an account for the person on the
+  project's homeserver, invite it into the room, and print the homeserver, the user and a password once.
+  Nothing of it is kept but the account's name, so a second `join` for the same person says the account
+  exists and offers `--reset`, which sets a new password.
+- The daemon gets `JoinMessages(project) -> (homeserver, user, password)`, answered once; its shape is
+  posted to the interface's owner before it is built.
+- Being in the room lets the person read and write there; their messages are delivered to a task only
+  once their key is listed for a peer, as anyone's.
+
+### Retiring the old transports
+
+- `transport-local` and `transport-spool` stay until the Matrix transport is released and a project on
+  it has run on both VMs; then they are removed in one change that says so, and a project still naming
+  `local:` or `spool:` is refused with the sentence that says what to write instead.
+
+## Acceptance
+
+- Two projects of one account on its homeserver: a message signed by a peer of project A, posted into
+  project B's room, is held in B and never delivered; the operator is told which peer and which room.
+- A task's container has no `SOKAR_MATRIX_*` variable and cannot reach the homeserver's port.
+- Starting a task makes `@<task>:localhost`, in the project's room and no other; removing it deactivates
+  the account, after which its token is refused.
+- A task sends; the reference is kept; once the person's client has read it, the message's read state is
+  `read`.
+- An `offline` project naming a non-loopback homeserver is refused before anything exists; with none,
+  it messages through the account's own.
+- `sokar messages join` prints a login that works in a Matrix client, into that project's room only.
+- An account with no Matrix project runs no homeserver and never starts the Matrix transport; one whose
+  homeserver is misconfigured says so once, not every cycle.
+- No token appears on a command line, in a log, or in `vault list`.
+
+## Still open
+
+- **A central homeserver, measured.** Everything above for one is specified, none of it is measured: the
+  admin room's `deactivate` on a central Tuwunel, and a provisioning account per machine there.
+- **Where a central homeserver's provisioning token is looked up** - one vault entry per homeserver URL
+  is the leaning; its naming is decided when it is built.

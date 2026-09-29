@@ -10,6 +10,8 @@ Feature: A task holds more than one credential
     And a vault of this scenario's own, unlocked with the passphrase "acceptance"
     And the vault holds the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" as "anthropic" of kind "api-key"
     And the vault holds the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" as "search" of kind "api-key"
+    # Asked of the daemon below: one that is known to answer, not whatever state a prepared account's is in.
+    And a daemon of this scenario's own
     And a script runs:
       """
       mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations"
@@ -39,8 +41,10 @@ Feature: A task holds more than one credential
     # An interface lists what a task holds, by name and destination, never a token.
     When a script runs:
       """
-      printf '%s\0' '{"method":"org.fuin.sokar.Tasks1.List","parameters":{}}' | timeout 60 sokar daemon connect 2>/dev/null \
-          | tr '\0' '\n' | head -1 | grep -o '"credentials":{"search":"echo"}' | head -1
+      printf '%s\0' '{"method":"org.fuin.sokar.Tasks1.List","parameters":{}}' | timeout 60 sokar daemon connect 2>&1 \
+          | tr '\0' '\n' > "$HOME/list.out"
+      grep -m1 -o '"credentials":{"search":"echo"}' "$HOME/list.out" || head -c 400 "$HOME/list.out"
+      rm -f "$HOME/list.out"
       # A destination nobody declared, named by the run: refused before anything exists, and said as the run's.
       sokar task start undeclared --project credentialed --repository credentialed --agent stub --prompt 'x' \
           --clearance deny --credential extra=nowhere; echo "exit $?"
