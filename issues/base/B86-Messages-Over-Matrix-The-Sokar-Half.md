@@ -81,7 +81,7 @@ Matrix), and so is starting the homeserver, which ships with the transport's pac
 - **The local homeserver is the account's.** Each account that runs Sokar has its own,
   a user unit, on a port Sokar picks and keeps in the account's state - as a grant and the vault are the
   account's. No root, and two work users never share a server's administrator.
-- **A person joins by an account made for them.** `sokar messages join <project>` has
+- **A person joins by an account made for them.** `sokar messages join <project> <person>` has
   the provisioning account make one on the project's homeserver, invite it into the room, and print the
   login once; the person uses any Matrix client. No registration stays open. Their messages are delivered
   only once their key is listed as a peer, as for anyone.
@@ -123,8 +123,12 @@ peers:
 - Registration is never open. The unit makes `~/.config/sokar/matrix/registration-token` (0600) before
   its first start; Sokar reads it and registers the provisioning account **first**, which makes it the
   administrator. Its password and token go into the vault as reserved entries, hidden like a task's.
-- Sokar starts the unit the first time a project of the account needs it, not at install: an account with
-  no Matrix project runs no homeserver.
+- Sokar enables and starts the unit (`systemctl --user enable --now`) the first time a project of the
+  account needs it, not at install: an account with no Matrix project runs no homeserver. Enabled, it comes
+  back after a boot without a login, as the daemon does; only started, it would be gone until something
+  started it again (measured by Agent Matrix after the ubuntu VM's restart).
+- Sokar waits until `/_matrix/client/versions` answers before registering anything: the unit is running
+  when the container is, and the first start pulls the image (5-6 s measured).
 
 ### A central homeserver
 
@@ -152,9 +156,13 @@ peers:
 
 - Sending a message of a task to a Matrix peer runs `send <file> <sig> --to <room id>` with that task's
   token; the `{"reference": ...}` it prints is kept as `sent/<message>.receipt.json`.
-- Polling runs `poll --into <inbound>` with the provisioning account's token, once per homeserver, not
-  once per task; what arrives is sorted into the tasks' mailboxes by `metadata.to` and the signature,
-  as point 1 says.
+- Polling runs `poll --into <inbound>` once per homeserver, not once per task, with the token of the
+  homeserver's **relay account**: an ordinary account the provisioning account makes after itself, joined
+  to every project room it makes and to nothing else. One poll sees every room its account is in
+  (measured by Agent Matrix: two project rooms, both delivered, nothing twice). The relay is not the
+  administrator on purpose: the transport then never holds the administrator's token, and the admin room's
+  own traffic - the reply to every `!admin` command - never reaches a poll. What arrives is sorted into the
+  tasks' mailboxes by `metadata.to` and the signature, as point 1 says.
 - `receipt <reference> --by <task's account>` is asked for what a task sent, and `read` / `delivered` /
   `unknown` becomes the message's read state; `unknown` is not an error.
 - Exit codes as agreed: 75 is retried later; 77 and 78 are said once, as a misconfiguration of that
@@ -168,14 +176,64 @@ peers:
 
 ### A person joins
 
-- `sokar messages join <project>` has the provisioning account make an account for the person on the
-  project's homeserver, invite it into the room, and print the homeserver, the user and a password once.
-  Nothing of it is kept but the account's name, so a second `join` for the same person says the account
-  exists and offers `--reset`, which sets a new password.
-- The daemon gets `JoinMessages(project) -> (homeserver, user, password)`, answered once; its shape is
-  posted to the interface's owner before it is built.
+- An account per person: `sokar messages join <project> <person>` has the provisioning account make
+  `@<person>:<server>` on the project's homeserver, invite it into the project's room, and print the
+  homeserver, the user, the room and a password once. Nothing of it is kept but the account's name and
+  whom it is for, so the password is shown once and never again.
+- A second `join` for the same person says the account exists; `--reset` sets a new password and shows it
+  once, the same way. `sokar messages members <project>` lists who has joined.
+- One person in several projects of one homeserver is one account, invited into each room.
 - Being in the room lets the person read and write there; their messages are delivered to a task only
   once their key is listed for a peer, as anyone's.
+- For the account's own homeserver the printed address is loopback, and the command says so: a person at
+  another computer forwards the port first (`ssh -L <port>:127.0.0.1:<port>`), as for the redirect flow of
+  an authorization. An `offline` project may be joined that way too: the person's client reaches the
+  homeserver through their own ssh connection, and the project's messages still never leave the machine.
+
+### What the daemon answers an interface
+
+```
+# A person joins a project's room, or gets a new password with reset. Answered once: the password is in
+# this reply and nowhere else, never kept.
+method JoinMessages(project: string, person: string, reset: ?bool) -> (
+  # The homeserver as the person's client reaches it. For the account's own, http://127.0.0.1:<port>.
+  homeserver: string,
+  # true when homeserver is this machine's loopback: a client elsewhere forwards port first.
+  loopback: bool,
+  port: int,
+  user: string,
+  room: string,
+  password: string
+)
+
+# Who has joined a project's room, by the name join was given.
+method MessageMembers(project: string) -> (members: []MessageMember)
+type MessageMember (person: string, user: string)
+
+# Added to Project:
+#   messages: ?ProjectMessages - absent for a project with no Matrix peer.
+type ProjectMessages (
+  # The declared URL, or empty: this account's own homeserver on loopback.
+  homeserver: string,
+  room: string,
+  # Whether this machine can carry the project's messages now: the account's unit answering, or the
+  # central server reachable with this machine's provisioning account. With detail when not.
+  ready: bool,
+  detail: string,
+  # true for an offline project: loopback only.
+  loopbackOnly: bool
+)
+
+error NoSuchProject(name: string)
+error MemberExists(person: string, user: string)
+error HomeserverUnreachable(homeserver: string, detail: string)
+error ProvisioningMissing(homeserver: string)
+error OfflineHomeserver(project: string, homeserver: string)
+```
+
+- `MemberExists` answers a second join without `reset`; `OfflineHomeserver` a declared homeserver that is
+  not loopback for an `offline` project. An `offline` project is joined from elsewhere through a forwarded
+  port, so being away from the machine is not itself a refusal.
 
 ### Retiring the old transports
 
@@ -194,12 +252,19 @@ peers:
   `read`.
 - An `offline` project naming a non-loopback homeserver is refused before anything exists; with none,
   it messages through the account's own.
-- `sokar messages join` prints a login that works in a Matrix client, into that project's room only.
+- `sokar messages join` prints a login that works in a Matrix client, into that project's room only; a
+  second join without `--reset` is refused as existing, and `members` lists it.
+- The transport is never given the administrator's token: polling uses the relay account.
+- After a reboot without a login, the account's homeserver answers again.
 - An account with no Matrix project runs no homeserver and never starts the Matrix transport; one whose
   homeserver is misconfigured says so once, not every cycle.
 - No token appears on a command line, in a log, or in `vault list`.
 
 ## Still open
+
+- **The relay account and the admin room's traffic**, measured: that polling with the relay sees every
+  project room and nothing of `#admins:<server>`. Agent Matrix measured the poll with the administrator's
+  token (the admin room's messages named on stderr as skipped); the relay is the change from that.
 
 - **A central homeserver, measured.** Everything above for one is specified, none of it is measured: the
   admin room's `deactivate` on a central Tuwunel, and a provisioning account per machine there.
