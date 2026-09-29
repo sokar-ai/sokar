@@ -183,6 +183,8 @@ public final class RunningEgress {
             for (final String name : wanted) {
                 GrantedNames.add(state, name);
             }
+            // Kept across a reboot as it is across a stop: the grant is the run's until the task goes.
+            new TaskState(context).save(container);
         } catch (IOException ex) {
             return Effect.refused(Outcome.FAILED, "cannot widen " + container + ": "
                     + ex.getMessage());
@@ -298,6 +300,7 @@ public final class RunningEgress {
             for (final String name : wanted) {
                 GrantedNames.remove(state, name);
             }
+            new TaskState(context).save(container);
         } catch (IOException ex) {
             return Withdrawal.refused(Outcome.FAILED, "cannot narrow " + container + ": "
                     + ex.getMessage());

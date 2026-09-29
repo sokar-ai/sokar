@@ -608,6 +608,14 @@ public final class TaskLaunch {
             // what it was asked to do, and which ref its work goes to. None of it can be
             // recovered from a running container afterwards.
             writeProfile(container, selected, environmentCache.get("SOKAR_TASK_REF"), err);
+            // What brings it back after a reboot: its description and records saved where a reboot does not
+            // reach, and its two tokens in the vault. A task that cannot keep them runs, and says so.
+            new TaskState(context).save(container);
+            final String unkept = new TaskSecrets(context).keep(container,
+                    TaskSecrets.fromRuntime(context.paths().containerState(container)), existingTasks(container));
+            if (!unkept.isEmpty()) {
+                out.println("reboot    " + unkept);
+            }
 
             // The task is up. What happens next - run the agent to completion, attach a
             // terminal, or simply say so - is the caller's, and it happens inside this scope
@@ -1079,6 +1087,13 @@ public final class TaskLaunch {
      * @param container Container name.
      * @param err Where a failure is reported.
      */
+    private java.util.Set<String> existingTasks(String container) {
+        final java.util.Set<String> existing = new java.util.HashSet<>();
+        existing.add(container);
+        context.podman().sokarTasks().forEach(task -> existing.add(task.name()));
+        return existing;
+    }
+
     private void writeResumeRecord(String container, PrintWriter err) {
         if (startedHelpers.isEmpty()) {
             return;

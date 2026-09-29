@@ -232,7 +232,9 @@ type Task (
   # What Start would do to this task, without doing it.
   startAction: StartAction,
   # Which refusal, when startAction is one: the StartOutcome value for NOT_READY, the task a
-  # SUPERSEDED_NAME belonged to, free text otherwise. "" when startAction is not a refusal.
+  # SUPERSEDED_NAME belonged to, free text otherwise. For RESUME, "" - or, for a task the
+  # machine's restart took down, "the machine restarted; starting it brings it back whole", so an
+  # interface can say why it is down without reading a boot log. "" otherwise.
   startDetail: string,
   # What this task is doing that takes minutes and has no other visible sign, such as "building".
   # "" when it is in none.

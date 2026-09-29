@@ -378,6 +378,9 @@ final class CredentialWiring {
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("ssh-agent.log").toFile())
                     .start();
+            // Recorded like the proxy: the container mounts its socket, so a resumed task needs it up again
+            // before the container starts. Left out, a resumed task mounted a socket nothing listened on.
+            record("ssh-agent", command, java.util.Map.of(), TaskHelpers.BEFORE);
         } catch (java.io.IOException ex) {
             err.println("sokar: could not start the ssh-agent: " + ex.getMessage());
             err.flush();

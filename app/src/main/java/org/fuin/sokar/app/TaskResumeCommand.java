@@ -132,6 +132,24 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
                 out.flush();
                 return 0;
             }
+            case NEEDS_VAULT -> {
+                err.println("sokar: the machine restarted since " + container + " last ran, and bringing it back");
+                err.println("       needs its two tokens from the vault, which is locked.");
+                err.println("       Unlock it with 'sokar vault unlock', then start the task again.");
+                err.flush();
+                return 69;
+            }
+            case TOKENS_NOT_KEPT -> {
+                err.println("sokar: the machine restarted since " + container + " last ran, and its tokens were not");
+                err.println("       kept - the vault was locked or absent when it started - so it cannot come back");
+                err.println("       whole. The workspace is still inside it:");
+                err.println();
+                err.println("         podman cp " + container + ":/workspace ./recovered");
+                err.println();
+                err.println("       Then discard it with 'sokar task remove " + container + " --force'.");
+                err.flush();
+                return 69;
+            }
             default -> {
                 // Resumed, or resumed with something missing.
             }
@@ -142,6 +160,10 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
                     + " started;");
             out.println("          the task keeps the one it has. Start a new task to use");
             out.println("          the new image.");
+        }
+        if (result.restored()) {
+            // Said, because it is the one case where more came back than the container.
+            out.println("restored  what the machine's restart took: its records, its egress and its tokens");
         }
         out.println("started   " + container);
         out.println("helpers   " + result.started() + " of " + result.recorded() + " started");

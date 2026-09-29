@@ -509,6 +509,20 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the directory a task's durable state is saved in: what it is, how its helpers start, and the egress
+     * it was given - the copies that bring it back after a reboot.
+     * <p>
+     * Under the state directory, which a reboot does not touch; the runtime directory, which it does, is still
+     * where the task's files are used from. Deleted when the task is removed.
+     *
+     * @param container Container name.
+     * @return The directory.
+     */
+    public Path taskRecord(String container) {
+        return xdg.state().resolve("tasks").resolve(container);
+    }
+
+    /**
      * Returns the file holding one task's clearance decisions.
      * <p>
      * Under the state directory, not beside the rest of the task's files. Everything else a task

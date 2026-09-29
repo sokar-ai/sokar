@@ -37,7 +37,7 @@ public class VaultListCommand implements Callable<Integer>, SokarFactory.Context
                 out.flush();
                 return 0;
             }
-            final var entries = context.vault().read(context.requirePassphrase());
+            final var entries = TaskSecrets.credentialsOnly(context.vault().read(context.requirePassphrase()));
             if (entries.isEmpty()) {
                 out.println("the vault is empty");
             } else {

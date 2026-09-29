@@ -40,6 +40,12 @@ public class VaultRemoveCommand implements Callable<Integer>, SokarFactory.Conte
             err.flush();
             return 69;
         }
+        if (TaskSecrets.reserved(name)) {
+            // A task's own token: removing it by hand would break that task's return after a reboot.
+            err.println("sokar: '" + name + "' belongs to a task, not to you - removing the task removes it");
+            err.flush();
+            return 64;
+        }
 
         final boolean[] removed = { false };
         try {

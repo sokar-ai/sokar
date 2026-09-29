@@ -176,6 +176,7 @@ public final class RunningClearance {
             }
             profile.withClearance(mode).writeTo(state);
             out.flush();
+            new TaskState(context).save(container);
             return new Result(Outcome.CHANGED, was, mode, "");
         } catch (java.io.IOException | RuntimeException ex) {
             out.flush();

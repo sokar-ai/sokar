@@ -186,7 +186,8 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
             return java.util.Optional.empty();
         }
         try {
-            return java.util.Optional.of(vault.read(opener.get()));
+            // A task's own tokens are not credentials: no listing and no choice may see them.
+            return java.util.Optional.of(TaskSecrets.credentialsOnly(vault.read(opener.get())));
         } catch (org.fuin.sokar.vault.VaultException ex) {
             // A wrong passphrase or a damaged file. Unreadable rather than empty: the operator
             // has something to fix either way, and reporting it as empty hides it.

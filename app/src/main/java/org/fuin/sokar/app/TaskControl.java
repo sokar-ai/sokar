@@ -86,7 +86,19 @@ public final class TaskControl {
          * about {@code crun} and a path, which says nothing about what happened or what to do.
          * The workspace is still in the container and can be copied out.
          */
-        PREDATES_RESTART
+        PREDATES_RESTART,
+
+        /**
+         * A reboot emptied its runtime directory, its state was saved, and bringing it back needs its two tokens
+         * from the vault, which is locked. Unlocking it and starting again brings it back.
+         */
+        NEEDS_VAULT,
+
+        /**
+         * A reboot emptied its runtime directory, and its tokens were never kept - the vault was locked or absent
+         * when it started - so the container's credentials cannot be matched again.
+         */
+        TOKENS_NOT_KEPT
     }
 
     /**
@@ -127,7 +139,22 @@ public final class TaskControl {
      * @param problems What could not be started, empty when everything did.
      */
     public record Resumed(Outcome outcome, int started, int recorded,
-            @Nullable String imageDrift, @Nullable Path state, List<String> problems) {
+            @Nullable String imageDrift, @Nullable Path state, List<String> problems, boolean restored) {
+
+        /**
+         * Constructor for a resume that found its runtime directory where it left it.
+         *
+         * @param outcome What became of the request.
+         * @param started How many helpers were started.
+         * @param recorded How many were recorded.
+         * @param imageDrift How the image changed, or {@code null}.
+         * @param state The task's runtime directory, or {@code null}.
+         * @param problems What could not be started.
+         */
+        public Resumed(Outcome outcome, int started, int recorded, @Nullable String imageDrift,
+                @Nullable Path state, List<String> problems) {
+            this(outcome, started, recorded, imageDrift, state, problems, false);
+        }
     }
 
     private final SokarContext context;
@@ -208,7 +235,10 @@ public final class TaskControl {
         final boolean known = summary.isPresent() || Files.isDirectory(state);
         final boolean running = summary.map(ContainerSummary::running).orElse(false);
 
-        final UnhandedWork.Held held = running ? heldBy(container) : UnhandedWork.read(state);
+        // After a reboot the runtime directory is gone, and the note saved from it is what knows what the task held:
+        // without it every such task answered NOTHING_KNOWS, and a guard that must always be forced is none.
+        final UnhandedWork.Held held = running ? heldBy(container)
+                : UnhandedWork.read(Files.isDirectory(state) ? state : context.paths().taskRecord(container));
         final String work = held.phrase();
 
         // "nobody looked" rather than "held nothing": only the first is a reason to refuse.
@@ -256,6 +286,8 @@ public final class TaskControl {
             // task later cannot ask the container itself.
             if (running) {
                 UnhandedWork.note(state, held);
+                // Saved at once: a task stopped before a reboot must still answer what it held.
+                new TaskState(context).save(container);
             }
         }
         TaskLifecycle.stopHelpers(state);
@@ -283,6 +315,10 @@ public final class TaskControl {
         if (purge) {
             deleteTree(state);
             new TaskSession(context).forget(container);
+            new TaskState(context).forget(container);
+            // A vault that is locked keeps them until the next task started prunes them: a removal is not refused
+            // for want of a passphrase.
+            new TaskSecrets(context).forget(container);
             // The mailbox outlives the container on purpose, so this is the one place it ends.
             try {
                 new Mailbox(context.paths().mailbox(container)).delete();
@@ -436,6 +472,7 @@ public final class TaskControl {
         }
         try {
             profile.withLabel(caption).writeTo(state);
+            new TaskState(context).save(container);
         } catch (java.io.IOException ex) {
             return Labelled.FAILED;
         }
@@ -448,8 +485,8 @@ public final class TaskControl {
             return new Resumed(Outcome.NOT_A_TASK, 0, 0, null, null, List.of());
         }
         final Path state = context.paths().containerState(container);
-        final TaskHelpers recorded = TaskHelpers.readFrom(state);
-        final Path logs = Files.isDirectory(state) ? state : null;
+        TaskHelpers recorded = TaskHelpers.readFrom(state);
+        Path logs = Files.isDirectory(state) ? state : null;
 
         if (context.podman().idOf(container).isEmpty()) {
             return new Resumed(Outcome.NO_CONTAINER, 0, 0, null, null, List.of());
@@ -467,17 +504,50 @@ public final class TaskControl {
                     List.of());
         }
 
+        boolean restored = false;
         if (!Files.isDirectory(state)) {
-            // Not "no helpers recorded": the whole directory is gone, which happens exactly once
-            // - when the machine restarts - and no amount of starting helpers brings back the
-            // socket the container is bound to. Answered before podman is asked, so the operator
-            // gets a sentence about what happened rather than crun's about a path.
-            return new Resumed(Outcome.PREDATES_RESTART, 0, 0, null, null, List.of());
+            // The whole directory is gone, which happens when the machine restarts. A task whose state was saved
+            // is brought back from it; one started before that was kept still cannot be - answered before
+            // podman is asked, so the operator gets a sentence about what happened rather than crun's about a path.
+            final TaskState saved = new TaskState(context);
+            if (!saved.saved(container)) {
+                return new Resumed(Outcome.PREDATES_RESTART, 0, 0, null, null, List.of());
+            }
+            final TaskHelpers savedHelpers = TaskHelpers.readFrom(context.paths().taskRecord(container));
+            final boolean gated = savedHelpers.helpers().stream().anyMatch(helper -> "gate".equals(helper.name()));
+            final boolean proxied = savedHelpers.helpers().stream().anyMatch(helper -> "vault".equals(helper.name()));
+            TaskSecrets.Tokens tokens = new TaskSecrets.Tokens(null, null);
+            if (gated || proxied) {
+                final java.util.Optional<TaskSecrets.Tokens> kept = new TaskSecrets(context).read(container);
+                if (kept.isEmpty()) {
+                    return new Resumed(Outcome.NEEDS_VAULT, 0, savedHelpers.helpers().size(), null, null, List.of());
+                }
+                tokens = kept.get();
+                if (gated && tokens.gate() == null || proxied && tokens.provider() == null) {
+                    return new Resumed(Outcome.TOKENS_NOT_KEPT, 0, savedHelpers.helpers().size(), null, null,
+                            List.of());
+                }
+            }
+            try {
+                saved.restore(container);
+                if (tokens.provider() != null) {
+                    final Path file = state.resolve(TaskSecrets.PROVIDER_FILE);
+                    Files.writeString(file, tokens.provider(), java.nio.charset.StandardCharsets.UTF_8);
+                    Files.setPosixFilePermissions(file,
+                            java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+                }
+            } catch (IOException ex) {
+                return new Resumed(Outcome.HELPERS_INCOMPLETE, 0, savedHelpers.helpers().size(), null, null,
+                        List.of("could not put back what the restart took: " + ex.getMessage()));
+            }
+            recorded = withGateToken(TaskHelpers.readFrom(state), tokens.gate());
+            logs = state;
+            restored = true;
         }
 
         if (recorded.helpers().isEmpty()) {
             context.podman().start(container);
-            return new Resumed(Outcome.NO_HELPERS_RECORDED, 0, 0, null, logs, List.of());
+            return new Resumed(Outcome.NO_HELPERS_RECORDED, 0, 0, null, logs, List.of(), restored);
         }
 
         final String drift = imageDrift(container);
@@ -503,19 +573,48 @@ public final class TaskControl {
         started += start(recorded, TaskHelpers.AFTER, pid, state, problems);
         return new Resumed(started == recorded.helpers().size()
                 ? Outcome.RESUMED : Outcome.HELPERS_INCOMPLETE,
-                started, recorded.helpers().size(), drift, logs, List.copyOf(problems));
+                started, recorded.helpers().size(), drift, logs, List.copyOf(problems), restored);
     }
 
     /**
-     * Replaces the container pid the watcher was started with, which belongs to the previous run.
+     * Gives the gate its token back, which the saved record leaves out and the vault kept.
+     *
+     * @param recorded The record as restored.
+     * @param token The gate token, or {@code null} for a task without a gate.
+     * @return The record to start from.
+     */
+    static TaskHelpers withGateToken(TaskHelpers recorded, @Nullable String token) {
+        if (token == null) {
+            return recorded;
+        }
+        final List<TaskHelpers.Helper> helpers = new ArrayList<>();
+        for (final TaskHelpers.Helper helper : recorded.helpers()) {
+            if ("gate".equals(helper.name())) {
+                final java.util.Map<String, String> environment = new java.util.LinkedHashMap<>(helper.environment());
+                environment.put(TaskState.GATE_TOKEN, token);
+                helpers.add(new TaskHelpers.Helper(helper.name(), helper.command(), java.util.Map.copyOf(environment),
+                        helper.phase()));
+            } else {
+                helpers.add(helper);
+            }
+        }
+        return new TaskHelpers(List.copyOf(helpers));
+    }
+
+    /**
+     * Replaces the container pid a helper was started with, which belongs to the previous run.
+     * <p>
+     * The watcher takes it as {@code --pid}; the relay enters the container's network namespace with
+     * {@code nsenter --target}. A relay resumed with the old pid entered a namespace that no longer existed.
      *
      * @param command The recorded command.
+     * @param option The option the pid follows.
      * @param pid The pid the container has now.
      * @return The command to start.
      */
-    private static List<String> withPid(List<String> command, long pid) {
+    static List<String> withPid(List<String> command, String option, long pid) {
         final List<String> updated = new ArrayList<>(command);
-        final int flag = updated.indexOf("--pid");
+        final int flag = updated.indexOf(option);
         if (flag >= 0 && flag + 1 < updated.size()) {
             updated.set(flag + 1, String.valueOf(pid));
         }
@@ -565,7 +664,10 @@ public final class TaskControl {
             }
             List<String> command = helper.command();
             if ("watcher".equals(helper.name()) && pid > 0) {
-                command = withPid(command, pid);
+                command = withPid(command, "--pid", pid);
+            }
+            if ("relay".equals(helper.name()) && pid > 0) {
+                command = withPid(command, "--target", pid);
             }
             if ("vault".equals(helper.name())) {
                 command = reusingToken(command);

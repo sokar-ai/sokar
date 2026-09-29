@@ -244,6 +244,12 @@ public final class TaskInventory {
     /** How long a task's own log may be quiet before the work is called idle rather than busy. */
     private static final java.time.Duration QUIET = java.time.Duration.ofSeconds(60);
 
+    /**
+     * What a task the machine's restart took down says beside {@code RESUME}: not a refusal, but the reason it is
+     * down, which a person should not have to read out of a boot log.
+     */
+    public static final String RESTARTED = "the machine restarted; starting it brings it back whole";
+
     private final SokarContext context;
 
     private final @Nullable AgentWaiting agentWaiting;
@@ -346,8 +352,11 @@ public final class TaskInventory {
             Map<String, java.util.Set<String>> waitingCache) {
         final Sidecar sidecar = sidecarOf(summary.name());
         final Path state = context.paths().containerState(summary.name());
-        final org.fuin.sokar.wire.TaskProfile profile =
-                org.fuin.sokar.wire.TaskProfile.readFrom(state);
+        // The saved copy when a restart emptied the runtime directory: which agent and mode are still true of it.
+        final boolean restartTookIt = !summary.running() && !Files.isDirectory(state)
+                && new TaskState(context).saved(summary.name());
+        final org.fuin.sokar.wire.TaskProfile profile = org.fuin.sokar.wire.TaskProfile.readFrom(
+                restartTookIt ? context.paths().taskRecord(summary.name()) : state);
         final String waitingFor = summary.running()
                 ? org.fuin.sokar.wire.Waiting.about(state) : null;
         return new Task(summary.name(),
@@ -385,9 +394,11 @@ public final class TaskInventory {
                 // The same test resume makes, and a directory check rather than a runtime call:
                 // a stopped task with no state directory was started before this machine
                 // restarted, and Start would refuse it. Said here so nobody learns it by pressing.
-                !summary.running() && !Files.isDirectory(state) ? "PREDATES_RESTART"
+                restartTookIt ? "RESUME"
+                        : !summary.running() && !Files.isDirectory(state) ? "PREDATES_RESTART"
                         : summary.running() ? "RUNNING" : "RESUME",
-                !summary.running() && !Files.isDirectory(state)
+                restartTookIt ? RESTARTED
+                        : !summary.running() && !Files.isDirectory(state)
                         ? "started before this machine restarted; copy the workspace out with"
                                 + " 'podman cp " + summary.name() + ":/workspace ./recovered',"
                                 + " then 'sokar task remove " + summary.name() + " --force'"

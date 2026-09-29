@@ -6,9 +6,11 @@ something else.
 
 **Where the other half lives.** Points 5 and 6 of *What must be true* are the interface's to render - the action named by its effect, a refusal shown as unavailable with its reason, the reply by its named outcome. **Built on both sides**: Sokar's half is on the wire (`startAction` on the listing, `action` on the final reply), and sokar-frontend confirmed on 2026-09-13 that its half has been built since the lifecycle cut, so no issue exists for it.
 
-Built and landed: points 1, 3, 4 (the rule; the files have not all moved yet), 5, 6's refusal
-half, and 8. Outstanding: point 2 (the gate token into the vault, so a task survives a restart),
-point 6's `sokar cleanup`, and point 7 (streaming the build).
+Built and landed: points 1, 2 (2026-09-29: the gate token and the provider's stand-in token in the vault,
+the task's knowledge saved under the state directory, so `start` after a reboot brings the task back
+whole), 3, 4 (the rule, applied by saving the durable files beside the runtime directory rather than
+moving them - the container's annotation and mounts name runtime paths), 5, 6's refusal half, and 8.
+Outstanding: point 6's `sokar cleanup`, and point 7 (streaming the build).
 
 ## What happened
 

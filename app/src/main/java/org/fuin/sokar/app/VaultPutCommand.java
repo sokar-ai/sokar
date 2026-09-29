@@ -296,6 +296,13 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
+        if (TaskSecrets.reserved(name)) {
+            // Refused before anything is asked for: a name here would look like a task's own token.
+            err.println("sokar: names starting with '" + TaskSecrets.PREFIX + "' belong to tasks; choose another");
+            err.flush();
+            return 64;
+        }
+
         String value;
         if (fromFile == null) {
             value = valueFrom(name, System.console(), System.in);

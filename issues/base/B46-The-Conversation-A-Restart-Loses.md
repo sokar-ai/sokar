@@ -1,7 +1,7 @@
 # B46 — The Conversation A Restart Loses
 
-**Status:** built for `stop` and `start` on 2026-09-29; open for a reboot, which waits for durable task
-state (see *What is left*). Written 2026-09-11. It is the half of continuing that
+**Status:** built on 2026-09-29, for `stop` and `start` and for a reboot, with B44's durable task state.
+Written 2026-09-11. It is the half of continuing that
 [B43](B43-Tasks-After-The-Machine-Restarts.md) and [B44](B44-One-Way-To-Start-Work.md) do not
 cover: both bring the *container* back, neither brings the *conversation* back. It covers a task
 somebody drives at a terminal as well as an unattended run, decided on 2026-09-11.
@@ -91,30 +91,45 @@ and is discarded, several times a session.
 - `grep` over everything outside `agents/` finds no event name, no field name and no agent name
   belonging to this feature.
 
-## What is left
+## How a reboot is covered
 
-- **A reboot.** The session id is recorded under the state directory, which a reboot does not touch,
-  so it survives one. But after a reboot a task is refused outright (`PREDATES_RESTART`), because its
-  profile - which agent, which mode - lives in the runtime directory the reboot wiped. Continuing
-  across a reboot needs that durable task state (B43, B44), not more of this requirement. The
-  acceptance scenario for a reboot is therefore not written; `stop` and `start` are, for both modes.
+A reboot empties the runtime directory. What is knowledge about the task is saved beside it, under the
+state directory (`TaskState`), and its two tokens are in the vault (`TaskSecrets`); `start` puts them back
+and starts the task as after a stop, and the recorded session continues. Proven by reproducing what a
+reboot leaves - the container stopped, its runtime directory gone - in `task-restart.feature`; a real
+reboot is left to a `@restart` scenario on a rented machine.
+
+## Decided on 2026-09-29, by the operator
+
+1. **Nothing comes back by itself.** After a reboot a task is brought back by `start` - at the terminal
+   or over the socket - and by nothing else; `task list` shows that the machine took it down. No
+   surprise on a shared machine, and no vault prompt at boot with nobody there to answer it.
+2. **The gate token goes into the vault**, as B44 decided: `resume.json` becomes durable without it,
+   and the first `start` after a reboot needs the vault unlocked, even for a task with no credential of
+   its own, and says why.
+3. **A continuation that fails is reported, and the next start is fresh.** A run that was asked to
+   continue a session, failed, and named no session of its own has its recorded session forgotten; the
+   next start says it begins a fresh one. Nothing runs twice without being asked.
+4. **Proven by reproducing what a reboot leaves**, in every leg: the container stopped and its runtime
+   directory gone, then `start`. The shared VM is never rebooted by the suite; a real reboot is a later
+   `@restart` scenario on a rented machine.
+5. **`remove --rescue` forgets the session** like any removal: the rescued ref carries the work, and the
+   transcript it named was inside a container that no longer exists.
+6. **Only the last session is recorded** - the one the next start continues.
+7. **The phantom provider token goes into the vault too**, beside the gate token: one rule for both
+   per-task secrets, and a resume already needs the vault for the proxy's real credential.
+8. **Both are hidden in their own namespace** (`task/<container>/...`): `vault list`, credential choices
+   and provider listings leave them out, they go when the task is removed, and entries of tasks that no
+   longer exist are pruned whenever the vault is next opened for a task.
+
+What follows from those without a question of its own: the resolver's files, the firewall ruleset and
+the run-scope grants are kept as they are across a reboot, as they already are across `stop` and
+`start`; and a task made before its state was kept durable still answers that it cannot come back.
 
 ## To be checked
 
-- **What happens to a recorded id when the agent is updated under it?** A02 moves an agent's CLI
-  version without asking. Whether a session written by the old version is continuable by the new
-  one is the agent's business and not ours, but the failure mode is ours: a continuation that
-  fails because the transcript is from an older format must report that and start fresh, rather
-  than failing the start.
-- **Does `--rescue` keep it?** `remove --rescue` pushes what the workspace holds before destroying
-  the task. If a session id is part of what makes the work recoverable, it may belong in whatever
-  rescue leaves behind - or it may be meaningless there, because the container it referred to is
-  gone.
 - **One declaration for both modes, or two?** An event and a key describe the headless route; a
   directory and a file shape describe the other. If the id is the same string in both - and for at
   least one agent it visibly is, because the file is named after it - a single declaration with
   two ways of finding the same thing is honest. If it is not, a definition has to say so, and
   whatever reads it has to know which mode it is in.
-- **One task, one session, or several?** A long-lived task may run many sessions over its life.
-  Recording only the last is the simple answer and is probably right; recording a list is the one
-  that supports *"go back to what it was doing on Tuesday"*, and nobody has asked for that.

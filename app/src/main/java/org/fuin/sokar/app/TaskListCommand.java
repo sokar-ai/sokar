@@ -71,6 +71,14 @@ public class TaskListCommand implements Callable<Integer>, SokarFactory.ContextA
                     age.isEmpty() ? "-" : age,
                     task.helpers());
         }
+        // Said once, under the table, rather than squeezed into a column: which tasks the machine took down.
+        final List<String> restarted = tasks.stream()
+                .filter(task -> TaskInventory.RESTARTED.equals(task.startDetail())).map(TaskInventory.Task::name).toList();
+        if (!restarted.isEmpty()) {
+            out.println();
+            out.println("down because the machine restarted, and 'sokar task start' brings each back whole: "
+                    + String.join(", ", restarted));
+        }
         out.flush();
         return 0;
     }
