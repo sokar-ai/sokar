@@ -29,6 +29,8 @@ Matrix), and so is starting the homeserver, which ships with the transport's pac
   colon only.
 - `poll --into <inbound>` writes `<event id>.json` and `.json.sig`; a message without a signature gets no
   `.sig` and is held; a person's plain chat is not delivered, and is counted on stderr.
+- `read <reference>` (added 2026-09-29, QM9), run with the reading task's own token, posts the read
+  receipt for that event.
 - `receipt <reference> --by <account>` prints `{"state":"read"|"delivered"|"unknown", "at": …}`, exit 0 for
   all three.
 - Exit codes: 0 done, 75 temporary, 64 usage, 65 not carriable, 76 answer not understood, 77 refused by the
@@ -158,11 +160,19 @@ peers:
   token; the `{"reference": ...}` it prints is kept as `sent/<message>.receipt.json`.
 - Polling runs `poll --into <inbound>` once per homeserver, not once per task, with the token of the
   homeserver's **relay account**: an ordinary account the provisioning account makes after itself, joined
-  to every project room it makes and to nothing else. One poll sees every room its account is in
-  (measured by Agent Matrix: two project rooms, both delivered, nothing twice). The relay is not the
+  to every project room it makes and to nothing else. One poll sees every room its account is in,
+  and the relay cannot join the admin room (measured by Agent Matrix with the relay: two project rooms,
+  both delivered with their `.sig`, nothing skipped while the admin room had traffic; joining `#admins`
+  answered 403). The relay is not the
   administrator on purpose: the transport then never holds the administrator's token, and the admin room's
   own traffic - the reply to every `!admin` command - never reaches a poll. What arrives is sorted into the
   tasks' mailboxes by `metadata.to` and the signature, as point 1 says.
+- **A task has read a message when its agent takes it** - moves it out of its inbox's `new/` into `cur/`,
+  the moment Sokar already counts as taken (operator, 2026-09-29). Sokar then runs the transport's
+  `read <event id>` with that task's own token, which posts the Matrix read receipt for it; the event id is
+  the name `poll` gave the file. The person's client shows it read, and `describe` keeps
+  `confirms: "read"` truthfully. A `read` that fails is retried on 75 like a send, and never stops the
+  task from having the message.
 - `receipt <reference> --by <task's account>` is asked for what a task sent, and `read` / `delivered` /
   `unknown` becomes the message's read state; `unknown` is not an error.
 - Exit codes as agreed: 75 is retried later; 77 and 78 are said once, as a misconfiguration of that
@@ -249,7 +259,7 @@ error OfflineHomeserver(project: string, homeserver: string)
 - Starting a task makes `@<task>:localhost`, in the project's room and no other; removing it deactivates
   the account, after which its token is refused.
 - A task sends; the reference is kept; once the person's client has read it, the message's read state is
-  `read`.
+  `read`. A person sends to a task; once the task's agent takes it, the person's client shows it read.
 - An `offline` project naming a non-loopback homeserver is refused before anything exists; with none,
   it messages through the account's own.
 - `sokar messages join` prints a login that works in a Matrix client, into that project's room only; a
@@ -262,9 +272,6 @@ error OfflineHomeserver(project: string, homeserver: string)
 
 ## Still open
 
-- **The relay account and the admin room's traffic**, measured: that polling with the relay sees every
-  project room and nothing of `#admins:<server>`. Agent Matrix measured the poll with the administrator's
-  token (the admin room's messages named on stderr as skipped); the relay is the change from that.
 
 - **A central homeserver, measured.** Everything above for one is specified, none of it is measured: the
   admin room's `deactivate` on a central Tuwunel, and a provisioning account per machine there.
