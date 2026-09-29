@@ -152,6 +152,9 @@ class RequirementCitationTest {
             return tree.filter(path -> BUILT.stream().anyMatch(path.toString()::endsWith))
                     .filter(path -> !path.toString().contains("/target/"))
                     .filter(path -> !path.toString().contains("/issues/"))
+                    // An IDE's own state and git's are neither shipped nor run, and the IDE writes into
+                    // them whatever file happens to be open - which made this fail on a workstation.
+                    .filter(path -> !path.toString().contains("/.idea/") && !path.toString().contains("/.git/"))
                     .filter(Files::isRegularFile).toList();
         }
     }

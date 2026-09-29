@@ -61,3 +61,16 @@ Matrix), and so is starting the homeserver, which ships with the transport's pac
 1. The answer to point 6.
 2. The answer to point 7.
 3. Whether the provisioning account's password or the administrator's rights delete a task's account.
+4. **A project on several machines, with one central homeserver** (Agent Matrix, QM7, 2026-09-29). The
+   proposal: the homeserver's URL is the project's, declared in `project.yml`, absent meaning the local one
+   on loopback; each machine holds its own registration token for the central server in its vault, so one
+   machine can be revoked alone; and the egress for a project's messages comes from that declared URL, so
+   `describe.hosts` stays `[]` - which changes what was agreed with the transport.
+5. **Whose the local homeserver is:** one per machine, or one per account that runs Sokar (Agent Frontend,
+   2026-09-29). With a user unit, two work users on one machine are two homeservers on two ports.
+6. **How a person joins the project's room:** an account made for them, an invitation, or a registration
+   token they use with a client of their own (Agent Frontend, 2026-09-29).
+7. **Which transports are polled.** Today every transport whose `describe` says `"poll": true` is polled by
+   every account's daemon, so a transport installed machine-wide is polled by accounts that have no
+   homeserver and no token for it, and answers 78 on every cycle (Agent Matrix, QM8, 2026-09-29). The
+   leaning: poll only a transport whose scheme a peer of one of the account's projects names.

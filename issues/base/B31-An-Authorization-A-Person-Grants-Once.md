@@ -1,6 +1,7 @@
 # B31 — An Authorization A Person Grants Once
 
-**Status:** open, and the only kind with a human in it. Driven by remote MCP servers, where the
+**Status:** the device code flow is built (2026-09-29); the redirect flow, and carrying an MCP session
+through the broker, are not. The only kind with a human in it. Driven by remote MCP servers, where the
 agent is expected to inherit a person's permissions rather than a service account's. Depends on
 [B28](B28-More-Than-One-Credential-In-A-Task.md) and, for everything after the first consent, on
 [B30](B30-Credentials-The-Broker-Has-To-Fetch.md). Compared with the other kinds in
@@ -118,6 +119,66 @@ be slow rather than a reason not to build it.
 lives in the container and dies with it, re-registering per task — which servers rate-limit. Held
 host-side it is one more stored record, which is what [B28](B28-More-Than-One-Credential-In-A-Task.md)
 is making the vault able to hold anyway.
+
+## Decided 2026-09-29, by the operator
+
+- **The device code flow first.** Sokar shows a URL and a short code; the person uses any browser
+  anywhere, and the broker polls until it is granted. It is the one flow that works when nobody is near
+  the machine. The redirect flow - authorization code with PKCE, its redirect coming back through the ssh
+  tunnel the interface already holds - comes second, for a service that offers no device code.
+- **A grant is the account's**, held in that account's vault and used by that account's tasks, like
+  every other credential. Two people on one machine each grant their own, and the record says which
+  person a task acted as.
+- **The daemon raises the event.** It streams "authorization needed" with the link and the code, and
+  then "granted", "refused" or "expired" on the same stream, so no client polls a consent flow and no
+  question gets two grants.
+- **A task ending does not revoke the grant.** `sokar vault remove` revokes it at the service (RFC 7009)
+  and deletes it. A grant the service revoked or let expire is reported as needing authorization again.
+
+## The shape, against what B28 and B30 built
+
+- **The credential** is a vault entry of kind `oauth-device`: the client id and, where the service issues
+  one, the client secret; as settings the device authorization URL, the token URL and the scopes (B28).
+- **Granting:** `sokar vault authorize <name>`, and the daemon's `Authorize(name)` as a stream, runs the
+  device flow on the host. The refresh token that comes back is stored in the account's vault, hidden
+  like a task's tokens, with who granted it and when. It never reaches a task.
+- **Using:** the broker buys each access token with the refresh token, host-side, as B30 buys one with a
+  client secret: per task, in memory, once however many requests wait. A refresh token the service
+  rotates is written back to the vault.
+- **A task started without a grant:** an unattended run is refused before anything exists, and an
+  attended one is told, with the link, as a question rather than as an authentication failure.
+
+## As built, 2026-09-29
+
+- **The credential** is a vault entry of kind `oauth-device`: its value is the client secret, or `-` for a
+  public client; its settings are `client_id`, `device_authorization_url`, `token_url` (both https) and
+  `scopes`.
+- **`sokar vault authorize <name>`** runs the device flow (`DeviceGrant`, RFC 8628): it shows the link -
+  the complete one where the service gives it - and the code, waits as the service asks, slowing down
+  when told to, and keeps the refresh token in the account's vault as `grant/<name>`, hidden from every
+  listing and choice of credential, with `granted_by` and `granted_at` beside it. A grant without a
+  refresh token is refused at setup: it would end within the hour.
+- **The daemon's `Authorize(name)`** is the same flow as a stream: "needed" with the link and the code,
+  then "granted", "refused", "expired" or "failed". Called without streaming it is refused.
+- **The broker spends the grant** with the `refresh_token` grant, per task and in memory, as B30 buys
+  with a client secret, and writes a rotated refresh token back to the vault. A grant the service revoked
+  or let expire answers that it needs authorizing again, not that a key is wrong. A credential nobody has
+  granted answers with the command that grants it.
+- **A start without a grant** refuses an unattended or agent run before anything exists; a shell task
+  warns and starts. The check does not spend the grant, which could rotate it under the broker.
+- **Proven:** `DeviceGrantTest` against a fake service (the link and code, pending, slow down, granted,
+  refused, expired, time running out), `TokenPurchaseTest` for the refresh and its rotation, the daemon
+  test for the stream's refusals, and on the VM: an unattended run without a grant is refused and nothing
+  exists afterwards, an unreachable service is named, and no grant appears in `vault list`. A real grant
+  has not run on a VM: no device authorization service is reachable from it.
+
+## Still open
+
+- **The redirect flow**, for a service that offers no device code: authorization code with PKCE, its
+  redirect coming back through the ssh tunnel the interface already holds.
+- **Revoking at the service** (RFC 7009) when the grant's entry is removed. `vault remove` removes the
+  entry; it does not yet tell the service.
+- **Whether the broker can carry an MCP session**, a long-lived stream, is unmeasured.
 
 ## To be checked
 

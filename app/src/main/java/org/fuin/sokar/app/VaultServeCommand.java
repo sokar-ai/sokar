@@ -138,6 +138,7 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             return 2;
         }
         final Map<String, org.fuin.sokar.supervisor.TokenPurchase> purchases = new java.util.LinkedHashMap<>();
+        final java.util.Set<String> ungranted = new java.util.LinkedHashSet<>();
         try {
             final Map<String, org.fuin.sokar.vault.VaultEntry> entries = context.credentials();
             entries.forEach((key, entry) -> credentials.put(key, entry.value()));
@@ -146,6 +147,23 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             for (final String name : java.util.stream.Stream.concat(java.util.stream.Stream.of(credential),
                     routes.keySet().stream()).toList()) {
                 final org.fuin.sokar.vault.VaultEntry entry = entries.get(name);
+                if (entry != null && org.fuin.sokar.supervisor.DeviceGrant.KIND.equals(entry.type())) {
+                    // A grant a person gave once: spent with its refresh token, kept hidden beside it.
+                    final org.fuin.sokar.supervisor.TokenPurchase granted;
+                    try {
+                        granted = granted(name, entry, err);
+                    } catch (IllegalArgumentException ex) {
+                        err.println("sokar: credential '" + name + "': " + ex.getMessage());
+                        err.flush();
+                        return 2;
+                    }
+                    if (granted != null) {
+                        purchases.put(name, granted);
+                    } else {
+                        ungranted.add(name);
+                    }
+                    continue;
+                }
                 if (entry != null && org.fuin.sokar.supervisor.TokenPurchase.KIND.equals(entry.type())) {
                     try {
                         purchases.put(name, new org.fuin.sokar.supervisor.TokenPurchase(
@@ -183,7 +201,7 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             out.flush();
         };
         try (VaultProxy proxy = new VaultProxy(socket, upstream,
-                exchange(broker, token, credentials, purchases), authHeader, authPrefix, authQuery, routes,
+                exchange(broker, token, credentials, purchases, ungranted), authHeader, authPrefix, authQuery, routes,
                 requests)) {
 
             // The routes' tokens before the agent's own: the agent's is what a caller waits for.
@@ -225,13 +243,19 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
      * the vault.
      */
     private static TokenExchange exchange(TokenBroker broker, PhantomToken token,
-            Map<String, String> credentials, Map<String, org.fuin.sokar.supervisor.TokenPurchase> purchases) {
+            Map<String, String> credentials, Map<String, org.fuin.sokar.supervisor.TokenPurchase> purchases,
+            java.util.Set<String> ungranted) {
 
         // The grant names the credential its token was scoped to, which is what picks the route. A credential
         // that has to be bought is attached as the token bought with it, never as the secret it was bought with.
         return presented -> broker.exchange(presented, Instant.now())
                 .<TokenExchange.Result>map(real -> {
                     final String scope = broker.issued(presented).map(PhantomToken::scope).orElse(null);
+                    if (scope != null && ungranted.contains(scope)) {
+                        // Said as a question, with what answers it, never as a wrong key.
+                        return new TokenExchange.Unavailable("nobody has granted '" + scope + "' yet; a person"
+                                + " authorizes it once with 'sokar vault authorize " + scope + "'");
+                    }
                     final org.fuin.sokar.supervisor.TokenPurchase purchase = scope == null ? null : purchases.get(scope);
                     if (purchase == null) {
                         return new TokenExchange.Granted(real, scope);
@@ -257,6 +281,46 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
                                     new TokenExchange.Expired(issued.expiresAt()))
                             .orElseGet(TokenExchange.Rejected::new);
                 });
+    }
+
+    /**
+     * Returns the purchase for a grant a person gave, or {@code null} when nobody has granted it.
+     *
+     * @param name The credential.
+     * @param entry Its entry: the client and its endpoints.
+     * @param err Where a problem is said.
+     * @return The purchase, or {@code null}.
+     */
+    private org.fuin.sokar.supervisor.@Nullable TokenPurchase granted(String name, org.fuin.sokar.vault.VaultEntry entry,
+            PrintWriter err) {
+        final java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> opener = context.opener();
+        if (opener.isEmpty()) {
+            return null;
+        }
+        final org.fuin.sokar.vault.VaultEntry grant = context.vault().read(opener.get())
+                .get(TaskSecrets.GRANT_PREFIX + name);
+        if (grant == null) {
+            return null;
+        }
+        final org.fuin.sokar.supervisor.DeviceGrant.Client client =
+                org.fuin.sokar.supervisor.DeviceGrant.Client.of(entry.value(), entry.settings());
+        return new org.fuin.sokar.supervisor.TokenPurchase(new org.fuin.sokar.supervisor.TokenPurchase.Refresh(
+                client.tokenUrl(), client.clientId(), client.clientSecret(), grant.value(), rotated -> {
+                    // The service replaced it: the vault keeps the one in force, with who granted it and when.
+                    try {
+                        context.vault().update(opener.get(), all -> {
+                            all.put(TaskSecrets.GRANT_PREFIX + name,
+                                    new org.fuin.sokar.vault.VaultEntry(rotated, grant.type(), grant.settings()));
+                            return all;
+                        });
+                    } catch (VaultException ex) {
+                        err.println("sokar: the grant for " + name + " was renewed and could not be kept: "
+                                + ex.getMessage());
+                        err.flush();
+                    }
+                }), java.net.http.HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30))
+                        .followRedirects(java.net.http.HttpClient.Redirect.NEVER).build(),
+                java.time.Clock.systemUTC());
     }
 
     private Path routeTokenFile(String name) {

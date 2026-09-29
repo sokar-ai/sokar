@@ -547,6 +547,30 @@ public final class TaskLaunch {
             }
             this.extras = java.util.Map.copyOf(extras);
 
+            // A credential that has to be bought is tried once before anything exists: an authorization
+            // server that refuses or cannot be reached makes it as missing as a key the vault lacks.
+            final java.util.Set<String> held = new java.util.LinkedHashSet<>(extras.keySet());
+            final org.fuin.sokar.agent.api.InstalledAgent agentHere = select(agents);
+            if (agentHere != null) {
+                held.add(credentials().credentialName(agentHere));
+            }
+            for (final String name : held) {
+                final String refused = purchaseRefused(name);
+                if (refused == null) {
+                    continue;
+                }
+                if (refusesWithoutCredential(request.mode())) {
+                    err.println("sokar: credential '" + name + "': " + refused);
+                    err.println("sokar: nothing was created; a task that cannot buy its token would fail on its first"
+                            + " request");
+                    err.flush();
+                    return 69;
+                }
+                err.println("sokar: credential '" + name + "': " + refused + " - the task starts, and requests that"
+                        + " need it will fail until the authorization server sells a token");
+                err.flush();
+            }
+
             if (refusesWithoutCredential(request.mode())) {
                 final String unavailable = wiring().unavailableFor(select(agents));
                 if (unavailable != null) {
@@ -1217,6 +1241,39 @@ public final class TaskLaunch {
             credentials = new CredentialChoice(context, request.providerName(), request.credentialType(), request.agentName());
         }
         return credentials;
+    }
+
+    /**
+     * Tries to buy a token with a credential of the kind the broker buys with, once, before anything exists.
+     *
+     * @param name The credential's vault entry.
+     * @return Why it could not be bought, or {@code null} when it could or is not of that kind.
+     */
+    private @Nullable String purchaseRefused(String name) {
+        final org.fuin.sokar.vault.VaultEntry entry = context.readableCredentials()
+                .map(stored -> stored.get(name)).orElse(null);
+        if (entry != null && org.fuin.sokar.supervisor.DeviceGrant.KIND.equals(entry.type())) {
+            // Only whether a person has granted it: spending it here could rotate it under the broker.
+            final boolean granted = context.opener().map(opener -> context.vault().read(opener)
+                    .containsKey(TaskSecrets.GRANT_PREFIX + name)).orElse(false);
+            return granted ? null : "nobody has granted it yet; a person authorizes it once with 'sokar vault authorize "
+                    + name + "'";
+        }
+        if (entry == null || !org.fuin.sokar.supervisor.TokenPurchase.KIND.equals(entry.type())) {
+            return null;
+        }
+        try {
+            new org.fuin.sokar.supervisor.TokenPurchase(
+                    org.fuin.sokar.supervisor.TokenPurchase.Client.of(entry.value(), entry.settings()),
+                    java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(30))
+                            .followRedirects(java.net.http.HttpClient.Redirect.NEVER).build(),
+                    java.time.Clock.systemUTC()).current();
+            return null;
+        } catch (IllegalArgumentException ex) {
+            return ex.getMessage();
+        } catch (org.fuin.sokar.supervisor.TokenPurchase.Refused ex) {
+            return ex.getMessage();
+        }
     }
 
     /** The project's other credentials, resolved when the task is launched; empty until then. */

@@ -197,6 +197,96 @@ public record Destination(String name, String label, String upstream, String aut
     }
 
     /**
+     * A declared destination and where it was found.
+     *
+     * @param destination The destination.
+     * @param file The file that declares it.
+     * @param packaged Whether a package installed it, which a person cannot edit or remove here - a file of
+     *        their own under the same name takes its place instead.
+     */
+    public record Declared(Destination destination, Path file, boolean packaged) {
+    }
+
+    /**
+     * Lists every declaration for one user, the one in force for each name first and any it shadows after.
+     *
+     * @param dataHome The user's data directory.
+     * @return The declarations; unreadable files are left out.
+     */
+    public static List<Declared> declared(Path dataHome) {
+        final List<Declared> found = new ArrayList<>();
+        for (final Path location : List.of(dataHome.resolve("destinations"), PACKAGED)) {
+            for (final Path file : files(location)) {
+                try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                    found.add(new Declared(read(reader, file.toString()), file, location.equals(PACKAGED)));
+                } catch (IOException | IllegalArgumentException ex) {
+                    // One unreadable declaration hides itself, never the others.
+                }
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Returns the declaration as a destination file holds it.
+     *
+     * @return YAML.
+     */
+    public String yaml() {
+        final StringBuilder out = new StringBuilder();
+        out.append("name: ").append(name).append('\n');
+        out.append("label: ").append(quoted(label)).append('\n');
+        out.append("upstream: ").append(upstream).append('\n');
+        out.append("auth_header: ").append(quoted(authHeader)).append('\n');
+        out.append("auth_prefix: ").append(quoted(authPrefix)).append('\n');
+        if (authQuery != null) {
+            out.append("auth_query: ").append(quoted(authQuery)).append('\n');
+        }
+        return out.toString();
+    }
+
+    private static String quoted(String text) {
+        return "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    /**
+     * Writes a destination into the user's own directory, where it takes the place of a packaged one of the
+     * same name.
+     *
+     * @param dataHome The user's data directory.
+     * @param destination What to write.
+     * @return The file written.
+     * @throws IOException If it cannot be written.
+     */
+    public static Path write(Path dataHome, Destination destination) throws IOException {
+        final Path directory = Files.createDirectories(dataHome.resolve("destinations"));
+        final Path file = directory.resolve(destination.name() + ".yaml");
+        final Path staged = directory.resolve("." + destination.name() + ".yaml.tmp");
+        Files.writeString(staged, destination.yaml(), StandardCharsets.UTF_8);
+        Files.move(staged, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        return file;
+    }
+
+    /**
+     * Removes the user's own declaration of a destination.
+     *
+     * @param dataHome The user's data directory.
+     * @param name The destination.
+     * @return The file removed, or {@code null} when the user declares none by that name.
+     * @throws IOException If it cannot be removed.
+     */
+    public static @Nullable Path remove(Path dataHome, String name) throws IOException {
+        for (final Declared declared : declared(dataHome)) {
+            if (!declared.packaged() && declared.destination().name().equals(name)) {
+                Files.delete(declared.file());
+                return declared.file();
+            }
+        }
+        return null;
+    }
+
+    /**
      * Reads a declaration from text, for tests and for a declaration handed over whole.
      *
      * @param yaml The YAML.

@@ -128,16 +128,48 @@ class CheckActionsTest {
     void refusesDependabotThatDoesNotWatchTheLocalActions() throws IOException {
         workflow("      - uses: ./.github/actions/pinned-jdk\n");
         Files.createDirectories(directory.resolve("actions/pinned-jdk"));
-        Files.writeString(directory.resolve("dependabot.yml"), "updates:\n  - package-ecosystem: github-actions\n");
+        Files.writeString(directory.resolve("dependabot.yml"), "updates:\n  - package-ecosystem: github-actions\n"
+                + "    cooldown:\n      default-days: 3\n    groups:\n      a:\n        patterns: [\"*\"]\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
         assertThat(stderr()).contains("does not watch /.github/actions/*");
     }
 
+    @Test
+    void refusesADependabotThatTakesAReleaseTheDayItAppearsOrMovesEachActionAlone() throws IOException {
+        // Measured by Agent Frontend against the published check: both passed.
+        workflow("      - uses: ./.github/actions/pinned-jdk\n");
+        Files.writeString(directory.resolve("dependabot.yml"),
+                "updates:\n  - package-ecosystem: github-actions\n    cooldown:\n      default-days: 0\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("default-days: 3").contains("no 'groups:'");
+    }
+
+    @Test
+    void refusesAMavenWrapperWithoutItsDigest() throws IOException {
+        final Path repository = directory.resolve("repo");
+        final Path github = Files.createDirectories(repository.resolve(".github/workflows"));
+        Files.writeString(github.resolve("ci.yml"), "      - uses: ./.github/actions/x\n");
+        Files.writeString(repository.resolve(".github/dependabot.yml"), "updates:\n  - package-ecosystem: github-actions\n"
+                + "    cooldown:\n      default-days: 3\n    groups:\n      a:\n        patterns: [\"*\"]\n");
+        Files.createDirectories(repository.resolve(".mvn/wrapper"));
+        Files.writeString(repository.resolve(".mvn/wrapper/maven-wrapper.properties"), "distributionUrl=https://x/maven.zip\n");
+
+        assertThat(check(repository.resolve(".github"))).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("no distributionSha256Sum");
+
+        Files.writeString(repository.resolve(".mvn/wrapper/maven-wrapper.properties"),
+                "distributionUrl=https://x/maven.zip\ndistributionSha256Sum=" + "a".repeat(64) + "\n");
+        err.reset();
+        assertThat(check(repository.resolve(".github"))).as(stderr()).isEqualTo(0);
+    }
+
     private void workflow(String text) throws IOException {
         if (!Files.exists(directory.resolve("dependabot.yml"))) {
             Files.writeString(directory.resolve("dependabot.yml"),
-                    "updates:\n  - package-ecosystem: github-actions\n    directories: [\"/\", \"/.github/actions/*\"]\n");
+                    "updates:\n  - package-ecosystem: github-actions\n    directories: [\"/\", \"/.github/actions/*\"]\n"
+                            + "    cooldown:\n      default-days: 3\n    groups:\n      actions:\n        patterns: [\"*\"]\n");
         }
         Files.createDirectories(directory.resolve("workflows"));
         Files.writeString(directory.resolve("workflows/ci.yml"), text);

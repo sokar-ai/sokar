@@ -30,6 +30,15 @@ What was different in the failing run, measured afterwards from the unit's journ
 **A call on the daemon's socket is answered, or refused, within a bound - whatever the daemon's own
 background work is doing.**
 
+## Seen in the acceptance suite, 2026-09-29
+
+`task-unattended.feature`'s scenario "the daemon says what an agent was refused, and runs one with a
+prompt" asks a daemon of its own for `Agents`, then `Start`, each bounded at 600 seconds. Twice that day
+neither was answered: on the fedora VM against build 201, and on the ubuntu VM against build 208. Both
+machines had the stub and agents installed machine-wide. The same scenario passed on the ubuntu VM against
+builds 205, 207 and 208 (a rerun), so it is intermittent. On the fedora VM, the daemon had started a
+second `sokar-agent-stub serve` on the socket the first one held. Not yet reproduced on demand.
+
 ## To be checked
 
 - A thread dump of a daemon in that state: the native image needs `--enable-monitoring=threaddump`

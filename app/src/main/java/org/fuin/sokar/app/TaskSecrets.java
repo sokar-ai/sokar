@@ -32,6 +32,12 @@ public final class TaskSecrets {
     /** Where a task's own entries are, in the vault's name space. */
     public static final String PREFIX = "task/";
 
+    /**
+     * Where an account's grants are - the refresh token a person granted once for a service - hidden like a
+     * task's entries: they are not something a person put there, and no task may be pointed at one.
+     */
+    public static final String GRANT_PREFIX = "grant/";
+
     /** The gate token's entry, after the task's container name. */
     static final String GATE = "/gate-token";
 
@@ -78,10 +84,10 @@ public final class TaskSecrets {
      * Whether a vault entry's name is a task's own rather than a credential.
      *
      * @param name The entry's name.
-     * @return true for {@link #PREFIX} names
+     * @return true for {@link #PREFIX} and {@link #GRANT_PREFIX} names
      */
     public static boolean reserved(String name) {
-        return name.startsWith(PREFIX);
+        return name.startsWith(PREFIX) || name.startsWith(GRANT_PREFIX);
     }
 
     /**

@@ -136,6 +136,23 @@ final class CheckActions {
         if (localActions && !text.contains("/.github/actions/*")) {
             faults.add("dependabot.yml: does not watch /.github/actions/*, so the local actions' pins never move");
         }
+        // A release younger than three days is not taken, as with every other pin.
+        final java.util.regex.Matcher cooldown = java.util.regex.Pattern.compile("default-days:\\s*(\\d+)").matcher(text);
+        if (!cooldown.find() || Integer.parseInt(cooldown.group(1)) < 3) {
+            faults.add("dependabot.yml: no 'cooldown: default-days: 3' or more, so a release is taken the day it appears");
+        }
+        // One pull request per update is one CI run per update.
+        if (!java.util.regex.Pattern.compile("(?m)^\\s*groups:").matcher(text).find()) {
+            faults.add("dependabot.yml: no 'groups:', so every moved action is a pull request and a CI run of its own");
+        }
+        // The Maven a build downloads is checked against its digest like everything else it runs.
+        final Path wrapper = directory.toAbsolutePath().getParent() == null ? null
+                : directory.toAbsolutePath().getParent().resolve(".mvn/wrapper/maven-wrapper.properties");
+        if (wrapper != null && Files.isRegularFile(wrapper)
+                && !Files.readString(wrapper, StandardCharsets.UTF_8).contains("distributionSha256Sum=")) {
+            faults.add(".mvn/wrapper/maven-wrapper.properties: no distributionSha256Sum, so the Maven mvnw downloads"
+                    + " is not checked against its digest");
+        }
         return faults;
     }
 

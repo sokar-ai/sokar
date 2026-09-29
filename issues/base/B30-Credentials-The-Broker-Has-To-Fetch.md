@@ -1,6 +1,7 @@
 # B30 — Credentials The Broker Has To Fetch
 
-**Status:** open. This is the kind where the stored secret is not the credential: it buys one. It is
+**Status:** built for `client_credentials` 2026-09-29; `private_key_jwt` and mTLS wait for a service that
+needs them. This is the kind where the stored secret is not the credential: it buys one. It is
 also the machinery [B01](B01-Refreshable-Task-Tokens.md) already chose and could not build for want
 of a provider that expires — this kind is that provider. Depends on
 [B28](B28-More-Than-One-Credential-In-A-Task.md). Compared with the other kinds in
@@ -102,6 +103,42 @@ the purchase is ever inside the container.**
 - The token endpoint is not reachable from the container, and the API host is.
 - A credential authenticated by a key rather than a secret works without the key leaving the vault,
   the way commit signing already does.
+
+## Decided 2026-09-29, by the operator
+
+- **The derived token is bought per task and kept in memory**, never written to disk and never shared
+  between tasks. A live token resting outside the vault, and every task depending on one cache, cost
+  more than an exchange per task per hour.
+- **A purchase that fails at start is a missing key.** The launch tries it once before anything exists:
+  unattended and agent runs are refused, and a shell task warns and starts.
+- **`client_credentials` first.** `private_key_jwt` and mTLS come as their own step when a service needs
+  them; the question of whether they are one mechanism waits for that.
+- **Replacing a stored key at its provider is refused here**, stated rather than left as an omission. For
+  a bought credential, every exchange already rotates the token it attaches. Issuing and revoking a
+  stored key through each provider's own API is per-provider code in Sokar, which the agent and provider
+  split exists to avoid.
+
+## As built, 2026-09-29
+
+- **The credential** is a vault entry of kind `client-credentials`: its secret is the client secret, its
+  settings are `token_url` (https), `client_id`, `scopes` and optionally `audience`, stored with
+  `sokar vault put <name> --type client-credentials --setting ...` (B28).
+- **The purchase** (`TokenPurchase`) posts the grant from the host, keeps the access token in memory until
+  a minute before it lapses, and buys again. It is synchronized, which is the single flight: waiting
+  requests find the token the first one bought. `vault serve` attaches the bought token for such a
+  credential and never the secret.
+- **Failures are said as themselves:** "the authorization server at <host> refused these client
+  credentials (401, invalid_client)", or "could not be reached". Neither echoes what the server sent
+  back, which may carry the secret. Both answer the container as 503, distinct from an expired task token
+  and from a rejected key.
+- **A grant asked for from inside the container** is refused before it is forwarded: "the broker holds
+  this credential and buys or renews its tokens itself".
+- **The token endpoint** is reached by the broker alone; nothing adds it to what the task can reach.
+- **Proven:** `TokenPurchaseTest` against a fake authorization server - the purchase, twenty concurrent
+  requests making one exchange, the purchase again before expiry, a refusal that does not echo the
+  secret, an unreachable server. On the VM, `credential-several.feature`: an unattended run whose token
+  cannot be bought is refused, and no container exists afterwards. A successful purchase has not run on a
+  VM, because no authorization server is reachable from it with a certificate the broker trusts.
 
 ## To be checked
 

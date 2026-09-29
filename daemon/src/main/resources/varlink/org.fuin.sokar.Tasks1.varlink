@@ -393,7 +393,31 @@ type Credential (
   # What kind of credential it is, or "" when nothing recorded it.
   type: string,
   # Length of the stored value, so an interface can show that something is there.
-  characters: int
+  characters: int,
+  # What goes with the secret and is not secret - a client id, a token URL, scopes - by name.
+  # Configuration, shown whole; never a secret.
+  settings: [string]string
+)
+
+# A service a credential is for that is not a model provider: where it is, and where its key goes.
+type Destination (
+  name: string,
+  label: string,
+  # Where requests go, https.
+  upstream: string,
+  # The header the key goes in, and the text before it.
+  authHeader: string,
+  authPrefix: string,
+  # The URL parameter the key goes in instead of the header, or "" for the header.
+  authQuery: string,
+  # The file that declares it.
+  file: string,
+  # Whether a package installed it. A packaged one cannot be changed or removed here; writing one of
+  # the same name puts the user's own in its place.
+  packaged: bool,
+  # Whether it is the one in force for its name. A packaged one the user's own takes the place of is
+  # listed too, with this false.
+  inForce: bool
 )
 
 # A push waiting at the gate for a decision.
@@ -2548,6 +2572,48 @@ method Moderate(
   # The new mode, or absent to leave it as it is.
   mode: ?string
 ) -> (name: string, mode: string, held: bool)
+
+
+# Grants an authorization once, for this account's later tasks: the device code flow. Streaming only.
+#
+# The first reply is state "needed", with the link to open and the code to type if the link does not carry it;
+# the person decides in any browser anywhere. The last is "granted", "refused", "expired" or "failed" (with a
+# detail). The grant is kept in the account's vault, hidden, with who granted it and when; no task holds it.
+method Authorize(
+  # The vault entry of kind oauth-device that names the service.
+  name: string
+) -> (state: string, link: string, code: string, expiresIn: int, detail: string)
+
+# Every destination declared on this machine, the one in force for each name first.
+method Destinations() -> (destinations: []Destination)
+
+# One destination, as it is in force.
+method Destination(name: string) -> (destination: Destination)
+
+# Declares a destination in the user's own directory, taking the place of a packaged one of the same name.
+#
+# With dryRun, nothing is written and the answer says what would be: the destination as it would be read
+# back, or the refusal - a name that is not one, an upstream that is not https, no header.
+method WriteDestination(
+  name: string,
+  label: ?string,
+  upstream: string,
+  # Default: "Authorization".
+  authHeader: ?string,
+  authPrefix: ?string,
+  authQuery: ?string,
+  dryRun: ?bool
+) -> (destination: Destination, written: bool)
+
+# Removes the user's own declaration of a destination. A packaged one cannot be removed; if one of the same
+# name exists, it is in force again afterwards.
+method RemoveDestination(name: string) -> (removed: bool, file: string)
+
+# The name is not a destination declared on this machine.
+error NoSuchDestination(name: string)
+
+# The destination as given is not one Sokar can use; the message says why.
+error DestinationRefused(message: string)
 
 # ---------------------------------------------------------------------------- errors
 

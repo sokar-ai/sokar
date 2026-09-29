@@ -93,7 +93,24 @@ public final class TokenPurchase {
         }
     }
 
+    /**
+     * A grant a person gave once: spent with its refresh token, which the service may replace on every use.
+     *
+     * @param tokenUrl Where to buy, https.
+     * @param clientId The client's id.
+     * @param clientSecret The client's secret, or {@code null} for a public client.
+     * @param refreshToken The refresh token in force now.
+     * @param rotated Told a replacement when the service issues one, so the vault keeps the one in force.
+     */
+    public record Refresh(String tokenUrl, String clientId, @Nullable String clientSecret, String refreshToken,
+            java.util.function.Consumer<String> rotated) {
+    }
+
     private final Client client;
+
+    private final @Nullable Refresh refresh;
+
+    private @Nullable String refreshToken;
 
     private final HttpClient http;
 
@@ -114,6 +131,23 @@ public final class TokenPurchase {
      */
     public TokenPurchase(Client client, HttpClient http, Clock clock) {
         this.client = client;
+        this.refresh = null;
+        this.http = http;
+        this.clock = clock;
+    }
+
+    /**
+     * Constructor for a grant a person gave once, spent with its refresh token.
+     *
+     * @param refresh The grant.
+     * @param http How the authorization server is reached.
+     * @param clock What time it is.
+     */
+    public TokenPurchase(Refresh refresh, HttpClient http, Clock clock) {
+        this.client = new Client(refresh.tokenUrl(), refresh.clientId(),
+                refresh.clientSecret() == null ? "" : refresh.clientSecret(), "", null);
+        this.refresh = refresh;
+        this.refreshToken = refresh.refreshToken();
         this.http = http;
         this.clock = clock;
     }
@@ -132,14 +166,23 @@ public final class TokenPurchase {
             return token;
         }
         final Map<String, String> form = new LinkedHashMap<>();
-        form.put("grant_type", "client_credentials");
-        form.put("client_id", client.clientId());
-        form.put("client_secret", client.clientSecret());
-        if (!client.scopes().isBlank()) {
-            form.put("scope", client.scopes());
-        }
-        if (client.audience() != null) {
-            form.put("audience", client.audience());
+        if (refresh != null) {
+            form.put("grant_type", "refresh_token");
+            form.put("refresh_token", java.util.Objects.requireNonNull(refreshToken));
+            form.put("client_id", client.clientId());
+            if (!client.clientSecret().isEmpty()) {
+                form.put("client_secret", client.clientSecret());
+            }
+        } else {
+            form.put("grant_type", "client_credentials");
+            form.put("client_id", client.clientId());
+            form.put("client_secret", client.clientSecret());
+            if (!client.scopes().isBlank()) {
+                form.put("scope", client.scopes());
+            }
+            if (client.audience() != null) {
+                form.put("audience", client.audience());
+            }
         }
         final String body = form.entrySet().stream()
                 .map(each -> URLEncoder.encode(each.getKey(), StandardCharsets.UTF_8) + "="
@@ -170,8 +213,13 @@ public final class TokenPurchase {
             // Its own error code, never its body whole: an error answer may echo what was sent.
             final String error = parsed instanceof Map<?, ?> document && document.get("error") != null
                     ? String.valueOf(document.get("error")) : "no error named";
-            throw new Refused("the authorization server at " + host() + " refused these client credentials ("
-                    + answer.statusCode() + ", " + error + ")");
+            if (refresh != null && "invalid_grant".equals(error)) {
+                // Revoked or expired at the service: the person has to grant it again, which is not a wrong key.
+                throw new Refused("the grant at " + host() + " is no longer valid (revoked or expired); it needs"
+                        + " authorizing again with 'sokar vault authorize'");
+            }
+            throw new Refused("the authorization server at " + host() + " refused these "
+                    + (refresh != null ? "grant" : "client credentials") + " (" + answer.statusCode() + ", " + error + ")");
         }
         if (!(parsed instanceof Map<?, ?> document) || !(document.get("access_token") instanceof String access)
                 || access.isBlank()) {
@@ -179,6 +227,12 @@ public final class TokenPurchase {
         }
         final Duration lasts = document.get("expires_in") instanceof Number seconds
                 ? Duration.ofSeconds(seconds.longValue()) : UNSTATED;
+        if (refresh != null && document.get("refresh_token") instanceof String next && !next.isBlank()
+                && !next.equals(refreshToken)) {
+            // Rotated: the old one is spent, and a vault still holding it would hold a dead grant.
+            refreshToken = next;
+            refresh.rotated().accept(next);
+        }
         token = access;
         good = clock.instant().plus(lasts.compareTo(MARGIN.multipliedBy(2)) > 0 ? lasts.minus(MARGIN) : lasts.dividedBy(2));
         bought++;

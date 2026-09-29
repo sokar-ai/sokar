@@ -163,4 +163,30 @@ class TokenPurchaseTest {
         assertThat(TokenPurchase.Client.of("s", Map.of("client_id", "x", "token_url", "https://a/token")).scopes())
                 .isEmpty();
     }
+
+    private TokenPurchase refreshing(List<String> rotations) {
+        return new TokenPurchase(new TokenPurchase.Refresh("http://127.0.0.1:" + server.getAddress().getPort() + "/token",
+                "sokar-client", null, "rt-1", rotations::add), HttpClient.newHttpClient(), Clock.systemUTC());
+    }
+
+    @Test
+    void spendsAGrantsRefreshTokenAndKeepsTheOneTheServiceRotatesIn() throws Exception {
+        answer.set("{\"access_token\":\"at-9\",\"refresh_token\":\"rt-2\",\"expires_in\":3600}");
+        final List<String> rotations = new CopyOnWriteArrayList<>();
+
+        assertThat(refreshing(rotations).current()).isEqualTo("at-9");
+        assertThat(bodies).singleElement().satisfies(body -> assertThat(body).contains("grant_type=refresh_token")
+                .contains("refresh_token=rt-1").doesNotContain("client_secret"));
+        assertThat(rotations).as("the vault is told the one now in force").containsExactly("rt-2");
+    }
+
+    @Test
+    void aRevokedGrantSaysItNeedsAuthorizingAgainRatherThanLookingLikeAWrongKey() {
+        status.set(400);
+        answer.set("{\"error\":\"invalid_grant\"}");
+
+        assertThatThrownBy(() -> refreshing(new CopyOnWriteArrayList<>()).current())
+                .isInstanceOf(TokenPurchase.Refused.class)
+                .hasMessageContaining("no longer valid").hasMessageContaining("sokar vault authorize");
+    }
 }

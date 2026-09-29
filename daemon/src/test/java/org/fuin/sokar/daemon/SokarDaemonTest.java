@@ -1048,6 +1048,56 @@ class SokarDaemonTest {
     }
 
     @Test
+    void authorizingIsAStreamAndNamesWhatItNeeds(@TempDir Path dir) throws Exception {
+
+        // A consent flow answered once would leave the interface polling for its end, and polling one is
+        // the shape that produces two grants for one question.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Authorize", Map.of("name", "search")))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("StreamRequired");
+                assertThatThrownBy(() -> client.callMore(SokarDaemon.INTERFACE + ".Authorize", Map.of("name", "search"),
+                        answer -> true))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("oauth-device");
+            }
+        });
+    }
+
+    @Test
+    void anInterfaceManagesDestinationsAsTheFilesAPersonWouldEdit(@TempDir Path dir) throws Exception {
+
+        // The operator's decision: the interface does all of it - list, read, write, remove.
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> search = Map.of("name", "brave-search",
+                        "upstream", "https://api.search.brave.com", "authHeader", "X-Subscription-Token");
+
+                final Map<String, Object> dry = client.call(SokarDaemon.INTERFACE + ".WriteDestination",
+                        new java.util.HashMap<>(Map.of("name", "brave-search", "upstream", "https://api.search.brave.com",
+                                "authHeader", "X-Subscription-Token", "dryRun", true)));
+                assertThat(dry).containsEntry("written", false);
+                assertThat(client.call(SokarDaemon.INTERFACE + ".Destinations", Map.of()).get("destinations"))
+                        .asList().as("a dry run writes nothing").isEmpty();
+
+                assertThat(client.call(SokarDaemon.INTERFACE + ".WriteDestination", search)).containsEntry("written", true);
+                final Map<String, Object> read = client.call(SokarDaemon.INTERFACE + ".Destination",
+                        Map.of("name", "brave-search"));
+                assertThat(String.valueOf(read)).contains("X-Subscription-Token").contains("inForce=true")
+                        .contains("packaged=false");
+
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".WriteDestination",
+                        Map.of("name", "plain", "upstream", "http://api.example.com")))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("DestinationRefused");
+
+                assertThat(client.call(SokarDaemon.INTERFACE + ".RemoveDestination", Map.of("name", "brave-search")))
+                        .containsEntry("removed", true);
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Destination", Map.of("name", "brave-search")))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("NoSuchDestination");
+            }
+        });
+    }
+
+    @Test
     void anUnlockedVaultHoldingNothingIsNotReportedAsLocked(@TempDir Path dir)
             throws Exception {
 

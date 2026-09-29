@@ -37,3 +37,74 @@ Feature: A task holds more than one credential
     Then its output contains "real key in the container: 0"
     And its output contains "a token for search is there"
     And a script runs "rm -f ${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations/acceptance-echo.yaml; sokar task remove {task} --force" about the task
+
+  Scenario: an unattended run whose credential's token cannot be bought is refused before anything is made
+    # A credential the broker buys a token with is tried once before the container exists: an authorization
+    # server that cannot be reached makes it as missing as a key the vault lacks.
+    Given the environment variable "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" is set
+    And a vault of this scenario's own, unlocked with the passphrase "acceptance"
+    And the vault holds the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" as "anthropic" of kind "api-key"
+    And a script runs:
+      """
+      # A made-up client secret: the runner's secrets reach the machine on standard input only, never as a
+      # variable a script could read.
+      printf '%s\n' 'acceptance-client-secret-not-a-real-one' | sokar vault put buyer --type client-credentials \
+          --setting token_url=https://sokar-acceptance.invalid/token --setting client_id=acceptance
+      mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations"
+      printf '%s\n' 'name: bought' 'upstream: https://postman-echo.com' \
+          > "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations/acceptance-bought.yaml"
+      """
+    And a project called "buying" of class "guarded" whose project file also says:
+      """
+      credentials:
+        buyer: bought
+      """
+    When a script runs:
+      """
+      sokar task start unbought --project buying --repository buying --agent stub --prompt 'say hello' --clearance deny
+      echo "exit $?"
+      podman ps -a --format '{{.Names}}' | grep -c 'sokar-buying-unbought' | sed 's/^/containers: /'
+      rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations/acceptance-bought.yaml"
+      """
+    Then its output contains "credential 'buyer': the authorization server at sokar-acceptance.invalid could not be reached"
+    And its output contains "nothing was created"
+    And its output contains "exit 69"
+    And its output contains "containers: 0"
+
+  Scenario: a credential a person grants once refuses an unattended run until somebody has granted it
+    # The device code flow: 'vault authorize' shows a link and a code and keeps the grant in this account's
+    # vault. Without one, an unattended run is refused before anything exists, as with a missing key.
+    Given the environment variable "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" is set
+    And a vault of this scenario's own, unlocked with the passphrase "acceptance"
+    And the vault holds the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" as "anthropic" of kind "api-key"
+    And a script runs:
+      """
+      # A public client: no secret, so its value is '-'.
+      printf '%s\n' '-' | sokar vault put forge-app --type oauth-device --setting client_id=acceptance \
+          --setting device_authorization_url=https://sokar-acceptance.invalid/device \
+          --setting token_url=https://sokar-acceptance.invalid/token --setting scopes=offline_access
+      mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations"
+      printf '%s\n' 'name: forge' 'upstream: https://postman-echo.com' \
+          > "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations/acceptance-forge.yaml"
+      """
+    And a project called "granting" of class "guarded" whose project file also says:
+      """
+      credentials:
+        forge-app: forge
+      """
+    When a script runs:
+      """
+      sokar task start ungranted --project granting --repository granting --agent stub --prompt 'say hello' --clearance deny
+      echo "exit $?"
+      podman ps -a --format '{{.Names}}' | grep -c 'sokar-granting-ungranted' | sed 's/^/containers: /'
+      sokar vault authorize forge-app; echo "authorize exit $?"
+      sokar vault list | grep -c 'grant/' | sed 's/^/grants listed: /'
+      rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations/acceptance-forge.yaml"
+      """
+    Then its output contains "credential 'forge-app': nobody has granted it yet"
+    And its output contains "sokar vault authorize forge-app"
+    And its output contains "exit 69"
+    And its output contains "containers: 0"
+    And its output contains "the service at sokar-acceptance.invalid could not be reached"
+    And its output contains "authorize exit 1"
+    And its output contains "grants listed: 0"

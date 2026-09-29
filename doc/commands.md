@@ -98,6 +98,7 @@ Credentials, and the broker that lets a task use one without ever holding it.
 | Command | What it does |
 |---|---|
 | `sokar vault init` | Creates an empty vault and sets its passphrase, asked twice. |
+| `sokar vault authorize NAME` | Grants an authorization once, in any browser: shows a link and a code, and keeps the grant in this account's vault for its later tasks. `NAME` is an entry of kind `oauth-device`. |
 | `sokar vault login AGENT` | Runs an agent's own login and stores the credential it produces. |
 | `sokar vault import AGENT` | Copies a credential the agent already holds on this host into the vault. |
 | `sokar vault put NAME` | Stores a credential, read from standard input, under the name of the provider it is for. |

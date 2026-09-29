@@ -689,6 +689,8 @@ public final class SokarDaemon {
                         row.put("type", entry.getValue().type() == null
                                 ? "" : entry.getValue().type());
                         row.put("characters", entry.getValue().value().length());
+                        // Configuration, never a secret: a client id, a token URL, scopes.
+                        row.put("settings", entry.getValue().settings());
                         return row;
                     }).toList();
             answer.put("credentials", entries);
@@ -1410,6 +1412,87 @@ public final class SokarDaemon {
                     "id", result.id(), "detail", result.detail()));
         });
 
+        // A person grants an authorization once, in a browser somewhere else. The stream says "needed" with the
+        // link, then how it ended: no client polls a consent flow, so no question gets two grants.
+        server.method("Authorize", (parameters, replies) -> {
+            if (!replies.streaming()) {
+                throw new VarlinkException(INTERFACE + ".StreamRequired", Map.of("method", "Authorize"));
+            }
+            final String name = text(parameters, "name");
+            final org.fuin.sokar.supervisor.DeviceGrant grant;
+            final org.fuin.sokar.supervisor.DeviceGrant.Started started;
+            try {
+                grant = org.fuin.sokar.app.VaultAuthorizeCommand.grantFor(context, name);
+                started = grant.start();
+            } catch (IllegalArgumentException | org.fuin.sokar.vault.VaultException
+                    | org.fuin.sokar.supervisor.TokenPurchase.Refused ex) {
+                throw new VarlinkException(INTERFACE + ".Failed", Map.of("message", String.valueOf(ex.getMessage())));
+            }
+            replies.more(Map.of("state", "needed", "link", started.link(), "code", started.userCode(),
+                    "expiresIn", started.expiresIn().toSeconds(), "detail", ""));
+            try {
+                final org.fuin.sokar.supervisor.DeviceGrant.Outcome outcome =
+                        grant.await(started, duration -> Thread.sleep(duration));
+                if ("granted".equals(outcome.state()) && outcome.refreshToken() == null) {
+                    replies.last(Map.of("state", "refused", "link", "", "code", "", "expiresIn", 0,
+                            "detail", "the service granted no refresh token; ask for a scope that permits one"));
+                    return;
+                }
+                if ("granted".equals(outcome.state())) {
+                    org.fuin.sokar.app.VaultAuthorizeCommand.keep(context, name,
+                            java.util.Objects.requireNonNull(outcome.refreshToken()));
+                }
+                replies.last(Map.of("state", outcome.state(), "link", "", "code", "", "expiresIn", 0, "detail", ""));
+            } catch (org.fuin.sokar.supervisor.TokenPurchase.Refused | org.fuin.sokar.vault.VaultException ex) {
+                replies.last(Map.of("state", "failed", "link", "", "code", "", "expiresIn", 0,
+                        "detail", String.valueOf(ex.getMessage())));
+            } catch (InterruptedException ex) {
+                // The daemon is stopping; the person's decision is not lost at the service, only this wait.
+                Thread.currentThread().interrupt();
+                replies.last(Map.of("state", "failed", "link", "", "code", "", "expiresIn", 0,
+                        "detail", "the daemon stopped while waiting; authorize again"));
+            }
+        });
+
+        // Destinations are files; these read and write the same files a person edits by hand.
+        server.method("Destinations", (parameters, replies) ->
+                replies.last(Map.of("destinations", destinations(context))));
+
+        server.method("Destination", (parameters, replies) -> {
+            final String name = text(parameters, "name");
+            replies.last(Map.of("destination", destinations(context).stream()
+                    .filter(row -> name.equals(row.get("name")) && Boolean.TRUE.equals(row.get("inForce")))
+                    .findFirst()
+                    .orElseThrow(() -> new VarlinkException(INTERFACE + ".NoSuchDestination", Map.of("name", name)))));
+        });
+
+        server.method("WriteDestination", (parameters, replies) -> {
+            final org.fuin.sokar.app.Destination destination;
+            try {
+                final String name = text(parameters, "name");
+                destination = new org.fuin.sokar.app.Destination(name,
+                        text(parameters, "label").isEmpty() ? name : text(parameters, "label"),
+                        text(parameters, "upstream"),
+                        text(parameters, "authHeader").isEmpty() ? "Authorization" : text(parameters, "authHeader"),
+                        text(parameters, "authPrefix"), empty(parameters, "authQuery"));
+            } catch (IllegalArgumentException ex) {
+                throw new VarlinkException(INTERFACE + ".DestinationRefused",
+                        Map.of("message", String.valueOf(ex.getMessage())));
+            }
+            final java.nio.file.Path dataHome = context.paths().xdg().data();
+            final boolean dryRun = flag(parameters, "dryRun");
+            final java.nio.file.Path file = dryRun
+                    ? dataHome.resolve("destinations").resolve(destination.name() + ".yaml")
+                    : org.fuin.sokar.app.Destination.write(dataHome, destination);
+            replies.last(Map.of("destination", destinationRow(destination, file, false, true), "written", !dryRun));
+        });
+
+        server.method("RemoveDestination", (parameters, replies) -> {
+            final java.nio.file.Path removed = org.fuin.sokar.app.Destination.remove(context.paths().xdg().data(),
+                    text(parameters, "name"));
+            replies.last(Map.of("removed", removed != null, "file", removed == null ? "" : removed.toString()));
+        });
+
         server.method("Moderate", (parameters, replies) -> {
             // Per project, for every task of it: 'task' is no longer needed and is ignored.
             final org.fuin.sokar.core.project.Project project = org.fuin.sokar.core.project.ProjectReader.read(
@@ -1811,6 +1894,29 @@ public final class SokarDaemon {
         return Map.of("id", slot.id(), "name", slot.name(), "storage", slot.storage(),
                 "enrolled", slot.enrolled(), "lastUsed", slot.lastUsed(),
                 "self", self, "recovery", slot.recovery());
+    }
+
+    private static List<Map<String, Object>> destinations(SokarContext context) {
+        final java.util.Set<String> seen = new java.util.HashSet<>();
+        return org.fuin.sokar.app.Destination.declared(context.paths().xdg().data()).stream()
+                .map(declared -> destinationRow(declared.destination(), declared.file(), declared.packaged(),
+                        seen.add(declared.destination().name())))
+                .toList();
+    }
+
+    private static Map<String, Object> destinationRow(org.fuin.sokar.app.Destination destination,
+            java.nio.file.Path file, boolean packaged, boolean inForce) {
+        final Map<String, Object> row = new LinkedHashMap<>();
+        row.put("name", destination.name());
+        row.put("label", destination.label());
+        row.put("upstream", destination.upstream());
+        row.put("authHeader", destination.authHeader());
+        row.put("authPrefix", destination.authPrefix());
+        row.put("authQuery", destination.authQuery() == null ? "" : destination.authQuery());
+        row.put("file", file.toString());
+        row.put("packaged", packaged);
+        row.put("inForce", inForce);
+        return row;
     }
 
     private static Map<String, String> credentials(Map<String, Object> parameters) {
