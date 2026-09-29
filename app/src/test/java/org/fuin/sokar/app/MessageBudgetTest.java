@@ -46,6 +46,22 @@ class MessageBudgetTest {
     }
 
     @Test
+    void says_how_much_of_each_direction_is_used_as_the_budget_counts_it(@TempDir final Path dir) throws IOException {
+        final MessageRecord record = new MessageRecord(mailbox(dir));
+        record.append(MessageRecord.QUEUED, "m-1.json", "m-1", "reviewer", "local");
+        record.append(MessageRecord.DELIVERED, "a-1.json", "a-1", "reviewer", "");
+        record.append(MessageRecord.DELIVERED, "a-2.json", "a-2", "reviewer", "");
+        record.append(MessageRecord.QUEUED, "o-1.json", "o-1", "someone-else", "local");
+        final MessageBudget budget = new MessageBudget(record, mail);
+
+        assertThat(budget.sentToday("reviewer")).isEqualTo(1);
+        assertThat(budget.receivedToday("reviewer")).isEqualTo(2);
+        // What is shown is what is enforced: two received is the limit, and the next is refused.
+        assertThat(budget.inbound("reviewer")).contains("2 message(s)");
+        assertThat(budget.outbound("reviewer")).isEmpty();
+    }
+
+    @Test
     void a_peer_that_talks_too_much_is_refused_on_the_way_in(@TempDir final Path dir)
             throws IOException {
         final MessageRecord record = new MessageRecord(mailbox(dir));

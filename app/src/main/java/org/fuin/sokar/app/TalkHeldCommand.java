@@ -51,6 +51,7 @@ public class TalkHeldCommand implements Callable<Integer>, SokarFactory.ContextA
         for (final MessageRead.Held held : listed) {
             // Everything shown is escaped: peer and reason come from files a task or a filter wrote.
             out.println(TalkReadCommand.shown(held.message()) + "   " + held.standing()
+                    + (held.direction().isEmpty() ? "" : "   " + held.direction())
                     + (held.peer().isEmpty() ? "" : "   " + TalkReadCommand.shown(held.peer()))
                     + (held.reason().isEmpty() ? "" : "   " + TalkReadCommand.shown(held.reason())));
         }

@@ -49,9 +49,11 @@ public final class MessageRead {
      * @param at When this host first recorded it, RFC 3339, or "" when the record does not name it.
      * @param text Its text parts, in order; a part that is not text is named by its media type.
      * @param reason Why it is held, as the record says, or "".
+     * @param direction {@code out} when this task was sending it, {@code in} when it was reaching this task, or
+     *        "" when the record is older than the directions it keeps.
      */
     public record Held(Outcome outcome, String standing, String message, String id, String role, String peer, String kind,
-            String at, List<String> text, String reason) {
+            String at, List<String> text, String reason, String direction) {
 
         /**
          * Constructor with a copy of the parts.
@@ -66,13 +68,14 @@ public final class MessageRead {
          * @param at When it was first recorded.
          * @param text Its parts.
          * @param reason Why it is held.
+         * @param direction Which way it was going.
          */
         public Held {
             text = List.copyOf(text);
         }
 
         static Held none(final Outcome outcome) {
-            return new Held(outcome, "", "", "", "", "", "", "", List.of(), "");
+            return new Held(outcome, "", "", "", "", "", "", "", List.of(), "", "");
         }
     }
 
@@ -142,6 +145,8 @@ public final class MessageRead {
         String peer = "";
         String reason = "";
         String at = "";
+        boolean heldLine = false;
+        String direction = "";
         for (final Map<String, Object> line : record) {
             if (!name.equals(line.get("message"))) {
                 continue;
@@ -153,6 +158,8 @@ public final class MessageRead {
             if (MessageRecord.HELD.equals(line.get("event"))) {
                 peer = String.valueOf(line.getOrDefault("peer", ""));
                 reason = String.valueOf(line.getOrDefault("detail", ""));
+                heldLine = true;
+                direction = line.get("direction") instanceof String recorded ? recorded : "";
             }
         }
         if (peer.isEmpty() && metadata.get("to") instanceof String to) {
@@ -168,8 +175,13 @@ public final class MessageRead {
             case REFUSED_BY_PERSON -> "a person refused it for good";
             case UNCHECKED -> "the filter could not check it at all";
         };
+        // Held with no line of its own is intake's, which holds only this task's own messages; what the filter
+        // refused or could not check was on its way out, since the filter checks what a task sends.
+        if (standing != MessageLookup.Standing.HELD || !heldLine) {
+            direction = MessageRecord.OUT;
+        }
         return new Held(Outcome.FOUND, standing.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'), name, messageId, text(document.get("role")), peer,
-                text(metadata.get("kind")), at, withText ? text : List.of(), reason);
+                text(metadata.get("kind")), at, withText ? text : List.of(), reason, direction);
     }
 
     /** Reads a file as UTF-8, showing a byte that is not as the replacement character rather than failing. */

@@ -2330,6 +2330,11 @@ type TalkPeer (
   trust: string,
   # How many messages a day this task may exchange with it, each way.
   perDay: int,
+  # How many went out to it in the last day, as the budget counts them: a rolling day, so
+  # nothing is released by midnight arriving. The next one out is refused at perDay.
+  sentToday: int,
+  # How many from it reached the agent in the last day, counted the same way.
+  receivedToday: int,
   # 'prompt', 'allow', 'deny' or 'off' - clearance's four, with the same meanings.
   mode: string,
   # Whether everything for this peer waits, whatever the mode says.
@@ -2376,7 +2381,11 @@ type HeldMessage (
   # When this host first recorded it, RFC 3339, or "".
   at: string,
   # Why it is held, or, for a refused one, the filter's own answer.
-  reason: string
+  reason: string,
+  # "out" when this task was sending it, "in" when it was reaching this task - an external peer's
+  # message is held on its way in, before any agent sees it. "" for a message held before the
+  # record kept directions.
+  direction: string
 )
 
 type TalkEvent (
@@ -2452,7 +2461,11 @@ method ReadHeld(
   # markup, no link resolved, nothing fetched. A part that is not text is named by its media type.
   text: []string,
   # Why it is held, or, for a refused one, the filter's own answer - which rules it broke.
-  reason: string
+  reason: string,
+  # "out" when this task was sending it, "in" when it was reaching this task - an external peer's
+  # message is held on its way in, before any agent sees it. "" for a message held before the
+  # record kept directions.
+  direction: string
 )
 
 # Releases one held message, or refuses it for good - or, for one the filter refused, delivers it

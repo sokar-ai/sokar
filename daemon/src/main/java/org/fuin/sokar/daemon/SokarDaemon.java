@@ -1264,13 +1264,23 @@ public final class SokarDaemon {
             final org.fuin.sokar.app.Moderation moderation =
                     new org.fuin.sokar.app.Moderation(mailbox);
             final java.util.List<Map<String, Object>> peers = new java.util.ArrayList<>();
-            for (final org.fuin.sokar.core.project.Mail.Peer peer
-                    : org.fuin.sokar.core.project.ProjectReader.read(
-                            projectFile(parameters, context)).mail().peers()) {
+            final org.fuin.sokar.core.project.Mail mail = org.fuin.sokar.core.project.ProjectReader.read(
+                    projectFile(parameters, context)).mail();
+            // Counted the way the budget counts, so what a client shows is what the next pass enforces.
+            final org.fuin.sokar.app.MessageBudget budget =
+                    new org.fuin.sokar.app.MessageBudget(new org.fuin.sokar.app.MessageRecord(mailbox), mail);
+            for (final org.fuin.sokar.core.project.Mail.Peer peer : mail.peers()) {
                 final org.fuin.sokar.app.Moderation.Peer state = moderation.peer(peer.name());
-                peers.add(Map.of("name", peer.name(), "address", peer.address(),
-                        "trust", peer.trust(), "perDay", peer.perDay(),
-                        "mode", state.mode(), "held", state.held()));
+                final Map<String, Object> each = new LinkedHashMap<>();
+                each.put("name", peer.name());
+                each.put("address", peer.address());
+                each.put("trust", peer.trust());
+                each.put("perDay", peer.perDay());
+                each.put("sentToday", budget.sentToday(peer.name()));
+                each.put("receivedToday", budget.receivedToday(peer.name()));
+                each.put("mode", state.mode());
+                each.put("held", state.held());
+                peers.add(each);
             }
             replies.last(Map.of("peers", peers));
         });
@@ -1333,6 +1343,7 @@ public final class SokarDaemon {
             answer.put("at", held.at());
             answer.put("text", held.text());
             answer.put("reason", held.reason());
+            answer.put("direction", held.direction());
             replies.last(answer);
         });
 
@@ -1355,6 +1366,7 @@ public final class SokarDaemon {
                     message.put("kind", held.kind());
                     message.put("at", held.at());
                     message.put("reason", held.reason());
+                    message.put("direction", held.direction());
                     messages.add(message);
                 }
             }

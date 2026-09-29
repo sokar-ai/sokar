@@ -105,7 +105,7 @@ public final class MessagePass {
                         dispatched.peers().getOrDefault(queued.getKey(), ""), queued.getValue());
             }
             for (final MessageDelivery.Held stuck : dispatched.held()) {
-                record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
+                record.append(MessageRecord.HELD, stuck.message(), "", "", stuck.reason(), MessageRecord.OUT);
                 // The sender is told the moment it is held, not when somebody gets round to the
                 // hold list: an agent with no answer waits forever or sends the same thing again.
                 new HostBounce().write(mailbox, mailbox.hold().resolve(stuck.message()),
@@ -122,7 +122,7 @@ public final class MessagePass {
                     record.append(MessageRecord.DEFERRED, message, "", transport);
                 }
                 for (final MessageDelivery.Held stuck : result.refused()) {
-                    record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
+                    record.append(MessageRecord.HELD, stuck.message(), "", "", stuck.reason(), MessageRecord.OUT);
                     // A permanent transport failure is final, so the answer says so rather than
                     // leaving the agent to believe its message is still on its way.
                     new HostBounce().write(mailbox, mailbox.hold().resolve(stuck.message()),
@@ -137,7 +137,7 @@ public final class MessagePass {
                 new TransportPoll(runner, transports).poll(mailbox);
         for (final Map.Entry<String, String> failure : polled.failures().entrySet()) {
             record.append(MessageRecord.HELD, "", "", failure.getKey(),
-                    "it could not be asked what arrived: " + failure.getValue());
+                    "it could not be asked what arrived: " + failure.getValue(), MessageRecord.IN);
         }
 
         // Independent of our own filter: what a peer sent is delivered whether or not this machine
@@ -150,7 +150,7 @@ public final class MessagePass {
             record.append(MessageRecord.DELIVERED, one.message(), one.id(), one.peer(), "");
         }
         for (final MessageDelivery.Held stuck : delivered.held()) {
-            record.append(MessageRecord.HELD, stuck.message(), "", stuck.reason());
+            record.append(MessageRecord.HELD, stuck.message(), "", "", stuck.reason(), MessageRecord.IN);
         }
         for (final MessageDelivery.Repeat repeat : delivered.duplicates()) {
             record.append(MessageRecord.DUPLICATE, repeat.message(), repeat.id(),

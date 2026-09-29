@@ -48,6 +48,12 @@ public final class MessageRecord {
     public static final String DEFERRED = "deferred";
 
     /** It reached no agent, with a reason. */
+    /** A message this task was sending: {@code direction} of a line. */
+    public static final String OUT = "out";
+
+    /** A message that was reaching this task: {@code direction} of a line. */
+    public static final String IN = "in";
+
     public static final String HELD = "held";
 
     /** It was handed to the agent. */
@@ -99,6 +105,22 @@ public final class MessageRecord {
      */
     public void append(final String event, final String message, final String id,
             final String peer, final String detail) throws IOException {
+        append(event, message, id, peer, detail, "");
+    }
+
+    /**
+     * Appends one line that also says which way the message was going.
+     *
+     * @param event One of the constants here.
+     * @param message The message's file name.
+     * @param id Its message id, or "" when nothing could be read.
+     * @param peer The peer it was going to or came from, or "".
+     * @param detail Why, for the events that have a why. "" otherwise.
+     * @param direction {@link #OUT} or {@link #IN}, or "" when that is not this line's to say.
+     * @throws IOException Writing failed.
+     */
+    public void append(final String event, final String message, final String id,
+            final String peer, final String detail, final String direction) throws IOException {
         final String previous = lastHash();
         final Map<String, Object> line = new LinkedHashMap<>();
         line.put("at", Instant.now().toString());
@@ -107,8 +129,11 @@ public final class MessageRecord {
         line.put("id", id);
         line.put("peer", peer);
         line.put("detail", detail);
+        if (!direction.isEmpty()) {
+            line.put("direction", direction);
+        }
         line.put("previous", previous);
-        line.put("hash", hash(previous, event, message, id, peer, detail));
+        line.put("hash", hash(previous, event, message, id, peer, detail, direction));
         Files.createDirectories(file.getParent());
         Files.writeString(file, Json.write(line) + System.lineSeparator(), StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND);
@@ -179,7 +204,8 @@ public final class MessageRecord {
             number++;
             final String expected = hash(previous, String.valueOf(line.get("event")),
                     String.valueOf(line.get("message")), String.valueOf(line.get("id")),
-                    String.valueOf(line.get("peer")), String.valueOf(line.get("detail")));
+                    String.valueOf(line.get("peer")), String.valueOf(line.get("detail")),
+                    line.get("direction") instanceof String direction ? direction : "");
             if (!expected.equals(String.valueOf(line.get("hash")))
                     || !previous.equals(String.valueOf(line.get("previous")))) {
                 return number;
@@ -241,7 +267,7 @@ public final class MessageRecord {
     }
 
     private String hash(final String previous, final String event, final String message,
-            final String id, final String peer, final String detail) {
+            final String id, final String peer, final String detail, final String direction) {
         try {
             final MessageDigest digest = MessageDigest.getInstance("SHA-256");
             // Length-prefixed rather than separated: a separator can appear inside a reason, and
@@ -249,6 +275,11 @@ public final class MessageRecord {
             final StringBuilder material = new StringBuilder();
             for (final String field : List.of(previous, event, message, id, peer, detail)) {
                 material.append(field.length()).append(':').append(field);
+            }
+            // Only when there is one: a line written before directions were recorded keeps the hash it
+            // was written with, so the chain of an existing record still verifies.
+            if (!direction.isEmpty()) {
+                material.append(direction.length()).append(':').append(direction);
             }
             digest.update(material.toString().getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest.digest());

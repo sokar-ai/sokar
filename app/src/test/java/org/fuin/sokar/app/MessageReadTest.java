@@ -70,7 +70,50 @@ class MessageReadTest {
         // Each is exactly what a read of it finds, text aside.
         final MessageRead.Held read = new MessageRead().read(mailbox, "m-2");
         assertThat(listed.get(1)).isEqualTo(new MessageRead.Held(read.outcome(), read.standing(), read.message(),
-                read.id(), read.role(), read.peer(), read.kind(), read.at(), java.util.List.of(), read.reason()));
+                read.id(), read.role(), read.peer(), read.kind(), read.at(), java.util.List.of(), read.reason(),
+                read.direction()));
+    }
+
+    @Test
+    void saysWhichWayEachMessageWasGoing(@TempDir final Path dir) throws IOException {
+        final Mailbox mailbox = mailbox(dir);
+        final MessageRecord record = new MessageRecord(mailbox);
+        Files.writeString(mailbox.hold().resolve("m-in.json"), MESSAGE.replace("m-1", "m-in"));
+        record.append(MessageRecord.HELD, "m-in.json", "", "", "held on its way in", MessageRecord.IN);
+        Files.writeString(mailbox.hold().resolve("m-out.json"), MESSAGE.replace("m-1", "m-out"));
+        record.append(MessageRecord.HELD, "m-out.json", "", "", "held for a person", MessageRecord.OUT);
+        // Held with no line of its own: intake's, which only ever holds what this task sent.
+        Files.writeString(mailbox.hold().resolve("m-intake.json"), MESSAGE.replace("m-1", "m-intake"));
+        // Held before the record kept directions: nothing can say, so nothing is said.
+        Files.writeString(mailbox.hold().resolve("m-old.json"), MESSAGE.replace("m-1", "m-old"));
+        record.append(MessageRecord.HELD, "m-old.json", "", "held long ago");
+        // The filter checks what a task sends.
+        Files.createDirectories(mailbox.rejected());
+        Files.writeString(mailbox.rejected().resolve("m-refused.json"), MESSAGE.replace("m-1", "m-refused"));
+
+        final MessageRead read = new MessageRead();
+
+        assertThat(read.read(mailbox, "m-in").direction()).isEqualTo("in");
+        assertThat(read.read(mailbox, "m-out").direction()).isEqualTo("out");
+        assertThat(read.read(mailbox, "m-intake").direction()).isEqualTo("out");
+        assertThat(read.read(mailbox, "m-old").direction()).isEmpty();
+        assertThat(read.read(mailbox, "m-refused").direction()).isEqualTo("out");
+        assertThat(read.list(mailbox)).extracting(MessageRead.Held::direction).containsExactly("in", "out", "", "out", "out");
+    }
+
+    @Test
+    void aRecordWrittenBeforeDirectionsStillVerifiesAndADirectionIsCoveredByTheChain(@TempDir final Path dir)
+            throws IOException {
+        final Mailbox mailbox = mailbox(dir);
+        final MessageRecord record = new MessageRecord(mailbox);
+        record.append(MessageRecord.HELD, "m-old.json", "", "held long ago");
+        record.append(MessageRecord.HELD, "m-in.json", "", "", "held on its way in", MessageRecord.IN);
+        assertThat(record.firstBrokenLine()).isZero();
+
+        // Turning an incoming message into an outgoing one after the fact breaks the chain at that line.
+        final Path file = mailbox.record().resolve(MessageRecord.FILE);
+        Files.writeString(file, Files.readString(file).replace("\"direction\":\"in\"", "\"direction\":\"out\""));
+        assertThat(record.firstBrokenLine()).isEqualTo(2);
     }
 
     @Test

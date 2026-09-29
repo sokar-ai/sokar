@@ -53,6 +53,9 @@ public class TalkReadCommand implements Callable<Integer>, SokarFactory.ContextA
                 // interprets what a held message carries has let the message act before a person decided.
                 out.println("message   " + shown(held.message()));
                 out.println("standing  " + held.standing());
+                if (!held.direction().isEmpty()) {
+                    out.println("going     " + ("in".equals(held.direction()) ? "in, to this task" : "out, from this task"));
+                }
                 out.println("from      " + ("ROLE_USER".equals(held.role()) ? "a person" : "the task"));
                 out.println("when      " + (held.at().isEmpty() ? "-" : shown(held.at())));
                 out.println("peer      " + (held.peer().isEmpty() ? "-" : shown(held.peer())));

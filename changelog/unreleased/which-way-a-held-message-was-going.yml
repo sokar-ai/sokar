@@ -1,0 +1,2 @@
+title: "A held message says which way it was going - 'out' from the task or 'in' to it - on 'Held', 'ReadHeld' and 'sokar talk held'/'read', recorded in the mailbox's hash chain where it is held (a record written before still verifies); and 'Peers' says how many messages went each way in the last day, as the budget counts them."
+type: added

@@ -87,6 +87,28 @@ public final class MessageBudget {
         return beyond(peer, MessageRecord.DELIVERED, "accepted from", thisPass);
     }
 
+    /**
+     * Says how many messages went out to a peer in the last day - what {@link #outbound} counts.
+     *
+     * @param peer The peer.
+     * @return The count.
+     * @throws IOException Reading the record failed.
+     */
+    public int sentToday(final String peer) throws IOException {
+        return record.count(MessageRecord.QUEUED, peer, Instant.now().minus(DAY));
+    }
+
+    /**
+     * Says how many messages from a peer reached the agent in the last day - what {@link #inbound} counts.
+     *
+     * @param peer The peer.
+     * @return The count.
+     * @throws IOException Reading the record failed.
+     */
+    public int receivedToday(final String peer) throws IOException {
+        return record.count(MessageRecord.DELIVERED, peer, Instant.now().minus(DAY));
+    }
+
     private String beyond(final String peer, final String event, final String direction,
             final int thisPass) throws IOException {
         final Mail.Peer known = mail.peer(peer);
