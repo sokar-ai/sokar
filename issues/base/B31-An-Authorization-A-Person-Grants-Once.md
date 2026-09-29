@@ -208,6 +208,12 @@ is making the vault able to hold anyway.
 
 ## Still open
 
+- **Found by Agent Frontend on build 213, to fix:** a service that cannot be reached is said as "could not
+  be reached: null" - the JDK's connect failures often carry no message. The sentence names the cause
+  instead: no such host, refused, timed out. And the contract says what already holds: a failure before
+  the first reply (no such entry, a setting missing, the service unreachable at the start) is the error
+  `Failed`; the state `failed` is only ever a last reply after "needed".
+
 - **Whether the broker can carry an MCP session**, a long-lived stream, is unmeasured.
 
 ## To be checked
