@@ -6,6 +6,7 @@ import java.util.concurrent.Callable;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.gate.GateException;
 import org.fuin.sokar.gate.GitGate;
+import org.fuin.sokar.gate.ReviewRanking;
 import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -54,8 +55,13 @@ public class GateReviewCommand implements Callable<Integer> {
             final GitGate gate = GateSupport.gate(project,
                     GateSupport.repository(project, repository), upstream, null);
             gate.initialize();
+            // What matters before what is merely large: the instruction, the files dangerous by kind,
+            // and the patch in that same order, reformatting and generated files last.
+            final ReviewRanking.Review review = gate.rankedReview(name, against == null ? "HEAD" : against);
+            out.print(ReviewText.render(ReviewText.instruction(SokarPaths.current(), project.name(), name),
+                    review.files()));
             out.println(gate.log(name, against));
-            out.println(gate.review(name, against == null ? "HEAD" : against));
+            out.println(review.patch());
             out.flush();
             return 0;
         } catch (GateException ex) {

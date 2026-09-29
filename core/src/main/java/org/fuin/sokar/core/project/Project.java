@@ -25,12 +25,40 @@ package org.fuin.sokar.core.project;
  * @param repositories The work repositories it names, in the order the file names them. Empty for
  *        a project that has only its own, which is what a project still being planned looks like.
  *        Its own repository is not in here - see {@link #ownRepository()}.
+ * @param credentials What every task of the project holds beyond its agent's own credential: a vault
+ *        entry's name to the destination it is for, in the order the file names them. A run may add to
+ *        these and never withdraw one. Anyone who can start a task in the project can use them.
  */
 public record Project(String name, String description, SecurityClass securityClass, String baseImage,
         @org.jspecify.annotations.Nullable String imageSnippet,
         @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
         java.util.@org.jspecify.annotations.Nullable List<String> packageSources, Mail mail, boolean unreadWorkMayLeave,
-        java.util.List<Repository> repositories) {
+        java.util.List<Repository> repositories, java.util.Map<String, String> credentials) {
+
+    /**
+     * Constructor for a project that declares no credentials beyond its agent's own - every project before
+     * a task could hold more than one.
+     *
+     * @param name Project name.
+     * @param description What it is for.
+     * @param securityClass How contained its tasks are.
+     * @param baseImage Image a task's image is built from.
+     * @param imageSnippet Extra build lines, or {@code null}.
+     * @param upstream The repository the work belongs to, or {@code null}.
+     * @param limits What a task may consume.
+     * @param egress What a task may reach.
+     * @param packageSources Where apt fetches from, or {@code null}.
+     * @param mail The peers its tasks may address.
+     * @param unreadWorkMayLeave Whether work nobody has read may leave this machine.
+     * @param repositories The work repositories it names.
+     */
+    public Project(String name, String description, SecurityClass securityClass, String baseImage,
+            @org.jspecify.annotations.Nullable String imageSnippet, @org.jspecify.annotations.Nullable String upstream,
+            Limits limits, Egress egress, java.util.@org.jspecify.annotations.Nullable List<String> packageSources,
+            Mail mail, boolean unreadWorkMayLeave, java.util.List<Repository> repositories) {
+        this(name, description, securityClass, baseImage, imageSnippet, upstream, limits, egress, packageSources,
+                mail, unreadWorkMayLeave, repositories, java.util.Map.of());
+    }
 
     /**
      * Constructor for a project whose only repository is its own.
@@ -252,6 +280,19 @@ public record Project(String name, String description, SecurityClass securityCla
         }
         if (baseImage.isBlank()) {
             throw new ProjectException("The base image is required");
+        }
+        credentials = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(credentials));
+        for (final java.util.Map.Entry<String, String> credential : credentials.entrySet()) {
+            if (!credential.getKey().matches("[a-z0-9][a-z0-9_-]{0,30}")
+                    || !credential.getValue().matches("[a-z0-9][a-z0-9-]{0,30}")) {
+                throw new ProjectException("Project '" + name + "': credential '" + credential.getKey() + "' for '"
+                        + credential.getValue() + "' - both are names: lower-case letters, digits and hyphens");
+            }
+        }
+        if (securityClass == SecurityClass.OFFLINE && !credentials.isEmpty()) {
+            // The broker would reach the destination for the task, and an offline project reaches nothing.
+            throw new ProjectException("Project '" + name + "' is offline, so it can declare no"
+                    + " credentials. Remove the 'credentials' section or raise the security class.");
         }
         if (securityClass == SecurityClass.OFFLINE && !egress.isEmpty()) {
             // Said rather than ignored. An offline project whose declaration were quietly dropped

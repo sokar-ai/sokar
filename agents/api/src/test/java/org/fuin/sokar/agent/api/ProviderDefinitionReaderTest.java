@@ -148,4 +148,21 @@ class ProviderDefinitionReaderTest {
                 .isInstanceOf(AgentException.class)
                 .hasMessageContaining("Invalid provider name");
     }
+
+    @Test
+    void readsAKeyThatBelongsInTheUrl() {
+
+        // A service that takes its key as ?key=... declares the parameter, and then no header.
+        final ProviderDefinition provider = read("""
+                name: gemini
+                upstream: https://generativelanguage.googleapis.com
+                dialects:
+                  gemini: ""
+                auth_query:
+                  _default: key
+                """);
+
+        assertThat(provider.authQueryFor("api-key")).isEqualTo("key");
+        assertThat(read(OPENROUTER).authQueryFor("api-key")).as("a provider that declares none").isNull();
+    }
 }

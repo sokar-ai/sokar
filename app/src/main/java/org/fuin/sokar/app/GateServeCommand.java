@@ -53,6 +53,10 @@ public class GateServeCommand implements Callable<Integer> {
             description = "Writes this process's id here, so the poststop hook can reap it.")
     private @Nullable Path pidFile;
 
+    @Option(names = "--ref", paramLabel = "<ref>",
+            description = "The one ref a push may update, the task's own. Default: any ref under refs/sokar/incoming/.")
+    private @Nullable String ref;
+
     @Option(names = "--seconds", paramLabel = "<n>",
             description = "Stop after this long. Zero means run until killed.")
     private int seconds;
@@ -95,7 +99,7 @@ public class GateServeCommand implements Callable<Integer> {
                     ? TaskToken.mint() : new TaskToken(supplied);
             try (GitHttpServer server = new GitHttpServer(
                     new InetSocketAddress(InetAddress.getByName(address), port),
-                    gate.mirror(), token, new GitSubprocess())) {
+                    gate.mirror(), token, new GitSubprocess(), ref)) {
 
                 server.start();
                 writePidFile(err);

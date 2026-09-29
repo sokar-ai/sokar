@@ -44,8 +44,24 @@ public final class TaskSecrets {
      * @param gate The gate token, or {@code null}.
      * @param provider The phantom provider token, or {@code null}.
      */
-    public record Tokens(@Nullable String gate, @Nullable String provider) {
+    public record Tokens(@Nullable String gate, @Nullable String provider, Map<String, String> routes) {
+
+        /**
+         * Tokens of a task that holds only its agent's credential, the shape before a task held more.
+         *
+         * @param gate The gate's token, or {@code null}.
+         * @param provider The proxy's token, or {@code null}.
+         */
+        public Tokens(@Nullable String gate, @Nullable String provider) {
+            this(gate, provider, Map.of());
+        }
     }
+
+    /** Where the tokens of a task's other credentials are kept, below its own name. */
+    static final String ROUTE = "/route/";
+
+    /** The directory in a task's runtime directory the proxy writes its other credentials' tokens to. */
+    static final String ROUTES_DIRECTORY = "routes";
 
     private final SokarContext context;
 
@@ -94,7 +110,7 @@ public final class TaskSecrets {
      *         after a reboot.
      */
     public String keep(String container, Tokens tokens, Set<String> existing) {
-        if (tokens.gate() == null && tokens.provider() == null) {
+        if (tokens.gate() == null && tokens.provider() == null && tokens.routes().isEmpty()) {
             return "";
         }
         final Optional<VaultFile.Opener> opener = context.opener();
@@ -108,6 +124,7 @@ public final class TaskSecrets {
                 updated.keySet().removeIf(name -> reserved(name) && !existing.contains(owner(name)));
                 put(updated, container + GATE, tokens.gate());
                 put(updated, container + PROVIDER, tokens.provider());
+                tokens.routes().forEach((name, token) -> put(updated, container + ROUTE + name, token));
                 return updated;
             });
             return "";
@@ -134,8 +151,15 @@ public final class TaskSecrets {
         }
         try {
             final Map<String, VaultEntry> entries = context.vault().read(opener.get());
+            final Map<String, String> routes = new LinkedHashMap<>();
+            final String routePrefix = PREFIX + container + ROUTE;
+            entries.forEach((name, entry) -> {
+                if (name.startsWith(routePrefix)) {
+                    routes.put(name.substring(routePrefix.length()), entry.value());
+                }
+            });
             return Optional.of(new Tokens(value(entries.get(PREFIX + container + GATE)),
-                    value(entries.get(PREFIX + container + PROVIDER))));
+                    value(entries.get(PREFIX + container + PROVIDER)), routes));
         } catch (VaultException ex) {
             return Optional.empty();
         }
@@ -160,6 +184,7 @@ public final class TaskSecrets {
                 final Map<String, VaultEntry> updated = new LinkedHashMap<>(entries);
                 updated.remove(PREFIX + container + GATE);
                 updated.remove(PREFIX + container + PROVIDER);
+                updated.keySet().removeIf(name -> name.startsWith(PREFIX + container + ROUTE));
                 return updated;
             });
             return "";
@@ -192,7 +217,23 @@ public final class TaskSecrets {
         } catch (java.io.IOException ex) {
             // A proxy that wrote no token has none to keep.
         }
-        return new Tokens(gate, provider == null || provider.isEmpty() ? null : provider);
+        final Map<String, String> routes = new LinkedHashMap<>();
+        final java.nio.file.Path directory = runtime.resolve(ROUTES_DIRECTORY);
+        if (java.nio.file.Files.isDirectory(directory)) {
+            try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(directory)) {
+                for (final java.nio.file.Path file : files.filter(each -> each.getFileName().toString().endsWith(".token"))
+                        .toList()) {
+                    final String name = file.getFileName().toString();
+                    final String token = java.nio.file.Files.readString(file, java.nio.charset.StandardCharsets.UTF_8).strip();
+                    if (!token.isEmpty()) {
+                        routes.put(name.substring(0, name.length() - ".token".length()), token);
+                    }
+                }
+            } catch (java.io.IOException ex) {
+                // A route whose token cannot be read has none to keep.
+            }
+        }
+        return new Tokens(gate, provider == null || provider.isEmpty() ? null : provider, routes);
     }
 
     /** The proxy's token file in a task's runtime directory, as {@code vault serve --token-file} writes it. */

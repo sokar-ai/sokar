@@ -77,11 +77,12 @@ public final class MessagePass {
      * @param mailbox The task's mailbox.
      * @param mail The project's peers, for resolving where a message goes.
      * @param peers Who this task may hear from, with the keys allowed for each.
+     * @param moderation What a person decided about the project's peers.
      * @return What happened.
      * @throws IOException A file could not be read or moved.
      */
     public Report run(final Mailbox mailbox, final Mail mail,
-            final List<MessageDelivery.Peer> peers) throws IOException {
+            final List<MessageDelivery.Peer> peers, final Moderation moderation) throws IOException {
         final MessageRecord record = new MessageRecord(mailbox);
         final List<String> taken = new MessageIntake(key).take(mailbox);
         for (final String message : taken) {
@@ -98,7 +99,7 @@ public final class MessagePass {
                 new MessageDispatch.Outcome(Map.of(), List.of(), Map.of());
         final Map<String, TransportSend.Result> sent = new LinkedHashMap<>();
         if (filtered.ran()) {
-            dispatched = new MessageDispatch().dispatch(mailbox, mail, new Moderation(mailbox),
+            dispatched = new MessageDispatch().dispatch(mailbox, mail, moderation,
                     budget);
             for (final Map.Entry<String, String> queued : dispatched.queued().entrySet()) {
                 record.append(MessageRecord.QUEUED, queued.getKey(), "",

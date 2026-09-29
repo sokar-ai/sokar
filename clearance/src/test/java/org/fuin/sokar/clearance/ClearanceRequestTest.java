@@ -23,7 +23,10 @@ class ClearanceRequestTest {
     void saysWhatWasReachedForAndHow() {
         assertThat(new ClearanceRequest("p", "t", "api.example.test:443 (1.1.1.1)", "1.1.1.1", "tcp")
                 .body()).isEqualTo(
-                        "The agent tried to reach api.example.test:443 (1.1.1.1) over tcp.");
+                        "The agent tried to reach api.example.test:443 (1.1.1.1) over tcp."
+                                + " Either the project does not declare a host this work needs, or the agent is"
+                                + " acting on instructions from something it read. Allow it only if you expected"
+                                + " this host.");
     }
 
     @Test

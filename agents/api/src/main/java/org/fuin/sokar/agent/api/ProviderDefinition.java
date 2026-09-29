@@ -30,7 +30,26 @@ import org.jspecify.annotations.Nullable;
 public record ProviderDefinition(String name, String label, String upstream,
         Map<String, String> dialects, Map<String, String> authHeader,
         Map<String, String> authPrefix, Map<String, String> unbrokerable,
-        Map<String, String> tokenEnvironment) {
+        Map<String, String> tokenEnvironment, Map<String, String> authQuery) {
+
+    /**
+     * Constructor for a provider whose keys all travel in a header - every provider before a key could
+     * go in the URL, and the shape every caller built before {@code authQuery} existed.
+     *
+     * @param name Short name.
+     * @param label Human-readable name.
+     * @param upstream Base URL.
+     * @param dialects Dialect to path.
+     * @param authHeader Credential type to header name.
+     * @param authPrefix Credential type to prefix.
+     * @param unbrokerable Credential type to why it cannot be brokered.
+     * @param tokenEnvironment Credential type to the variable its token goes in.
+     */
+    public ProviderDefinition(String name, String label, String upstream, Map<String, String> dialects,
+            Map<String, String> authHeader, Map<String, String> authPrefix, Map<String, String> unbrokerable,
+            Map<String, String> tokenEnvironment) {
+        this(name, label, upstream, dialects, authHeader, authPrefix, unbrokerable, tokenEnvironment, Map.of());
+    }
 
     /** Dialect an agent names when it speaks whatever the provider's own format is. */
     public static final String NATIVE_DIALECT = "native";
@@ -191,5 +210,19 @@ public record ProviderDefinition(String name, String label, String upstream,
      */
     public List<String> domains() {
         return List.of(upstreamHost());
+    }
+
+    /**
+     * Returns the query parameter the credential of a type travels in, when the service takes its key
+     * in the URL rather than in a header.
+     * <p>
+     * Declared as {@code auth_query}, by credential type like {@code auth_header}. Where it is declared,
+     * the key goes into that parameter of the request's URL and into no header.
+     *
+     * @param credentialType Credential type, for example {@code api-key}.
+     * @return The parameter's name, or {@code null} when the key travels in a header.
+     */
+    public @Nullable String authQueryFor(String credentialType) {
+        return authQuery.getOrDefault(credentialType, authQuery.get(AgentDefinition.DEFAULT_TOKEN_KEY));
     }
 }

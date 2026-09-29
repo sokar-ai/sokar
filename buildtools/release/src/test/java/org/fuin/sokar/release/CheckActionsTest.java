@@ -58,7 +58,16 @@ class CheckActionsTest {
         workflow("      - uses: actions/checkout@" + COMMIT + "\n");
 
         assertThat(check(directory)).isEqualTo(Stop.REFUSED);
-        assertThat(stderr()).contains("carries no version beside it");
+        assertThat(stderr()).contains("carries no exact version beside it");
+    }
+
+    @Test
+    void refusesAVersionThatNamesALineOfReleasesRatherThanOne() throws IOException {
+        // Measured by Agent Frontend: '# v7' passed, and it does not say which release the commit is.
+        workflow("      - uses: actions/checkout@" + COMMIT + " # v7\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("no exact version beside it");
     }
 
     @Test
@@ -98,7 +107,38 @@ class CheckActionsTest {
         assertThat(check(directory.resolve("missing"))).isEqualTo(Stop.UNANSWERED);
     }
 
+    @Test
+    void refusesAnActionThatFetchesAJdkByItsVersionNameEvenAtACommit() throws IOException {
+        workflow("      - uses: graalvm/setup-graalvm@" + COMMIT + " # v1.3.0\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("fetches a JDK by its version name").contains("sokar-machines jdk --github");
+    }
+
+    @Test
+    void refusesWhenNothingMovesThePins() throws IOException {
+        workflow("      - uses: ./.github/actions/pinned-jdk\n");
+        Files.delete(directory.resolve("dependabot.yml"));
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("dependabot.yml: missing");
+    }
+
+    @Test
+    void refusesDependabotThatDoesNotWatchTheLocalActions() throws IOException {
+        workflow("      - uses: ./.github/actions/pinned-jdk\n");
+        Files.createDirectories(directory.resolve("actions/pinned-jdk"));
+        Files.writeString(directory.resolve("dependabot.yml"), "updates:\n  - package-ecosystem: github-actions\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("does not watch /.github/actions/*");
+    }
+
     private void workflow(String text) throws IOException {
+        if (!Files.exists(directory.resolve("dependabot.yml"))) {
+            Files.writeString(directory.resolve("dependabot.yml"),
+                    "updates:\n  - package-ecosystem: github-actions\n    directories: [\"/\", \"/.github/actions/*\"]\n");
+        }
         Files.createDirectories(directory.resolve("workflows"));
         Files.writeString(directory.resolve("workflows/ci.yml"), text);
     }

@@ -916,7 +916,8 @@ public class VaultFile {
         map.forEach((key, value) -> entries.put(String.valueOf(key),
                 value instanceof Map<?, ?> object
                         ? new VaultEntry(String.valueOf(object.get("value")),
-                                object.get("type") == null ? null : String.valueOf(object.get("type")))
+                                object.get("type") == null ? null : String.valueOf(object.get("type")),
+                                settings(object.get("settings")))
                         : VaultEntry.of(String.valueOf(value))));
         return entries;
     }
@@ -929,8 +930,29 @@ public class VaultFile {
      */
     private static Map<String, Object> document(Map<String, VaultEntry> entries) {
         final Map<String, Object> document = new LinkedHashMap<>();
-        entries.forEach((name, entry) -> document.put(name, entry.type() == null ? entry.value()
-                : Map.of("value", entry.value(), "type", entry.type())));
+        entries.forEach((name, entry) -> {
+            if (entry.type() == null && entry.settings().isEmpty()) {
+                document.put(name, entry.value());
+                return;
+            }
+            final Map<String, Object> object = new LinkedHashMap<>();
+            object.put("value", entry.value());
+            if (entry.type() != null) {
+                object.put("type", entry.type());
+            }
+            if (!entry.settings().isEmpty()) {
+                object.put("settings", new LinkedHashMap<>(entry.settings()));
+            }
+            document.put(name, object);
+        });
         return document;
+    }
+
+    private static Map<String, String> settings(@Nullable Object value) {
+        final Map<String, String> settings = new LinkedHashMap<>();
+        if (value instanceof Map<?, ?> named) {
+            named.forEach((key, setting) -> settings.put(String.valueOf(key), String.valueOf(setting)));
+        }
+        return settings;
     }
 }

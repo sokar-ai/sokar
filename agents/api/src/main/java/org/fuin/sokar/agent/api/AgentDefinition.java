@@ -83,6 +83,31 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
     }
 
     /**
+     * Returns the command an attended task starts the agent with: {@link #sandboxedCommand()}, and the
+     * model when one was asked for.
+     * <p>
+     * The model goes by the same declared flag as in an unattended run. An attended start used to accept
+     * {@code --model} and drop it, so the agent answered on its own default - measured by Agent Smith
+     * on 2026-09-29, with two agents' headers naming models nobody had asked for.
+     *
+     * @param model The model to ask for, or {@code null} for the agent's own.
+     * @return Command and arguments, never empty.
+     * @throws AgentException If a model was asked for and the agent declares no flag to take one.
+     */
+    public List<String> attendedCommand(@Nullable String model) {
+        if (model == null) {
+            return sandboxedCommand();
+        }
+        if (headless.modelFlag() == null) {
+            throw new AgentException("Agent '" + name + "' does not take a model");
+        }
+        final List<String> command = new java.util.ArrayList<>(sandboxedCommand());
+        command.add(headless.modelFlag());
+        command.add(model);
+        return List.copyOf(command);
+    }
+
+    /**
      * Constructor for an agent that does not say how to log in.
      * <p>
      * Most do not, and it is not a defect: an agent whose credential is an API key has nothing to

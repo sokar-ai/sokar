@@ -42,6 +42,12 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
                     + " and an interface can ask for this without ever holding the value.")
     private @Nullable String fromFile;
 
+    @picocli.CommandLine.Option(names = "--setting", paramLabel = "<name>=<value>",
+            description = "A setting that goes with the credential and is not secret, for example"
+                    + " 'token_url=https://auth.example.com/token'. Repeatable. Settings are configuration:"
+                    + " they are listed and printed, so no secret belongs in one.")
+    private java.util.Map<String, String> settings = new java.util.LinkedHashMap<>();
+
     @Spec
     private CommandSpec spec;
 
@@ -360,10 +366,18 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
             return 2;
         }
         final String stored = value;
+        final org.fuin.sokar.vault.VaultEntry entry;
+        try {
+            entry = new org.fuin.sokar.vault.VaultEntry(stored, type, settings);
+        } catch (IllegalArgumentException ex) {
+            err.println("sokar: " + ex.getMessage());
+            err.flush();
+            return 2;
+        }
 
         try {
             context.vault().update(context.requirePassphrase(), entries -> {
-                entries.put(name, new org.fuin.sokar.vault.VaultEntry(stored, type));
+                entries.put(name, entry);
                 return entries;
             });
         } catch (VaultException ex) {
@@ -375,8 +389,9 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
         // The value is never echoed, not even truncated: a terminal scrollback is a file.
         out.println("stored    " + name + " (" + (type == null ? "kind not stated" : type) + ", "
                 + stored.length() + " characters)");
+        entry.settings().forEach((setting, text) -> out.println("setting   " + setting + " = " + text));
         warnIfNothingWillUseIt(err);
-        final String suspicious = new org.fuin.sokar.vault.VaultEntry(stored, type).suspicious();
+        final String suspicious = entry.suspicious();
         if (suspicious != null) {
             err.println("sokar: check what you stored - " + suspicious);
             err.flush();

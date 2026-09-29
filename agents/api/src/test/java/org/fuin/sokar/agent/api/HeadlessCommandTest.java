@@ -78,6 +78,24 @@ class HeadlessCommandTest {
     }
 
     @Test
+    void startsAnAttachedAgentOnTheModelThatWasAskedFor() {
+
+        // Measured on 2026-09-29: an attended start accepted --model and dropped it, and the agents'
+        // headers named their own defaults.
+        assertThat(agent(FULL).definition().attendedCommand("cheap-model"))
+                .containsExactly("example-cli", "--model", "cheap-model");
+        assertThat(agent(FULL).definition().attendedCommand(null)).containsExactly("example-cli");
+    }
+
+    @Test
+    void refusesAModelForAnAttachedAgentThatTakesNone() {
+        final String noModel = FULL.replace("  model_flag: \"--model\"\n", "");
+
+        assertThatThrownBy(() -> agent(noModel).definition().attendedCommand("cheap-model"))
+                .isInstanceOf(AgentException.class).hasMessageContaining("does not take a model");
+    }
+
+    @Test
     void startsAnAgentWithNothingToTurnOffAsItself() {
         assertThat(agent(FULL).definition().sandboxedCommand()).containsExactly("example-cli");
     }

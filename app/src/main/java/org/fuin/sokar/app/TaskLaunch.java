@@ -53,7 +53,37 @@ public final class TaskLaunch {
             @Nullable String upstream, boolean noGate, boolean dryRun, String clearance,
             boolean keep, org.fuin.sokar.wire.TaskMode mode, @Nullable String prompt,
             @Nullable String model, @Nullable Integer maxTurns, int minutes,
-            @Nullable String repository) {
+            @Nullable String repository, java.util.Map<String, String> credentials) {
+
+        /**
+         * Constructor for a request that names no credentials of its own beyond the project's.
+         *
+         * @param task Task name.
+         * @param projectFile Project file.
+         * @param agentName Agent to use, or {@code null}.
+         * @param providerName Provider, or {@code null}.
+         * @param credentialType Credential type override, or {@code null}.
+         * @param tokenHours Phantom token lifetime.
+         * @param upstream Upstream override, or {@code null}.
+         * @param noGate Whether to skip the gate.
+         * @param dryRun Whether to stop before starting.
+         * @param clearance Clearance mode.
+         * @param keep Whether to keep the container.
+         * @param mode What the task is for.
+         * @param prompt Prompt, or {@code null}.
+         * @param model Model, or {@code null}.
+         * @param maxTurns Turn limit, or {@code null}.
+         * @param minutes Minutes an unattended run may take.
+         * @param repository Which repository, or {@code null}.
+         */
+        public Request(String task, Path projectFile, @Nullable String agentName, @Nullable String providerName,
+                @Nullable String credentialType, int tokenHours, @Nullable String upstream, boolean noGate,
+                boolean dryRun, String clearance, boolean keep, org.fuin.sokar.wire.TaskMode mode,
+                @Nullable String prompt, @Nullable String model, @Nullable Integer maxTurns, int minutes,
+                @Nullable String repository) {
+            this(task, projectFile, agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
+                    clearance, keep, mode, prompt, model, maxTurns, minutes, repository, java.util.Map.of());
+        }
 
         /**
          * Constructor for a request that predates the repository being named.
@@ -475,6 +505,48 @@ public final class TaskLaunch {
             // Refused here, before the gate, the image and the container: a refusal that left a
             // workspace and a held container behind would be the warning again with a different
             // exit code.
+            // Every other credential the project names, resolved before anything is made: a destination
+            // nobody declared is a mistake in the project file, not something to find inside the task.
+            final java.util.Map<String, Destination> extras = new java.util.LinkedHashMap<>();
+            // The run adds to what the project declares, and never takes one away or points it elsewhere.
+            final java.util.Map<String, String> declaredOrAdded = new java.util.LinkedHashMap<>(project.credentials());
+            for (final java.util.Map.Entry<String, String> added : request.credentials().entrySet()) {
+                final String declared = declaredOrAdded.get(added.getKey());
+                if (declared != null && !declared.equals(added.getValue())) {
+                    err.println("sokar: the project already names credential '" + added.getKey() + "' for '" + declared
+                            + "'; a run adds credentials and cannot point one of the project's elsewhere");
+                    err.flush();
+                    return 2;
+                }
+                declaredOrAdded.put(added.getKey(), added.getValue());
+            }
+            for (final java.util.Map.Entry<String, String> named : declaredOrAdded.entrySet()) {
+                final org.fuin.sokar.vault.VaultEntry entry = context.readableCredentials()
+                        .map(stored -> stored.get(named.getKey())).orElse(null);
+                final Destination destination = Destination.resolve(named.getValue(),
+                        Destination.all(context.paths().xdg().data()), context.providers(),
+                        entry == null ? null : entry.type());
+                if (destination == null) {
+                    err.println("sokar: the project names credential '" + named.getKey() + "' for '" + named.getValue()
+                            + "', and no destination or provider of that name is declared here");
+                    err.println("sokar: nothing was created; declare it in "
+                            + context.paths().xdg().data().resolve("destinations") + ", or correct the project file");
+                    err.flush();
+                    return 69;
+                }
+                if (request.mode() == org.fuin.sokar.wire.TaskMode.UNATTENDED
+                        && CredentialWiring.credentialUnavailable(context.readableCredentials(), named.getKey()) != null) {
+                    err.println("sokar: the project names credential '" + named.getKey() + "', and "
+                            + CredentialWiring.credentialUnavailable(context.readableCredentials(), named.getKey()));
+                    err.println("sokar: nothing was created; an unattended run cannot ask anybody, so it is refused"
+                            + " rather than started to fail");
+                    err.flush();
+                    return 69;
+                }
+                extras.put(named.getKey(), destination);
+            }
+            this.extras = java.util.Map.copyOf(extras);
+
             if (refusesWithoutCredential(request.mode())) {
                 final String unavailable = wiring().unavailableFor(select(agents));
                 if (unavailable != null) {
@@ -522,6 +594,15 @@ public final class TaskLaunch {
 
             final org.fuin.sokar.agent.api.InstalledAgent selected = select(agents);
 
+            // Before anything exists: a model the agent has no flag for would be dropped on the way in,
+            // attended or not, and the agent would answer on its own default without a word.
+            if (request.model() != null && selected != null && selected.definition().headless().modelFlag() == null) {
+                err.println("sokar: " + selected.name() + " does not take a model, so --model " + request.model()
+                        + " would change nothing; start it without --model");
+                err.flush();
+                return 2;
+            }
+
             // The state directory has to exist before anything writes into it. start() also
             // creates it, but the credential proxy needs it first: it writes its socket, its
             // token and its pid there, and it has to be listening before the container exists.
@@ -552,11 +633,13 @@ public final class TaskLaunch {
             final java.util.Map<String, String> origins =
                     new java.util.LinkedHashMap<>(reachable.origins());
 
+            final CredentialWiring.CredentialPlumbing plumbing =
+                    wiring().startVault(selected, container, this.extras, out, err);
+            // The agent's URL endpoint, or any other credential: those are always reached over the URL.
             final boolean needsRelay = serving != null
                     && serving.route().endpoint()
-                            == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL;
-
-            final CredentialWiring.CredentialPlumbing plumbing = wiring().startVault(selected, container, out, err);
+                            == org.fuin.sokar.agent.api.ProviderRoute.Endpoint.URL
+                    || plumbing != null && plumbing.servesOthers();
             if (plumbing != null) {
                 environmentCache.putAll(plumbing.environment());
                 wiring = wiring.withVaultSocket(plumbing.socket());
@@ -615,7 +698,7 @@ public final class TaskLaunch {
             if (workspace != null) {
                 if (workspace.gated()) {
                     gate().startGate(runner, workspace, wiring.gateAddress(),
-                            container, project, out, err);
+                            container, request.task(), project, out, err);
                 }
                 workspace().prepareWorkspace(runner, workspace, container, environmentCache, out, err);
             }
@@ -1135,6 +1218,9 @@ public final class TaskLaunch {
         }
         return credentials;
     }
+
+    /** The project's other credentials, resolved when the task is launched; empty until then. */
+    private java.util.Map<String, Destination> extras = java.util.Map.of();
 
     private CredentialWiring wiring() {
         if (wiring == null) {

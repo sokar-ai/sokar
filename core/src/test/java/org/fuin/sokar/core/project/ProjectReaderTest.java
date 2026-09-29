@@ -370,4 +370,28 @@ class ProjectReaderTest {
         assertThat(project.limits().memory()).isNull();
         assertThat(project.limits().pids()).isEqualTo(2048);
     }
+
+    @Test
+    void readsTheCredentialsEveryTaskOfTheProjectHolds() {
+        final Project project = read(MINIMAL + """
+                credentials:
+                  search: brave-search
+                  forge-app: forge
+                """);
+
+        assertThat(project.credentials()).containsExactly(java.util.Map.entry("search", "brave-search"),
+                java.util.Map.entry("forge-app", "forge"));
+        assertThat(read(MINIMAL).credentials()).isEmpty();
+    }
+
+    @Test
+    void anOfflineProjectDeclaresNoCredentials() {
+        // The broker would reach the destination for the task, and an offline project reaches nothing.
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> read(MINIMAL
+                .replace("security_class: \"online\"", "security_class: \"offline\"")
+                .replace("  upstream: \"git@github.com:example/uc.git\"\n", "") + """
+                credentials:
+                  search: brave-search
+                """)).isInstanceOf(ProjectException.class).hasMessageContaining("can declare no credentials");
+    }
 }

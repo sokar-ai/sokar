@@ -61,7 +61,8 @@ class PollingArrivalTest {
         final MessagePass pass = new MessagePass(new ProcessCommandRunner(), hostKey, null,
                 new TransportDirectory(List.of(transports)));
         return pass.run(mailbox, mail,
-                List.of(new MessageDelivery.Peer("bob", List.of(peerKey.keyBlob()))));
+                List.of(new MessageDelivery.Peer("bob", List.of(peerKey.keyBlob()))),
+                new Moderation(mailbox.root().resolveSibling("moderation.json")));
     }
 
     @Test
@@ -124,7 +125,8 @@ class PollingArrivalTest {
 
         final MessagePass.Report report = new MessagePass(new ProcessCommandRunner(), hostKey, null,
                 new TransportDirectory(List.of(transports))).run(mailbox, mail,
-                        List.of(new MessageDelivery.Peer("bob", List.of(peerKey.keyBlob()))));
+                        List.of(new MessageDelivery.Peer("bob", List.of(peerKey.keyBlob()))),
+                new Moderation(mailbox.root().resolveSibling("moderation.json")));
 
         assertThat(report.delivered().delivered()).isEmpty();
         assertThat(report.delivered().held()).anySatisfy(held ->

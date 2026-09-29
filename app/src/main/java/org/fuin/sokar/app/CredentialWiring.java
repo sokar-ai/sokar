@@ -149,9 +149,11 @@ final class CredentialWiring {
      * @param socket Host path of the socket the container mounts.
      * @param upstreamHost Provider host to withhold from the firewall.
      * @param environment Variables the container needs to use the proxy.
+     * @param servesOthers Whether it serves credentials beyond the agent's, which are reached over its URL
+     *        in the task's namespace and so need the relay whatever the agent's own endpoint is.
      */
     record CredentialPlumbing(java.nio.file.Path socket, String upstreamHost,
-            java.util.Map<String, String> environment) {
+            java.util.Map<String, String> environment, boolean servesOthers) {
     }
 
     /**
@@ -220,10 +222,167 @@ final class CredentialWiring {
     @Nullable
     CredentialPlumbing startVault(org.fuin.sokar.agent.api.@Nullable InstalledAgent agent,
             String container, PrintWriter out, PrintWriter err) {
+        return startVault(agent, container, java.util.Map.of(), out, err);
+    }
 
-        if (agent == null) {
+    /**
+     * Starts the task's credential broker: for the agent's own credential, and for every other credential
+     * the project and the run name, one route each, picked by the token.
+     * <p>
+     * <strong>Each credential reaches the container as a token worthless anywhere else</strong>: the
+     * agent's in the variable its definition names, as before, and every other one as
+     * {@code SOKAR_TOKEN_<NAME>} beside {@code SOKAR_URL_<NAME>}, the broker's address in the task's own
+     * namespace. No stored value enters the container.
+     *
+     * @param agent The agent, or {@code null} when the task has none.
+     * @param container The container.
+     * @param extras Other credentials, by vault entry name, each with the destination it is for.
+     * @param out Where progress is reported.
+     * @param err Where problems are reported.
+     * @return What the container is given, or {@code null} when nothing is brokered.
+     */
+    @Nullable
+    CredentialPlumbing startVault(org.fuin.sokar.agent.api.@Nullable InstalledAgent agent, String container,
+            java.util.Map<String, Destination> extras, PrintWriter out, PrintWriter err) {
+
+        final AgentRoute own = agent == null ? null : agentRoute(agent, out, err);
+        final java.util.Map<String, Destination> served = new java.util.LinkedHashMap<>();
+        extras.forEach((name, destination) -> {
+            final String missing = credentialUnavailable(context.readableCredentials(), name);
+            if (missing != null) {
+                out.println("credential " + name + " none - " + missing);
+            } else {
+                served.put(name, destination);
+            }
+        });
+        if (own == null && served.isEmpty()) {
             return null;
         }
+
+        final java.nio.file.Path state = context.paths().containerState(container);
+        final java.nio.file.Path socket = state.resolve("vault.sock");
+        final java.nio.file.Path tokenFile = state.resolve("vault.token");
+        final java.nio.file.Path routeTokens = state.resolve("routes");
+
+        // The agent's own credential is the broker's first route; without one, the first other credential is.
+        final String primaryName = own != null ? own.credential() : served.keySet().iterator().next();
+        final Destination primary = own != null ? own.destination()
+                : java.util.Objects.requireNonNull(served.get(primaryName), primaryName);
+        final java.util.Map<String, Destination> routes = new java.util.LinkedHashMap<>(served);
+        routes.remove(primaryName);
+
+        // A URL endpoint is bound inside the task's own network namespace: a host-side listener is
+        // either unreachable from a rootless container or bound to every interface, and neither is
+        // acceptable for something that answers with a credential. Entering the namespace is how
+        // the ruleset and the resolver already get there.
+        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
+                SokarBinary.path(),
+                "vault", "serve",
+                "--socket", socket.toString()));
+        command.addAll(java.util.List.of(
+                "--credential", primaryName,
+                "--task", task,
+                "--upstream", primary.upstream(),
+                "--auth-header", primary.authHeader(),
+                "--auth-prefix", primary.authPrefix(),
+                "--token-file", tokenFile.toString(),
+                "--pid-file", state.resolve("vault.pid").toString(),
+                "--hours", String.valueOf(tokenHours)));
+        // A service that takes its key in the URL: the broker puts it there, and in no header.
+        if (primary.authQuery() != null) {
+            command.add("--auth-query");
+            command.add(primary.authQuery());
+        }
+        if (!routes.isEmpty()) {
+            command.add("--route-tokens");
+            command.add(routeTokens.toString());
+            routes.forEach((name, destination) -> {
+                command.add("--route");
+                command.add(name + "=" + destination.upstream() + "|" + destination.authHeader() + "|"
+                        + destination.authPrefix() + "|" + (destination.authQuery() == null ? "" : destination.authQuery()));
+            });
+        }
+
+        try {
+            java.nio.file.Files.deleteIfExists(tokenFile);
+            if (!routes.isEmpty()) {
+                java.nio.file.Files.createDirectories(routeTokens);
+                java.nio.file.Files.setPosixFilePermissions(routeTokens,
+                        java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+            }
+            new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + container + " vault", command))
+                    .redirectErrorStream(true)
+                    .redirectOutput(state.resolve("vault.log").toFile())
+                    .start();
+            record("vault", command, java.util.Map.of(),
+                    TaskHelpers.BEFORE);
+        } catch (java.io.IOException ex) {
+            err.println("sokar: could not start the credential proxy: " + ex.getMessage());
+            err.flush();
+            return null;
+        }
+
+        final String token = awaitToken(socket, tokenFile);
+        if (token == null) {
+            err.println("sokar: the credential proxy did not come up, see "
+                    + state.resolve("vault.log"));
+            err.flush();
+            return null;
+        }
+
+        final java.util.Map<String, String> environment = new java.util.LinkedHashMap<>();
+        if (own != null) {
+            environment.put(own.variable(), token);
+            if (own.route().socketEnvironment() != null) {
+                environment.put(own.route().socketEnvironment(), TaskWiring.VAULT_MOUNT);
+            }
+            final String baseUrl = agent == null || agent.definition().provider() == null ? null
+                    : agent.definition().provider().baseUrlEnvironment();
+            if (baseUrl != null) {
+                // Both, always. The socket variable only picks the transport; without a base URL the
+                // agent uses its own compiled-in endpoint and never touches the socket at all.
+                environment.put(baseUrl, own.route().endpointFor(TaskWiring.VAULT_URL));
+            }
+            out.println("vault     " + socket + " -> " + own.route().upstream());
+            out.println("token     " + own.variable() + "=" + org.fuin.sokar.vault.PhantomToken.abbreviate(token));
+        }
+        for (final java.util.Map.Entry<String, Destination> credential : served.entrySet()) {
+            final String name = credential.getKey();
+            final String minted = name.equals(primaryName) && own == null ? token
+                    : awaitToken(null, routeTokens.resolve(name + ".token"));
+            if (minted == null) {
+                err.println("sokar: the credential proxy wrote no token for " + name + ", see " + state.resolve("vault.log"));
+                err.flush();
+                continue;
+            }
+            final String suffix = variableSuffix(name);
+            environment.put("SOKAR_TOKEN_" + suffix, minted);
+            environment.put("SOKAR_URL_" + suffix, TaskWiring.VAULT_URL);
+            out.println("credential " + name + " -> " + credential.getValue().host() + " as SOKAR_TOKEN_" + suffix
+                    + "=" + org.fuin.sokar.vault.PhantomToken.abbreviate(minted) + ", SOKAR_URL_" + suffix);
+        }
+        out.flush();
+        return new CredentialPlumbing(socket, own != null ? own.route().upstreamHost() : primary.host(), environment,
+                !served.isEmpty());
+    }
+
+    /**
+     * Returns the part of a variable's name a credential gives: upper case, {@code -} as {@code _}.
+     *
+     * @param name The credential's name.
+     * @return The suffix.
+     */
+    static String variableSuffix(String name) {
+        return name.toUpperCase(java.util.Locale.ROOT).replace('-', '_');
+    }
+
+    /** The agent's own credential, where it goes and which variable carries its token. */
+    private record AgentRoute(String credential, String variable, org.fuin.sokar.agent.api.ProviderRoute route,
+            Destination destination) {
+    }
+
+    private @Nullable AgentRoute agentRoute(org.fuin.sokar.agent.api.InstalledAgent agent, PrintWriter out,
+            PrintWriter err) {
         final SelectedProvider selection = choice.provider(agent);
         final org.fuin.sokar.agent.api.ProviderRoute route =
                 selection == null ? null : selection.route();
@@ -246,67 +405,10 @@ final class CredentialWiring {
             out.println("token     none - " + unavailable);
             return null;
         }
-
-        final java.nio.file.Path state = context.paths().containerState(container);
-        final java.nio.file.Path socket = state.resolve("vault.sock");
-        final java.nio.file.Path tokenFile = state.resolve("vault.token");
-
-        // A URL endpoint is bound inside the task's own network namespace: a host-side listener is
-        // either unreachable from a rootless container or bound to every interface, and neither is
-        // acceptable for something that answers with a credential. Entering the namespace is how
-        // the ruleset and the resolver already get there.
-        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
-                SokarBinary.path(),
-                "vault", "serve",
-                "--socket", socket.toString()));
-        command.addAll(java.util.List.of(
-                "--credential", choice.credentialName(agent),
-                "--task", task,
-                "--upstream", route.upstream(),
-                "--auth-header", route.authHeaderFor(type),
-                "--auth-prefix", route.authPrefixFor(type),
-                "--token-file", tokenFile.toString(),
-                "--pid-file", state.resolve("vault.pid").toString(),
-                "--hours", String.valueOf(tokenHours)));
-
-        try {
-            java.nio.file.Files.deleteIfExists(tokenFile);
-            new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + container + " vault", command))
-                    .redirectErrorStream(true)
-                    .redirectOutput(state.resolve("vault.log").toFile())
-                    .start();
-            record("vault", command, java.util.Map.of(),
-                    TaskHelpers.BEFORE);
-        } catch (java.io.IOException ex) {
-            err.println("sokar: could not start the credential proxy: " + ex.getMessage());
-            err.flush();
-            return null;
-        }
-
-        final String token = awaitToken(socket, tokenFile);
-        if (token == null) {
-            err.println("sokar: the credential proxy did not come up, see "
-                    + state.resolve("vault.log"));
-            err.flush();
-            return null;
-        }
-
-        final java.util.Map<String, String> environment = new java.util.LinkedHashMap<>();
-        environment.put(variable, token);
-        if (route.socketEnvironment() != null) {
-            environment.put(route.socketEnvironment(), TaskWiring.VAULT_MOUNT);
-        }
-        final String baseUrl = agent.definition().provider() == null ? null
-                : agent.definition().provider().baseUrlEnvironment();
-        if (baseUrl != null) {
-            // Both, always. The socket variable only picks the transport; without a base URL the
-            // agent uses its own compiled-in endpoint and never touches the socket at all.
-            environment.put(baseUrl, route.endpointFor(TaskWiring.VAULT_URL));
-        }
-        out.println("vault     " + socket + " -> " + route.upstream());
-        out.println("token     " + variable + "=" + org.fuin.sokar.vault.PhantomToken.abbreviate(token));
-        out.flush();
-        return new CredentialPlumbing(socket, route.upstreamHost(), environment);
+        final String query = route.authQueryFor(type);
+        return new AgentRoute(choice.credentialName(agent), variable, route,
+                new Destination("agent-provider", "the agent's provider", route.upstream(), route.authHeaderFor(type),
+                        route.authPrefixFor(type), query));
     }
 
     /**

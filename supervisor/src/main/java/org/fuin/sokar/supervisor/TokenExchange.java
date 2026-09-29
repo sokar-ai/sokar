@@ -20,8 +20,20 @@ public interface TokenExchange {
      * The token was accepted.
      *
      * @param credential The real credential to send upstream.
+     * @param scope Which credential the token stands for, which picks where the request goes when a task
+     *        holds more than one; {@code null} for the one route a broker had before.
      */
-    record Granted(String credential) implements Result {
+    record Granted(String credential, @org.jspecify.annotations.Nullable String scope)
+            implements Result {
+
+        /**
+         * A grant for the one route, as every grant was before a task held more than one credential.
+         *
+         * @param credential The real credential.
+         */
+        public Granted(String credential) {
+            this(credential, null);
+        }
     }
 
     /**

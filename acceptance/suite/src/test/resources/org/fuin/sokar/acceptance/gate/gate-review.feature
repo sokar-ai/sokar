@@ -6,7 +6,7 @@ Feature: Work waiting at the gate, reviewed, backed up and restored
   does to it what a reviewer does. One scenario, because a second push to the same task's ref would
   be refused as not a fast-forward.
 
-  Scenario: a push waits for review, opens where nothing in it runs, and its mirror is backed up
+  Scenario: a push waits for review, names what is dangerous first, opens where nothing in it runs, and its mirror is backed up
     Given the environment variable "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" is set
     And a vault of this scenario's own, unlocked with the passphrase "acceptance"
     And the vault holds the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" as "anthropic" of kind "api-key"
@@ -14,11 +14,19 @@ Feature: Work waiting at the gate, reviewed, backed up and restored
     When a task called "reviewed" is started in "gated" for the "stub" agent and left running
     And a script runs about the task:
       """
-      podman exec {task} sh -c 'cd /workspace && echo change >> README.md && git -c user.email=agent@localhost -c user.name=agent commit -qam "acceptance: a change to review" && timeout 30 git push -q sokar HEAD:"$SOKAR_TASK_REF"'
+      podman exec {task} sh -c 'cd /workspace && echo change >> README.md && mkdir -p .github/workflows && echo "on: push" > .github/workflows/ci.yml && git add -A && git -c user.email=agent@localhost -c user.name=agent commit -qm "acceptance: a change to review" && timeout 30 git push -q sokar HEAD:"$SOKAR_TASK_REF"'
       """
     Then it exits zero
     When a script runs "sokar gate pending --project gated"
     Then its output has a line matching "reviewed +\S+ +[0-9a-f]+ +acceptance: a change to review"
+    # A one-line workflow beside an ordinary change: the workflow is what a reviewer must meet first,
+    # however small, and the patch follows the same order.
+    When a script runs "sokar gate review reviewed --project gated"
+    Then it exits zero
+    And its output contains "asked: "
+    And its output contains "READ FIRST - dangerous by kind, however small:"
+    And its output has a line matching "A  \.github/workflows/ci\.yml  \+1 -0  a CI definition.*"
+    And its output has a line matching "M  README\.md  \+1 -0"
     When a script runs:
       """
       dir=$(mktemp -d)

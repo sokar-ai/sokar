@@ -90,7 +90,29 @@ public final class ProjectReader {
                 // Absent means no. A setting that says unread work may leave is one somebody has
                 // to write down, because forgetting it must never be the permissive answer.
                 Boolean.TRUE.equals(project.get("unread_work_may_leave")),
-                repositories(root, origin));
+                repositories(root, origin),
+                credentials(root, origin));
+    }
+
+    /**
+     * Reads the optional {@code credentials} section: a vault entry's name to the destination it is for.
+     *
+     * @param root The file's root mapping.
+     * @param origin Where it came from, for messages.
+     * @return The credentials, in the order written; empty when the section is absent.
+     */
+    private static Map<String, String> credentials(Map<?, ?> root, String origin) {
+        final Object value = root.get("credentials");
+        if (value == null) {
+            return Map.of();
+        }
+        if (!(value instanceof Map<?, ?> named)) {
+            throw new ProjectException(origin + ": 'credentials' must be a mapping of a vault entry's name to its"
+                    + " destination, for example 'search: brave-search'");
+        }
+        final Map<String, String> credentials = new java.util.LinkedHashMap<>();
+        named.forEach((entry, destination) -> credentials.put(String.valueOf(entry), String.valueOf(destination)));
+        return credentials;
     }
 
     /**

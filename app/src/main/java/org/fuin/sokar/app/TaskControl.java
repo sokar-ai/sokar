@@ -536,6 +536,17 @@ public final class TaskControl {
                     Files.setPosixFilePermissions(file,
                             java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
                 }
+                // The other credentials' tokens too: the container still holds them in its environment.
+                if (!tokens.routes().isEmpty()) {
+                    final Path routes = Files.createDirectories(state.resolve(TaskSecrets.ROUTES_DIRECTORY));
+                    Files.setPosixFilePermissions(routes, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+                    for (final java.util.Map.Entry<String, String> route : tokens.routes().entrySet()) {
+                        final Path file = routes.resolve(route.getKey() + ".token");
+                        Files.writeString(file, route.getValue(), java.nio.charset.StandardCharsets.UTF_8);
+                        Files.setPosixFilePermissions(file,
+                                java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+                    }
+                }
             } catch (IOException ex) {
                 return new Resumed(Outcome.HELPERS_INCOMPLETE, 0, savedHelpers.helpers().size(), null, null,
                         List.of("could not put back what the restart took: " + ex.getMessage()));

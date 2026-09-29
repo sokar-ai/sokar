@@ -37,6 +37,8 @@ public class GitHttpServer implements AutoCloseable {
 
     private final Path mirror;
 
+    private final @org.jspecify.annotations.Nullable String ref;
+
     private final TaskToken token;
 
     private final GitProcess git;
@@ -68,6 +70,30 @@ public class GitHttpServer implements AutoCloseable {
      * @throws GateException If the address cannot be bound.
      */
     public GitHttpServer(InetSocketAddress address, Path mirror, TaskToken token, GitProcess git) {
+        this(address, mirror, token, git, null);
+    }
+
+    /**
+     * Constructor for one task's gate, which may update exactly one ref.
+     * <p>
+     * <strong>Enforced here, not agreed with the agent.</strong> {@code receive-pack} accepts whatever
+     * refs a push names, and a task that pushed to {@code refs/heads/main} moved the mirror's own branch:
+     * the history the next task of the project clones from, and the base every review compares against.
+     * A push to another task's incoming ref would have written work under that task's name. So every ref
+     * a push would update is read before git sees the request, and anything but this task's own ref is
+     * refused. Measured by Agent Frontend on 2026-09-29: a plain {@code git push sokar <branch>} landed
+     * in {@code refs/heads/}.
+     *
+     * @param address Where to listen.
+     * @param mirror The bare mirror.
+     * @param token What a push must present.
+     * @param git How git is run.
+     * @param ref The one ref a push may update, or {@code null} for any ref under
+     *            {@link GitGate#INCOMING} - never a branch.
+     */
+    public GitHttpServer(InetSocketAddress address, Path mirror, TaskToken token, GitProcess git,
+            @org.jspecify.annotations.Nullable String ref) {
+        this.ref = ref;
         this.mirror = mirror;
         this.token = token;
         this.git = git;
@@ -114,6 +140,8 @@ public class GitHttpServer implements AutoCloseable {
                 exchange.sendResponseHeaders(404, -1);
             }
         } catch (GateException ex) {
+            // To the gate's log, which the operator reads; the pushing agent sees only the 403.
+            System.err.println("refused: " + ex.getMessage());
             exchange.sendResponseHeaders(403, -1);
         } finally {
             exchange.close();
@@ -170,6 +198,19 @@ public class GitHttpServer implements AutoCloseable {
         try (InputStream in = exchange.getRequestBody()) {
             request = in.readAllBytes();
         }
+        if ("git-receive-pack".equals(service)) {
+            // A body that cannot be read here is refused, never passed on: what it would update is unknown.
+            final String encoding = exchange.getRequestHeaders().getFirst("Content-Encoding");
+            if (encoding != null && !"identity".equalsIgnoreCase(encoding)) {
+                throw new GateException("a push with a " + encoding + " body is refused, as its refs cannot be read");
+            }
+            for (final String updated : updatedRefs(request)) {
+                if (!mayUpdate(updated)) {
+                    throw new GateException("this gate takes a push to " + (ref == null ? GitGate.INCOMING + "<name>" : ref)
+                            + " only, not to " + updated);
+                }
+            }
+        }
 
         final byte[] response = git.run(List.of(service.substring("git-".length()),
                 "--stateless-rpc", mirror.toString()), request);
@@ -183,6 +224,59 @@ public class GitHttpServer implements AutoCloseable {
         exchange.sendResponseHeaders(200, body.length);
         try (OutputStream out = exchange.getResponseBody()) {
             out.write(body);
+        }
+    }
+
+    private boolean mayUpdate(String updated) {
+        return ref != null ? ref.equals(updated)
+                : updated.startsWith(GitGate.INCOMING) && updated.length() > GitGate.INCOMING.length();
+    }
+
+    /**
+     * Reads the refs a {@code receive-pack} request would update, from the commands at its start.
+     * <p>
+     * Each command is a pkt-line {@code <old> <new> <ref>}, the first followed by a NUL and the
+     * capabilities, up to a flush packet; the pack follows. A {@code shallow} line may come first. Anything
+     * else - a push certificate, a line that is not three fields - is refused rather than guessed at.
+     *
+     * @param request The request body.
+     * @return The refs, in the order named.
+     * @throws GateException If the commands cannot be read.
+     */
+    static List<String> updatedRefs(byte[] request) {
+        final List<String> refs = new java.util.ArrayList<>();
+        int at = 0;
+        while (true) {
+            if (at + 4 > request.length) {
+                throw new GateException("a push whose commands end before their flush is refused");
+            }
+            final int length;
+            try {
+                length = Integer.parseInt(new String(request, at, 4, StandardCharsets.US_ASCII), 16);
+            } catch (NumberFormatException ex) {
+                throw new GateException("a push whose commands cannot be read is refused", ex);
+            }
+            if (length == 0) {
+                return List.copyOf(refs);
+            }
+            if (length < 4 || at + length > request.length) {
+                throw new GateException("a push whose commands cannot be read is refused");
+            }
+            String line = new String(request, at + 4, length - 4, StandardCharsets.UTF_8);
+            at += length;
+            final int nul = line.indexOf('\0');
+            if (nul >= 0) {
+                line = line.substring(0, nul);
+            }
+            line = line.strip();
+            if (line.startsWith("shallow ")) {
+                continue;
+            }
+            final String[] fields = line.split(" ");
+            if (fields.length != 3) {
+                throw new GateException("a push command that is not '<old> <new> <ref>' is refused: " + line);
+            }
+            refs.add(fields[2]);
         }
     }
 

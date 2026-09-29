@@ -11,6 +11,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import org.fuin.sokar.core.project.Mail;
 import org.fuin.sokar.core.project.Project;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Moves every mailbox on this machine along, on a schedule.
@@ -127,7 +128,12 @@ public final class MessageWatch implements AutoCloseable {
         int moved = 0;
         for (final Path mailbox : mailboxes) {
             try {
-                pass.run(new Mailbox(mailbox), peersOf(mailbox.getFileName().toString()), peers);
+                final String container = mailbox.getFileName().toString();
+                final String project = projectOf(container);
+                // A mailbox whose project is gone has no peers to send to, so nothing it decides is
+                // read; its own name keeps it from reading another project's decisions.
+                pass.run(new Mailbox(mailbox), peersOf(container), peers,
+                        Moderation.of(context.paths(), project == null ? container : project));
                 moved++;
             } catch (final IOException | RuntimeException ex) {
                 continue;
@@ -261,6 +267,21 @@ public final class MessageWatch implements AutoCloseable {
                 watcher = null;
             }
         }
+    }
+
+    /**
+     * Returns the name of the project a task's container belongs to, or {@code null}.
+     *
+     * @param container The container.
+     * @return Its project's name.
+     */
+    private @Nullable String projectOf(final String container) {
+        for (final ProjectInventory.Summary summary : new ProjectInventory(context).projects()) {
+            if (container.startsWith("sokar-" + summary.name() + "-")) {
+                return summary.name();
+            }
+        }
+        return null;
     }
 
     private Mail peersOf(final String container) {

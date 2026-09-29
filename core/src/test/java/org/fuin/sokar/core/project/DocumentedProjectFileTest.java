@@ -52,6 +52,7 @@ class DocumentedProjectFileTest {
         assertThat(project.egressFor(frontend).sets()).contains("maven", "nodejs");
         assertThat(project.limitsFor(frontend).memory()).isEqualTo("16g");
         assertThat(project.limitsFor(frontend).pids()).isEqualTo(project.limits().pids());
+        assertThat(project.credentials()).containsEntry("search", "brave-search");
     }
 
     private static String exampleFrom(Path page) throws IOException {

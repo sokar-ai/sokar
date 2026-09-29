@@ -1,7 +1,10 @@
 # B29 — Keys That Are Presented As They Are Stored
 
-**Status:** open, and the smallest of the three kinds. Built already for exactly one credential;
-what is missing is more than one, the second place a key can go, and a header name nobody declared.
+**Status:** open; its three findings are fixed for one credential (2026-09-29). What remains is the second
+key in one task, which is [B28](B28-More-Than-One-Credential-In-A-Task.md)'s. Built first, before B28, at
+the operator's word of 2026-09-29, as the order below argues. Before that it was built for exactly one
+credential; what was missing was more than one, the second place a key can go, and a header name nobody
+declared.
 Depends on [B28](B28-More-Than-One-Credential-In-A-Task.md). Compared with the other kinds in [Credential Types Compared](Credential-Types-Compared.md).
 
 ## The kind
@@ -99,6 +102,22 @@ need not be code.
 - **A service that is not a model provider is declared as a `destination`**, a second kind beside
   the provider rather than a widening of it — decided in
   [B28](B28-More-Than-One-Credential-In-A-Task.md). This kind is the first to declare one.
+
+## Built 2026-09-29, for one credential
+
+- **A key in the route's own header is this task's token.** The broker reads the header the route names
+  first, then the four it always knew. `x-goog-api-key` is no longer refused as "not this task's token".
+- **A key can travel in the URL.** A provider declares `auth_query` by credential kind, beside
+  `auth_header`. The broker then takes the phantom out of that parameter, puts the real key into the same
+  parameter of the upstream request, and adds it to no header. `vault serve --auth-query` carries it.
+  `ProviderDefinition` and `ProviderRoute` keep their earlier constructors, so nothing built against
+  `sokar-agent-api` breaks.
+- **No value in a query string reaches the broker's log.** Every logged target keeps its path and the
+  names of its parameters, never their values. `VaultProxyKeyPlacementTest` fails when the redaction is
+  removed, watched.
+
+**Still open here:** two keys for two services in one task, the declared `destination`, and the worked
+case. All of them wait for B28.
 
 ## To be checked
 

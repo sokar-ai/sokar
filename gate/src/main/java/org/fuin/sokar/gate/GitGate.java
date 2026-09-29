@@ -1,9 +1,13 @@
 package org.fuin.sokar.gate;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.fuin.sokar.core.process.Command;
 import org.fuin.sokar.core.process.CommandException;
 import org.fuin.sokar.core.process.CommandResult;
@@ -293,6 +297,90 @@ public class GitGate {
             return gitIn("show", "--patch", INCOMING + name).standardOutput();
         }
         return gitIn("diff", against, INCOMING + name).standardOutput();
+    }
+
+    /**
+     * Returns what an incoming ref would change, ranked by what reading it is worth, and the patch in
+     * that order.
+     * <p>
+     * Over the same range as {@link #review}. Renames are shown as a removal and an addition, so a file
+     * moved into a place that runs - a workflow directory - is ranked by where it arrives.
+     *
+     * @param name Incoming ref name, without the namespace prefix.
+     * @param against Ref to compare against, or {@code null} to show the ref's own last commit.
+     * @return The ranked files and the patch.
+     */
+    public ReviewRanking.Review rankedReview(String name, @Nullable String against) {
+        requirePending(name);
+        final boolean compare = against != null && !against.isBlank() && resolves(against);
+        final List<String> verb = compare ? List.of("diff", "--no-renames") : List.of("show", "--format=", "--no-renames");
+        final List<String> refs = compare ? List.of(against, INCOMING + name) : List.of(INCOMING + name);
+        final Map<String, int[]> counts = numstat(gitIn(join(verb, List.of("--numstat"), refs)).standardOutput());
+        final Set<String> beyondWhitespace = numstat(gitIn(join(verb,
+                List.of("--numstat", "-w", "--ignore-blank-lines"), refs)).standardOutput()).keySet();
+        final List<ReviewRanking.Change> changes = new ArrayList<>();
+        for (final String line : gitIn(join(verb, List.of("--raw", "--no-abbrev"), refs)).standardOutput().split("\n")) {
+            // ":<old mode> <new mode> <old blob> <new blob> <status>\t<path>"
+            final int tab = line.indexOf('\t');
+            if (!line.startsWith(":") || tab < 0) {
+                continue;
+            }
+            final String[] fields = line.substring(1, tab).split(" ");
+            final String path = line.substring(tab + 1);
+            final String status = fields[4];
+            final int[] count = counts.getOrDefault(path, new int[] { 0, 0 });
+            // Whitespace alone: something changed, and nothing is left of it once whitespace is ignored.
+            final boolean whitespaceOnly = "M".equals(status) && fields[0].equals(fields[1])
+                    && (count[0] > 0 || count[1] > 0) && !beyondWhitespace.contains(path);
+            final String head = "D".equals(status) || changes.size() >= HEADS_READ ? null : head(fields[3]);
+            changes.add(new ReviewRanking.Change(path, status, fields[0], fields[1], count[0], count[1],
+                    whitespaceOnly, head));
+        }
+        final List<ReviewRanking.File> files = ReviewRanking.rank(changes);
+        final Path order;
+        try {
+            order = Files.createTempFile("sokar-review-order", ".txt");
+            Files.writeString(order, ReviewRanking.orderFile(files), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new GateException("could not order the review: " + ex.getMessage(), ex);
+        }
+        try {
+            final String patch = gitIn(join(verb, List.of("--patch", "-O" + order), refs)).standardOutput();
+            return new ReviewRanking.Review(files, patch);
+        } finally {
+            try {
+                Files.deleteIfExists(order);
+            } catch (IOException ex) {
+                // A leftover order file names paths the operator is about to read anyway; not worth failing for.
+            }
+        }
+    }
+
+    /** How many files' heads are read to see whether they say they were generated. */
+    private static final int HEADS_READ = 500;
+
+    private String head(String blob) {
+        final String content = gitIn("cat-file", "-p", blob).standardOutput();
+        return content.length() > 2048 ? content.substring(0, 2048) : content;
+    }
+
+    private static Map<String, int[]> numstat(String output) {
+        final Map<String, int[]> counts = new java.util.LinkedHashMap<>();
+        for (final String line : output.split("\n")) {
+            final String[] fields = line.split("\t", 3);
+            if (fields.length == 3) {
+                counts.put(fields[2], new int[] { "-".equals(fields[0]) ? -1 : Integer.parseInt(fields[0]),
+                        "-".equals(fields[1]) ? -1 : Integer.parseInt(fields[1]) });
+            }
+        }
+        return counts;
+    }
+
+    private static String[] join(List<String> verb, List<String> options, List<String> refs) {
+        final List<String> all = new ArrayList<>(verb);
+        all.addAll(options);
+        all.addAll(refs);
+        return all.toArray(String[]::new);
     }
 
     /**

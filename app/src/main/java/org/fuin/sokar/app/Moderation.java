@@ -14,8 +14,13 @@ import org.fuin.sokar.core.project.SecurityClass;
 import org.fuin.sokar.wire.Json;
 
 /**
- * What a person controls about a task's conversations: whether a peer is held, and how much is
+ * What a person controls about a project's conversations: whether a peer is held, and how much is
  * asked before a message reaches it.
+ * <p>
+ * <strong>Per project, for every task of it, including tasks started later.</strong> Decided by the
+ * operator on 2026-09-29: a person holds {@code reviewer} for the project, not for one task's mailbox,
+ * and a task started tomorrow finds it held. Until then the state lived in each task's mailbox, and a
+ * new task of the same project began at the default, unheld.
  * <p>
  * The four modes are {@code clearance}'s, with the same meanings, because an operator should not
  * have to learn a second vocabulary for the same decision:
@@ -45,8 +50,8 @@ public final class Moderation {
     /** What a peer nobody has decided about is in. */
     public static final String DEFAULT = "prompt";
 
-    /** The file, in the mailbox root and so outside what the task can see. */
-    public static final String FILE = "moderation.json";
+    /** What the file is called while it is being written, beside the file itself. */
+    private static final String STAGED = ".tmp";
 
     /** The setting a project has to carry before a message may leave unread. */
     public static final String SETTING = "unread_work_may_leave";
@@ -74,10 +79,21 @@ public final class Moderation {
     /**
      * Constructor.
      *
-     * @param mailbox The task's mailbox.
+     * @param file Where the decisions are kept.
      */
-    public Moderation(final Mailbox mailbox) {
-        this.file = mailbox.root().resolve(FILE);
+    Moderation(final Path file) {
+        this.file = file;
+    }
+
+    /**
+     * Returns the decisions about one project's peers.
+     *
+     * @param paths Where this user's Sokar keeps its files.
+     * @param project The project's name.
+     * @return Them.
+     */
+    public static Moderation of(final SokarPaths paths, final String project) {
+        return new Moderation(paths.moderation(project));
     }
 
     /**
@@ -195,7 +211,7 @@ public final class Moderation {
         Files.createDirectories(file.getParent());
         // Through a neighbour and a rename: a half-written file here would read as a peer nobody
         // decided about, which is the permissive answer for a project that already said otherwise.
-        final Path staged = file.resolveSibling(FILE + ".tmp");
+        final Path staged = file.resolveSibling(file.getFileName() + STAGED);
         Files.writeString(staged, Json.write(root), StandardCharsets.UTF_8);
         Files.move(staged, file, StandardCopyOption.REPLACE_EXISTING,
                 StandardCopyOption.ATOMIC_MOVE);

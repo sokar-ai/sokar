@@ -509,6 +509,21 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file holding what a person decided about one project's peers: which are held, and
+     * how much is asked before a message reaches each.
+     * <p>
+     * Under the state directory, on the host: per project rather than per task, so a task started later
+     * finds what was decided, and never where a task can reach it - a task must not be able to change
+     * how closely it is watched.
+     *
+     * @param project The project's name.
+     * @return The file.
+     */
+    public Path moderation(String project) {
+        return xdg.state().resolve("moderation").resolve(project + ".json");
+    }
+
+    /**
      * Returns the directory a task's durable state is saved in: what it is, how its helpers start, and the egress
      * it was given - the copies that bring it back after a reboot.
      * <p>

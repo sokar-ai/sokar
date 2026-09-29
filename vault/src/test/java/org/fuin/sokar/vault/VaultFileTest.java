@@ -65,6 +65,38 @@ class VaultFileTest {
     }
 
     @Test
+    void keepsACredentialsSettingsBesideItsSecret(@TempDir Path dir) {
+
+        // A credential stopped being one value: an OAuth client is its secret and a token URL, a
+        // client id and scopes, which are configuration.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        final Map<String, VaultEntry> entries = Map.of("forge-app", new VaultEntry("s3cr3t-client-secret-value", "oauth-client",
+                Map.of("client_id", "sokar-app", "token_url", "https://auth.example.com/token", "scopes", "repo read:org")));
+        vault.write(entries, PASSPHRASE);
+
+        final VaultEntry read = vault.read(PASSPHRASE).get("forge-app");
+        assertThat(read.value()).isEqualTo("s3cr3t-client-secret-value");
+        assertThat(read.settings()).containsEntry("token_url", "https://auth.example.com/token")
+                .containsEntry("scopes", "repo read:org").hasSize(3);
+    }
+
+    @Test
+    void anEntryWithoutSettingsIsStoredAsBefore(@TempDir Path dir) {
+
+        // So an older Sokar reading the same vault still finds what it wrote.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("anthropic", new VaultEntry("sk-ant-0123456789abcdefghij", "api-key")), PASSPHRASE);
+
+        assertThat(vault.read(PASSPHRASE).get("anthropic").settings()).isEmpty();
+    }
+
+    @Test
+    void refusesASettingNameThatIsNotOne() {
+        assertThatThrownBy(() -> new VaultEntry("x", null, Map.of("Token URL", "y")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("is not a setting name");
+    }
+
+    @Test
     void refusesAWrongPassphrase(@TempDir Path dir) {
 
         final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));

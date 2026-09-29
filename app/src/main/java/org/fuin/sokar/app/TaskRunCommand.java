@@ -58,6 +58,12 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Provider to serve the models. Default: the agent's own.")
     private @Nullable String providerName;
 
+    @Option(names = "--credential", paramLabel = "<entry>=<destination>",
+            description = "Another credential this task holds, beyond the agent's own and the project's: a vault"
+                    + " entry and the destination or provider it is for. Repeatable. It reaches the task as"
+                    + " SOKAR_TOKEN_<ENTRY> and SOKAR_URL_<ENTRY>, a token worthless anywhere else.")
+    private java.util.Map<String, String> credentials = new java.util.LinkedHashMap<>();
+
     @Option(names = "--credential-type", paramLabel = "<type>",
             description = "Overrides the kind recorded with the credential when it was stored.")
     private @Nullable String credentialType;
@@ -193,7 +199,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         // daemon builds the same request and gets the same behavior without running a CLI.
         final TaskLaunch launch = new TaskLaunch(context, new TaskLaunch.Request(task, projectFile,
                 agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
-                clearance, !rm, mode(), prompt, model, maxTurns, minutes, repository));
+                clearance, !rm, mode(), prompt, model, maxTurns, minutes, repository, credentials));
 
         final TaskLaunch.Existing existing = launch.startExisting(out, err);
         if (existing != null) {
@@ -248,7 +254,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // command the container had already made safe.
             final String startWith = "agent".equals(attach) && running.selected() != null
                     ? org.fuin.sokar.runtime.ShellWords.quote(
-                            running.selected().definition().sandboxedCommand())
+                            running.selected().definition().attendedCommand(model))
                     : null;
             out.println(rm
                     ? "Attaching. Leaving the shell removes the container; Ctrl-C stops it and"

@@ -18,6 +18,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.fuin.sokar.wire.SocketContext;
 
@@ -66,8 +67,14 @@ public class VaultProxy implements AutoCloseable, Runnable {
     private static final Set<String> UNDERSTOOD_TYPES =
             Set.of("application/json", "text/event-stream");
 
-    /** Headers carrying a credential, all of which are dropped before forwarding. */
-    private static final Set<String> CREDENTIAL_HEADERS =
+    /**
+     * Headers carrying a credential, all of which are dropped before forwarding.
+     * <p>
+     * Public, like the other bounds below, because {@code doc/reach.md} states them to the operator
+     * and a test holds the two together: a bound that changes here fails the build until the document
+     * says the same.
+     */
+    public static final Set<String> CREDENTIAL_HEADERS =
             Set.of("authorization", "x-api-key", "private-token", "proxy-authorization");
 
     /**
@@ -79,8 +86,8 @@ public class VaultProxy implements AutoCloseable, Runnable {
             "transfer-encoding", "content-length", "upgrade", "te", "trailer",
             "proxy-connection", "expect");
 
-    /** Largest request body accepted, in bytes. */
-    private static final int BODY_LIMIT = 32 * 1024 * 1024;
+    /** Largest request body accepted, in bytes - and so the most one request to the provider can carry out. */
+    public static final int BODY_LIMIT = 32 * 1024 * 1024;
 
     /**
      * A credential in an answer, as a JSON field rather than as text.
@@ -98,7 +105,7 @@ public class VaultProxy implements AutoCloseable, Runnable {
      * boundary, and a copy of the number in the test would be a second statement of one fact - the
      * test would keep passing against a changed bound while testing nothing.
      */
-    static final int PEEK = 8192;
+    public static final int PEEK = 8192;
 
     /**
      * Marks a request as asking the provider to mint or renew a credential.
@@ -116,9 +123,12 @@ public class VaultProxy implements AutoCloseable, Runnable {
      * Latent when written: no supported provider mints this way, so nothing reaches it today. It
      * was one pattern away from being reachable.
      */
+    public static final List<String> REFUSED_GRANTS = List.of("refresh_token", "client_credentials");
+
+    /** The grants above, as a request body names them. */
     private static final java.util.regex.Pattern MINTING_GRANT =
             java.util.regex.Pattern.compile(
-                    "grant_type[\"'=:\\s]+(refresh_token|client_credentials)");
+                    "grant_type[\"'=:\\s]+(" + String.join("|", REFUSED_GRANTS) + ")");
 
     private final Path socket;
 
@@ -129,6 +139,10 @@ public class VaultProxy implements AutoCloseable, Runnable {
     private final String authHeader;
 
     private final String authPrefix;
+
+    private final @org.jspecify.annotations.Nullable String authQuery;
+
+    private final Map<String, Route> routes;
 
     private final HttpClient http;
 
@@ -169,7 +183,80 @@ public class VaultProxy implements AutoCloseable, Runnable {
      */
     public VaultProxy(Path socket, String upstream, TokenExchange exchange,
             String authHeader, String authPrefix, java.util.function.Consumer<String> log) {
+        this(socket, upstream, exchange, authHeader, authPrefix, null, log);
+    }
 
+    /**
+     * Constructor for a service that takes its key in the URL.
+     * <p>
+     * The container's request may carry its phantom token in that parameter; it is taken out, and the
+     * real key is put into the same parameter of the request that goes upstream, and into no header.
+     * Forwarded as it came, the phantom would have travelled to the provider beside the real one: one
+     * request, two credentials, one of them wrong.
+     *
+     * @param socket Path to bind.
+     * @param upstream Real API endpoint.
+     * @param exchange Turns a presented token into a credential.
+     * @param authHeader Header the credential belongs in, when it does not go in the URL.
+     * @param authPrefix String placed before the credential in that header.
+     * @param authQuery Query parameter the key goes in, or {@code null} for the header.
+     * @param log Receives one line per request.
+     */
+    public VaultProxy(Path socket, String upstream, TokenExchange exchange, String authHeader,
+            String authPrefix, @org.jspecify.annotations.Nullable String authQuery,
+            java.util.function.Consumer<String> log) {
+        this(socket, upstream, exchange, authHeader, authPrefix, authQuery, Map.of(), log);
+    }
+
+    /**
+     * Where one credential's requests go, and where its key goes on them.
+     *
+     * @param upstream The destination.
+     * @param authHeader The header the key goes in.
+     * @param authPrefix Text before the key in that header.
+     * @param authQuery The URL parameter the key goes in instead, or {@code null}.
+     */
+    public record Route(String upstream, String authHeader, String authPrefix,
+            @org.jspecify.annotations.Nullable String authQuery) {
+
+        /**
+         * Constructor.
+         *
+         * @param upstream The destination.
+         * @param authHeader The header.
+         * @param authPrefix The prefix.
+         * @param authQuery The URL parameter, or {@code null}.
+         */
+        public Route {
+            upstream = upstream.endsWith("/") ? upstream.substring(0, upstream.length() - 1) : upstream;
+            authQuery = authQuery == null || authQuery.isBlank() ? null : authQuery;
+        }
+    }
+
+    /**
+     * Constructor for a task that holds more than one credential.
+     * <p>
+     * <strong>The token picks the route, never the request.</strong> Each credential has its own phantom
+     * token, scoped to it, and a request goes to the destination of the credential its token stands for,
+     * with that credential's key where that destination expects it. A token presented with a path meant
+     * for another service still goes to its own: a credential held for one service cannot be attached to
+     * a request bound for another, whichever route the container asks for.
+     *
+     * @param socket Path to bind.
+     * @param upstream The agent's own destination, for a token scoped to no other route.
+     * @param exchange Turns a presented token into a credential and the scope it stands for.
+     * @param authHeader The agent's own header.
+     * @param authPrefix The agent's own prefix.
+     * @param authQuery The agent's own URL parameter, or {@code null}.
+     * @param routes The other credentials' routes, by the credential a token is scoped to.
+     * @param log Receives one line per request.
+     */
+    public VaultProxy(Path socket, String upstream, TokenExchange exchange, String authHeader,
+            String authPrefix, @org.jspecify.annotations.Nullable String authQuery, Map<String, Route> routes,
+            java.util.function.Consumer<String> log) {
+
+        this.routes = Map.copyOf(routes);
+        this.authQuery = authQuery == null || authQuery.isBlank() ? null : authQuery;
         this.log = log;
         this.socket = socket;
         this.upstream = upstream.endsWith("/")
@@ -257,7 +344,7 @@ public class VaultProxy implements AutoCloseable, Runnable {
 
         final TokenExchange.Result result = exchange.exchange(presented(head));
         if (result instanceof TokenExchange.Rejected) {
-            log.accept(head.method() + " " + head.target() + " -> 401 token not accepted");
+            log.accept(head.method() + " " + Query.redacted(head.target()) + " -> 401 token not accepted");
             // Deliberately the provider's own vocabulary: an agent that gets this should behave
             // as it would for any rejected credential rather than treat it as a transport fault.
             out.write(HttpHead.response(401, "Unauthorized",
@@ -267,7 +354,7 @@ public class VaultProxy implements AutoCloseable, Runnable {
             return;
         }
         if (result instanceof TokenExchange.Expired expired) {
-            log.accept(head.method() + " " + head.target()
+            log.accept(head.method() + " " + Query.redacted(head.target())
                     + " -> 401 this task's token expired at " + expired.when());
             // Says what happened rather than leaving the agent to report a wrong credential: the
             // token was right, the task simply outlived it.
@@ -280,33 +367,35 @@ public class VaultProxy implements AutoCloseable, Runnable {
             return;
         }
         if (result instanceof TokenExchange.Unavailable unavailable) {
-            log.accept(head.method() + " " + head.target() + " -> 503 " + unavailable.reason());
+            log.accept(head.method() + " " + Query.redacted(head.target()) + " -> 503 " + unavailable.reason());
             out.write(HttpHead.response(503, "Service Unavailable",
                     "{\"type\":\"error\",\"error\":{\"type\":\"api_error\","
                     + "\"message\":\"sokar: " + unavailable.reason() + "\"}}"));
             out.flush();
             return;
         }
-        final String real = ((TokenExchange.Granted) result).credential();
+        final TokenExchange.Granted granted = (TokenExchange.Granted) result;
+        final String real = granted.credential();
+        final Route route = granted.scope() == null ? own() : routes.getOrDefault(granted.scope(), own());
 
         if (body.length > 0 && MINTING_GRANT.matcher(
                 new String(body, StandardCharsets.UTF_8)).find()) {
             // Refused here rather than upstream: forwarding it would attach the real credential
             // to a request whose answer is a new one, and the provider may rotate what Sokar
             // holds as a side effect of a question nobody wanted asked.
-            log.accept(head.method() + " " + head.target() + " -> 403 token grant refused");
+            log.accept(head.method() + " " + Query.redacted(head.target()) + " -> 403 token grant refused");
             out.write(HttpHead.response(403, "Forbidden",
                     "{\"type\":\"error\",\"error\":{\"type\":\"permission_error\","
-                    + "\"message\":\"sokar: this task's credential cannot be renewed or"
-                    + " exchanged for another from inside the container; the token it holds is"
-                    + " minted per task and ends with it\"}}"));
+                    + "\"message\":\"sokar: the broker holds this credential and buys or renews its tokens"
+                    + " itself; it cannot be renewed or exchanged for another from inside the container."
+                    + " The token the task holds is minted per task and ends with it\"}}"));
             out.flush();
             return;
         }
 
         final HttpResponse<InputStream> response;
         try {
-            response = http.send(reissue(head, body, real),
+            response = http.send(reissue(head, body, real, route),
                     HttpResponse.BodyHandlers.ofInputStream());
         } catch (IOException | InterruptedException ex) {
             if (ex instanceof InterruptedException) {
@@ -319,7 +408,7 @@ public class VaultProxy implements AutoCloseable, Runnable {
             return;
         }
 
-        log.accept(head.method() + " " + head.target() + " -> " + response.statusCode()
+        log.accept(head.method() + " " + Query.redacted(head.target()) + " -> " + response.statusCode()
                 + " from the provider");
         writeResponse(out, response);
     }
@@ -334,7 +423,25 @@ public class VaultProxy implements AutoCloseable, Runnable {
      * @param head The request head.
      * @return The presented token, or an empty string when none was sent.
      */
-    private static String presented(HttpHead head) {
+    private String presented(HttpHead head) {
+        // The route's own header first: a key in a header nobody else uses - x-goog-api-key - is still
+        // this task's token, and refusing it said "not this task's token", which was false.
+        final String declared = head.value(authHeader.toLowerCase(Locale.ROOT));
+        if (declared != null && !declared.isBlank()) {
+            return declared.contains(" ") ? declared.substring(declared.lastIndexOf(' ') + 1) : declared;
+        }
+        for (final Route route : routes.values()) {
+            final String theirs = head.value(route.authHeader().toLowerCase(Locale.ROOT));
+            if (theirs != null && !theirs.isBlank()) {
+                return theirs.contains(" ") ? theirs.substring(theirs.lastIndexOf(' ') + 1) : theirs;
+            }
+        }
+        for (final String parameter : queryParameters()) {
+            final String inQuery = Query.value(head.target(), parameter);
+            if (inQuery != null && !inQuery.isBlank()) {
+                return inQuery;
+            }
+        }
         for (final String name : CREDENTIAL_HEADERS) {
             final String value = head.value(name);
             if (value == null || value.isBlank()) {
@@ -364,20 +471,25 @@ public class VaultProxy implements AutoCloseable, Runnable {
         return HttpHead.readExactly(in, (int) length);
     }
 
-    private HttpRequest reissue(HttpHead head, byte[] body, String real) {
+    private HttpRequest reissue(HttpHead head, byte[] body, String real, Route route) {
 
+        // Every parameter any route carries a key in is taken out, so a phantom in another route's
+        // parameter never travels; the real key goes back in only where this route says.
+        final String target = Query.without(head.target(), queryParameters());
         final HttpRequest.Builder request = HttpRequest.newBuilder()
-                .uri(URI.create(upstream + head.target()))
+                .uri(URI.create(route.upstream() + (route.authQuery() == null ? target
+                        : Query.replace(target, route.authQuery(), real))))
                 .timeout(Duration.ofMinutes(10))
                 .method(head.method(), body.length == 0
                         ? HttpRequest.BodyPublishers.noBody()
                         : HttpRequest.BodyPublishers.ofByteArray(body));
 
+        final java.util.Set<String> keyHeaders = new java.util.HashSet<>(CREDENTIAL_HEADERS);
+        keyHeaders.add(authHeader.toLowerCase(Locale.ROOT));
+        routes.values().forEach(each -> keyHeaders.add(each.authHeader().toLowerCase(Locale.ROOT)));
         for (int i = 0; i < head.names().size(); i++) {
             final String name = head.names().get(i).toLowerCase(Locale.ROOT);
-            if (CREDENTIAL_HEADERS.contains(name) || HOP_BY_HOP.contains(name)
-                    || name.equals(authHeader.toLowerCase(Locale.ROOT))
-                    || name.equals("accept-encoding")) {
+            if (keyHeaders.contains(name) || HOP_BY_HOP.contains(name) || name.equals("accept-encoding")) {
                 continue;
             }
             request.header(head.names().get(i), head.values().get(i));
@@ -385,8 +497,27 @@ public class VaultProxy implements AutoCloseable, Runnable {
         // The scan reads text, so the answer is asked for uncompressed. An agent's own
         // 'gzip, deflate, br' got every answer compressed, and every one was withheld as unreadable.
         request.header("Accept-Encoding", "identity");
-        request.header(authHeader, authPrefix + real);
+        if (route.authQuery() == null) {
+            request.header(route.authHeader(), route.authPrefix() + real);
+        }
         return request.build();
+    }
+
+    private Route own() {
+        return new Route(upstream, authHeader, authPrefix, authQuery);
+    }
+
+    private java.util.Set<String> queryParameters() {
+        final java.util.Set<String> parameters = new java.util.LinkedHashSet<>();
+        if (authQuery != null) {
+            parameters.add(authQuery);
+        }
+        routes.values().forEach(route -> {
+            if (route.authQuery() != null) {
+                parameters.add(route.authQuery());
+            }
+        });
+        return parameters;
     }
 
     /**

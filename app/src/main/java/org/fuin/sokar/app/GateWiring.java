@@ -58,7 +58,7 @@ final class GateWiring {
     }
 
     void startGate(TaskRunner runner, TaskWorkspace workspace,
-            @org.jspecify.annotations.Nullable String gateAddress, String container,
+            @org.jspecify.annotations.Nullable String gateAddress, String container, String taskName,
             org.fuin.sokar.core.project.Project project, PrintWriter out,
             PrintWriter err) {
 
@@ -72,7 +72,9 @@ final class GateWiring {
                 "--project", project.name(),
                 "--address", gateBind(gateAddress, err),
                 "--port", String.valueOf(workspace.port()),
-                "--pid-file", state.resolve("gate.pid").toString()));
+                "--pid-file", state.resolve("gate.pid").toString(),
+                // The one ref this task may push to: nothing else in the mirror is the task's to move.
+                "--ref", org.fuin.sokar.gate.GitGate.INCOMING + taskName));
         if (repository != null) {
             // On the recorded command line, so that resuming the task brings back a gate on the
             // same mirror. A resumed task that served the project's own repository instead would

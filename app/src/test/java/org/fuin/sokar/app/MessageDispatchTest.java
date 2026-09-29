@@ -31,7 +31,7 @@ class MessageDispatchTest {
 
     /** Sending at all needs a person's decision, so every queueing test starts by making one. */
     private Moderation allowing(final Mailbox mailbox, final String peer) throws IOException {
-        final Moderation moderation = new Moderation(mailbox);
+        final Moderation moderation = undecided(mailbox);
         assertThat(moderation.set(peer, null, "allow", sending()).refused()).isEmpty();
         return moderation;
     }
@@ -71,7 +71,7 @@ class MessageDispatchTest {
         final Mailbox mailbox = accepted(dir, "m-5.json",
                 "{\"messageId\":\"m-5\",\"metadata\":{\"to\":\"reviewer\"}}");
 
-        final MessageDispatch.Outcome outcome = new MessageDispatch().dispatch(mailbox, mail);
+        final MessageDispatch.Outcome outcome = new MessageDispatch().dispatch(mailbox, mail, undecided(mailbox));
 
         assertThat(outcome.queued()).isEmpty();
         assertThat(outcome.held()).singleElement().satisfies(held ->
@@ -100,7 +100,7 @@ class MessageDispatchTest {
         final Mailbox mailbox = accepted(dir, "m-2.json",
                 "{\"messageId\":\"m-2\",\"metadata\":{\"to\":\"somebody-else\"}}");
 
-        final MessageDispatch.Outcome outcome = new MessageDispatch().dispatch(mailbox, mail);
+        final MessageDispatch.Outcome outcome = new MessageDispatch().dispatch(mailbox, mail, undecided(mailbox));
 
         assertThat(outcome.queued()).isEmpty();
         assertThat(outcome.held()).singleElement().satisfies(held ->
@@ -112,7 +112,7 @@ class MessageDispatchTest {
     void holds_a_message_that_addresses_nobody(@TempDir final Path dir) throws IOException {
         final Mailbox mailbox = accepted(dir, "m-3.json", "{\"messageId\":\"m-3\"}");
 
-        assertThat(new MessageDispatch().dispatch(mailbox, mail).held()).singleElement()
+        assertThat(new MessageDispatch().dispatch(mailbox, mail, undecided(mailbox)).held()).singleElement()
                 .satisfies(held -> assertThat(held.reason()).contains("addresses nobody"));
     }
 
@@ -126,8 +126,13 @@ class MessageDispatchTest {
         final Mailbox mailbox = accepted(dir, "m-4.json",
                 "{\"messageId\":\"m-4\",\"metadata\":{\"to\":[\"reviewer\",\"ops\"]}}");
 
-        assertThat(new MessageDispatch().dispatch(mailbox, mail).held()).singleElement()
+        assertThat(new MessageDispatch().dispatch(mailbox, mail, undecided(mailbox)).held()).singleElement()
                 .satisfies(held -> assertThat(held.reason()).contains("not built"));
         assertThat(mailbox.queueActive("local")).doesNotExist();
+    }
+
+    /** The project's decisions, beside the mailbox and outside it, as the host keeps them. */
+    private static Moderation undecided(final Mailbox mailbox) {
+        return new Moderation(mailbox.root().resolveSibling("moderation-p.json"));
     }
 }

@@ -1,6 +1,8 @@
 # B28 — More Than One Credential In A Task
 
-**Status:** open, and the foundation the other three stand on.
+**Status:** built 2026-09-29, and proven on the VM with a second credential against an echo service; open
+until the interface can name a run's credentials (`Start`'s `credentials`), which is `sokar-frontend`'s.
+The foundation the other three stand on.
 [B29](B29-Keys-Presented-As-They-Are-Stored.md), [B30](B30-Credentials-The-Broker-Has-To-Fetch.md)
 and [B31](B31-An-Authorization-A-Person-Grants-Once.md) each describe one kind of credential. None
 of them can be finished while a task holds exactly one and the vault can hold only a string. This is
@@ -162,9 +164,51 @@ one is usable only where it was meant to go.**
   existing. A provider is then one kind of destination and keeps its own file, so nothing that reads
   providers today has to change. Decided by the backend agent, who owns provider data.
 
+## As built, 2026-09-29
+
+- **A vault entry carries settings beside its secret** (`vault put --setting name=value`): configuration,
+  listed whole, never judged as a pasted key. The secret is judged as before. Entries without settings are
+  stored as they always were.
+- **A destination** is its own file, `destinations/<name>.yaml` in the user's data directory or
+  `/usr/share/sokar/destinations`: where the service is, and where its key goes - a header, a prefix, or a
+  URL parameter (`auth_query`, from B29). A provider resolves as a destination too.
+- **The project names credentials** in `credentials:` (vault entry: destination); **a run adds** with
+  `--credential entry=destination`, and `Start` takes `credentials`. A run that points one of the
+  project's elsewhere is refused. An offline project names none.
+- **One broker, a route per credential, picked by the token.** `vault serve --route` mints a token per
+  route; the grant names the credential its token was scoped to, and the request goes to that credential's
+  destination with that credential's key. A token presented on another service's path still goes to its
+  own, so the acceptance item's "refused" becomes "cannot be sent elsewhere at all".
+- **In the container:** `SOKAR_TOKEN_<NAME>` and `SOKAR_URL_<NAME>`, the broker's address in the task's
+  namespace; the relay starts whenever there is one. No stored value enters the container.
+- **The start report** names each credential, the host it goes to, and its variables. A destination is
+  reached by the broker only and is not added to what the task can reach.
+- **Refused before anything is made:** a destination nobody declared; for an unattended run, a credential
+  the vault does not hold.
+- **Across a restart** the route tokens are kept in the vault with the agent's (`task/<container>/route/`)
+  and put back on start.
+- **Proven:** `VaultProxyRoutesTest`, and `credential-several.feature` on the VM: the real key arrived at
+  the echo service, and appears nowhere in the container.
+- **Documented** in `doc/authentication.md` ("More than one credential in a task") and
+  `doc/project-file.md`.
+
+## Decided 2026-09-29, by the operator
+
+- **Order: B29 first, then this, then B30 and B31**, as the comparison argued in 2026-09-09.
+- **The project declares, and the run adds.** `project.yml` names the credentials every task of the
+  project gets; a repeatable `--credential` on the run adds more. A run cannot withdraw one the project
+  declared. That a project's credential is usable by anyone who can start a task in it is stated in the
+  documentation, not left to be discovered.
+- **The route is picked by the token.** Each credential gets its own phantom token, which says which
+  credential it stands for, and the broker refuses it for any other destination. This answers the first
+  question below.
+- **One variable each in the container**, named per credential: `SOKAR_TOKEN_<NAME>` and
+  `SOKAR_URL_<NAME>`, beside the single provider's variables, which stay as they are. A task with one
+  credential changes nothing.
+
 ## To be checked
 
-- **Whether the route is picked by the token or by the path.** The token is what the reference
+- ~~**Whether the route is picked by the token or by the path.**~~ By the token, decided 2026-09-29. The token is what the reference
   implementation does and asks nothing of the consumer; a path prefix works whenever the consumer can be handed a base URL, which
   is the ordinary case in [B29](B29-Keys-Presented-As-They-Are-Stored.md), and it keeps one token per
   task rather than several.

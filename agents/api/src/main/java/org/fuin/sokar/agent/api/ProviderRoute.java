@@ -34,7 +34,26 @@ import org.jspecify.annotations.Nullable;
  */
 public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
         Map<String, String> authHeader, Map<String, String> authPrefix,
-        Map<String, String> unbrokerable, Endpoint endpoint, String endpointPath) {
+        Map<String, String> unbrokerable, Endpoint endpoint, String endpointPath,
+        Map<String, String> authQuery) {
+
+    /**
+     * Constructor for a route whose keys all travel in a header, the shape every caller built before a key
+     * could go in the URL.
+     *
+     * @param upstream Base URL.
+     * @param socketEnvironment Variable naming the socket, or {@code null}.
+     * @param authHeader Credential type to header name.
+     * @param authPrefix Credential type to prefix.
+     * @param unbrokerable Credential type to why it cannot be brokered.
+     * @param endpoint How the agent reaches the broker.
+     * @param endpointPath Path the dialect is served under.
+     */
+    public ProviderRoute(String upstream, @Nullable String socketEnvironment, Map<String, String> authHeader,
+            Map<String, String> authPrefix, Map<String, String> unbrokerable, Endpoint endpoint,
+            String endpointPath) {
+        this(upstream, socketEnvironment, authHeader, authPrefix, unbrokerable, endpoint, endpointPath, Map.of());
+    }
 
     /**
      * Returns the route an agent takes to a provider.
@@ -51,7 +70,7 @@ public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
     public static ProviderRoute of(ProviderDefinition provider, AgentProvider agent) {
         return new ProviderRoute(provider.upstream(), agent.socketEnvironment(),
                 provider.authHeader(), provider.authPrefix(), provider.unbrokerable(),
-                agent.endpoint(), provider.pathFor(agent.dialect()));
+                agent.endpoint(), provider.pathFor(agent.dialect()), provider.authQuery());
     }
 
     /**
@@ -205,5 +224,15 @@ public record ProviderRoute(String upstream, @Nullable String socketEnvironment,
     public String authPrefixFor(String credentialType) {
         return authPrefix.getOrDefault(credentialType,
                 authPrefix.getOrDefault(AgentDefinition.DEFAULT_TOKEN_KEY, ""));
+    }
+
+    /**
+     * Returns the query parameter the credential of a type travels in, or {@code null} for a header.
+     *
+     * @param credentialType Credential type, for example {@code api-key}.
+     * @return The parameter's name, or {@code null}.
+     */
+    public @Nullable String authQueryFor(String credentialType) {
+        return authQuery.getOrDefault(credentialType, authQuery.get(AgentDefinition.DEFAULT_TOKEN_KEY));
     }
 }

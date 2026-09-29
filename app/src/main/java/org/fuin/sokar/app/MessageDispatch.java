@@ -38,18 +38,6 @@ public final class MessageDispatch {
     }
 
     /**
-     * Queues every accepted message for the transport its peer uses.
-     *
-     * @param mailbox The task's mailbox.
-     * @param mail The project's peers.
-     * @return What was queued and what was held.
-     * @throws IOException Reading or moving failed.
-     */
-    public Outcome dispatch(final Mailbox mailbox, final Mail mail) throws IOException {
-        return dispatch(mailbox, mail, new Moderation(mailbox), null);
-    }
-
-    /**
      * Queues every accepted message whose peer a person has not held.
      *
      * @param mailbox The task's mailbox.

@@ -409,6 +409,27 @@ type PendingPush (
   at: string
 )
 
+# One file a pending push changes, as a person should meet it in a review.
+#
+# Ranked by consequence, not by suspicion: nothing here detects anything. DANGEROUS is a fixed list of
+# kinds Sokar ships - a CI definition, a build script, a dependency manifest or lockfile, something that
+# runs on checkout or when the repository is opened, a file made executable, a symbolic link - and is
+# named however small the change. GENERATED and REFORMATTING are what is almost never the finding; they
+# are moved to the end, never hidden, and a dangerous file is never either.
+type ReviewFile (
+  # Its path in the repository, after the change. A rename is a removal and an addition.
+  path: string,
+  # A, M, D or T, as git reports it.
+  status: string,
+  # Lines added and removed; -1 for a binary file.
+  added: int,
+  removed: int,
+  # DANGEROUS, ORDINARY, GENERATED or REFORMATTING - the order to read them in.
+  rank: string,
+  # Why it has that rank, in words; "" for an ORDINARY file.
+  reason: string
+)
+
 # A curated group of hosts a project can opt into by name.
 type EgressSet (
   # What a project writes in its egress.sets list, and what SetEgress takes.
@@ -957,6 +978,10 @@ method Start(
   # somewhere else: a project that grew a second repository would silently change what an existing
   # call does. Omitting it is refused, and the refusal names what there is to choose from.
   repository: ?string,
+  # Credentials this task holds beyond the agent's own and the project's: a vault entry's name to the
+  # destination or provider it is for. They add to the project's and cannot point one of its elsewhere.
+  # Each reaches the task as SOKAR_TOKEN_<ENTRY> and SOKAR_URL_<ENTRY>, a token worthless anywhere else.
+  credentials: ?[string]string,
   # Runs with no workspace and no git gate: the agent gets an empty directory and can commit
   # nowhere.
   noGate: ?bool,
@@ -1898,10 +1923,15 @@ method Review(
   # What to diff against. Default: the upstream's default branch.
   against: ?string
 ) -> (
-  # Unified diff.
+  # Unified diff, in the order of files: the dangerous first, reformatting and generated files last.
   diff: string,
   # Commit log over the same range.
-  log: string
+  log: string,
+  # What the push changes, ranked; the diff shows them in this order.
+  files: []ReviewFile,
+  # What the task that pushed this was asked, to show before the files - never compared with them.
+  # "" when it was started without an instruction; absent when the task is gone from this machine.
+  asked: ?string
 )
 
 # Forwards a pending push upstream. The only call in this interface that sends anything
@@ -2341,7 +2371,8 @@ type TalkPeer (
   receivedToday: int,
   # 'prompt', 'allow', 'deny' or 'off' - clearance's four, with the same meanings.
   mode: string,
-  # Whether everything for this peer waits, whatever the mode says.
+  # Whether everything for this peer waits, whatever the mode says. Mode and held are the project's:
+  # every task of it, including tasks started later, sees the same.
   held: bool
 )
 
@@ -2500,12 +2531,14 @@ method Release(
 
 # Holds a peer, releases it, or changes how much is asked before a message reaches it.
 #
+# For the whole project: every task of it, including tasks started later, follows what is decided here.
+#
 # 'allow' and 'off' mean work nobody has read leaves the machine. In a project that is not
 # 'online' that is refused unless the project carries 'unread_work_may_leave: true' - the same
 # setting asked before unreviewed work goes to a review branch.
 method Moderate(
-  # Container name of the task.
-  task: string,
+  # Ignored: a decision is the project's, not one task's. Accepted so an older client still works.
+  task: ?string,
   # The project's name, as the other project methods take it. Its verified project.yml decides whether unread work may leave.
   project: string,
   # The peer to decide about.

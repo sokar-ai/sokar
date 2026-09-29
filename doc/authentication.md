@@ -55,6 +55,52 @@ Two details that are easy to get wrong:
   otherwise ignore the socket entirely and send the phantom token straight to the provider. The
   proxy is only half the containment.
 
+## More than one credential in a task
+
+Besides its agent's own, a task can hold a credential for any other service: a search API, a forge, an
+MCP server. Each works the same way as the agent's: the container gets a token worthless anywhere else,
+and the broker attaches the real key.
+
+1. **Say where the service is** in a destination file, `~/.local/share/sokar/destinations/<name>.yaml`
+   (a package installs its own in `/usr/share/sokar/destinations`):
+
+   ```
+   name: brave-search
+   upstream: https://api.search.brave.com
+   auth_header: X-Subscription-Token   # where the key goes
+   auth_prefix: ""                     # text before it, for example "Bearer "
+   # auth_query: key                   # or in the URL instead, for a service that wants ?key=
+   ```
+
+   A model provider is a destination too, so a credential may also name a provider.
+2. **Store the key** as usual: `sokar vault put search`. A credential that is more than one secret takes
+   its configuration as settings, for example `--setting token_url=https://auth.example.com/token`.
+   Settings are listed and printed, so no secret belongs in one.
+3. **Name it**, for every task of a project in `project.yml`:
+
+   ```
+   credentials:
+     search: brave-search      # vault entry: destination
+   ```
+
+   or for one run: `sokar task start ... --credential search=brave-search`. A run adds credentials; it
+   cannot take one of the project's away or point it elsewhere. **Anyone who can start a task in the
+   project can use the project's credentials.** An offline project names none.
+
+Inside the task each one appears as `SOKAR_TOKEN_<NAME>` and `SOKAR_URL_<NAME>`: for `search`,
+`SOKAR_TOKEN_SEARCH` and `SOKAR_URL_SEARCH`. A tool sends its requests to the URL, with the token where
+the service expects its key:
+
+```
+curl -H "X-Subscription-Token: $SOKAR_TOKEN_SEARCH" "$SOKAR_URL_SEARCH/res/v1/web/search?q=sokar"
+```
+
+**The token decides where a request goes, never the request itself.** Each credential has its own
+token, and the broker sends a request to that token's service with that credential's key, whatever path
+or header the container used. A key held for one service cannot be attached to a request for another.
+A tool whose address is compiled in and cannot be pointed at `SOKAR_URL_<NAME>` cannot use this; that is
+a limit, stated rather than worked around.
+
 ## Getting a credential in
 
 ![three ways a credential reaches the vault: an operator types an API key on standard input, an agent logs itself in and vault import copies the token out of its own config file, and an operator stores an ssh key seed the same way](images/auth-entry.svg)

@@ -44,7 +44,7 @@ class MessagePassTest {
                 "{\"messageId\":\"m-1\",\"metadata\":{\"to\":\"reviewer\"}}");
 
         final MessagePass.Report report = new MessagePass(runner, key, null,
-                new TransportDirectory(List.of(dir.resolve("none")))).run(mailbox, mail, List.of());
+                new TransportDirectory(List.of(dir.resolve("none")))).run(mailbox, mail, List.of(), undecided(dir));
 
         assertThat(report.taken()).containsExactly("m-1.json");
         assertThat(report.filtered().ran()).isFalse();
@@ -70,7 +70,7 @@ class MessagePassTest {
 
         final MessagePass.Report report = new MessagePass(runner, key, null,
                 new TransportDirectory(List.of(dir.resolve("none")))).run(mailbox, mail,
-                        List.of(new MessageDelivery.Peer("reviewer", List.of(peerKey.keyBlob()))));
+                        List.of(new MessageDelivery.Peer("reviewer", List.of(peerKey.keyBlob()))), undecided(dir));
 
         assertThat(report.filtered().ran()).isFalse();
         assertThat(report.delivered().delivered())
@@ -84,9 +84,14 @@ class MessagePassTest {
         Files.writeString(mailbox.feedback().resolve("answer.json"), "{\"parts\":[{\"data\":{}}]}");
 
         final MessagePass.Report report = new MessagePass(runner, key, null,
-                new TransportDirectory(List.of(dir.resolve("none")))).run(mailbox, mail, List.of());
+                new TransportDirectory(List.of(dir.resolve("none")))).run(mailbox, mail, List.of(), undecided(dir));
 
         assertThat(report.bounced()).containsExactly("answer.json");
         assertThat(mailbox.inboxNew().resolve("answer.json")).exists();
+    }
+
+    /** A project nobody has decided anything about. */
+    private static Moderation undecided(final Path dir) {
+        return new Moderation(dir.resolve("moderation").resolve("p.json"));
     }
 }

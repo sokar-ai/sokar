@@ -153,6 +153,14 @@ limits:
 
   # Unset means no CPU limit. A number, as podman takes it.
   cpus: "2.0"
+
+# Credentials every task of this project holds beyond its agent's own: the name of a vault entry,
+# and the destination it is for - a service declared in a destinations file, or a provider.
+# Only the NAMES are here; the values stay in the vault and reach a task through the broker as a
+# token worthless anywhere else. Anyone who can start a task in this project can use them. A run
+# may add more with --credential, and cannot take one of these away. An offline project declares none.
+credentials:
+  search: brave-search
 ```
 
 ## What is deliberately not in here
@@ -164,7 +172,8 @@ working when somebody installs a different one.
 
 **Nothing secret.** The file sits in the operator's directory, usually beside a git checkout, and
 is meant to be committed. Credentials live in the vault and reach a task through the broker; none
-of them is ever written here or into a container.
+of them is ever written here or into a container. `credentials:` names vault entries, and never
+holds a value.
 
 **Nothing about where things are put.** The workspace, the state directory and the gate mirror are
 Sokar's, and where they live is Sokar's answer - `sokar doctor` says where, on the machine you

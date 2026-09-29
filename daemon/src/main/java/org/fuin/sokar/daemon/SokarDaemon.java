@@ -7,6 +7,7 @@ import java.util.List;
 import java.io.PrintWriter;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.fuin.sokar.app.ReviewText;
 import org.fuin.sokar.app.SokarContext;
 import org.fuin.sokar.app.TaskPanic;
 import org.fuin.sokar.app.GateSupport;
@@ -732,8 +733,27 @@ public final class SokarDaemon {
             final GitGate gate = gate(parameters, context);
             final String name = text(parameters, "name");
             final String against = text(parameters, "against");
-            replies.last(Map.of("diff", gate.review(name, against.isEmpty() ? null : against),
-                    "log", gate.log(name, against.isEmpty() ? null : against)));
+            final org.fuin.sokar.gate.ReviewRanking.Review review =
+                    gate.rankedReview(name, against.isEmpty() ? null : against);
+            final Map<String, Object> reply = new LinkedHashMap<>();
+            reply.put("diff", review.patch());
+            reply.put("log", gate.log(name, against.isEmpty() ? null : against));
+            reply.put("files", review.files().stream().map(file -> {
+                final Map<String, Object> row = new LinkedHashMap<>();
+                row.put("path", file.path());
+                row.put("status", file.status());
+                row.put("added", file.added());
+                row.put("removed", file.removed());
+                row.put("rank", file.rank().name());
+                row.put("reason", file.reason());
+                return row;
+            }).toList());
+            final ReviewText.Instruction asked = ReviewText.instruction(context.paths(),
+                    GateSupport.project(projectFile(parameters, context)).name(), name);
+            if (asked.found()) {
+                reply.put("asked", asked.prompt() == null ? "" : asked.prompt());
+            }
+            replies.last(reply);
         });
 
         server.method("Approve", (parameters, replies) -> {
@@ -1268,11 +1288,12 @@ public final class SokarDaemon {
         // classes, so an interface and a terminal cannot disagree about what a mailbox holds.
         server.method("Peers", (parameters, replies) -> {
             final org.fuin.sokar.app.Mailbox mailbox = mailboxOf(context, parameters);
+            final org.fuin.sokar.core.project.Project project = org.fuin.sokar.core.project.ProjectReader.read(
+                    projectFile(parameters, context));
             final org.fuin.sokar.app.Moderation moderation =
-                    new org.fuin.sokar.app.Moderation(mailbox);
+                    org.fuin.sokar.app.Moderation.of(context.paths(), project.name());
             final java.util.List<Map<String, Object>> peers = new java.util.ArrayList<>();
-            final org.fuin.sokar.core.project.Mail mail = org.fuin.sokar.core.project.ProjectReader.read(
-                    projectFile(parameters, context)).mail();
+            final org.fuin.sokar.core.project.Mail mail = project.mail();
             // Counted the way the budget counts, so what a client shows is what the next pass enforces.
             final org.fuin.sokar.app.MessageBudget budget =
                     new org.fuin.sokar.app.MessageBudget(new org.fuin.sokar.app.MessageRecord(mailbox), mail);
@@ -1390,13 +1411,13 @@ public final class SokarDaemon {
         });
 
         server.method("Moderate", (parameters, replies) -> {
-            final org.fuin.sokar.app.Mailbox mailbox = mailboxOf(context, parameters);
+            // Per project, for every task of it: 'task' is no longer needed and is ignored.
+            final org.fuin.sokar.core.project.Project project = org.fuin.sokar.core.project.ProjectReader.read(
+                    projectFile(parameters, context));
             final org.fuin.sokar.app.Moderation.Change change =
-                    new org.fuin.sokar.app.Moderation(mailbox).set(text(parameters, "name"),
+                    org.fuin.sokar.app.Moderation.of(context.paths(), project.name()).set(text(parameters, "name"),
                             parameters.get("held") instanceof Boolean held ? held : null,
-                            empty(parameters, "mode"),
-                            org.fuin.sokar.core.project.ProjectReader.read(
-                                    projectFile(parameters, context)));
+                            empty(parameters, "mode"), project);
             if (change.peer() == null) {
                 throw new VarlinkException(INTERFACE + ".Failed",
                         Map.of("message", change.refused()));
@@ -1792,6 +1813,14 @@ public final class SokarDaemon {
                 "self", self, "recovery", slot.recovery());
     }
 
+    private static Map<String, String> credentials(Map<String, Object> parameters) {
+        final Map<String, String> credentials = new LinkedHashMap<>();
+        if (parameters.get("credentials") instanceof Map<?, ?> named) {
+            named.forEach((entry, destination) -> credentials.put(String.valueOf(entry), String.valueOf(destination)));
+        }
+        return credentials;
+    }
+
     private static TaskLaunch.Request request(Map<String, Object> parameters,
             SokarContext context) {
         final String task = text(parameters, "task");
@@ -1826,7 +1855,8 @@ public final class SokarDaemon {
                 // Not defaulted here. A project is a unit of work over one or more repositories,
                 // and a client that does not say which one the task is for gets the same refusal
                 // the CLI gives, naming what there is to choose from.
-                empty(parameters, "repository"));
+                empty(parameters, "repository"),
+                credentials(parameters));
     }
 
     /**

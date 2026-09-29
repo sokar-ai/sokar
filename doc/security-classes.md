@@ -1,5 +1,8 @@
 # The three security classes
 
+What a task can still do once it is convinced - the model provider above all, which no class closes - is
+on [How far a task can get](reach.md).
+
 A project declares one of three classes, and the class decides two things: what a task may reach,
 and where somebody looks at its work before it goes anywhere. The same actors appear in all three
 pictures, in the same places — what changes is the path the work takes.

@@ -41,8 +41,12 @@ public class VaultListCommand implements Callable<Integer>, SokarFactory.Context
             if (entries.isEmpty()) {
                 out.println("the vault is empty");
             } else {
-                entries.forEach((name, entry) -> out.printf("%-20s %-10s %d characters%n",
-                        name, entry.type() == null ? "-" : entry.type(), entry.value().length()));
+                entries.forEach((name, entry) -> {
+                    out.printf("%-20s %-10s %d characters%n",
+                            name, entry.type() == null ? "-" : entry.type(), entry.value().length());
+                    // Configuration, so shown whole: a token URL or a client id is not a secret.
+                    entry.settings().forEach((setting, text) -> out.printf("%-20s %s = %s%n", "", setting, text));
+                });
             }
             out.flush();
             return 0;

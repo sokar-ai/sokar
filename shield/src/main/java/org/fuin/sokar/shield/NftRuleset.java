@@ -44,7 +44,13 @@ public class NftRuleset {
 
     private final Set<String> localV4 = new LinkedHashSet<>();
 
-    private final Set<Integer> ports = new LinkedHashSet<>(List.of(80, 443));
+    /**
+     * The ports a declared host is opened on, unless the project names others. Stated to the operator in
+     * {@code doc/reach.md}, and a test holds the two together.
+     */
+    public static final List<Integer> DEFAULT_PORTS = List.of(80, 443);
+
+    private final Set<Integer> ports = new LinkedHashSet<>(DEFAULT_PORTS);
 
     /**
      * Constructor with the project's security class.

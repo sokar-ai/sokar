@@ -70,7 +70,7 @@ public class TalkHoldCommand implements Callable<Integer>, SokarFactory.ContextA
             return 2;
         }
         final Project read = GateSupport.byName(context, name);
-        final Moderation moderation = new Moderation(mailbox);
+        final Moderation moderation = Moderation.of(context.paths(), name);
         // Bare, it holds; with --release it releases; with only --mode it changes the mode and
         // leaves the hold as it was, because "set this to prompt" is not "and hold it too".
         final Boolean held = release ? Boolean.FALSE : mode == null ? Boolean.TRUE : null;

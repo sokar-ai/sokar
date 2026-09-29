@@ -94,12 +94,22 @@ public final class Terminal implements AutoCloseable {
      * either way. A program in raw mode sees what was sent, and the agents' own interfaces run in raw
      * mode: they take a line feed as Ctrl-J, a new line inside the prompt, and submit nothing.
      * Measured on 2026-09-29 by Agent Smith against three agents at their pinned versions.
+     * <p>
+     * <strong>And on its own, after the text.</strong> Text and carriage return in one write read as a
+     * paste to at least one agent's interface, and a carriage return inside a paste does not submit:
+     * the prompt sat in its box. Written separately, a moment later, it does - which is how a person's
+     * Enter follows their typing.
      *
      * @param text What to type before Enter, possibly empty.
      * @throws IOException If it cannot be sent.
      */
     public void enter(String text) throws IOException {
-        to.write((text + "\r").getBytes(StandardCharsets.UTF_8));
+        if (!text.isEmpty()) {
+            to.write(text.getBytes(StandardCharsets.UTF_8));
+            to.flush();
+            sleep();
+        }
+        to.write('\r');
         to.flush();
     }
 

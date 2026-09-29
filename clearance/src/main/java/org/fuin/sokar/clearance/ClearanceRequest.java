@@ -27,7 +27,12 @@ public record ClearanceRequest(String project, String task, String destination, 
      * @return Body.
      */
     public String body() {
-        return "The agent tried to reach " + destination + " over " + protocol + ".";
+        // Both readings, once, where the operator answers: a reach nobody declared is either an
+        // ordinary missing declaration or an agent following somebody else's instructions, and nothing
+        // here can tell which. Saying only the first would teach "allow" as the reflex.
+        return "The agent tried to reach " + destination + " over " + protocol + "."
+                + " Either the project does not declare a host this work needs, or the agent is acting on"
+                + " instructions from something it read. Allow it only if you expected this host.";
     }
 
     /**

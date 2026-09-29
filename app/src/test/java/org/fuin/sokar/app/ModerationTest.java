@@ -28,9 +28,7 @@ class ModerationTest {
     }
 
     private Moderation moderation(final Path dir) throws IOException {
-        final Mailbox mailbox = new Mailbox(dir.resolve("sokar-p-t"));
-        mailbox.create();
-        return new Moderation(mailbox);
+        return new Moderation(dir.resolve("moderation").resolve("p.json"));
     }
 
     @Test
@@ -109,7 +107,7 @@ class ModerationTest {
     void off_still_leaves_the_filter_in_the_way(@TempDir final Path dir) throws IOException {
         final Mailbox mailbox = new Mailbox(dir.resolve("sokar-p-t"));
         mailbox.create();
-        final Moderation moderation = new Moderation(mailbox);
+        final Moderation moderation = moderation(dir);
         moderation.set("reviewer", null, "off", project(SecurityClass.ONLINE, false));
 
         assertThat(moderation.whyNotNow("reviewer")).as("moderation asks nothing now").isEmpty();
@@ -125,5 +123,22 @@ class ModerationTest {
 
         assertThat(change.peer()).isNull();
         assertThat(change.refused()).contains("prompt");
+    }
+
+    @Test
+    void a_decision_is_the_projects_and_a_task_started_later_finds_it(@TempDir final Path dir)
+            throws IOException {
+        // Decided by the operator on 2026-09-29: held for the project, not for one task's mailbox.
+        final SokarPaths paths = new SokarPaths(org.fuin.sokar.core.config.XdgPaths.of(name -> switch (name) {
+            case "XDG_STATE_HOME" -> dir.resolve("state").toString();
+            case "XDG_RUNTIME_DIR" -> dir.resolve("run").toString();
+            default -> null;
+        }, dir), dir.resolve("bin"));
+        Moderation.of(paths, "p").set("reviewer", Boolean.TRUE, null, project(SecurityClass.GUARDED, false));
+
+        assertThat(Moderation.of(paths, "p").peer("reviewer").held()).as("the same project, asked again").isTrue();
+        assertThat(Moderation.of(paths, "q").peer("reviewer").held()).as("another project").isFalse();
+        // On the host, and in no task's mailbox, which lives under the runtime directory.
+        assertThat(paths.moderation("p")).startsWith(dir.resolve("state"));
     }
 }
