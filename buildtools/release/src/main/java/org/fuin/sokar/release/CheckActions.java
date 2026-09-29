@@ -136,14 +136,24 @@ final class CheckActions {
         if (localActions && !text.contains("/.github/actions/*")) {
             faults.add("dependabot.yml: does not watch /.github/actions/*, so the local actions' pins never move");
         }
-        // A release younger than three days is not taken, as with every other pin.
-        final java.util.regex.Matcher cooldown = java.util.regex.Pattern.compile("default-days:\\s*(\\d+)").matcher(text);
-        if (!cooldown.find() || Integer.parseInt(cooldown.group(1)) < 3) {
-            faults.add("dependabot.yml: no 'cooldown: default-days: 3' or more, so a release is taken the day it appears");
-        }
-        // One pull request per update is one CI run per update.
-        if (!java.util.regex.Pattern.compile("(?m)^\\s*groups:").matcher(text).find()) {
-            faults.add("dependabot.yml: no 'groups:', so every moved action is a pull request and a CI run of its own");
+        // Both asked of each github-actions entry itself: a grouped docker or maven entry beside it says nothing
+        // about how the actions move.
+        for (final String entry : entries(text)) {
+            if (!java.util.regex.Pattern.compile("package-ecosystem:\\s*[\"']?github-actions").matcher(entry).find()) {
+                continue;
+            }
+            // A release younger than three days is not taken, as with every other pin.
+            final java.util.regex.Matcher cooldown =
+                    java.util.regex.Pattern.compile("default-days:\\s*(\\d+)").matcher(entry);
+            if (!cooldown.find() || Integer.parseInt(cooldown.group(1)) < 3) {
+                faults.add("dependabot.yml: the github-actions entry has no 'cooldown: default-days: 3' or more,"
+                        + " so a release is taken the day it appears");
+            }
+            // One pull request per update is one CI run per update.
+            if (!java.util.regex.Pattern.compile("(?m)^\\s*groups:").matcher(entry).find()) {
+                faults.add("dependabot.yml: the github-actions entry has no 'groups:', so every moved action is a"
+                        + " pull request and a CI run of its own");
+            }
         }
         // The Maven a build downloads is checked against its digest like everything else it runs.
         final Path wrapper = directory.toAbsolutePath().getParent() == null ? null
@@ -156,6 +166,30 @@ final class CheckActions {
         return faults;
     }
 
+
+    /**
+     * Splits a Dependabot configuration into its update entries, each from its {@code - package-ecosystem:}
+     * line to the next.
+     *
+     * @param text The configuration.
+     * @return The entries' text, in order.
+     */
+    static List<String> entries(String text) {
+        final List<String> entries = new ArrayList<>();
+        final java.util.regex.Matcher start =
+                java.util.regex.Pattern.compile("(?m)^\\s*-\\s*package-ecosystem:").matcher(text);
+        int from = -1;
+        while (start.find()) {
+            if (from >= 0) {
+                entries.add(text.substring(from, start.start()));
+            }
+            from = start.start();
+        }
+        if (from >= 0) {
+            entries.add(text.substring(from));
+        }
+        return entries;
+    }
     /**
      * Says what is wrong with one step, or nothing.
      *

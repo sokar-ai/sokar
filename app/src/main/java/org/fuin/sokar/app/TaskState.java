@@ -32,7 +32,7 @@ public final class TaskState {
      * the egress it was given - the resolver's files, the firewall ruleset, the hooks' description and the
      * run-scope grants - which cannot be rebuilt exactly from anything else.
      */
-    static final List<String> DURABLE = List.of("task.json", TaskHelpers.FILE, UnhandedWork.FILE, "dns.conf",
+    static final List<String> DURABLE = List.of("task.json", TaskInventory.CREDENTIALS_FILE, TaskHelpers.FILE, UnhandedWork.FILE, "dns.conf",
             "dnsmasq.servers", "ruleset.nft", "sidecar.json", "granted", "granted-addresses");
 
     /** The environment entry of the gate helper that is a secret, and is kept in the vault instead. */

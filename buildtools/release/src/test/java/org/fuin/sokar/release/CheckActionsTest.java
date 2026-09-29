@@ -147,6 +147,18 @@ class CheckActionsTest {
     }
 
     @Test
+    void aGroupedEntryOfAnotherEcosystemDoesNotCoverAnUngroupedGithubActionsOne() throws IOException {
+        // Measured by Agent Matrix: a docker entry's groups and cooldown answered for the github-actions entry.
+        workflow("      - uses: ./.github/actions/pinned-jdk\n");
+        Files.writeString(directory.resolve("dependabot.yml"), "updates:\n  - package-ecosystem: github-actions\n"
+                + "    directory: /\n  - package-ecosystem: docker\n    directory: /\n    cooldown:\n"
+                + "      default-days: 3\n    groups:\n      images:\n        patterns: [\"*\"]\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("github-actions entry has no 'cooldown").contains("github-actions entry has no 'groups:'");
+    }
+
+    @Test
     void refusesAMavenWrapperWithoutItsDigest() throws IOException {
         final Path repository = directory.resolve("repo");
         final Path github = Files.createDirectories(repository.resolve(".github/workflows"));

@@ -1,7 +1,7 @@
 # B31 — An Authorization A Person Grants Once
 
-**Status:** the device code flow is built (2026-09-29); the redirect flow, and carrying an MCP session
-through the broker, are not. The only kind with a human in it. Driven by remote MCP servers, where the
+**Status:** the device code flow and the redirect flow are built (2026-09-29); carrying an MCP session
+through the broker is unmeasured. The only kind with a human in it. Driven by remote MCP servers, where the
 agent is expected to inherit a person's permissions rather than a service account's. Depends on
 [B28](B28-More-Than-One-Credential-In-A-Task.md) and, for everything after the first consent, on
 [B30](B30-Credentials-The-Broker-Has-To-Fetch.md). Compared with the other kinds in
@@ -166,6 +166,19 @@ is making the vault able to hold anyway.
   granted answers with the command that grants it.
 - **A start without a grant** refuses an unattended or agent run before anything exists; a shell task
   warns and starts. The check does not spend the grant, which could rotate it under the broker.
+- **The redirect flow** is a vault entry of kind `oauth-code`: settings `client_id`, `authorization_url`,
+  `token_url` (both https), `scopes` and `redirect_port` (default 9420). `CodeGrant` (RFC 6749 with PKCE
+  S256, RFC 7636) listens on the machine's loopback, `http://127.0.0.1:<port>/callback` (RFC 8252), for
+  the one answer carrying its `state`; a stale tab's answer is turned away and the wait goes on. The code
+  is exchanged with the verifier, and what comes back is kept and spent exactly as a device grant is.
+  `sokar vault authorize` says which port to forward (`ssh -L`); the daemon's `Authorize` stream carries
+  it as `port` in the "needed" reply, with an empty `code`, so an interface forwards it through the tunnel
+  it holds before opening the link. A port already taken is said with the setting to change.
+- **`sokar vault remove <name>`** revokes the grant at the service first (RFC 7009, the entry's
+  `revocation_url` setting, https) and then removes the entry and its grant together. A service that
+  cannot be told - no revocation endpoint, refused, unreachable - keeps the entry, and says to revoke it
+  there and remove with `--without-revoking`: deleting a refresh token the service still honours leaves a
+  grant nobody here can see.
 - **Proven:** `DeviceGrantTest` against a fake service (the link and code, pending, slow down, granted,
   refused, expired, time running out), `TokenPurchaseTest` for the refresh and its rotation, the daemon
   test for the stream's refusals, and on the VM: an unattended run without a grant is refused and nothing
@@ -174,10 +187,6 @@ is making the vault able to hold anyway.
 
 ## Still open
 
-- **The redirect flow**, for a service that offers no device code: authorization code with PKCE, its
-  redirect coming back through the ssh tunnel the interface already holds.
-- **Revoking at the service** (RFC 7009) when the grant's entry is removed. `vault remove` removes the
-  entry; it does not yet tell the service.
 - **Whether the broker can carry an MCP session**, a long-lived stream, is unmeasured.
 
 ## To be checked

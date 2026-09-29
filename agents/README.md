@@ -95,7 +95,8 @@ session:
     record: { type: system }        # an unattended run: the record naming it ...
     key: session_id                 # ... and its field holding the id
     directory: ".example/sessions"  # an attached agent: its session files, under its home ...
-    suffix: ".jsonl"                # ... named <id><suffix>; the newest names the session
+    suffix: ".jsonl"                # ... ending in <suffix>; in the newest, the first record above names
+                                    #     the session, else its name without <suffix> does
   ready_marker: "Ready for work."   # text shown once at work, attached, having asked nothing
   ready_within_seconds: 60          # optional; the kit's default is 120
   waiting:                          # optional; what waiting for a person looks like here

@@ -71,4 +71,12 @@ class VaultRemoveCommandTest {
 
         assertThat(vault.read(PASSPHRASE)).containsOnlyKeys("keep");
     }
+
+    @Test
+    void aGrantWhoseServiceCannotBeToldSaysWhy() {
+        assertThat(VaultRemoveCommand.revoke(null, "rt-1")).contains("cannot be told");
+        assertThat(VaultRemoveCommand.revoke(new VaultEntry("-", "oauth-device", Map.of("client_id", "x",
+                "device_authorization_url", "https://a.invalid/d", "token_url", "https://a.invalid/t")), "rt-1"))
+                .contains("revocation_url").doesNotContain("rt-1");
+    }
 }

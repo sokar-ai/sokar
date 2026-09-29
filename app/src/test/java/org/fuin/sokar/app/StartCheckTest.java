@@ -192,4 +192,55 @@ class StartCheckTest {
         assertThat(StartCheck.withRepository(READY, threeRepositories(dir), "backend", true))
                 .isEqualTo(READY);
     }
+
+    private Path credentialed(Path dir) throws Exception {
+        Files.createDirectories(dir.resolve("project"));
+        final Path project = dir.resolve("project/project.yml");
+        Files.writeString(project, """
+                project:
+                  name: "uc"
+                  security_class: "guarded"
+                image:
+                  base_image: "ubuntu:24.04"
+                credentials:
+                  search: nowhere
+                """);
+        return project;
+    }
+
+    @Test
+    void anUndeclaredDestinationIsItsOwnOutcomeAndSaysWhoNamedIt(@TempDir Path dir) throws Exception {
+
+        // Measured by Agent Frontend: the launch blamed the project for what the run had named, and an
+        // interface could not tell the refusal from any other failed launch.
+        final Path empty = threeRepositories(dir);
+        final StartCheck.Result fromRun = StartCheck.withCredentials(context(dir), READY, empty,
+                java.util.Map.of("f56-api", "nowhere"));
+        assertThat(fromRun.outcome()).isEqualTo(StartCheck.Outcome.UNKNOWN_DESTINATION);
+        assertThat(fromRun.credential()).isEqualTo("f56-api");
+        assertThat(fromRun.detail()).startsWith("the run names credential 'f56-api' for 'nowhere'");
+
+        final StartCheck.Result fromProject = StartCheck.withCredentials(context(dir), READY, credentialed(dir),
+                java.util.Map.of());
+        assertThat(fromProject.detail()).startsWith("the project names credential 'search' for 'nowhere'");
+    }
+
+    @Test
+    void aRunPointingAProjectsCredentialElsewhereIsRefused(@TempDir Path dir) throws Exception {
+        final StartCheck.Result result = StartCheck.withCredentials(context(dir), READY, credentialed(dir),
+                java.util.Map.of("search", "somewhere-else"));
+
+        assertThat(result.outcome()).isEqualTo(StartCheck.Outcome.UNKNOWN_DESTINATION);
+        assertThat(result.detail()).contains("cannot point one of the project's elsewhere");
+    }
+
+    @Test
+    void aDeclaredDestinationLetsTheAnswerStand(@TempDir Path dir) throws Exception {
+        Files.createDirectories(dir.resolve("data/sokar/destinations"));
+        Files.writeString(dir.resolve("data/sokar/destinations/nowhere.yaml"),
+                "name: nowhere\nupstream: https://api.example.com\n");
+
+        assertThat(StartCheck.withCredentials(context(dir), READY, credentialed(dir), java.util.Map.of()))
+                .isEqualTo(READY);
+    }
 }

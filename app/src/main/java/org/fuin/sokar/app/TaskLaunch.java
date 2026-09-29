@@ -508,6 +508,15 @@ public final class TaskLaunch {
             // Every other credential the project names, resolved before anything is made: a destination
             // nobody declared is a mistake in the project file, not something to find inside the task.
             final java.util.Map<String, Destination> extras = new java.util.LinkedHashMap<>();
+            // The same words and the same rule CanStart answers with, so a check and a start cannot disagree.
+            final String undeclared = StartCheck.undeclared(context, request.projectFile(), request.credentials());
+            if (undeclared != null) {
+                err.println("sokar: " + undeclared.substring(undeclared.indexOf('\n') + 1));
+                err.println("sokar: nothing was created; declare it in "
+                        + context.paths().xdg().data().resolve("destinations") + ", or correct what names it");
+                err.flush();
+                return 69;
+            }
             // The run adds to what the project declares, and never takes one away or points it elsewhere.
             final java.util.Map<String, String> declaredOrAdded = new java.util.LinkedHashMap<>(project.credentials());
             for (final java.util.Map.Entry<String, String> added : request.credentials().entrySet()) {
@@ -659,6 +668,19 @@ public final class TaskLaunch {
 
             final CredentialWiring.CredentialPlumbing plumbing =
                     wiring().startVault(selected, container, this.extras, out, err);
+            if (!this.extras.isEmpty()) {
+                // By name and destination, for anything that asks what the task holds; never a token.
+                final java.util.Map<String, Object> given = new java.util.LinkedHashMap<>();
+                this.extras.forEach((name, destination) -> given.put(name, destination.name()));
+                try {
+                    java.nio.file.Files.writeString(context.paths().containerState(container)
+                            .resolve(TaskInventory.CREDENTIALS_FILE), org.fuin.sokar.wire.Json.write(given),
+                            java.nio.charset.StandardCharsets.UTF_8);
+                } catch (java.io.IOException ex) {
+                    err.println("sokar: could not record which credentials this task holds: " + ex.getMessage());
+                    err.flush();
+                }
+            }
             // The agent's URL endpoint, or any other credential: those are always reached over the URL.
             final boolean needsRelay = serving != null
                     && serving.route().endpoint()
@@ -1252,7 +1274,7 @@ public final class TaskLaunch {
     private @Nullable String purchaseRefused(String name) {
         final org.fuin.sokar.vault.VaultEntry entry = context.readableCredentials()
                 .map(stored -> stored.get(name)).orElse(null);
-        if (entry != null && org.fuin.sokar.supervisor.DeviceGrant.KIND.equals(entry.type())) {
+        if (entry != null && org.fuin.sokar.supervisor.Grants.isGrant(entry.type())) {
             // Only whether a person has granted it: spending it here could rotate it under the broker.
             final boolean granted = context.opener().map(opener -> context.vault().read(opener)
                     .containsKey(TaskSecrets.GRANT_PREFIX + name)).orElse(false);

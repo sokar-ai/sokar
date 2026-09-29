@@ -58,7 +58,44 @@ public final class TaskInventory {
             String since, Activity activity, @Nullable String waitingFor,
             @Nullable String clearance, @Nullable String label, int waiting,
             String startAction, String startDetail, @Nullable String repository,
-            @Nullable String commit, AgentWaiting.Derived derived) {
+            @Nullable String commit, AgentWaiting.Derived derived, Map<String, String> credentials) {
+
+        /**
+         * Constructor for a task given no credential beyond its agent's own, the shape before a task held
+         * more than one.
+         *
+         * @param name Container name.
+         * @param project Project, or {@code null}.
+         * @param securityClass Class, or {@code null}.
+         * @param state Container state.
+         * @param running Whether it runs.
+         * @param helpers Helper processes.
+         * @param agent Agent, or {@code null}.
+         * @param mode Mode, or {@code null}.
+         * @param prompt Prompt, or {@code null}.
+         * @param branch Branch, or {@code null}.
+         * @param since Since when.
+         * @param activity What its work is doing.
+         * @param waitingFor What it waits for, or {@code null}.
+         * @param clearance Clearance, or {@code null}.
+         * @param label Label, or {@code null}.
+         * @param waiting Pending pushes.
+         * @param startAction What starting it would do.
+         * @param startDetail Why.
+         * @param repository Repository, or {@code null}.
+         * @param commit Commit, or {@code null}.
+         * @param derived What its screen and messages say.
+         */
+        public Task(String name, @Nullable String project, @Nullable String securityClass, String state,
+                boolean running, long helpers, @Nullable String agent, @Nullable String mode, @Nullable String prompt,
+                @Nullable String branch, String since, Activity activity, @Nullable String waitingFor,
+                @Nullable String clearance, @Nullable String label, int waiting, String startAction,
+                String startDetail, @Nullable String repository, @Nullable String commit,
+                AgentWaiting.Derived derived) {
+            this(name, project, securityClass, state, running, helpers, agent, mode, prompt, branch, since, activity,
+                    waitingFor, clearance, label, waiting, startAction, startDetail, repository, commit, derived,
+                    Map.of());
+        }
 
         /**
          * Constructor for a task nothing could be derived about.
@@ -202,6 +239,8 @@ public final class TaskInventory {
             map.put("askedFrom", derived.askedFrom());
             // The session the next start continues, so an interface can say so before it is pressed.
             map.put("session", derived.session());
+            // What it was given beyond its agent's own credential, by name and destination - never a token.
+            map.put("credentials", credentials);
 
             // Nothing records a phase yet. "" is the honest answer for a task that is in none,
             // and it is what every task answers until a detached Start has something to report.
@@ -428,7 +467,29 @@ public final class TaskInventory {
                 summary.commit(),
                 agentWaiting == null ? AgentWaiting.Derived.NOTHING
                         : agentWaiting.about(summary.name(), summary.running(), profile == null ? null : profile.agent(),
-                                profile == null ? null : profile.mode().name(), state));
+                                profile == null ? null : profile.mode().name(), state),
+                credentialsGiven(restartTookIt ? context.paths().taskRecord(summary.name()) : state));
+    }
+
+    /** What a task was given beyond its agent's own credential, written when it is launched. */
+    static final String CREDENTIALS_FILE = "credentials.json";
+
+    private static Map<String, String> credentialsGiven(Path directory) {
+        final Path file = directory.resolve(CREDENTIALS_FILE);
+        if (!Files.isRegularFile(file)) {
+            return Map.of();
+        }
+        try {
+            if (org.fuin.sokar.wire.Json.parse(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8))
+                    instanceof Map<?, ?> named) {
+                final Map<String, String> given = new java.util.LinkedHashMap<>();
+                named.forEach((name, destination) -> given.put(String.valueOf(name), String.valueOf(destination)));
+                return given;
+            }
+        } catch (java.io.IOException | RuntimeException ex) {
+            // A file that cannot be read says nothing; the task is still listed.
+        }
+        return Map.of();
     }
 
     /**

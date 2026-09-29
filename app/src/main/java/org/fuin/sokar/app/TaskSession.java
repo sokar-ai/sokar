@@ -153,8 +153,54 @@ public final class TaskSession {
         if (!name.endsWith(ids.suffix())) {
             return Optional.empty();
         }
+        // From inside the file first, where the agent declares the record its id is in: a file named
+        // '<timestamp>_<id>.jsonl' is not an id such an agent takes back, and no rule for cutting the name
+        // needs guessing. Only when no record matches is the name the id.
+        if (!ids.record().isEmpty()) {
+            final Optional<String> inside = fromInside(container, path, ids);
+            if (inside.isPresent()) {
+                return inside;
+            }
+        }
         final String id = name.substring(0, name.length() - ids.suffix().length());
         return SessionIds.isId(id) ? Optional.of(id) : Optional.empty();
+    }
+
+    /** How many of a session file's first lines are read for the record the id is in. */
+    static final int HEAD = 50;
+
+    private Optional<String> fromInside(String container, String path, SessionIds ids) {
+        final CommandResult head;
+        try {
+            head = context.podman().ask(container, Map.of(), List.of("head", "-n", String.valueOf(HEAD), path));
+        } catch (RuntimeException ex) {
+            return Optional.empty();
+        }
+        if (head.exitCode() != 0) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(ids.of(records(head.standardOutput())));
+    }
+
+    /**
+     * Reads the JSON records of a session file's lines, skipping any that is not one.
+     *
+     * @param text The lines.
+     * @return The records, in order.
+     */
+    static List<Object> records(String text) {
+        final List<Object> records = new java.util.ArrayList<>();
+        for (final String line : text.split("\n")) {
+            if (line.isBlank()) {
+                continue;
+            }
+            try {
+                records.add(org.fuin.sokar.wire.Json.parse(line));
+            } catch (RuntimeException ex) {
+                // A line that is not a record is not the one the id is in.
+            }
+        }
+        return records;
     }
 
     /**

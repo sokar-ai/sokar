@@ -82,7 +82,12 @@ public final class StartCheck {
 
         /** Something is stored and cannot be brokered - the wrong kind for this provider.
          *  {@code detail} says what. */
-        CREDENTIAL_UNUSABLE
+        CREDENTIAL_UNUSABLE,
+
+        /** A credential the project or the run names is for a destination nobody declared here, or the
+         *  run points one of the project's elsewhere. {@code credential} names it; {@code detail} says which
+         *  named it. */
+        UNKNOWN_DESTINATION
     }
 
     /**
@@ -195,9 +200,95 @@ public final class StartCheck {
             @Nullable String credentialType, @Nullable String repository,
             boolean needsRepository) {
 
+        return check(context, projectFile, taskName, agentName, providerName, credentialType, repository,
+                needsRepository, Map.of());
+    }
+
+    /**
+     * Answers whether a run with these choices could start, including the credentials it names.
+     *
+     * @param context Where the agents, providers and vault come from.
+     * @param projectFile The project file, or {@code null} not to check one.
+     * @param taskName The task name Start would be given, or {@code null} not to check one.
+     * @param agentName Agent to run, or {@code null} for the only one installed.
+     * @param providerName Provider to route through, or {@code null} for the agent's own default.
+     * @param credentialType Overrides the stored credential kind, or {@code null}.
+     * @param repository Which repository the task is for, or {@code null} when none was named.
+     * @param needsRepository Whether this run would have a gate at all.
+     * @param credentials The credentials the run adds, a vault entry to its destination.
+     * @return What was found.
+     */
+    public static Result check(SokarContext context, @Nullable Path projectFile,
+            @Nullable String taskName, @Nullable String agentName, @Nullable String providerName,
+            @Nullable String credentialType, @Nullable String repository,
+            boolean needsRepository, Map<String, String> credentials) {
+
         final Result rest = checkEverythingElse(context, projectFile, taskName, agentName,
                 providerName, credentialType);
-        return withRepository(rest, projectFile, repository, needsRepository);
+        return withRepository(withCredentials(context, rest, projectFile, credentials), projectFile, repository,
+                needsRepository);
+    }
+
+    /**
+     * Returns the answer with the credentials the project and the run name applied: each must be for a
+     * destination declared here, and a run may not point one of the project's elsewhere.
+     *
+     * @param context Where destinations and providers are declared.
+     * @param rest What everything else answered.
+     * @param projectFile The project file, or {@code null}.
+     * @param run The credentials the run adds.
+     * @return The answer.
+     */
+    static Result withCredentials(SokarContext context, Result rest, @Nullable Path projectFile,
+            Map<String, String> run) {
+        if (rest.outcome() != Outcome.READY) {
+            return rest;
+        }
+        final String refused = undeclared(context, projectFile, run);
+        if (refused == null) {
+            return rest;
+        }
+        final String credential = refused.substring(0, refused.indexOf('\n'));
+        return new Result(Outcome.UNKNOWN_DESTINATION, rest.agent(), rest.provider(), credential,
+                refused.substring(refused.indexOf('\n') + 1));
+    }
+
+    /**
+     * Says which credential cannot be had for want of a destination, and why, in the words a person reads.
+     *
+     * @param context Where destinations and providers are declared.
+     * @param projectFile The project file, or {@code null}.
+     * @param run The credentials the run adds.
+     * @return The credential's name, a newline, and the reason; or {@code null} when every one resolves.
+     */
+    public static @Nullable String undeclared(SokarContext context, @Nullable Path projectFile, Map<String, String> run) {
+        Map<String, String> declared = Map.of();
+        if (projectFile != null) {
+            try {
+                declared = org.fuin.sokar.core.project.ProjectReader.read(projectFile).credentials();
+            } catch (RuntimeException ex) {
+                declared = Map.of();
+            }
+        }
+        for (final Map.Entry<String, String> added : run.entrySet()) {
+            final String already = declared.get(added.getKey());
+            if (already != null && !already.equals(added.getValue())) {
+                return added.getKey() + "\nthe project already names credential '" + added.getKey() + "' for '"
+                        + already + "'; a run adds credentials and cannot point one of the project's elsewhere";
+            }
+        }
+        final Map<String, Destination> destinations = Destination.all(context.paths().xdg().data());
+        final Map<String, org.fuin.sokar.agent.api.ProviderDefinition> providers = context.providers();
+        final java.util.Map<String, String> all = new java.util.LinkedHashMap<>(declared);
+        run.forEach(all::putIfAbsent);
+        for (final Map.Entry<String, String> named : all.entrySet()) {
+            if (Destination.resolve(named.getValue(), destinations, providers, null) == null) {
+                final String who = declared.containsKey(named.getKey()) ? "the project names" : "the run names";
+                return named.getKey() + "\n" + who + " credential '" + named.getKey() + "' for '" + named.getValue()
+                        + "', and no destination or provider of that name is declared here";
+            }
+        }
+        return null;
     }
 
     /**

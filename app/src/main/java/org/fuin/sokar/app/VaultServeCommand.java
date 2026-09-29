@@ -147,7 +147,7 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             for (final String name : java.util.stream.Stream.concat(java.util.stream.Stream.of(credential),
                     routes.keySet().stream()).toList()) {
                 final org.fuin.sokar.vault.VaultEntry entry = entries.get(name);
-                if (entry != null && org.fuin.sokar.supervisor.DeviceGrant.KIND.equals(entry.type())) {
+                if (entry != null && org.fuin.sokar.supervisor.Grants.isGrant(entry.type())) {
                     // A grant a person gave once: spent with its refresh token, kept hidden beside it.
                     final org.fuin.sokar.supervisor.TokenPurchase granted;
                     try {
@@ -302,8 +302,8 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
         if (grant == null) {
             return null;
         }
-        final org.fuin.sokar.supervisor.DeviceGrant.Client client =
-                org.fuin.sokar.supervisor.DeviceGrant.Client.of(entry.value(), entry.settings());
+        final org.fuin.sokar.supervisor.Grants.Service client =
+                org.fuin.sokar.supervisor.Grants.service(entry.type(), entry.value(), entry.settings());
         return new org.fuin.sokar.supervisor.TokenPurchase(new org.fuin.sokar.supervisor.TokenPurchase.Refresh(
                 client.tokenUrl(), client.clientId(), client.clientSecret(), grant.value(), rotated -> {
                     // The service replaced it: the vault keeps the one in force, with who granted it and when.

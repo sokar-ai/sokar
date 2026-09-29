@@ -273,7 +273,10 @@ type Task (
   # unattended run's records, or an attached agent's own session files when the task stops. Starting
   # the task again continues it, and says so. "" when none is recorded: the next start is a fresh
   # session. An identifier, not a credential; gone when the task is removed.
-  session: string
+  session: string,
+  # What this task was given beyond its agent's own credential, from the project and its run: a vault
+  # entry's name to the destination it is for. Names only, never a token.
+  credentials: [string]string
 )
 
 # What became of a Stop or a Remove.
@@ -610,7 +613,10 @@ type Project (
   behindReason: string,
   # What went wrong, for FAILED. "" otherwise. Prose for a person - never parsed, and never
   # rendered as a number.
-  behindDetail: string
+  behindDetail: string,
+  # What project.yml names under 'credentials:': a vault entry's name to the destination it is for, which
+  # every task of the project holds. Names only, never a value.
+  credentials: [string]string
 )
 
 # One log a task has written.
@@ -1223,7 +1229,11 @@ type StartOutcome (
   CREDENTIAL_MISSING,
   # Something is stored and cannot be brokered - the wrong kind for this provider. 'detail' says
   # what.
-  CREDENTIAL_UNUSABLE
+  CREDENTIAL_UNUSABLE,
+  # A credential the project or the run names is for a destination nobody declared here, or the run points
+  # one of the project's elsewhere. 'credential' names it; 'detail' says whether the project or the run
+  # named it. Start refuses the same case with NoSuchDestination, before anything is launched.
+  UNKNOWN_DESTINATION
 )
 
 # Whether work could start here, asked before anything is created.
@@ -1253,7 +1263,10 @@ method CanStart(
   # Provider to route through. Omitted, the agent's own declared default.
   provider: ?string,
   # Overrides the stored credential kind for this question, as Start takes it.
-  credentialType: ?string
+  credentialType: ?string,
+  # The credentials the run would add, as Start takes them. Each the project or the run names must be for a
+  # destination declared here, or the answer is UNKNOWN_DESTINATION.
+  credentials: ?[string]string
 ) -> (
   # Whether work could start. True exactly when outcome is READY, so branch on whichever suits -
   # but never infer the ACTION from this alone: three different things somebody has to do all
@@ -2574,15 +2587,18 @@ method Moderate(
 ) -> (name: string, mode: string, held: bool)
 
 
-# Grants an authorization once, for this account's later tasks: the device code flow. Streaming only.
+# Grants an authorization once, for this account's later tasks. Streaming only.
 #
-# The first reply is state "needed", with the link to open and the code to type if the link does not carry it;
-# the person decides in any browser anywhere. The last is "granted", "refused", "expired" or "failed" (with a
-# detail). The grant is kept in the account's vault, hidden, with who granted it and when; no task holds it.
+# The first reply is state "needed", with the link to open, whole. For a device code (kind oauth-device) it
+# carries the code to type if the link does not, and the person decides in any browser anywhere. For a
+# redirect (kind oauth-code) the code is empty and port is the loopback port on the machine the answer comes
+# back to: a client whose browser is elsewhere forwards that port (ssh -L port:127.0.0.1:port) before opening
+# the link. The last reply is "granted", "refused", "expired" or "failed" (with a detail). The grant is kept
+# in the account's vault, hidden, with who granted it and when; no task holds it.
 method Authorize(
-  # The vault entry of kind oauth-device that names the service.
+  # The vault entry of kind oauth-device or oauth-code that names the service.
   name: string
-) -> (state: string, link: string, code: string, expiresIn: int, detail: string)
+) -> (state: string, link: string, code: string, port: int, expiresIn: int, detail: string)
 
 # Every destination declared on this machine, the one in force for each name first.
 method Destinations() -> (destinations: []Destination)

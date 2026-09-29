@@ -175,6 +175,17 @@ public final class ProjectInventory {
             // choice at task start needs the names, and a project view needs each one's own
             // mirror, pending count and distance. A number would send it back to read the file.
             map.put("repositories", repositories.stream().map(RepositorySummary::asMap).toList());
+            // What project.yml names under 'credentials:', read from the file this row is for: names and
+            // destinations, never a value.
+            Map<String, String> credentials = Map.of();
+            if (file != null) {
+                try {
+                    credentials = org.fuin.sokar.core.project.ProjectReader.read(java.nio.file.Path.of(file)).credentials();
+                } catch (RuntimeException ex) {
+                    credentials = Map.of();
+                }
+            }
+            map.put("credentials", credentials);
             // Empty for a project this machine does not follow, which is the ordinary case. A
             // project view reads its follow state from here rather than joining a second call.
             map.put("following", following == null ? Map.<String, Object>of()

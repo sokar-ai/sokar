@@ -1064,6 +1064,61 @@ class SokarDaemonTest {
     }
 
     @Test
+    void aRedirectNamesThePortTheAnswerComesBackToAndEndsTheStreamWithTheAnswer(@TempDir Path dir)
+            throws Exception {
+
+        // A browser elsewhere redirects to this machine's loopback; the interface has to know which port to
+        // forward before it opens the link, and learns how it ended on the same stream.
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                org.fuin.sokar.vault.KernelKeyring.available(), "libkeyutils is not installed");
+        final int port;
+        try (java.net.ServerSocket free = new java.net.ServerSocket(0)) {
+            port = free.getLocalPort();
+        }
+        final SokarContext context = context(dir);
+        final org.fuin.sokar.vault.KernelKeyring keyring =
+                new org.fuin.sokar.vault.KernelKeyring(context.paths().vaultKeyringKey());
+        try {
+            Files.createDirectories(context.vault().path().getParent());
+            context.vault().write(Map.of("svc", new org.fuin.sokar.vault.VaultEntry("-", "oauth-code",
+                    Map.of("client_id", "sokar-client", "authorization_url", "https://auth.example.invalid/authorize",
+                            "token_url", "https://auth.example.invalid/token", "redirect_port", String.valueOf(port)))),
+                    VAULT_PASSPHRASE);
+            keyring.store(VAULT_PASSPHRASE);
+
+            servingContext(context, dir, socket -> {
+                try (VarlinkClient client = new VarlinkClient(socket)) {
+                    final List<Map<String, Object>> replies = new java.util.ArrayList<>();
+                    client.callMore(SokarDaemon.INTERFACE + ".Authorize", Map.of("name", "svc"), answer -> {
+                        replies.add(answer);
+                        if ("needed".equals(answer.get("state"))) {
+                            final String link = String.valueOf(answer.get("link"));
+                            final String state = link.replaceAll(".*[?&]state=([^&]*).*", "$1");
+                            try {
+                                java.net.http.HttpClient.newHttpClient().send(java.net.http.HttpRequest.newBuilder(
+                                        java.net.URI.create("http://127.0.0.1:" + port + "/callback?error=access_denied"
+                                                + "&state=" + state)).build(),
+                                        java.net.http.HttpResponse.BodyHandlers.discarding());
+                            } catch (java.io.IOException | InterruptedException ex) {
+                                throw new IllegalStateException(ex);
+                            }
+                        }
+                        return true;
+                    });
+
+                    assertThat(replies.getFirst()).containsEntry("state", "needed").containsEntry("code", "");
+                    assertThat(((Number) replies.getFirst().get("port")).intValue()).isEqualTo(port);
+                    assertThat(String.valueOf(replies.getFirst().get("link")))
+                            .startsWith("https://auth.example.invalid/authorize?").contains("code_challenge=");
+                    assertThat(replies.getLast()).containsEntry("state", "refused");
+                }
+            });
+        } finally {
+            keyring.forget();
+        }
+    }
+
+    @Test
     void anInterfaceManagesDestinationsAsTheFilesAPersonWouldEdit(@TempDir Path dir) throws Exception {
 
         // The operator's decision: the interface does all of it - list, read, write, remove.

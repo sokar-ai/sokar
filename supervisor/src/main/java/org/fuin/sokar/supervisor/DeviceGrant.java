@@ -1,16 +1,11 @@
 package org.fuin.sokar.supervisor;
 
-import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.fuin.sokar.wire.Json;
 import org.jspecify.annotations.Nullable;
 
@@ -60,9 +55,10 @@ public final class DeviceGrant {
      * @param clientId The client's id.
      * @param clientSecret The client's secret, or {@code null} for a public client.
      * @param scopes The scopes, space-separated, or empty.
+     * @param revocationUrl The revocation endpoint (RFC 7009), https, or {@code null} where the service has none.
      */
     public record Client(String deviceUrl, String tokenUrl, String clientId, @Nullable String clientSecret,
-            String scopes) {
+            String scopes, @Nullable String revocationUrl) {
 
         /**
          * Reads a client from a vault entry's secret and settings.
@@ -84,7 +80,7 @@ public final class DeviceGrant {
                 throw new IllegalArgumentException("the device authorization and token URLs must be https");
             }
             return new Client(device, token, id, secret.isBlank() || "-".equals(secret) ? null : secret,
-                    settings.getOrDefault("scopes", ""));
+                    settings.getOrDefault("scopes", ""), Grants.revocationUrl(settings));
         }
     }
 
@@ -192,21 +188,7 @@ public final class DeviceGrant {
     }
 
     private Map<?, ?> post(String url, Map<String, String> form, boolean mustSucceed) throws TokenPurchase.Refused {
-        final String body = form.entrySet().stream()
-                .map(each -> URLEncoder.encode(each.getKey(), StandardCharsets.UTF_8) + "="
-                        + URLEncoder.encode(each.getValue(), StandardCharsets.UTF_8))
-                .collect(Collectors.joining("&"));
-        final HttpResponse<String> answer;
-        try {
-            answer = http.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(30))
-                    .header("Content-Type", "application/x-www-form-urlencoded").header("Accept", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
-        } catch (IOException ex) {
-            throw new TokenPurchase.Refused("the service at " + host(url) + " could not be reached: " + ex.getMessage(), ex);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new TokenPurchase.Refused("interrupted while asking " + host(url), ex);
-        }
+        final HttpResponse<String> answer = Grants.send(http, url, form);
         final Object parsed;
         try {
             parsed = Json.parse(answer.body());

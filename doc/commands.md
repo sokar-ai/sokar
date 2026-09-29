@@ -98,13 +98,13 @@ Credentials, and the broker that lets a task use one without ever holding it.
 | Command | What it does |
 |---|---|
 | `sokar vault init` | Creates an empty vault and sets its passphrase, asked twice. |
-| `sokar vault authorize NAME` | Grants an authorization once, in any browser: shows a link and a code, and keeps the grant in this account's vault for its later tasks. `NAME` is an entry of kind `oauth-device`. |
+| `sokar vault authorize NAME` | Grants an authorization once, in any browser, and keeps the grant in this account's vault for its later tasks. For an entry of kind `oauth-device` (settings `client_id`, `device_authorization_url`, `token_url`, `scopes`) it shows a link and a code. For a service with no device code, an entry of kind `oauth-code` (settings `client_id`, `authorization_url`, `token_url`, `scopes`, `redirect_port`, default 9420) shows a link whose answer comes back to `http://127.0.0.1:<redirect_port>/callback` on this machine; from elsewhere, forward that port with `ssh -L` first. Either takes `revocation_url` where the service has one. |
 | `sokar vault login AGENT` | Runs an agent's own login and stores the credential it produces. |
 | `sokar vault import AGENT` | Copies a credential the agent already holds on this host into the vault. |
 | `sokar vault put NAME` | Stores a credential, read from standard input, under the name of the provider it is for. |
 | `sokar providers` | Lists the model providers declared here, the agents that drive each, and what the vault holds for them. |
 | `sokar vault list` | Lists the names the vault holds. Never the values. |
-| `sokar vault remove NAME` | Removes a credential from the vault. |
+| `sokar vault remove NAME [--without-revoking]` | Removes a credential from the vault. An entry with a granted authorization revokes it at the service first (its `revocation_url` setting); if the service cannot be told, the entry is kept unless `--without-revoking` is given. |
 | `sokar vault unlock` | Caches the vault passphrase in the kernel keyring for this session. |
 | `sokar vault lock` | Drops the cached passphrase. The next command asks for it again. |
 | `sokar vault passphrase` | Re-encrypts the vault under a different passphrase. |

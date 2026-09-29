@@ -670,7 +670,7 @@ public final class SokarDaemon {
                     // A run with no gate works on no repository, so there is nothing for it to
                     // name - and asking for one would be asking about something that does not
                     // exist for that run.
-                    !flag(parameters, "noGate")).asMap());
+                    !flag(parameters, "noGate"), credentials(parameters)).asMap());
         });
 
         server.method("Credentials", (parameters, replies) -> {
@@ -790,6 +790,14 @@ public final class SokarDaemon {
         // it, which is the property that lets this daemon be restarted while tasks run.
 
         server.method("Start", (parameters, replies) -> {
+            // Refused as itself before anything is launched: a destination nobody declared is a typed answer an
+            // interface can show, not a launch line among others.
+            final String undeclared = org.fuin.sokar.app.StartCheck.undeclared(context, projectFile(parameters, context),
+                    credentials(parameters));
+            if (undeclared != null) {
+                throw new VarlinkException(INTERFACE + ".NoSuchDestination",
+                        Map.of("name", undeclared.substring(0, undeclared.indexOf('\n'))));
+            }
             // Into the domain, not out to a subprocess. Until TaskLaunch existed this spawned
             // 'sokar task run' and read one line of its output for the container name, because
             // running the command was the only way to start a task. Now the CLI and this call
@@ -1419,22 +1427,21 @@ public final class SokarDaemon {
                 throw new VarlinkException(INTERFACE + ".StreamRequired", Map.of("method", "Authorize"));
             }
             final String name = text(parameters, "name");
-            final org.fuin.sokar.supervisor.DeviceGrant grant;
-            final org.fuin.sokar.supervisor.DeviceGrant.Started started;
+            final org.fuin.sokar.app.VaultAuthorizeCommand.Flow grant;
+            final org.fuin.sokar.app.VaultAuthorizeCommand.Shown started;
             try {
-                grant = org.fuin.sokar.app.VaultAuthorizeCommand.grantFor(context, name);
+                grant = org.fuin.sokar.app.VaultAuthorizeCommand.flowFor(context, name);
                 started = grant.start();
             } catch (IllegalArgumentException | org.fuin.sokar.vault.VaultException
                     | org.fuin.sokar.supervisor.TokenPurchase.Refused ex) {
                 throw new VarlinkException(INTERFACE + ".Failed", Map.of("message", String.valueOf(ex.getMessage())));
             }
-            replies.more(Map.of("state", "needed", "link", started.link(), "code", started.userCode(),
-                    "expiresIn", started.expiresIn().toSeconds(), "detail", ""));
+            replies.more(Map.of("state", "needed", "link", started.link(), "code", started.code(),
+                    "port", started.port(), "expiresIn", started.expiresIn().toSeconds(), "detail", ""));
             try {
-                final org.fuin.sokar.supervisor.DeviceGrant.Outcome outcome =
-                        grant.await(started, duration -> Thread.sleep(duration));
+                final org.fuin.sokar.supervisor.DeviceGrant.Outcome outcome = grant.await();
                 if ("granted".equals(outcome.state()) && outcome.refreshToken() == null) {
-                    replies.last(Map.of("state", "refused", "link", "", "code", "", "expiresIn", 0,
+                    replies.last(Map.of("state", "refused", "link", "", "code", "", "port", 0, "expiresIn", 0,
                             "detail", "the service granted no refresh token; ask for a scope that permits one"));
                     return;
                 }
@@ -1442,14 +1449,15 @@ public final class SokarDaemon {
                     org.fuin.sokar.app.VaultAuthorizeCommand.keep(context, name,
                             java.util.Objects.requireNonNull(outcome.refreshToken()));
                 }
-                replies.last(Map.of("state", outcome.state(), "link", "", "code", "", "expiresIn", 0, "detail", ""));
+                replies.last(Map.of("state", outcome.state(), "link", "", "code", "", "port", 0, "expiresIn", 0,
+                        "detail", ""));
             } catch (org.fuin.sokar.supervisor.TokenPurchase.Refused | org.fuin.sokar.vault.VaultException ex) {
-                replies.last(Map.of("state", "failed", "link", "", "code", "", "expiresIn", 0,
+                replies.last(Map.of("state", "failed", "link", "", "code", "", "port", 0, "expiresIn", 0,
                         "detail", String.valueOf(ex.getMessage())));
             } catch (InterruptedException ex) {
                 // The daemon is stopping; the person's decision is not lost at the service, only this wait.
                 Thread.currentThread().interrupt();
-                replies.last(Map.of("state", "failed", "link", "", "code", "", "expiresIn", 0,
+                replies.last(Map.of("state", "failed", "link", "", "code", "", "port", 0, "expiresIn", 0,
                         "detail", "the daemon stopped while waiting; authorize again"));
             }
         });

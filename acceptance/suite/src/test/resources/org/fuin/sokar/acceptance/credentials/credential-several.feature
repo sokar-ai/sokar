@@ -36,6 +36,18 @@ Feature: A task holds more than one credential
       """
     Then its output contains "real key in the container: 0"
     And its output contains "a token for search is there"
+    # An interface lists what a task holds, by name and destination, never a token.
+    When a script runs:
+      """
+      printf '%s\0' '{"method":"org.fuin.sokar.Tasks1.List","parameters":{}}' | timeout 60 sokar daemon connect 2>/dev/null \
+          | tr '\0' '\n' | head -1 | grep -o '"credentials":{"search":"echo"}' | head -1
+      # A destination nobody declared, named by the run: refused before anything exists, and said as the run's.
+      sokar task start undeclared --project credentialed --repository credentialed --agent stub --prompt 'x' \
+          --clearance deny --credential extra=nowhere; echo "exit $?"
+      """
+    Then its output contains '"credentials":{"search":"echo"}'
+    And its output contains "the run names credential 'extra' for 'nowhere'"
+    And its output contains "exit 69"
     And a script runs "rm -f ${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations/acceptance-echo.yaml; sokar task remove {task} --force" about the task
 
   Scenario: an unattended run whose credential's token cannot be bought is refused before anything is made

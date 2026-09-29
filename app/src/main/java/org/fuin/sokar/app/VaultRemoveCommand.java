@@ -2,14 +2,22 @@ package org.fuin.sokar.app;
 
 import java.io.PrintWriter;
 import java.util.concurrent.Callable;
+import org.fuin.sokar.supervisor.Grants;
+import org.fuin.sokar.supervisor.TokenPurchase;
+import org.fuin.sokar.vault.VaultEntry;
 import org.fuin.sokar.vault.VaultException;
+import org.jspecify.annotations.Nullable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
 /**
  * Removes one credential from the vault.
+ * <p>
+ * An entry a person granted an authorization for takes the grant with it, and the service is told first
+ * (RFC 7009): a refresh token deleted here and still honoured there is a grant nobody can see any more.
  */
 @Command(name = "remove",
         mixinStandardHelpOptions = true,
@@ -18,6 +26,10 @@ public class VaultRemoveCommand implements Callable<Integer>, SokarFactory.Conte
 
     @Parameters(index = "0", paramLabel = "<name>", description = "Name of the entry to remove.")
     private String name;
+
+    @Option(names = "--without-revoking",
+            description = "Remove a granted authorization here although the service could not be told.")
+    private boolean withoutRevoking;
 
     @Spec
     private CommandSpec spec;
@@ -47,10 +59,37 @@ public class VaultRemoveCommand implements Callable<Integer>, SokarFactory.Conte
             return 64;
         }
 
+        final String grantName = TaskSecrets.GRANT_PREFIX + name;
+        final VaultEntry grant;
+        try {
+            grant = context.credentials().get(grantName);
+        } catch (VaultException ex) {
+            err.println("sokar: " + ex.getMessage());
+            err.flush();
+            return 70;
+        }
+        if (grant != null) {
+            final String refused = revoke(context.credentials().get(name), grant.value());
+            if (refused == null) {
+                out.println("revoked   " + name + " at the service");
+            } else if (withoutRevoking) {
+                out.println("not revoked at the service: " + refused);
+            } else {
+                // Kept rather than deleted: deleting it would leave a grant alive there that nobody here can revoke.
+                err.println("sokar: " + refused);
+                err.println("sokar: '" + name + "' is kept; revoke the grant at the service and run"
+                        + " 'sokar vault remove " + name + " --without-revoking'");
+                err.flush();
+                return 1;
+            }
+            out.flush();
+        }
+
         final boolean[] removed = { false };
         try {
             context.vault().update(context.requirePassphrase(), entries -> {
                 removed[0] = entries.remove(name) != null;
+                removed[0] |= entries.remove(grantName) != null;
                 return entries;
             });
         } catch (VaultException ex) {
@@ -68,5 +107,27 @@ public class VaultRemoveCommand implements Callable<Integer>, SokarFactory.Conte
         out.println("removed   " + name);
         out.flush();
         return 0;
+    }
+
+    /**
+     * Tells the service a grant is finished with.
+     *
+     * @param entry The entry naming the service, or {@code null} if it is gone.
+     * @param refreshToken The grant's refresh token.
+     * @return {@code null} when the service revoked it, else why it could not be told.
+     */
+    static @Nullable String revoke(@Nullable VaultEntry entry, String refreshToken) {
+        if (entry == null || !Grants.isGrant(entry.type())) {
+            return "the entry that names the service is gone, so it cannot be told";
+        }
+        try {
+            Grants.revoke(Grants.service(entry.type(), entry.value(), entry.settings()),
+                    java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(30))
+                            .followRedirects(java.net.http.HttpClient.Redirect.NEVER).build(),
+                    refreshToken);
+            return null;
+        } catch (TokenPurchase.Refused | IllegalArgumentException ex) {
+            return ex.getMessage();
+        }
     }
 }

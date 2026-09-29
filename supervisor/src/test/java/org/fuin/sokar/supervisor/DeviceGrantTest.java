@@ -45,8 +45,16 @@ class DeviceGrantTest {
                     : tokenAnswers.poll();
             answer(exchange, Integer.parseInt(next[0]), next[1]);
         });
+        server.createContext("/revoke", exchange -> {
+            revokeBodies.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            answer(exchange, revokeStatus, revokeStatus == 200 ? "{}" : "{\"error\":\"unsupported_token_type\"}");
+        });
         server.start();
     }
+
+    private final List<String> revokeBodies = new CopyOnWriteArrayList<>();
+
+    private int revokeStatus = 200;
 
     private static void answer(com.sun.net.httpserver.HttpExchange exchange, int status, String body) throws IOException {
         final byte[] payload = body.getBytes(StandardCharsets.UTF_8);
@@ -65,7 +73,7 @@ class DeviceGrantTest {
     private DeviceGrant grant() {
         final String base = "http://127.0.0.1:" + server.getAddress().getPort();
         return new DeviceGrant(new DeviceGrant.Client(base + "/device", base + "/token", "sokar-client", null,
-                "repo offline_access"), HttpClient.newHttpClient());
+                "repo offline_access", base + "/revoke"), HttpClient.newHttpClient());
     }
 
     @Test
@@ -117,6 +125,28 @@ class DeviceGrantTest {
     }
 
     @Test
+    void revokesTheRefreshTokenAtTheService() throws Exception {
+        final String base = "http://127.0.0.1:" + server.getAddress().getPort();
+        Grants.revoke(new Grants.Service(base + "/token", "sokar-client", null, base + "/revoke"),
+                HttpClient.newHttpClient(), "rt-1");
+
+        assertThat(revokeBodies).singleElement().satisfies(body -> assertThat(body).contains("token=rt-1")
+                .contains("token_type_hint=refresh_token").contains("client_id=sokar-client"));
+    }
+
+    @Test
+    void aRefusedOrImpossibleRevocationIsSaid() {
+        revokeStatus = 400;
+        final String base = "http://127.0.0.1:" + server.getAddress().getPort();
+        assertThatThrownBy(() -> Grants.revoke(new Grants.Service(base + "/token", "c", null, base + "/revoke"),
+                HttpClient.newHttpClient(), "rt-1")).isInstanceOf(TokenPurchase.Refused.class)
+                .hasMessageContaining("refused to revoke the grant (400, unsupported_token_type)")
+                .hasMessageNotContaining("rt-1");
+        assertThatThrownBy(() -> Grants.revoke(new Grants.Service(base + "/token", "c", null, null),
+                HttpClient.newHttpClient(), "rt-1")).hasMessageContaining("revocation_url");
+    }
+
+    @Test
     void aClientNeedsItsEndpointsAndHttps() {
         assertThatThrownBy(() -> DeviceGrant.Client.of("", Map.of("client_id", "x")))
                 .hasMessageContaining("device_authorization_url");
@@ -125,5 +155,8 @@ class DeviceGrantTest {
                 .hasMessageContaining("must be https");
         assertThat(DeviceGrant.Client.of("-", Map.of("client_id", "x", "device_authorization_url", "https://a/d",
                 "token_url", "https://a/t")).clientSecret()).as("a public client").isNull();
+        assertThatThrownBy(() -> DeviceGrant.Client.of("", Map.of("client_id", "x", "device_authorization_url",
+                "https://a/d", "token_url", "https://a/t", "revocation_url", "http://a/r")))
+                .hasMessageContaining("revocation URL must be https");
     }
 }

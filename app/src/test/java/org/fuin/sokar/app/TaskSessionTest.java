@@ -78,7 +78,27 @@ class TaskSessionTest {
 
         assertThat(new TaskSession(context()).fromFiles(TASK, IDS)).contains("s-77");
         // Looked up by the host in the container, under the agent's home, by the declared suffix.
-        assertThat(runner.invocations()).singleElement().asString().contains("$HOME/.sessions").contains("'*.session'");
+        assertThat(runner.invocations()).first().asString().contains("$HOME/.sessions").contains("'*.session'");
+    }
+
+    @Test
+    void theIdIsReadFromInsideTheNewestFileWhenItsNameIsNotOne() {
+        runner.answering("find", "/home/agent/.sessions/project/2026-09-29T10-00-00_s-88.session\n");
+        runner.answering("-n 50", """
+                {"kind":"title","id":"not-this-one"}
+                {"kind":"session","id":"s-88"}
+                """);
+
+        // The first record of the declared kind, not the title before it and not the file's name.
+        assertThat(new TaskSession(context()).fromFiles(TASK, IDS)).contains("s-88");
+    }
+
+    @Test
+    void aFileWithNoMatchingRecordFallsBackToItsName() {
+        runner.answering("find", "/home/agent/.sessions/project/s-77.session\n");
+        runner.answering("-n 50", "not a record\n{\"kind\":\"title\"}\n");
+
+        assertThat(new TaskSession(context()).fromFiles(TASK, IDS)).contains("s-77");
     }
 
     @Test

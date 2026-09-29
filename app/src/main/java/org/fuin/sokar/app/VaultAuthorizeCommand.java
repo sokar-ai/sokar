@@ -4,6 +4,7 @@ import java.io.PrintWriter;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import org.fuin.sokar.supervisor.CodeGrant;
 import org.fuin.sokar.supervisor.DeviceGrant;
 import org.fuin.sokar.supervisor.TokenPurchase;
 import org.fuin.sokar.vault.VaultEntry;
@@ -19,6 +20,10 @@ import picocli.CommandLine.Spec;
  * <strong>The device code flow</strong> (decided by the operator on 2026-09-29): this shows a link and a
  * code, the person decides wherever they are, and the refresh token that comes back is kept in this account's
  * vault, hidden, with who granted it and when. No task ever holds it: the broker spends it on the host.
+ * <p>
+ * <strong>The redirect flow</strong>, for a service that offers no device code: this shows a link, and the
+ * browser's answer comes back to a port on this machine's loopback. A person elsewhere forwards that port
+ * through the ssh connection they already hold; the command says which.
  */
 @Command(name = "authorize",
         mixinStandardHelpOptions = true,
@@ -26,7 +31,8 @@ import picocli.CommandLine.Spec;
 public class VaultAuthorizeCommand implements Callable<Integer>, SokarFactory.ContextAware {
 
     @Parameters(index = "0", paramLabel = "<name>",
-            description = "The vault entry of kind '" + DeviceGrant.KIND + "' that names the service.")
+            description = "The vault entry of kind '" + DeviceGrant.KIND + "' or '" + CodeGrant.KIND
+                    + "' that names the service.")
     private String name;
 
     @Spec
@@ -43,21 +49,28 @@ public class VaultAuthorizeCommand implements Callable<Integer>, SokarFactory.Co
     public Integer call() {
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
-        final DeviceGrant grant;
+        final Flow grant;
         try {
-            grant = grantFor(context, name);
+            grant = flowFor(context, name);
         } catch (IllegalArgumentException | VaultException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();
             return 2;
         }
         try {
-            final DeviceGrant.Started started = grant.start();
+            final Shown started = grant.start();
             out.println("open      " + started.link());
-            out.println("code      " + started.userCode());
+            if (!started.code().isEmpty()) {
+                out.println("code      " + started.userCode());
+            }
+            if (started.port() > 0) {
+                // The answer comes back to this machine's loopback; from elsewhere, the port has to follow.
+                out.println("from elsewhere, forward the answer's port first:  ssh -L " + started.port()
+                        + ":127.0.0.1:" + started.port() + " <this machine>");
+            }
             out.println("waiting   up to " + started.expiresIn().toMinutes() + " minutes for a decision");
             out.flush();
-            final DeviceGrant.Outcome outcome = grant.await(started, duration -> Thread.sleep(duration));
+            final DeviceGrant.Outcome outcome = grant.await();
             switch (outcome.state()) {
                 case "granted" -> {
                     if (outcome.refreshToken() == null) {
@@ -99,24 +112,106 @@ public class VaultAuthorizeCommand implements Callable<Integer>, SokarFactory.Co
     }
 
     /**
-     * Returns the device flow for a vault entry that names a service.
+     * What a person is shown: a link, and where a flow needs them, a code to type or a port to forward.
+     *
+     * @param link The link, whole.
+     * @param code The code to type if the link does not carry it, or empty.
+     * @param port The loopback port the answer comes back to, or 0.
+     * @param expiresIn How long the decision is waited for.
+     */
+    public record Shown(String link, String code, int port, java.time.Duration expiresIn) {
+
+        /**
+         * Returns the code to type.
+         *
+         * @return The code.
+         */
+        public String userCode() {
+            return code;
+        }
+    }
+
+    /** One way a person grants an authorization: shown something, then decided. */
+    public interface Flow {
+
+        /**
+         * Starts: what the person is to be shown.
+         *
+         * @return What to show.
+         * @throws TokenPurchase.Refused If the service refuses or cannot be reached, or the answer has nowhere to land.
+         */
+        Shown start() throws TokenPurchase.Refused;
+
+        /**
+         * Waits until the person decided or the time ran out.
+         *
+         * @return What was decided.
+         * @throws TokenPurchase.Refused If the service answers something the flow does not know, or cannot be reached.
+         * @throws InterruptedException If interrupted while waiting.
+         */
+        DeviceGrant.Outcome await() throws TokenPurchase.Refused, InterruptedException;
+    }
+
+    /** How long a person has to answer a redirect, where no service says. */
+    static final java.time.Duration REDIRECT_WAIT = java.time.Duration.ofMinutes(10);
+
+    /**
+     * Returns the flow for a vault entry that names a service: the device code where the entry is of that kind,
+     * the redirect otherwise.
      *
      * @param context Where the vault is.
      * @param name The entry.
      * @return The flow.
-     * @throws IllegalArgumentException If the entry is not one of kind {@value DeviceGrant#KIND}, or lacks a setting.
+     * @throws IllegalArgumentException If the entry is not of a kind a person grants, or lacks a setting.
      */
-    public static DeviceGrant grantFor(SokarContext context, String name) {
+    public static Flow flowFor(SokarContext context, String name) {
         final VaultEntry entry = context.credentials().get(name);
-        if (entry == null || !DeviceGrant.KIND.equals(entry.type())) {
-            throw new IllegalArgumentException("'" + name + "' is not a vault entry of kind " + DeviceGrant.KIND
-                    + "; store one with 'sokar vault put " + name + " --type " + DeviceGrant.KIND
-                    + " --setting client_id=... --setting device_authorization_url=... --setting token_url=..."
-                    + " --setting scopes=...'");
+        final java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(30))
+                .followRedirects(java.net.http.HttpClient.Redirect.NEVER).build();
+        if (entry != null && DeviceGrant.KIND.equals(entry.type())) {
+            final DeviceGrant grant = new DeviceGrant(DeviceGrant.Client.of(entry.value(), entry.settings()), http);
+            return new Flow() {
+
+                private DeviceGrant.@org.jspecify.annotations.Nullable Started started;
+
+                @Override
+                public Shown start() throws TokenPurchase.Refused {
+                    final DeviceGrant.Started now = grant.start();
+                    started = now;
+                    return new Shown(now.link(), now.userCode(), 0, now.expiresIn());
+                }
+
+                @Override
+                public DeviceGrant.Outcome await() throws TokenPurchase.Refused, InterruptedException {
+                    return grant.await(java.util.Objects.requireNonNull(started), duration -> Thread.sleep(duration));
+                }
+            };
         }
-        return new DeviceGrant(DeviceGrant.Client.of(entry.value(), entry.settings()),
-                java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(30))
-                        .followRedirects(java.net.http.HttpClient.Redirect.NEVER).build());
+        if (entry != null && CodeGrant.KIND.equals(entry.type())) {
+            final CodeGrant grant = new CodeGrant(CodeGrant.Client.of(entry.value(), entry.settings()), http);
+            return new Flow() {
+
+                private CodeGrant.@org.jspecify.annotations.Nullable Started started;
+
+                @Override
+                public Shown start() throws TokenPurchase.Refused {
+                    final CodeGrant.Started now = grant.start(REDIRECT_WAIT);
+                    started = now;
+                    return new Shown(now.link(), "", now.port(), now.expiresIn());
+                }
+
+                @Override
+                public DeviceGrant.Outcome await() throws TokenPurchase.Refused, InterruptedException {
+                    return grant.await(java.util.Objects.requireNonNull(started));
+                }
+            };
+        }
+        throw new IllegalArgumentException("'" + name + "' is not a vault entry of kind " + DeviceGrant.KIND + " or "
+                + CodeGrant.KIND + "; store one with 'sokar vault put " + name + " --type " + DeviceGrant.KIND
+                + " --setting client_id=... --setting device_authorization_url=... --setting token_url=..."
+                + " --setting scopes=...', or with --type " + CodeGrant.KIND
+                + " and --setting authorization_url=... in place of the device URL");
     }
 
     /**
