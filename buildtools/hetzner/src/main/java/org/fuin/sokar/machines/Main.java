@@ -88,7 +88,7 @@ public final class Main {
                 Usage: sweep [--mine | --from <file>] [--now] [--older-than <minutes>]
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
                        leg      --os <ubuntu|fedora> --repo <dir> [--key <file>] [--keep]
-                                [--fetch <dir>] [--acceptance]
+                                [--fetch <dir>] [--acceptance] [--type <t,t...>]
                        acceptance (--package <p> | --candidate <dir>) (--script <f> | --cucumber <dir>)
                                 [--os <o>] [--type <t>] [--keep]
                        lease    --os <ubuntu|fedora> [--key <file>] [--write <file>] [--candidate <dir>]
@@ -521,6 +521,7 @@ public final class Main {
         String into = null;
         boolean keep = false;
         boolean acceptance = false;
+        String types = null;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = value(args, ++at);
@@ -529,6 +530,9 @@ public final class Main {
                 case "--keep" -> keep = true;
                 case "--fetch" -> into = value(args, ++at);
                 case "--acceptance" -> acceptance = true;
+                // Which types to rent, in the order to try them - for comparing one against the default
+                // without changing it for every repository that rents the same machines.
+                case "--type" -> types = value(args, ++at);
                 default -> {
                     complain.accept("unknown option: " + args[at]);
                     return 2;
@@ -540,7 +544,7 @@ public final class Main {
             return 2;
         }
         try (Hetzner hetzner = open.get()) {
-            Leg.run(hetzner, os, Spec.DEFAULT_TYPES, Credential.of(System.getenv(SSH_KEY),
+            Leg.run(hetzner, os, types == null ? Spec.DEFAULT_TYPES : Spec.order(types), Credential.of(System.getenv(SSH_KEY),
                     key == null ? null : java.nio.file.Path.of(key)),
                     archiveOf(java.nio.file.Path.of(repo)), keep,
                     into == null ? null : java.nio.file.Path.of(into),
