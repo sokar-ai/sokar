@@ -1,7 +1,9 @@
 # B84 — No Work Done Twice On The Way To Publish
 
-**Status:** open, written 2026-09-29 at the operator's request, after the four-account legs (B83) took a
-`Build` run from 42 to 32 minutes.
+**Status:** implemented 2026-09-29 and measured on Build #198 (`30b18ec`): the legs started 9 seconds after
+the first job, `Publish` took 6m37s instead of 9m46s, and the run 23m34s instead of 31m55s. Open until a
+run whose unit tests fail shows its legs cancelled and no server left. Written 2026-09-29 at the operator's
+request, after the four-account legs (B83) took a `Build` run from 42 to 32 minutes.
 
 ## What a run still spends its time on
 

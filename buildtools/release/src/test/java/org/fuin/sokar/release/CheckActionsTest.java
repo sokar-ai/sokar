@@ -1,0 +1,118 @@
+package org.fuin.sokar.release;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class CheckActionsTest {
+
+    private static final String COMMIT = "11bd71901bbe5b1630ceea73d27597364c9af683";
+
+    @TempDir
+    Path directory;
+
+    private final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+    private final ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+    @Test
+    void thisRepositorysOwnWorkflowsFetchNothingByAName() {
+        // The build that fails on a tag: a new workflow step that names one turns this red.
+        assertThat(check(Path.of("../../.github"))).as(stderr()).isEqualTo(0);
+    }
+
+    @Test
+    void acceptsACommitWithItsVersionBesideIt() throws IOException {
+        workflow("      - uses: actions/checkout@" + COMMIT + " # v7.0.1\n");
+
+        assertThat(check(directory)).as(stderr()).isEqualTo(0);
+        assertThat(stdout()).contains("OK    1 step(s)");
+    }
+
+    @Test
+    void refusesATagAndSaysWhatToDoAboutIt() throws IOException {
+        workflow("      - uses: actions/checkout@v7\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("ci.yml:1: actions/checkout@v7 names a tag or a branch, not a commit")
+                .contains("uses: owner/action@<40-digit commit> # v1.2.3");
+    }
+
+    @Test
+    void refusesABranch() throws IOException {
+        workflow("        uses: some/action@main\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+    }
+
+    @Test
+    void refusesACommitNobodyCanRead() throws IOException {
+        // A bare hash is a pin nobody updates, because nobody can tell what it is.
+        workflow("      - uses: actions/checkout@" + COMMIT + "\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("carries no version beside it");
+    }
+
+    @Test
+    void holdsGithubsOwnActionsToTheSameRule() throws IOException {
+        workflow("      - uses: actions/upload-artifact@v7\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+    }
+
+    @Test
+    void exemptsOnlyAStepInTheRepositoryItself() throws IOException {
+        workflow("      - uses: ./.github/actions/pinned-jdk\n");
+
+        assertThat(check(directory)).as(stderr()).isEqualTo(0);
+    }
+
+    @Test
+    void holdsAContainerImageToItsDigest() throws IOException {
+        workflow("      - uses: docker://alpine:3.20\n");
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+
+        workflow("      - uses: docker://alpine@sha256:" + "a".repeat(64) + "\n");
+        assertThat(check(directory)).isEqualTo(0);
+    }
+
+    @Test
+    void readsACompositeActionAndAQuotedReference() throws IOException {
+        Files.createDirectories(directory.resolve("actions/x"));
+        Files.writeString(directory.resolve("actions/x/action.yaml"), "    - uses: 'jfrog/setup-jfrog-cli@v5'\n");
+
+        assertThat(check(directory)).isEqualTo(Stop.REFUSED);
+        assertThat(stderr()).contains("action.yaml:1: jfrog/setup-jfrog-cli@v5");
+    }
+
+    @Test
+    void aDirectoryThatIsNotThereIsNoAnswer() {
+        assertThat(check(directory.resolve("missing"))).isEqualTo(Stop.UNANSWERED);
+    }
+
+    private void workflow(String text) throws IOException {
+        Files.createDirectories(directory.resolve("workflows"));
+        Files.writeString(directory.resolve("workflows/ci.yml"), text);
+    }
+
+    private int check(Path under) {
+        return new CheckActions(new PrintStream(out, true, StandardCharsets.UTF_8),
+                new PrintStream(err, true, StandardCharsets.UTF_8)).check(under);
+    }
+
+    private String stdout() {
+        return out.toString(StandardCharsets.UTF_8);
+    }
+
+    private String stderr() {
+        return err.toString(StandardCharsets.UTF_8);
+    }
+}

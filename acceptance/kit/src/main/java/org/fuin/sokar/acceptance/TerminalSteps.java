@@ -180,6 +180,31 @@ public class TerminalSteps {
     }
 
     /**
+     * Types text and presses Enter, for a program that reads the keyboard itself - an agent's own
+     * interface, which submits on Enter and takes {@code I type}'s line feed as a new line in its
+     * prompt. See {@link Terminal#enter}.
+     *
+     * @param text What to type.
+     * @throws IOException If it cannot be sent.
+     */
+    @When("I enter {string}")
+    public void iEnter(String text) throws IOException {
+        world.terminal().enter(text);
+        world.terminal().drain();
+    }
+
+    /**
+     * Presses Enter alone, as a person confirming what a program shows.
+     *
+     * @throws IOException If it cannot be sent.
+     */
+    @When("I press Enter")
+    public void iPressEnter() throws IOException {
+        world.terminal().enter("");
+        world.terminal().drain();
+    }
+
+    /**
      * Types the value of a variable in the runner's environment, as a person pasting a secret.
      * <p>
      * The terminal has echo off, so the value is not expected back - and

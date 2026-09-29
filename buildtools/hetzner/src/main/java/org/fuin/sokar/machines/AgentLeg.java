@@ -263,7 +263,21 @@ public final class AgentLeg {
     }
 
     /**
-     * Returns how a distribution installs Sokar and the agent, in one command.
+     * What a prepared machine always has beside Sokar, as the setup script installs it: the message
+     * filter, without which nothing leaves a task, and the local transport. The Sokar package names
+     * neither, so a machine that installed only it passed and held nothing, and a scenario about
+     * messages failed as if the product did.
+     */
+    static final List<String> ALWAYS = List.of("sokar-message-sluice-filter", "sokar-message-transport-local");
+
+    /**
+     * Returns how a distribution installs Sokar and the agent, in one command, and then what a
+     * prepared machine always has.
+     * <p>
+     * <strong>After, and only where nothing brought it yet.</strong> A candidate may be the filter or
+     * the transport itself: installing the published one beside it would leave the package manager to
+     * choose between the two, and a leg meant to test the candidate could test the published one. And
+     * only where the repository offers it, as the setup script does, saying so when it does not.
      *
      * @param os Which operating system.
      * @param artifactory Where the packages are published.
@@ -283,7 +297,13 @@ public final class AgentLeg {
                 EOF
                 dnf install -y -q podman
                 dnf install -y -q sokar @PACKAGE@
-                """.replace("@BASE@", artifactory).replace("@PACKAGE@", installs);
+                for p in @ALWAYS@; do
+                    rpm -q "$p" >/dev/null 2>&1 && continue
+                    if dnf -q info "$p" >/dev/null 2>&1; then dnf install -y -q "$p"
+                    else echo "$p is not offered by the repository - this machine will pass no message"; fi
+                done
+                """.replace("@BASE@", artifactory).replace("@PACKAGE@", installs)
+                    .replace("@ALWAYS@", String.join(" ", ALWAYS));
         }
         return """
             set -eux
@@ -295,7 +315,13 @@ public final class AgentLeg {
                 > /etc/apt/sources.list.d/sokar.list
             apt-get update
             apt-get install -y -qq sokar @PACKAGE@
-            """.replace("@KEY@", artifactory + "/api/security/keypair/sokar-packages/public")
+            for p in @ALWAYS@; do
+                dpkg -s "$p" >/dev/null 2>&1 && continue
+                if apt-cache show "$p" >/dev/null 2>&1; then apt-get install -y -qq "$p"
+                else echo "$p is not offered by the repository - this machine will pass no message"; fi
+            done
+            """.replace("@ALWAYS@", String.join(" ", ALWAYS))
+                .replace("@KEY@", artifactory + "/api/security/keypair/sokar-packages/public")
                 .replace("@BASE@", artifactory).replace("@PACKAGE@", installs);
     }
 

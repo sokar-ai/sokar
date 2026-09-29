@@ -94,6 +94,14 @@ Where SELinux is enforcing, a task container cannot reach sokar's sockets until 
                                 <require>git</require>
                                 <require>util-linux</require>
                             </requires>
+                            <!-- Recommended, not required: they require sokar, so requiring them would
+                                 be a cycle. dnf installs a weak dependency by default, which is what a
+                                 machine without the setup script needs - without the filter nothing
+                                 leaves a task. -->
+                            <recommends>
+                                <recommend>sokar-message-sluice-filter</recommend>
+                                <recommend>sokar-message-transport-local</recommend>
+                            </recommends>
                             <signature>
                                 <skip>${rpm.sign.skip}</skip>
                             </signature>

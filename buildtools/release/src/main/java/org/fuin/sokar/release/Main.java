@@ -22,7 +22,7 @@ public final class Main {
 
     /** The commands this build knows, named in the refusal of one it does not. */
     static final List<String> COMMANDS = List.of("compare-bills", "add-fetched-cli", "add-component",
-            "merge-tree-bill", "upstream-version", "update", "check-pin");
+            "merge-tree-bill", "upstream-version", "update", "check-pin", "check-actions");
 
     private Main() {
         throw new UnsupportedOperationException("Utility class");
@@ -97,6 +97,9 @@ public final class Main {
                         : new CheckPin(out, err, web, env).check(options.pom(),
                                 definition == null ? null : Path.of(definition), options.flag("--offline"));
             }
+            case "check-actions" -> rest.size() > 1
+                    ? usage(err, "check-actions [DIRECTORY, default .github]")
+                    : new CheckActions(out, err).check(Path.of(rest.isEmpty() ? ".github" : rest.getFirst()));
             default -> unknown(command, err);
         };
     }

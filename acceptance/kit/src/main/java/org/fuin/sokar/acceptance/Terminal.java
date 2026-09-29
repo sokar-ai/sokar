@@ -87,6 +87,23 @@ public final class Terminal implements AutoCloseable {
     }
 
     /**
+     * Types text and then presses Enter, as a person at a keyboard does.
+     * <p>
+     * <strong>A carriage return, not a line feed.</strong> Enter sends a carriage return; a terminal
+     * in cooked mode turns it into a line feed, so a shell or a passphrase prompt reads the same line
+     * either way. A program in raw mode sees what was sent, and the agents' own interfaces run in raw
+     * mode: they take a line feed as Ctrl-J, a new line inside the prompt, and submit nothing.
+     * Measured on 2026-09-29 by Agent Smith against three agents at their pinned versions.
+     *
+     * @param text What to type before Enter, possibly empty.
+     * @throws IOException If it cannot be sent.
+     */
+    public void enter(String text) throws IOException {
+        to.write((text + "\r").getBytes(StandardCharsets.UTF_8));
+        to.flush();
+    }
+
+    /**
      * Waits until the terminal has shown the given text.
      * <p>
      * <strong>Reads what has arrived rather than waiting for a line.</strong> A prompt is the case

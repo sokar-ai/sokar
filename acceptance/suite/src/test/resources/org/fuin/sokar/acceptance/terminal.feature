@@ -34,3 +34,12 @@ Feature: What a person sees at a terminal
   Scenario: nothing is painted when the output is not a terminal
     When a script runs "sokar task list"
     Then its output contains no escape sequences
+
+  Scenario: Enter reaches a program that reads the keyboard itself as a carriage return
+    # An agent's own interface runs in raw mode, where a line feed (0a) is Ctrl-J - a new line inside
+    # its prompt - and only a carriage return (0d), which is what Enter sends, submits.
+    Given a terminal on the machine
+    When I run "stty raw; echo reading-raw; head -c 6 | od -An -tx1; stty sane"
+    And the terminal shows "reading-raw"
+    And I enter "hello"
+    Then the terminal shows "68 65 6c 6c 6f 0d"
