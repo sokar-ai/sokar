@@ -143,6 +143,12 @@ type StartAction (
 # A task is a container plus the helpers Sokar started beside it. Both halves matter: a
 # container that is up with no helpers has lost its gate or its clearance watcher, and is not
 # the same thing as a healthy task.
+# What an agent's screen says about waiting for a person. See Task.screen.
+type ScreenState (WAITING, NOT_WAITING, UNDECLARED, UNSEEN)
+
+# Whether a finished run's last message was a question. See Task.asked.
+type Asked (ASKED, DID_NOT_ASK, CANNOT_SAY)
+
 type Task (
   # Container name, which is what every other method takes as its task parameter.
   name: string,
@@ -235,7 +241,37 @@ type Task (
   # stream tied to the call that started it dies with that call. A window opened a minute later, or
   # a second machine watching the same daemon, would otherwise see a task with nothing behind it.
   # The output itself is read with Tail.
-  phase: string
+  phase: string,
+  # Whether the agent's own screen shows it waiting for a person - DERIVED from a rule the agent's
+  # package declares, read from the screen tmux draws in an attached task. Never observed, and kept
+  # apart from activity and waitingFor, which are: render it as a reading, not a fact.
+  #
+  # WAITING      a declared rule matched
+  # NOT_WAITING  the agent declares rules and none matched - quiet is not waiting
+  # UNDECLARED   the agent declares nothing for its screen, so nothing can be said. Not NOT_WAITING:
+  #              "this agent cannot tell us" is honest, "not waiting" would not be
+  # UNSEEN       nothing here can see its screen: not attached, not running, or a pager is over it
+  screen: ScreenState,
+  # What it waits for, when the rule that matched says. "" otherwise.
+  screenWaitingFor: string,
+  # The agent declares rules, its screen has been read for a day, and none has ever matched: more
+  # likely a declaration its current version no longer fits than an agent that never waits.
+  screenUnproven: bool,
+  # What its last unattended run said last, from the run's own records, where the agent declares
+  # which record that is. Observed, not derived. "" when it does not say, or said nothing yet. The
+  # run's next start replaces it.
+  lastMessage: string,
+  # Whether that last message put something to the person. DERIVED, and three-valued on purpose:
+  # CANNOT_SAY is what every agent answers until one can declare that it stopped to ask - a run that
+  # ended with a question looks exactly like one that finished.
+  asked: Asked,
+  # Where asked came from: "declared" for a rule the agent declares, "" for none.
+  askedFrom: string,
+  # The session its agent was running, recorded where the agent declares how to name one - from an
+  # unattended run's records, or an attached agent's own session files when the task stops. Starting
+  # the task again continues it, and says so. "" when none is recorded: the next start is a fresh
+  # session. An identifier, not a credential; gone when the task is removed.
+  session: string
 )
 
 # What became of a Stop or a Remove.
@@ -2281,7 +2317,7 @@ type Installable (
 method Peers(
   # Container name of the task.
   task: string,
-  # Project file, which is where the peers are declared.
+  # The project's name, as the other project methods take it. Its verified project.yml is where the peers are declared.
   project: string
 ) -> (peers: []TalkPeer)
 
@@ -2305,7 +2341,43 @@ type TalkPeer (
 # The events come from each task's record, which is written as things happen. There is no second
 # copy of the conversation to disagree with it, and an entry never carries what a message said -
 # a stream that quoted refused messages would be a second copy of exactly what was refused.
+#
+# Live only: it says what happens from the moment a client listens, and replays nothing. What is
+# already waiting for a person when a client starts is Held.
 method Talk() -> TalkEvent
+
+# Every message a person may be asked to decide about, as it stands now - for an interface that
+# starts after a message was held, which the live stream alone would show as "nothing needs you".
+#
+# Found exactly as ReadHeld and Release find a message, so the list, the reading and the decision
+# cannot disagree. Without what the messages say: reading one is a person's deliberate act, through
+# ReadHeld. held and refused-by-filter wait for a decision; refused-by-person and unchecked are
+# listed because they are still there, and neither can be sent.
+method Held(
+  # Container name of one task, or absent for every task on this machine.
+  task: ?string
+) -> (messages: []HeldMessage)
+
+type HeldMessage (
+  # Container name of the task whose mailbox holds it.
+  task: string,
+  # held, refused-by-filter, refused-by-person or unchecked.
+  standing: string,
+  # The file, as ReadHeld and Release take it.
+  message: string,
+  # The message id, or "" when none could be read.
+  id: string,
+  # ROLE_USER when a person wrote it, ROLE_AGENT when a task did, or "".
+  role: string,
+  # The peer it was going to or came from, or "".
+  peer: string,
+  # question, answer, status, review-request or handover, or "".
+  kind: string,
+  # When this host first recorded it, RFC 3339, or "".
+  at: string,
+  # Why it is held, or, for a refused one, the filter's own answer.
+  reason: string
+)
 
 type TalkEvent (
   # Container name of the task whose mailbox this is about.
@@ -2417,7 +2489,7 @@ method Release(
 method Moderate(
   # Container name of the task.
   task: string,
-  # Project file, which decides whether unread work may leave.
+  # The project's name, as the other project methods take it. Its verified project.yml decides whether unread work may leave.
   project: string,
   # The peer to decide about.
   name: string,

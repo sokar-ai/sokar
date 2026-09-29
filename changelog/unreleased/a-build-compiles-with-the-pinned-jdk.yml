@@ -1,0 +1,2 @@
+title: "Every GitHub build job installs the GraalVM the CI snapshots pin, checked against its digest ('sokar-machines jdk --github'), instead of whichever GraalVM 25 was newest that day, unchecked - so the JDK that compiles what is published is the one a leg builds with, moved by the same daily job."
+type: changed

@@ -74,11 +74,12 @@ public final class Snapshots {
      * rebuilt in place, so two snapshots built a week apart would otherwise hold different bytes under one
      * name.
      *
+     * @param graalvmVersion the JDK's version, as the release tooling moves it
      * @param graalvmUrl where the JDK archive is downloaded
      * @param graalvmSha256 its digest
      * @param images the base images, pulled once here rather than per run
      */
-    record Contents(String graalvmUrl, String graalvmSha256, List<Image> images) {
+    record Contents(String graalvmVersion, String graalvmUrl, String graalvmSha256, List<Image> images) {
 
         /** The resource the pom's pins are filtered into. */
         static final String RESOURCE = "machines.properties";
@@ -123,7 +124,7 @@ public final class Snapshots {
             for (final String image : List.of("ubuntu", "alpine")) {
                 images.add(new Image(value(values, "image." + image), value(values, "image." + image + ".digest")));
             }
-            return new Contents(url, sha256, List.copyOf(images));
+            return new Contents(value(values, "graalvm.version"), url, sha256, List.copyOf(images));
         }
 
         private static String value(java.util.function.Function<String, @Nullable String> values, String name) {

@@ -664,12 +664,19 @@ public final class TaskLaunch {
             return 2;
         }
         final Path log = context.paths().containerState(container).resolve("task.log");
+        // Continuing is what starting a task that has a session does - not a verb of its own - and only
+        // where the agent says how to name one: nothing is guessed, and a fresh session says it is one.
+        final TaskSession sessions = new TaskSession(context);
+        final String continuing = sessions.toContinue(container, selected.definition()).orElse(null);
         final org.fuin.sokar.agent.api.RunRequest agentRequest =
                 new org.fuin.sokar.agent.api.RunRequest(prompt, request.model(),
-                        request.maxTurns(), null, false, true);
+                        request.maxTurns(), continuing, false, true);
 
         out.println();
         out.println("running   " + selected.name() + " (up to " + request.minutes() + " minutes)");
+        out.println("session   " + (continuing != null ? "continuing " + continuing
+                : selected.definition().sessionIds() == null ? "a fresh one - this agent does not say how to continue one"
+                : "a fresh one"));
         out.flush();
 
         try {
@@ -682,6 +689,42 @@ public final class TaskLaunch {
             err.println("sokar: " + ex.getMessage());
             err.flush();
             return 124;
+        } finally {
+            // Whatever the run named, even one that was killed: the transcript up to there is worth going on from.
+            final org.fuin.sokar.agent.api.SessionIds ids = selected.definition().sessionIds();
+            if (ids != null && selected.definition().supportsResume()) {
+                TaskSession.fromRun(log, ids).ifPresent(id -> sessions.record(container, id));
+            }
+        }
+    }
+
+    /**
+     * Runs the prompt in a task that existed already and is up again, with the agent it was made with.
+     * <p>
+     * <strong>Continuing is what starting a task with a prompt does</strong>, whether the task is new or
+     * comes back: a start that brought a stopped task back and then ignored its prompt reported a run nobody
+     * performed. The agent is the task's own, not whatever a caller names - a conversation belongs to the
+     * agent that had it - and the run continues its session where the agent can ({@link #runAgent}).
+     *
+     * @param container The task's container, running.
+     * @param rendered What shows the run to a person afterwards, given the agent; the daemon passes nothing.
+     * @param out Where progress is reported.
+     * @param err Where a failure is reported.
+     * @return Exit code of the agent, or {@link #NO_AGENT} when its agent is not installed.
+     */
+    public int runAgentInExisting(String container,
+            java.util.function.@Nullable BiConsumer<InstalledAgent, String> rendered, PrintWriter out, PrintWriter err) {
+        final org.fuin.sokar.wire.TaskProfile profile =
+                org.fuin.sokar.wire.TaskProfile.readFrom(context.paths().containerState(container));
+        try (org.fuin.sokar.agent.api.InstalledAgents agents = context.agents()) {
+            final InstalledAgent selected = profile == null || profile.agent() == null ? null
+                    : agents.find(profile.agent()).orElse(null);
+            // Nothing extra for the exec: a container that exists already carries what it was given.
+            final int code = runAgent(context.tasks(), selected, container, java.util.Map.of(), out, err);
+            if (code != NO_AGENT && rendered != null && selected != null) {
+                rendered.accept(selected, container);
+            }
+            return code;
         }
     }
 

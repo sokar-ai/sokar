@@ -108,7 +108,7 @@ Giving one a path to the host would be a fourth way out beside the vault socket,
 socket and the gate, and it would invert the direction this design rests on - a channel the agent
 writes into. A status value does not justify that. Whether `waiting` can be had at all therefore
 depends on something the host can ask for rather than be told, which is what
-[B47](B47-What-The-Agent-Is-Doing-Read-From-Outside.md) took up on 2026-09-11: the output the host
+B47 (built: Task.screen and Task.lastMessage) took up on 2026-09-11: the output the host
 already writes, read against patterns the agent's own package declares.
 
 **Nothing agent-independent delivers this, including the tool it was learnt from.** AI Beacon

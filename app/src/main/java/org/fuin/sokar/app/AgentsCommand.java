@@ -129,6 +129,13 @@ public class AgentsCommand implements Callable<Integer> {
                                 ? "not declared - whether it reached work cannot be told"
                                 : "\"" + ready.text() + "\"" + (ready.withinSeconds() == null ? ""
                                         : " within " + ready.withinSeconds() + "s")));
+                        // What waiting for a person looks like, counted rather than quoted: the wording is
+                        // the agent's, and a count says enough to see whether there is any.
+                        final org.fuin.sokar.agent.api.Waiting waiting = agent.definition().waiting();
+                        out.println("             waiting: " + (waiting == null
+                                ? "not declared - whether it waits for a person cannot be told"
+                                : waiting.screen().size() + " screen rule(s)"
+                                        + (waiting.lastMessage() == null ? "" : ", and where a run's last message is")));
                     }
                     if (supplyChain) {
                         supplyChain(out, agent);

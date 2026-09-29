@@ -71,13 +71,16 @@ public final class Main {
         if (args.length > 0 && "deploy".equals(args[0])) {
             return deploy(args, complain);
         }
+        if (args.length > 0 && "jdk".equals(args[0])) {
+            return jdk(args, complain, System.getenv(), PinnedJdk.overHttps());
+        }
         if (args.length > 0 && !"sweep".equals(args[0])) {
             // Named rather than answered with the usage text alone. A repository that resolves
             // this from a published snapshot can be handed a build older than the command it is
             // asking for, and a bare usage dump reads as a mistake in the workflow rather than
             // as tooling that has not caught up.
             complain.accept("unknown command '" + args[0] + "'. This build of the tooling knows"
-                    + " sweep, snapshot, leg, acceptance, lease and deploy - if you expected another, it is"
+                    + " sweep, snapshot, leg, acceptance, lease, deploy and jdk - if you expected another, it is"
                     + " older than the caller.");
         }
         if (args.length == 0 || !"sweep".equals(args[0])) {
@@ -98,6 +101,10 @@ public final class Main {
                                 and --key default to SOKAR_VM and SOKAR_VM_KEY. --account installs
                                 into that user's own directories only, changing nothing any other
                                 account runs.
+                       jdk      [--into <dir>] [--github] - installs the GraalVM the CI snapshots
+                                pin, checked against its digest, into <dir> (default: a directory
+                                under RUNNER_TEMP). --github makes it JAVA_HOME and puts it on the
+                                PATH for every later step of the job.
 
                   --mine                 delete what this run created, whatever its age. What a
                                          job uses to clean up after itself - deleting by age
@@ -293,6 +300,56 @@ public final class Main {
             AgentLeg.run(hetzner, options, Credential.of(System.getenv(SSH_KEY),
                     key == null ? null : java.nio.file.Path.of(key)));
         }
+        return 0;
+    }
+
+    /**
+     * Installs the pinned GraalVM, for a build job that is not on one of the snapshots.
+     *
+     * @param args The command line.
+     * @param complain Where a refusal goes.
+     * @param env The environment: {@code RUNNER_TEMP}, {@code GITHUB_ENV}, {@code GITHUB_PATH}.
+     * @param download Where the archive is fetched from.
+     * @return An exit code.
+     * @throws IOException If it cannot be installed.
+     */
+    static int jdk(String[] args, Consumer<String> complain, java.util.Map<String, String> env,
+            PinnedJdk.Download download) throws IOException {
+        String into = null;
+        boolean github = false;
+        for (int at = 1; at < args.length; at++) {
+            switch (args[at]) {
+                case "--into" -> into = value(args, ++at);
+                case "--github" -> github = true;
+                default -> {
+                    complain.accept("unknown option: " + args[at]);
+                    return 2;
+                }
+            }
+        }
+        final Snapshots.Contents contents = Snapshots.Contents.pinned();
+        if (into == null) {
+            final String temp = env.get("RUNNER_TEMP");
+            if (temp == null || temp.isBlank()) {
+                complain.accept("jdk needs --into <dir> outside a GitHub job, which has no RUNNER_TEMP");
+                return 2;
+            }
+            into = java.nio.file.Path.of(temp, "sokar-graalvm-" + contents.graalvmVersion()).toString();
+        }
+        final String envFile = env.get("GITHUB_ENV");
+        final String pathFile = env.get("GITHUB_PATH");
+        if (github && (envFile == null || pathFile == null)) {
+            // Refused before the download: a JDK installed and then not exported is a job that goes on
+            // with whatever java the runner had, which is the thing this exists to end.
+            complain.accept("--github needs GITHUB_ENV and GITHUB_PATH, which only a GitHub job sets");
+            return 2;
+        }
+        final PinnedJdk.Installed installed = PinnedJdk.install(contents, java.nio.file.Path.of(into), download);
+        if (github) {
+            PinnedJdk.exportTo(installed, java.nio.file.Path.of(envFile), java.nio.file.Path.of(pathFile));
+        }
+        System.out.println("GraalVM " + installed.version() + " in " + installed.home() + ", checked against "
+                + contents.graalvmSha256() + (github ? "; JAVA_HOME and PATH set for the rest of the job" : ""));
         return 0;
     }
 

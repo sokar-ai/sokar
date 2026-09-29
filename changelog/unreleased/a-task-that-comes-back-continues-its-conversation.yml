@@ -1,0 +1,2 @@
+title: "A task that is stopped and started again continues the conversation its agent was having, where the agent declares how it names its sessions ('session.session_id'): Sokar records the session from an unattended run's records or an attached agent's own session files, starts the agent with its resume flag, and says whether it continued or began fresh. Starting an existing task with a prompt now runs that prompt; the recorded session is on the contract as Task.session and is forgotten when the task is removed."
+type: added

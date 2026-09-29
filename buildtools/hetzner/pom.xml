@@ -26,7 +26,7 @@
 
         <!-- What a snapshot a CI leg boots from is made of, filtered into machines.properties for
              Snapshots. Moved by the release tooling's update of a named pin, never by hand: the
-             machines workflow asks upstream every day and opens one pull request per pin that has a
+             machines workflow asks upstream every day and opens one pull request, one commit per pin that has a
              release at least three days old, and a merged one rebuilds the snapshots. -->
         <machines.graalvm.version>25.0.2</machines.graalvm.version>
         <machines.graalvm.url>https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-25.0.2/graalvm-community-jdk-25.0.2_linux-x64_bin.tar.gz</machines.graalvm.url>

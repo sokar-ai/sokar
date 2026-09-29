@@ -164,7 +164,7 @@ class SnapshotsTest {
     private static final String ALPINE = "sha256:" + "d".repeat(64);
 
     private static Map<String, String> values() {
-        return Map.of("graalvm.url", "https://github.example/graalvm-community-jdk-25i4_linux-x64_bin.tar.gz",
+        return Map.of("graalvm.version", "25.4.4.1.1", "graalvm.url", "https://github.example/graalvm-community-jdk-25i4_linux-x64_bin.tar.gz",
                 "graalvm.sha256", "b".repeat(64),
                 "image.ubuntu", "docker.io/library/ubuntu:24.04", "image.ubuntu.digest", UBUNTU,
                 "image.alpine", "docker.io/library/alpine:3.20", "image.alpine.digest", ALPINE);

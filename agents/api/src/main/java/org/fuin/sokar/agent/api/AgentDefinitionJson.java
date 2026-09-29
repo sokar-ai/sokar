@@ -76,6 +76,17 @@ public final class AgentDefinitionJson {
             out.put("readyMarker", definition.ready().text());
             putIfPresent(out, "readyWithinSeconds", definition.ready().withinSeconds());
         }
+        if (definition.waiting() != null) {
+            out.put("waiting", writeWaiting(definition.waiting()));
+        }
+        if (definition.sessionIds() != null) {
+            final Map<String, Object> ids = new LinkedHashMap<>();
+            ids.put("record", definition.sessionIds().record());
+            putIfPresent(ids, "key", definition.sessionIds().key());
+            putIfPresent(ids, "directory", definition.sessionIds().directory());
+            putIfPresent(ids, "suffix", definition.sessionIds().suffix());
+            out.put("sessionIds", ids);
+        }
         putIfPresent(out, "version", definition.version());
         out.put("artifacts", definition.artifacts().stream()
                 .map(AgentDefinitionJson::writeArtifact).toList());
@@ -128,7 +139,51 @@ public final class AgentDefinitionJson {
                 strings(source.get("sandboxedArguments")),
                 source.get("readyMarker") == null ? null
                         : new ReadyMarker(String.valueOf(source.get("readyMarker")),
-                                source.get("readyWithinSeconds") instanceof Number within ? within.intValue() : null));
+                                source.get("readyWithinSeconds") instanceof Number within ? within.intValue() : null),
+                source.get("waiting") instanceof Map<?, ?> waiting ? readWaiting(waiting) : null,
+                source.get("sessionIds") instanceof Map<?, ?> ids ? new SessionIds(map(ids.get("record")),
+                        optional(ids, "key"), optional(ids, "directory"), optional(ids, "suffix")) : null);
+    }
+
+    private static Map<String, Object> writeWaiting(Waiting waiting) {
+        final Map<String, Object> out = new LinkedHashMap<>();
+        out.put("screen", waiting.screen().stream().map(AgentDefinitionJson::writeRule).toList());
+        out.put("notItsScreen", waiting.notItsScreen().stream().map(AgentDefinitionJson::writeRule).toList());
+        if (waiting.lastMessage() != null) {
+            final Map<String, Object> last = new LinkedHashMap<>();
+            last.put("record", waiting.lastMessage().record());
+            last.put("text", waiting.lastMessage().text());
+            out.put("lastMessage", last);
+        }
+        return out;
+    }
+
+    private static Map<String, Object> writeRule(Waiting.Rule rule) {
+        final Map<String, Object> out = new LinkedHashMap<>();
+        out.put("contains", rule.contains());
+        putIfPresent(out, "inLastLines", rule.lastLines());
+        putIfPresent(out, "for", rule.waitingFor());
+        return out;
+    }
+
+    private static Waiting readWaiting(Map<?, ?> source) {
+        final Waiting.LastMessage last = source.get("lastMessage") instanceof Map<?, ?> found
+                ? new Waiting.LastMessage(map(found.get("record")), string(found, "text")) : null;
+        return new Waiting(readRules(source.get("screen")), readRules(source.get("notItsScreen")), last);
+    }
+
+    private static List<Waiting.Rule> readRules(@Nullable Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        final List<Waiting.Rule> rules = new ArrayList<>();
+        for (final Object each : list) {
+            if (each instanceof Map<?, ?> rule) {
+                rules.add(new Waiting.Rule(string(rule, "contains"),
+                        rule.get("inLastLines") instanceof Number lines ? lines.intValue() : null, optional(rule, "for")));
+            }
+        }
+        return rules;
     }
 
     private static Map<String, Object> writeArtifact(InstallArtifact artifact) {

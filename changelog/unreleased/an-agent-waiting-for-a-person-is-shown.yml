@@ -1,0 +1,2 @@
+title: "A task shows whether its agent is waiting for a person, read from the screen of an attached task and the records of a finished run by rules the agent's own package declares ('session.waiting') - as a reading, never a guess: 'cannot say' when the agent declares nothing, 'unproven' when its rules have not matched in a day, and what a finished run said last. On the contract as Task.screen, lastMessage and asked; in 'sokar task status'; provable per agent with the kit's new steps."
+type: added

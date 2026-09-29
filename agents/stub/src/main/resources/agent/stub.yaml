@@ -21,13 +21,33 @@ headless:
   prompt_flag: ""
 
 session:
-  supports_resume: false
+  # Resumable, and says where it names its sessions, so the suite can prove a task that comes back
+  # continues its conversation: an unattended run names its session in a record, an attached one keeps
+  # a file per session, and '--resume <id>' continues one.
+  supports_resume: true
+  resume_flag: "--resume"
+  session_id:
+    record: { stub: session }
+    key: id
+    directory: ".sokar-stub-sessions"
+    suffix: ".session"
   # What the stub shows once it is at work, attached, having asked nothing - the text a check
   # waits for. A workspace holding '.sokar-stub-asks' makes it ask one question first, and one
   # holding '.sokar-stub-covers' makes it draw this text and then a setup question over it, as a
   # real agent was measured to - which is how a check proves it notices either.
   ready_marker: "stub: at work, nothing asked"
   ready_within_seconds: 30
+  # What waiting for a person looks like in the stub's own output: its question on the screen, and
+  # the record an unattended run ends with. Declared here because only the agent knows its wording -
+  # nothing outside agents/ may. The question is the one '.sokar-stub-asks' makes it ask.
+  waiting:
+    screen:
+      - contains: "Trust this folder?"
+        in_last_lines: 3
+        for: "whether to trust the folder"
+    last_message:
+      record: { stub: result }
+      text: said
 
 provider:
   # Anthropic, because the credential-exchange check needs an upstream that answers a bad key
@@ -68,10 +88,15 @@ install:
     - "RUN printf '%s\\n' \\"
     - "      '#!/bin/sh' \\"
     - "      '[ \"$1\" = \"--version\" ] && { echo \"${agent.cli.version} (Sokar stub agent)\"; exit 0; }' \\"
+    - "      '[ \"$1\" = \"--resume\" ] && { resumed=\"$2\"; shift 2; }' \\"
+    - "      'id=\"$resumed\"; [ -n \"$id\" ] || id=\"s-$$-$(date +%s)\"' \\"
+    - "      '[ -z \"$1\" ] && [ -t 0 ] && { mkdir -p \"$HOME/.sokar-stub-sessions\"; touch \"$HOME/.sokar-stub-sessions/$id.session\"; [ -n \"$resumed\" ] && echo \"stub: continuing $resumed\"; }' \\"
     - "      '[ -z \"$1\" ] && [ -t 0 ] && [ -e /workspace/.sokar-stub-covers ] && { echo \"stub: at work, nothing asked\"; sleep 1; printf \"\\033[2J\\033[HSetup step 1 of 5 \"; read answer; }' \\"
     - "      '[ -z \"$1\" ] && [ -t 0 ] && { [ -e /workspace/.sokar-stub-asks ] && { printf \"Trust this folder? [y/N] \"; read answer; }; echo \"stub: at work, nothing asked\"; exec cat; }' \\"
     - "      'getent hosts example.com >/dev/null 2>&1 && echo \"stub: example.com resolved\" || echo \"stub: example.com did not resolve\"' \\"
     - "      'getent hosts example.net >/dev/null 2>&1 && echo \"stub: example.net resolved\" || echo \"stub: example.net refused\"' \\"
+    - "      'echo \"{\\\"stub\\\":\\\"session\\\",\\\"id\\\":\\\"$id\\\"}\"' \\"
+    - "      '[ -n \"$resumed\" ] && echo \"{\\\"stub\\\":\\\"result\\\",\\\"said\\\":\\\"stub: continued\\\"}\" || echo \"{\\\"stub\\\":\\\"result\\\",\\\"said\\\":\\\"stub: finished\\\"}\"' \\"
     - "      '[ -S \"$SOKAR_STUB_SOCKET\" ] || { echo \"stub: no proxy socket\"; exit 0; }' \\"
     - "      'curl -s --max-time 30 --unix-socket \"$SOKAR_STUB_SOCKET\" -H \"x-api-key: $ANTHROPIC_API_KEY\" -H \"anthropic-version: 2023-06-01\" -H \"content-type: application/json\" -X POST http://api.anthropic.com/v1/messages -d \"{}\"' \\"
     - "      'echo' \\"

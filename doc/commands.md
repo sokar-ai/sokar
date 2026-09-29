@@ -160,7 +160,7 @@ its container name.
 | Command | What it does |
 |---|---|
 | `sokar talk peers --project=NAME` | Lists the peers a project's tasks may address. |
-| `sokar talk held TASK` | Lists the messages waiting for a person, kept rather than delivered. |
+| `sokar talk held TASK` | Lists the messages waiting for a person - held, or refused by the filter - and the ones kept that nobody may send, each with where it stands and why. |
 | `sokar talk read TASK ID` | Shows a held message, or one the filter refused, in full - who wrote it, when, to whom, why, and what it says. |
 | `sokar talk release TASK ID [--refuse]` | Sends a held message on its way, or delivers a refused one after all; `--refuse` refuses it for good. |
 | `sokar talk hold TASK PEER [--release] [--mode=MODE]` | Holds everything for a peer, releases it, or sets how much is asked: `prompt`, `allow`, `deny` or `off`. |

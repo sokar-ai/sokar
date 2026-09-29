@@ -180,6 +180,12 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
         // other end. One handle for both calls - context.podman() builds a new one each time, so
         // asking through two of them would ask the container twice.
         final org.fuin.sokar.runtime.Podman podman = context.podman();
+        // An agent task whose session is gone starts its agent again, continuing where it can; otherwise
+        // the session that is there, or a shell.
+        final String agent = new TaskSession(context).attachedAgent(container, out);
+        if (agent != null) {
+            return context.exec().applyAsInt(context.tasks().attachCommand(container, "/bin/bash", agent, null));
+        }
         return context.exec().applyAsInt(podman.attachArguments(container,
                 sessionCommand(), podman.terminalFor(container)));
     }

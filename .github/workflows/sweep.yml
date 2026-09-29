@@ -12,12 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Java
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          cache: 'maven'
+      - name: The pinned GraalVM
+        uses: ./.github/actions/pinned-jdk
 
       - name: Delete anything older than an hour
         env:

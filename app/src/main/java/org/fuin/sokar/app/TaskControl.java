@@ -234,6 +234,12 @@ public final class TaskControl {
             rescued = attempt.ref();
         }
 
+        // The session an attached agent was keeping, read while there is still a container to ask - so
+        // starting the task again continues the conversation. A removal has no next start to continue.
+        if (running && !purge) {
+            new TaskSession(context).rememberAttached(container);
+        }
+
         // Counted first: stopping the container fires the poststop hook, which reaps the helpers
         // and deletes their pid files, leaving nothing to count afterwards.
         final List<ProcessHandle> helpers = TaskLifecycle.running(state);
@@ -276,6 +282,7 @@ public final class TaskControl {
 
         if (purge) {
             deleteTree(state);
+            new TaskSession(context).forget(container);
             // The mailbox outlives the container on purpose, so this is the one place it ends.
             try {
                 new Mailbox(context.paths().mailbox(container)).delete();

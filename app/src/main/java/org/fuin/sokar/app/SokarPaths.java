@@ -495,6 +495,20 @@ public record SokarPaths(XdgPaths xdg, Path binaryDirectory, Path packagedHooks,
     }
 
     /**
+     * Returns the file holding the session a task's agent was running.
+     * <p>
+     * Under the state directory, like the mailbox and for the same reason: it is the task's, and has to
+     * survive a stop, a restart and a reboot, which the runtime directory does not. Deleted when the task is
+     * removed.
+     *
+     * @param container Container name.
+     * @return The file.
+     */
+    public Path sessionRecord(String container) {
+        return xdg.state().resolve("sessions").resolve(container);
+    }
+
+    /**
      * Returns the file holding one task's clearance decisions.
      * <p>
      * Under the state directory, not beside the rest of the task's files. Everything else a task

@@ -16,9 +16,9 @@ import org.fuin.sokar.wire.Json;
  * somebody to read it, and an interface that reaches the machine through a forwarded socket has no
  * file to read - so a person would release it unread, and {@code prompt} would decide nothing.
  * <p>
- * <strong>Only what waits in {@code hold/}.</strong> The name is looked up exactly as a release looks
- * it up, so nothing a filter refused - kept in clear text, secrets included - is served through here.
- * For a refused message the filter's own answer says why without saying what.
+ * <strong>Looked up exactly as a release looks it up</strong>, in {@code hold/}, among what the filter
+ * refused and what it could not check. A refused one is shown in full at the operator's word, so a
+ * person can still decide to deliver it; the list leaves every text out.
  */
 public final class MessageRead {
 
@@ -89,8 +89,34 @@ public final class MessageRead {
         if (found.size() != 1) {
             return Held.none(found.isEmpty() ? Outcome.NO_SUCH_MESSAGE : Outcome.AMBIGUOUS);
         }
-        final Path held = found.get(0).file();
-        final MessageLookup.Standing standing = found.get(0).standing();
+        return describe(mailbox, found.get(0), new MessageRecord(mailbox).entries(), true);
+    }
+
+    /**
+     * Lists every message a person may be asked about in one mailbox, without what they say.
+     * <p>
+     * <strong>So an interface that starts late still knows what waits.</strong> The stream says what
+     * happens from the moment somebody listens; this says what is there. Each entry is exactly what
+     * {@link #read} would answer for it, text left out: a list that quoted refused messages would be
+     * a second copy of what was refused, and reading one is a person's deliberate act.
+     *
+     * @param mailbox The task's mailbox.
+     * @return Every held, refused and unchecked message, held first; {@code text} is empty in each.
+     * @throws IOException Reading failed.
+     */
+    public List<Held> list(final Mailbox mailbox) throws IOException {
+        final List<Map<String, Object>> record = new MessageRecord(mailbox).entries();
+        final List<Held> listed = new ArrayList<>();
+        for (final MessageLookup.Found found : MessageLookup.all(mailbox)) {
+            listed.add(describe(mailbox, found, record, false));
+        }
+        return listed;
+    }
+
+    private static Held describe(final Mailbox mailbox, final MessageLookup.Found found,
+            final List<Map<String, Object>> record, final boolean withText) throws IOException {
+        final Path held = found.file();
+        final MessageLookup.Standing standing = found.standing();
         final String name = held.getFileName().toString();
         // What the filter could not check may not be JSON at all; then it is shown as the text it is.
         Object parsed;
@@ -116,7 +142,7 @@ public final class MessageRead {
         String peer = "";
         String reason = "";
         String at = "";
-        for (final Map<String, Object> line : new MessageRecord(mailbox).entries()) {
+        for (final Map<String, Object> line : record) {
             if (!name.equals(line.get("message"))) {
                 continue;
             }
@@ -143,7 +169,7 @@ public final class MessageRead {
             case UNCHECKED -> "the filter could not check it at all";
         };
         return new Held(Outcome.FOUND, standing.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'), name, messageId, text(document.get("role")), peer,
-                text(metadata.get("kind")), at, text, reason);
+                text(metadata.get("kind")), at, withText ? text : List.of(), reason);
     }
 
     /** Reads a file as UTF-8, showing a byte that is not as the replacement character rather than failing. */

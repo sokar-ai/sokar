@@ -124,7 +124,99 @@ public final class AgentDefinitionReader {
                 // is always yes, which is what the box is for. An agent that needs nothing says
                 // nothing and gets nothing added.
                 strings(optionalSection(root, "sandboxed").get("arguments")),
-                ready(session, origin));
+                ready(session, origin),
+                waiting(session, origin),
+                sessionIds(session, origin));
+    }
+
+    /**
+     * Reads where the agent names its session: {@code session.session_id}.
+     *
+     * @param session The {@code session} block, empty when there is none.
+     * @param origin Name used in error messages.
+     * @return The declaration, or {@code null} when none is made.
+     */
+    private static @Nullable SessionIds sessionIds(Map<?, ?> session, String origin) {
+        final Object declared = session.get("session_id");
+        if (declared == null) {
+            return null;
+        }
+        if (!(declared instanceof Map<?, ?> ids)) {
+            throw new AgentException(origin + ": 'session.session_id' is a mapping");
+        }
+        only(ids, List.of("record", "key", "directory", "suffix"), origin, "session.session_id");
+        try {
+            return new SessionIds(map(ids.get("record")), optional(ids, "key"), optional(ids, "directory"),
+                    optional(ids, "suffix"));
+        } catch (AgentException ex) {
+            throw new AgentException(origin + ": " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Reads what waiting for a person looks like in this agent's output: {@code session.waiting}.
+     * <p>
+     * Absent is an answer of its own, as for the ready marker: an agent that cannot tell declares
+     * nothing, and Sokar then says it cannot tell rather than that the agent is not waiting. Every key is
+     * named, so a misspelt one is refused rather than read as a rule that never matches.
+     *
+     * @param session The {@code session} block, empty when there is none.
+     * @param origin Name used in error messages.
+     * @return The declaration, or {@code null} when none is made.
+     */
+    private static @Nullable Waiting waiting(Map<?, ?> session, String origin) {
+        final Object declared = session.get("waiting");
+        if (declared == null) {
+            return null;
+        }
+        if (!(declared instanceof Map<?, ?> waiting)) {
+            throw new AgentException(origin + ": 'session.waiting' is a mapping");
+        }
+        only(waiting, List.of("screen", "not_its_screen", "last_message"), origin, "session.waiting");
+        try {
+            final Map<?, ?> last = optionalSection(waiting, "last_message");
+            Waiting.LastMessage lastMessage = null;
+            if (waiting.get("last_message") != null) {
+                only(last, List.of("record", "text"), origin, "session.waiting.last_message");
+                lastMessage = new Waiting.LastMessage(map(last.get("record")), required(last, "text", origin));
+            }
+            return new Waiting(rules(waiting.get("screen"), origin), rules(waiting.get("not_its_screen"), origin),
+                    lastMessage);
+        } catch (AgentException ex) {
+            // A record's own refusal does not know which file it came from; say it.
+            final String said = String.valueOf(ex.getMessage());
+            throw said.startsWith(origin) ? ex : new AgentException(origin + ": " + said, ex);
+        }
+    }
+
+    private static List<Waiting.Rule> rules(@Nullable Object declared, String origin) {
+        if (declared == null) {
+            return List.of();
+        }
+        if (!(declared instanceof List<?> list)) {
+            throw new AgentException(origin + ": waiting rules are a list");
+        }
+        final List<Waiting.Rule> rules = new ArrayList<>();
+        for (final Object each : list) {
+            if (!(each instanceof Map<?, ?> rule)) {
+                throw new AgentException(origin + ": a waiting rule is a mapping, not '" + each + "'");
+            }
+            only(rule, List.of("contains", "in_last_lines", "for"), origin, "a waiting rule");
+            final Object lines = rule.get("in_last_lines");
+            if (lines != null && !(lines instanceof Integer)) {
+                throw new AgentException(origin + ": 'in_last_lines' is a number of lines, not '" + lines + "'");
+            }
+            rules.add(new Waiting.Rule(required(rule, "contains", origin), (Integer) lines, optional(rule, "for")));
+        }
+        return rules;
+    }
+
+    private static void only(Map<?, ?> section, List<String> keys, String origin, String where) {
+        for (final Object key : section.keySet()) {
+            if (!keys.contains(String.valueOf(key))) {
+                throw new AgentException(origin + ": " + where + " takes " + keys + ", not '" + key + "'");
+            }
+        }
     }
 
     /**

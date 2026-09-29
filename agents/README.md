@@ -91,8 +91,24 @@ headless:                     # the agent's own spelling of the common ideas
 session:
   supports_resume: true
   resume_flag: "--resume"
+  session_id:                       # optional; where it names the session it runs
+    record: { type: system }        # an unattended run: the record naming it ...
+    key: session_id                 # ... and its field holding the id
+    directory: ".example/sessions"  # an attached agent: its session files, under its home ...
+    suffix: ".jsonl"                # ... named <id><suffix>; the newest names the session
   ready_marker: "Ready for work."   # text shown once at work, attached, having asked nothing
   ready_within_seconds: 60          # optional; the kit's default is 120
+  waiting:                          # optional; what waiting for a person looks like here
+    screen:                         # the attached agent's own screen, as tmux draws it
+      - contains: "Do you trust this folder?"   # one line, matched without regard to case
+        in_last_lines: 5            # optional; the last N non-empty lines, else the whole screen
+        for: "trusting the folder"  # optional; what it waits for, as a person reads it
+    not_its_screen:                 # optional; a pager or viewer open over the agent
+      - contains: "(END)"
+        in_last_lines: 1
+    last_message:                   # optional; where a finished unattended run's last message is
+      record: { type: result }      # the last record whose top-level fields have these values
+      text: result                  # and the field of it holding the text
 
 provider:
   token_env:
@@ -154,6 +170,26 @@ default. Any question before it - a trust dialog, a login, a setup wizard - bloc
 fails the day a release adds one, including one nobody has seen. An agent whose ready screen has no
 stable text declares none, and the step then fails saying it cannot tell. `sokar agents --verbose`
 shows what each agent declares.
+
+**`session_id` is how a task that comes back continues its conversation.** Sokar records the
+session a task's agent was running - from an unattended run's records, or from the agent's own
+session files when an attached task stops - and starting the task again passes `resume_flag` and the
+id, and says it did. An agent that declares nothing starts fresh and says so; nothing is guessed. It
+needs `supports_resume`. A session id is an identifier, not a credential, so it may be on a command
+line; it is kept with the task and forgotten when the task is removed.
+
+**`waiting` is how Sokar tells a person the agent is waiting for them**, read from outside and
+never by a rule of Sokar's own. For an attached task Sokar reads the screen tmux draws every few
+seconds, and a `screen` rule that matches makes the task read as *waiting*. A `not_its_screen` rule
+that matches - a pager open over the agent - keeps the last reading rather than reporting on the
+pager. For a finished unattended run, `last_message` names the record whose text is shown as what it
+said last. Rules are literals, not expressions, and bounded when the manifest is read: at most 16 per
+list, 200 characters each, 50 lines of region; a declaration past them is refused. An agent that
+declares nothing is shown as *cannot say*, never as *not waiting*. A declaration read for a day
+without matching once is shown as *unproven*: the wording probably changed with the agent's version.
+Prove it in the agent's own repository, at the version it pins, with the kit's *"sokar shows the …
+agent in task … waiting for a person"* after driving the agent to a question - and *"… not waiting
+for a person"* while it works.
 
 ### 3. `agents/<name>/src/main/java/org/fuin/sokar/agent/impl/<name>/<Name>Agent.java`
 

@@ -2,7 +2,7 @@
 
 **Status:** open, written 2026-09-11. It is small, and it is the only way a person at a terminal
 sees what [B11](B11-What-A-Task-Says-About-Itself.md) and
-[B47](B47-What-The-Agent-Is-Doing-Read-From-Outside.md) went to the trouble of working out.
+B47 (built: Task.screen and Task.lastMessage) went to the trouble of working out.
 
 ## What happens today
 

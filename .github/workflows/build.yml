@@ -30,12 +30,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up GraalVM
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          cache: 'maven'
+      - name: The pinned GraalVM
+        uses: ./.github/actions/pinned-jdk
 
       # -s settings.xml so a developer's own ~/.m2/settings.xml cannot be what makes a build work here.
       - name: Build and unit tests
@@ -62,12 +58,8 @@ jobs:
       - uses: actions/checkout@v7
 
       # For the acceptance suite, which runs from here rather than on the server.
-      - name: Set up Java
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          cache: 'maven'
+      - name: The pinned GraalVM
+        uses: ./.github/actions/pinned-jdk
 
       # Before anything is created, so the cleanup below can always run.
       - name: Build the machine tooling
@@ -117,12 +109,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up GraalVM
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          cache: 'maven'
+      - name: The pinned GraalVM
+        uses: ./.github/actions/pinned-jdk
 
       - name: Import the signing key
         uses: crazy-max/ghaction-import-gpg@v7

@@ -281,6 +281,11 @@ about and moved with `--pin <name>`; the tool reads no script, so a script gets 
 `--min-age 3d`, or `sokar.release.min-age`, answers `update=no` and `waiting=` for a release younger
 than that - it never offers the one before instead, and a release whose date cannot be read is not old
 enough. An update moves the module's patch version, `1.0.0-SNAPSHOT` to `1.0.1-SNAPSHOT` too.
+**A build job compiles with the pinned GraalVM, never with a moving name.** The JDK the CI snapshots
+pin in `buildtools/hetzner/pom.xml` is also what every GitHub job installs, through
+`.github/actions/pinned-jdk` here and `sokar-machines jdk --github` in any other repository: checked
+against its digest, bootstrapped from the runner's own Java 25. So the build's JDK and a leg's are one
+pin with one mover, and `setup-graalvm` with `'25'` - the newest release of the day, unchecked - is gone.
 
 ## Facts that were expensive to learn
 

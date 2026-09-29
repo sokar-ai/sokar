@@ -197,11 +197,22 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
 
         final TaskLaunch.Existing existing = launch.startExisting(out, err);
         if (existing != null) {
-            if (existing.code() != 0 || detach) {
+            if (existing.code() != 0) {
                 return existing.code();
             }
+            if (prompt != null) {
+                // Brought back with a prompt: run it, continuing the conversation where the agent can.
+                final int code = launch.runAgentInExisting(existing.container(),
+                        (agent, container) -> render(agent, container, out, err), out, err);
+                return code == 0 || code == TaskLaunch.NO_AGENT ? code : 70;
+            }
+            if (detach) {
+                return existing.code();
+            }
+            // An agent task whose session is gone starts its agent again, continuing where it can.
             return context.exec().applyAsInt(context.tasks().attachCommand(existing.container(),
-                    shell, null, existing.project() + "/" + org.fuin.sokar.runtime.ContainerName
+                    shell, new TaskSession(context).attachedAgent(existing.container(), out),
+                    existing.project() + "/" + org.fuin.sokar.runtime.ContainerName
                             .taskIn(existing.project(), existing.container())));
         }
 

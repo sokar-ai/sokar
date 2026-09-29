@@ -48,6 +48,9 @@ public final class TaskInventory {
      * @param waiting 1 when its own work is waiting at the gate, 0 otherwise.
      * @param startAction What Start would do to it: RUNNING, RESUME or PREDATES_RESTART.
      * @param startDetail Why, when startAction is a refusal; empty otherwise.
+     * @param repository The repository it works on, or {@code null}.
+     * @param commit What its configuration was verified at, or {@code null}.
+     * @param derived Whether it waits for a person, derived from its agent's own declaration - never observed.
      */
     public record Task(String name, @Nullable String project, @Nullable String securityClass,
             String state, boolean running, long helpers, @Nullable String agent,
@@ -55,7 +58,43 @@ public final class TaskInventory {
             String since, Activity activity, @Nullable String waitingFor,
             @Nullable String clearance, @Nullable String label, int waiting,
             String startAction, String startDetail, @Nullable String repository,
-            @Nullable String commit) {
+            @Nullable String commit, AgentWaiting.Derived derived) {
+
+        /**
+         * Constructor for a task nothing could be derived about.
+         *
+         * @param name Container name.
+         * @param project Project name, or {@code null}.
+         * @param securityClass Security class, or {@code null}.
+         * @param state The runtime's own words.
+         * @param running Whether it is up.
+         * @param helpers How many host processes it has.
+         * @param agent The agent, or {@code null}.
+         * @param mode How somebody is involved, or {@code null}.
+         * @param prompt What it was asked, or {@code null}.
+         * @param branch The ref it pushes to, or {@code null}.
+         * @param since When it entered its state.
+         * @param activity What its work is doing.
+         * @param waitingFor What it is waiting for, or {@code null}.
+         * @param clearance Its clearance mode, or {@code null}.
+         * @param label Its label, or {@code null}.
+         * @param waiting Whether its work is waiting for review.
+         * @param startAction What starting it would do.
+         * @param startDetail Why.
+         * @param repository The repository, or {@code null}.
+         * @param commit The verified commit, or {@code null}.
+         */
+        public Task(String name, @Nullable String project, @Nullable String securityClass,
+                String state, boolean running, long helpers, @Nullable String agent,
+                @Nullable String mode, @Nullable String prompt, @Nullable String branch,
+                String since, Activity activity, @Nullable String waitingFor,
+                @Nullable String clearance, @Nullable String label, int waiting,
+                String startAction, String startDetail, @Nullable String repository,
+                @Nullable String commit) {
+            this(name, project, securityClass, state, running, helpers, agent, mode, prompt, branch, since,
+                    activity, waitingFor, clearance, label, waiting, startAction, startDetail, repository, commit,
+                    AgentWaiting.Derived.NOTHING);
+        }
 
         /**
          * Constructor for a task taken before the repository was known.
@@ -152,6 +191,18 @@ public final class TaskInventory {
             map.put("startAction", startAction);
             map.put("startDetail", startDetail);
 
+            // Whether it waits for a person, as its agent's own declaration reads its output. Derived, and
+            // kept apart from 'activity' and 'waitingFor', which are what the runtime and the clearance
+            // watcher observed: an interface renders these as a reading, never as a fact.
+            map.put("screen", derived.screen().name());
+            map.put("screenWaitingFor", derived.waitingFor());
+            map.put("screenUnproven", derived.unproven());
+            map.put("lastMessage", derived.lastMessage());
+            map.put("asked", derived.asked().name());
+            map.put("askedFrom", derived.askedFrom());
+            // The session the next start continues, so an interface can say so before it is pressed.
+            map.put("session", derived.session());
+
             // Nothing records a phase yet. "" is the honest answer for a task that is in none,
             // and it is what every task answers until a detached Start has something to report.
             map.put("phase", "");
@@ -195,13 +246,42 @@ public final class TaskInventory {
 
     private final SokarContext context;
 
+    private final @Nullable AgentWaiting agentWaiting;
+
     /**
-     * Constructor with the context to read from.
+     * Constructor for a listing that derives nothing about waiting for a person.
+     * <p>
+     * What most callers want: deriving starts the installed agents and reads screens, and a command that
+     * only needs names and states must not pay for that.
      *
      * @param context Where podman and the paths come from.
      */
     public TaskInventory(SokarContext context) {
+        this(context, null);
+    }
+
+    /**
+     * Constructor for a listing that says whether each task waits for a person.
+     * <p>
+     * Keep it for as long as the listing is read again - a watch - so what it derives is read at the pace
+     * that is cheap rather than on every call.
+     *
+     * @param context Where podman and the paths come from.
+     * @return The inventory.
+     */
+    public static TaskInventory deriving(SokarContext context) {
+        return new TaskInventory(context, new AgentWaiting(context, java.time.Clock.systemUTC()));
+    }
+
+    /**
+     * Constructor with the reader of what an agent waits for.
+     *
+     * @param context Where podman and the paths come from.
+     * @param agentWaiting What derives whether a task waits for a person, or {@code null} for nothing.
+     */
+    TaskInventory(SokarContext context, @Nullable AgentWaiting agentWaiting) {
         this.context = context;
+        this.agentWaiting = agentWaiting;
     }
 
     /**
@@ -319,7 +399,10 @@ public final class TaskInventory {
                 summary.repository(),
                 // From the container's label, like the three above. The project moves on; this
                 // must not, or a question about a task is answered from a file that has changed.
-                summary.commit());
+                summary.commit(),
+                agentWaiting == null ? AgentWaiting.Derived.NOTHING
+                        : agentWaiting.about(summary.name(), summary.running(), profile == null ? null : profile.agent(),
+                                profile == null ? null : profile.mode().name(), state));
     }
 
     /**

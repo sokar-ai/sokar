@@ -50,6 +50,10 @@ import org.jspecify.annotations.Nullable;
  *        here simply has no prompts to turn off.
  * @param ready What the agent shows once it has reached work, attached, or {@code null} when it has
  *        no stable text for that - and then a check of it says it cannot tell rather than passing.
+ * @param waiting What waiting for a person looks like in its own output, or {@code null} when it does
+ *        not say - and then Sokar says it cannot tell whether the agent waits, never that it does not.
+ * @param sessionIds Where it names the session it runs, or {@code null} when it does not - and then a task
+ *        that comes back starts a fresh session and says so, rather than claiming it continued.
  */
 public record AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
         HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
@@ -59,7 +63,8 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         List<String> installAsRoot, List<String> installAsAgent,
         List<PackagedTree> packaged, @Nullable String configDirectory,
         @Nullable List<String> loginArguments, @Nullable String loginDocumentation,
-        List<String> sandboxedArguments, @Nullable ReadyMarker ready) {
+        List<String> sandboxedArguments, @Nullable ReadyMarker ready, @Nullable Waiting waiting,
+        @Nullable SessionIds sessionIds) {
 
     /**
      * Returns the agent's binary followed by whatever turns its own permission prompts off.
@@ -152,6 +157,83 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
     }
 
     /**
+     * Constructor for an agent that does not say where it names its sessions.
+     *
+     * @param name Short name.
+     * @param label Human-readable label.
+     * @param binary Executable inside the container.
+     * @param gitIdentity Commit author.
+     * @param headless Command-line shape.
+     * @param supportsResume Whether sessions can be continued.
+     * @param resumeFlag Flag continuing a session, or {@code null}.
+     * @param tokenEnvironment Credential type to environment variable.
+     * @param provider Which providers it drives, or {@code null}.
+     * @param allowedDomains Domains the agent needs.
+     * @param refusedDomains Domains it asks for and is deliberately denied.
+     * @param version Version of the agent CLI installed.
+     * @param artifacts Files the image build fetches.
+     * @param installAsRoot Build fragments run as root.
+     * @param installAsAgent Build fragments run as the agent user.
+     * @param packaged Trees copied into the image.
+     * @param configDirectory Where it keeps its credentials, or {@code null}.
+     * @param loginArguments What runs its login, or {@code null}.
+     * @param loginDocumentation Where that login is described, or {@code null}.
+     * @param sandboxedArguments What turns its own permission prompts off.
+     * @param ready What it shows once at work, or {@code null}.
+     * @param waiting What waiting for a person looks like, or {@code null}.
+     */
+    public AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
+            HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
+            Map<String, String> tokenEnvironment, @Nullable AgentProvider provider,
+            List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
+            List<InstallArtifact> artifacts, List<String> installAsRoot, List<String> installAsAgent,
+            List<PackagedTree> packaged, @Nullable String configDirectory,
+            @Nullable List<String> loginArguments, @Nullable String loginDocumentation,
+            List<String> sandboxedArguments, @Nullable ReadyMarker ready, @Nullable Waiting waiting) {
+        this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag, tokenEnvironment, provider,
+                allowedDomains, refusedDomains, version, artifacts, installAsRoot, installAsAgent, packaged,
+                configDirectory, loginArguments, loginDocumentation, sandboxedArguments, ready, waiting, null);
+    }
+
+    /**
+     * Constructor for an agent that declares nothing about waiting for a person.
+     *
+     * @param name Short name.
+     * @param label Human-readable label.
+     * @param binary Executable inside the container.
+     * @param gitIdentity Commit author.
+     * @param headless Command-line shape.
+     * @param supportsResume Whether sessions can be continued.
+     * @param resumeFlag Flag continuing a session, or {@code null}.
+     * @param tokenEnvironment Credential type to environment variable.
+     * @param provider Which providers it drives, or {@code null}.
+     * @param allowedDomains Domains the agent needs.
+     * @param refusedDomains Domains it asks for and is deliberately denied.
+     * @param version Version of the agent CLI installed.
+     * @param artifacts Files the image build fetches.
+     * @param installAsRoot Build fragments run as root.
+     * @param installAsAgent Build fragments run as the agent user.
+     * @param packaged Trees copied into the image.
+     * @param configDirectory Where it keeps its credentials, or {@code null}.
+     * @param loginArguments What runs its login, or {@code null}.
+     * @param loginDocumentation Where that login is described, or {@code null}.
+     * @param sandboxedArguments What turns its own permission prompts off.
+     * @param ready What it shows once at work, or {@code null}.
+     */
+    public AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
+            HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
+            Map<String, String> tokenEnvironment, @Nullable AgentProvider provider,
+            List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
+            List<InstallArtifact> artifacts, List<String> installAsRoot, List<String> installAsAgent,
+            List<PackagedTree> packaged, @Nullable String configDirectory,
+            @Nullable List<String> loginArguments, @Nullable String loginDocumentation,
+            List<String> sandboxedArguments, @Nullable ReadyMarker ready) {
+        this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag, tokenEnvironment, provider,
+                allowedDomains, refusedDomains, version, artifacts, installAsRoot, installAsAgent, packaged,
+                configDirectory, loginArguments, loginDocumentation, sandboxedArguments, ready, null, null);
+    }
+
+    /**
      * Constructor for an agent that keeps no credential of its own on the host.
      *
      * @param name Short name.
@@ -217,6 +299,11 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         if (supportsResume && (resumeFlag == null || resumeFlag.isBlank())) {
             throw new AgentException("Agent '" + name
                     + "' says it supports resume but names no flag for it");
+        }
+        if (sessionIds != null && !supportsResume) {
+            // An id nothing can continue would be recorded to be shown and never used.
+            throw new AgentException("Agent '" + name
+                    + "' says where its session id is but does not support resume");
         }
         if (!artifacts.isEmpty() && (version == null || version.isBlank())) {
             // An artifact list without a version cannot answer "which version ran?" after the

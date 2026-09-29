@@ -18,8 +18,9 @@ concurrency:
 
 jobs:
 
-  # One pull request per pin that has a release at least three days old (the pom's
-  # sokar.release.min-age), and never an older one instead of a newer that is too young.
+  # One pull request for every pin that has a release at least three days old (the pom's
+  # sokar.release.min-age), one commit per pin, and never an older release instead of a newer one that
+  # is too young.
   refresh:
     name: Ask upstream
     if: github.event_name != 'push'
@@ -30,12 +31,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Java
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          cache: 'maven'
+      - name: The pinned GraalVM
+        uses: ./.github/actions/pinned-jdk
 
       - name: Build the release tooling
         run: |
@@ -45,7 +42,7 @@ jobs:
 
       # A pin whose question cannot be answered fails the job - "could not tell" is not "up to date" -
       # after the others have been asked.
-      - name: Open a pull request per moved pin
+      - name: One pull request for everything that moved
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,9 +54,15 @@ jobs:
           }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # One branch, rebuilt from main on every run, one commit per moved pin: a merge rebuilds the
+          # snapshots once however many pins moved, and a person leaves a pin out by dropping its commit.
+          # No pin in this pom is spelled out from another, so the order does not matter here.
+          branch=machines/pins
+          git checkout -q -B "$branch" HEAD
           failed=0
+          moved=""
+          answers=""
           for pin in graalvm ubuntu-image alpine-image; do
-              git checkout -q main
               if ! answer=$(release upstream-version --pom buildtools/hetzner/pom.xml --pin "$pin"); then
                   echo "::error::could not tell whether $pin has moved"
                   failed=1
@@ -71,24 +74,30 @@ jobs:
               if [ "$update" != yes ]; then
                   continue
               fi
-              # An image's "version" is its digest; the branch names its start.
-              branch="machines/$pin-$(printf '%s' "${upstream#sha256:}" | cut -c1-16)"
-              if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
-                  echo "$branch is open already"
-                  continue
-              fi
-              git checkout -q -b "$branch"
+              # A pin that cannot move is skipped, and leaves the others to go ahead.
               if ! release update "$upstream" --pin "$pin" --pom buildtools/hetzner/pom.xml; then
                   echo "::error::could not move $pin to $upstream"
+                  git checkout -q -- buildtools/hetzner/pom.xml
                   failed=1
                   continue
               fi
               git commit -q -am "Pin $pin $upstream"
-              git push -q origin "$branch"
-              gh pr create --base main --head "$branch" --title "Pin $pin $upstream" --body "$(printf \
-                  'The machines a CI leg boots from: %s moves to %s, published %s.\n\nMerging it rebuilds the snapshots.\n\n```\n%s\n```' \
-                  "$pin" "$upstream" "$(printf '%s\n' "$answer" | sed -n 's/^published=//p')" "$answer")"
+              moved="$moved${moved:+, }$pin $upstream"
+              answers="$answers"$'\n'"$answer"
           done
+          if [ -z "$moved" ]; then
+              echo "nothing moved"
+              exit "$failed"
+          fi
+          # Replaces what an open request held: it always says what upstream offers today.
+          git push -q --force origin "$branch"
+          title="Pin $moved"
+          body="$(printf 'The machines a CI leg boots from. Each pin that moved is one commit; merging rebuilds the snapshots once.\n\n```%s\n```' "$answers")"
+          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
+              gh pr edit "$branch" --title "$title" --body "$body"
+          else
+              gh pr create --base main --head "$branch" --title "$title" --body "$body"
+          fi
           exit "$failed"
 
   # Only when a merged change moved what a snapshot is made of: the pom changes for other reasons too.
@@ -114,13 +123,9 @@ jobs:
               echo "moved=no" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set up Java
+      - name: The pinned GraalVM
         if: steps.moved.outputs.moved == 'yes'
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          cache: 'maven'
+        uses: ./.github/actions/pinned-jdk
 
       - name: Build the machine tooling
         if: steps.moved.outputs.moved == 'yes'

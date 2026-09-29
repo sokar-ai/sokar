@@ -63,22 +63,36 @@ final class MessageLookup {
      */
     static List<Found> find(final Mailbox mailbox, final String id) throws IOException {
         final List<Found> found = new ArrayList<>();
-        for (final Path held : messages(mailbox.hold())) {
-            if (answers(held, id)) {
-                found.add(new Found(held, Standing.HELD));
+        for (final Found each : all(mailbox)) {
+            if (answers(each.file(), id)) {
+                found.add(each);
             }
+        }
+        return found;
+    }
+
+    /**
+     * Returns every message a person may be asked about, in the three places, in that order.
+     * <p>
+     * The one enumeration a list, a read and a decision share: what a list shows is exactly what
+     * {@link #find} can find, standing included.
+     *
+     * @param mailbox The task's mailbox.
+     * @return Every message, held first, then refused, then unchecked; each by file name.
+     * @throws IOException Reading failed.
+     */
+    static List<Found> all(final Mailbox mailbox) throws IOException {
+        final List<Found> found = new ArrayList<>();
+        for (final Path held : messages(mailbox.hold())) {
+            found.add(new Found(held, Standing.HELD));
         }
         final java.util.Set<String> refusedByPerson = refusedByPerson(mailbox);
         for (final Path refused : messages(mailbox.rejected())) {
-            if (answers(refused, id)) {
-                found.add(new Found(refused, refusedByPerson.contains(refused.getFileName().toString())
-                        ? Standing.REFUSED_BY_PERSON : Standing.REFUSED_BY_FILTER));
-            }
+            found.add(new Found(refused, refusedByPerson.contains(refused.getFileName().toString())
+                    ? Standing.REFUSED_BY_PERSON : Standing.REFUSED_BY_FILTER));
         }
         for (final Path unchecked : messages(mailbox.error())) {
-            if (answers(unchecked, id)) {
-                found.add(new Found(unchecked, Standing.UNCHECKED));
-            }
+            found.add(new Found(unchecked, Standing.UNCHECKED));
         }
         return found;
     }

@@ -46,6 +46,39 @@ class MessageReadTest {
     }
 
     @Test
+    void listsEverythingAPersonMayBeAskedAboutWithWhereItStandsAndNeverWhatItSays(@TempDir final Path dir)
+            throws IOException {
+        final Mailbox mailbox = mailbox(dir);
+        Files.writeString(mailbox.hold().resolve("m-1.json"), MESSAGE);
+        new MessageRecord(mailbox).append(MessageRecord.HELD, "m-1.json", "m-1", "reviewer",
+                "held for a person: the mode for reviewer is prompt");
+        Files.createDirectories(mailbox.rejected());
+        Files.writeString(mailbox.rejected().resolve("m-2.json"), MESSAGE.replace("m-1", "m-2"));
+        Files.createDirectories(mailbox.error());
+        Files.write(mailbox.error().resolve("broken.json"), new byte[] { (byte) 0xff, 'x' });
+
+        final java.util.List<MessageRead.Held> listed = new MessageRead().list(mailbox);
+
+        assertThat(listed).extracting(MessageRead.Held::message, MessageRead.Held::standing).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("m-1.json", "held"),
+                org.assertj.core.groups.Tuple.tuple("m-2.json", "refused-by-filter"),
+                org.assertj.core.groups.Tuple.tuple("broken.json", "unchecked"));
+        assertThat(listed.get(0).peer()).isEqualTo("reviewer");
+        assertThat(listed.get(0).reason()).isEqualTo("held for a person: the mode for reviewer is prompt");
+        // A list that quoted a refused message would be a second copy of what was refused.
+        assertThat(listed).allSatisfy(held -> assertThat(held.text()).isEmpty());
+        // Each is exactly what a read of it finds, text aside.
+        final MessageRead.Held read = new MessageRead().read(mailbox, "m-2");
+        assertThat(listed.get(1)).isEqualTo(new MessageRead.Held(read.outcome(), read.standing(), read.message(),
+                read.id(), read.role(), read.peer(), read.kind(), read.at(), java.util.List.of(), read.reason()));
+    }
+
+    @Test
+    void anEmptyMailboxListsNothing(@TempDir final Path dir) throws IOException {
+        assertThat(new MessageRead().list(mailbox(dir))).isEmpty();
+    }
+
+    @Test
     void takesTheFileNameAsAReleaseDoes(@TempDir final Path dir) throws IOException {
         final Mailbox mailbox = mailbox(dir);
         Files.writeString(mailbox.hold().resolve("m-1.json"), MESSAGE);

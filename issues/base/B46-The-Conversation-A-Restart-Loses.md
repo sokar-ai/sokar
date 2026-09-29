@@ -1,6 +1,7 @@
 # B46 — The Conversation A Restart Loses
 
-**Status:** open, written 2026-09-11. It is the half of continuing that
+**Status:** built for `stop` and `start` on 2026-09-29; open for a reboot, which waits for durable task
+state (see *What is left*). Written 2026-09-11. It is the half of continuing that
 [B43](B43-Tasks-After-The-Machine-Restarts.md) and [B44](B44-One-Way-To-Start-Work.md) do not
 cover: both bring the *container* back, neither brings the *conversation* back. It covers a task
 somebody drives at a terminal as well as an unattended run, decided on 2026-09-11.
@@ -89,6 +90,14 @@ and is discarded, several times a session.
   knowledge lives in the package.
 - `grep` over everything outside `agents/` finds no event name, no field name and no agent name
   belonging to this feature.
+
+## What is left
+
+- **A reboot.** The session id is recorded under the state directory, which a reboot does not touch,
+  so it survives one. But after a reboot a task is refused outright (`PREDATES_RESTART`), because its
+  profile - which agent, which mode - lives in the runtime directory the reboot wiped. Continuing
+  across a reboot needs that durable task state (B43, B44), not more of this requirement. The
+  acceptance scenario for a reboot is therefore not written; `stop` and `start` are, for both modes.
 
 ## To be checked
 

@@ -109,7 +109,9 @@ public final class SokarDaemon {
         final VarlinkServer server = new VarlinkServer(socket, INTERFACE)
                 .describedBy(description())
                 .reporting(org.fuin.sokar.app.SokarVersion.version());
-        final TaskInventory inventory = new TaskInventory(context);
+        // One for the daemon's life: what it derives about waiting for a person is read at a pace that is
+        // cheap only when the same instance is asked again.
+        final TaskInventory inventory = TaskInventory.deriving(context);
 
         // The same question 'sokar task list' asks, answered by the same code. A second
         // implementation is how the two come to disagree about what is running.
@@ -787,7 +789,10 @@ public final class SokarDaemon {
             final int code;
             if (existing != null) {
                 started.set(existing.container());
-                code = existing.code();
+                // Brought back with a prompt, it runs - continuing its session where the agent can - as a
+                // new task with a prompt does. A start that ignored it would report a run nobody performed.
+                code = existing.code() != 0 || empty(parameters, "prompt") == null ? existing.code()
+                        : launch.runAgentInExisting(existing.container(), null, sink, sink);
             } else {
                 code = launch.launch(sink, sink, running -> {
                         started.set(running.container());
@@ -1331,6 +1336,31 @@ public final class SokarDaemon {
             replies.last(answer);
         });
 
+        server.method("Held", (parameters, replies) -> {
+            // One task's mailbox when one is named - an unknown name is NoSuchTask, as everywhere -
+            // or every mailbox on the machine.
+            final java.util.List<org.fuin.sokar.app.Mailbox> mailboxes = empty(parameters, "task") == null
+                    ? new org.fuin.sokar.app.Mailboxes(context.paths()).all()
+                    : java.util.List.of(mailboxOf(context, parameters));
+            final java.util.List<Map<String, Object>> messages = new java.util.ArrayList<>();
+            for (final org.fuin.sokar.app.Mailbox mailbox : mailboxes) {
+                for (final org.fuin.sokar.app.MessageRead.Held held : new org.fuin.sokar.app.MessageRead().list(mailbox)) {
+                    final Map<String, Object> message = new LinkedHashMap<>();
+                    message.put("task", mailbox.root().getFileName().toString());
+                    message.put("standing", held.standing());
+                    message.put("message", held.message());
+                    message.put("id", held.id());
+                    message.put("role", held.role());
+                    message.put("peer", held.peer());
+                    message.put("kind", held.kind());
+                    message.put("at", held.at());
+                    message.put("reason", held.reason());
+                    messages.add(message);
+                }
+            }
+            replies.last(Map.of("messages", messages));
+        });
+
         server.method("Release", (parameters, replies) -> {
             final org.fuin.sokar.app.MessageRelease.Result result =
                     new org.fuin.sokar.app.MessageRelease().decide(mailboxOf(context, parameters),
@@ -1563,7 +1593,12 @@ public final class SokarDaemon {
                 // that did not compare this would never redraw the one transition that matters.
                 String.valueOf(task.activity()), String.valueOf(task.waitingFor()),
                 String.valueOf(task.agent()), String.valueOf(task.mode()),
-                String.valueOf(task.branch()), String.valueOf(task.clearance()));
+                String.valueOf(task.branch()), String.valueOf(task.clearance()),
+                // Derived from the agent's own output, and just as invisible to the runtime: an agent that
+                // puts a question to the person changes nothing but its screen.
+                String.valueOf(task.derived().screen()), task.derived().waitingFor(),
+                String.valueOf(task.derived().unproven()), task.derived().lastMessage(),
+                String.valueOf(task.derived().asked()), task.derived().session());
     }
 
     /**

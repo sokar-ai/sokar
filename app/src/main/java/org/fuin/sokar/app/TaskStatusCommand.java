@@ -67,7 +67,7 @@ public class TaskStatusCommand implements Callable<Integer>, SokarFactory.Contex
             return 64;
         }
 
-        final TaskInventory.Task task = new TaskInventory(context).tasks().stream()
+        final TaskInventory.Task task = TaskInventory.deriving(context).tasks().stream()
                 .filter(each -> each.name().equals(container)).findFirst().orElse(null);
         if (task == null) {
             err.println("sokar: there is no task called " + container);
@@ -86,6 +86,12 @@ public class TaskStatusCommand implements Callable<Integer>, SokarFactory.Contex
         line(out, "state", task.state());
         line(out, "activity", task.activity().name().toLowerCase(java.util.Locale.ROOT));
         line(out, "waiting", task.waitingFor());
+        // Read from the agent's own screen by a rule its package declares: a reading, said as one.
+        line(out, "screen", screenLine(task.derived()));
+        line(out, "last said", task.derived().lastMessage().isEmpty() ? null
+                : TalkReadCommand.shown(task.derived().lastMessage()));
+        line(out, "session", task.derived().session().isEmpty() ? null
+                : task.derived().session() + " - the next start continues it");
         // Both: the age is what somebody is asking, and the instant is what they would quote
         // in a report or compare against something else.
         final String age = Age.compact(task.since(), java.time.Instant.now());
@@ -164,5 +170,23 @@ public class TaskStatusCommand implements Callable<Integer>, SokarFactory.Contex
         if (value != null && !value.isBlank()) {
             out.printf("%-10s %s%n", name, value);
         }
+    }
+
+    /**
+     * Says what the agent's screen shows, as a reading rather than a fact.
+     *
+     * @param derived What was derived.
+     * @return The line.
+     */
+    static String screenLine(AgentWaiting.Derived derived) {
+        final String reading = switch (derived.screen()) {
+            case WAITING -> "reads as waiting for you" + (derived.waitingFor().isEmpty() ? ""
+                    : " - " + TalkReadCommand.shown(derived.waitingFor()));
+            case NOT_WAITING -> "reads as not waiting";
+            case UNDECLARED -> "cannot say - the agent declares nothing to read it by";
+            case UNSEEN -> "cannot say - nothing here sees its screen";
+        };
+        return derived.unproven() ? reading + " (its rules have not matched in a day - check the agent's version)"
+                : reading;
     }
 }
