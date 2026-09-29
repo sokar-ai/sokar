@@ -29,8 +29,9 @@ Matrix), and so is starting the homeserver, which ships with the transport's pac
   colon only.
 - `poll --into <inbound>` writes `<event id>.json` and `.json.sig`; a message without a signature gets no
   `.sig` and is held; a person's plain chat is not delivered, and is counted on stderr.
-- `read <reference>` (added 2026-09-29, QM9), run with the reading task's own token, posts the read
-  receipt for that event.
+- `read <reference>` (added 2026-09-29, QM9; built in the transport's `5bfa8a1`), run with the reading
+  task's own token, posts the read receipt for that event: 0 posted (a second time too), 75 temporary,
+  77 no room of the account holds the event, nothing on stdout.
 - `receipt <reference> --by <account>` prints `{"state":"read"|"delivered"|"unknown", "at": …}`, exit 0 for
   all three.
 - Exit codes: 0 done, 75 temporary, 64 usage, 65 not carriable, 76 answer not understood, 77 refused by the

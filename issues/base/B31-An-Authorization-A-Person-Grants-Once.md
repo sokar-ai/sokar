@@ -185,6 +185,27 @@ is making the vault able to hold anyway.
   exists afterwards, an unreachable service is named, and no grant appears in `vault list`. A real grant
   has not run on a VM: no device authorization service is reachable from it.
 
+## Decided 2026-09-29, by the operator, for the interface (F31)
+
+- **An endpoint may be plain http on loopback only** - `127.0.0.1`, `::1` or `localhost` - and must be
+  https everywhere else, for `device_authorization_url`, `authorization_url`, `token_url` and
+  `revocation_url` alike, and for `client-credentials` too. The same rule as B86's homeserver: nothing
+  leaves the machine unencrypted, and a stand-in service on the machine can be measured against.
+- **`CanStart` answers `AUTHORIZATION_NEEDED`** for a credential of kind `oauth-device` or `oauth-code`
+  that nobody has granted: its own outcome, never `CREDENTIAL_MISSING` or `CREDENTIAL_UNUSABLE`, with the
+  entry's name and a `detail` that gives the command that grants it (`sokar vault authorize <name>`). It
+  refuses an unattended or agent run, and warns a shell, as `Start` already does. The check does not spend
+  the grant. **A grant expired or revoked at the service** is not visible without spending it, so it is
+  not a `CanStart` answer; the broker says it when it spends one - "needs authorizing again" - and the
+  daemon raises the event below.
+- **A `Credential` row of an oauth entry carries `grant: ?(grantedBy: string, grantedAt: string)`**,
+  absent when nobody has granted it. The grant itself stays hidden; who and when are not secrets.
+- **The daemon raises "authorization needed" on its prompt stream**, so a second person sees it: when a
+  start is refused for want of a grant, and when the broker finds a grant no longer valid. It names the
+  entry, the project and the task, and says whether it was never granted or has ended; answering it is
+  running `Authorize` for that entry. It is raised once per entry until a grant lands, not once per
+  refused start.
+
 ## Still open
 
 - **Whether the broker can carry an MCP session**, a long-lived stream, is unmeasured.
