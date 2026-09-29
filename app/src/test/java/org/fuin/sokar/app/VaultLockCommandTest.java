@@ -105,6 +105,27 @@ class VaultLockCommandTest {
     }
 
     @Test
+    void lockingForgetsADevicesHeldShareTooSoNothingOpensTheVaultAfterwards(@TempDir Path dir) {
+
+        // Measured on the shared VM: an interface enrolled as a device held its share here, 'lock' said
+        // "locked", and every command - a restarted task's start included - still opened the vault.
+        assumeTrue(KernelKeyring.available(), "libkeyutils is not installed");
+
+        final SokarContext context = context(dir);
+        try {
+            VaultShare.keep(context.paths(), new byte[] { 1, 2, 3, 4 }, java.time.Duration.ofMinutes(5));
+            assertThat(VaultShare.held(context.paths())).isPresent();
+
+            assertThat(execute(context, "vault", "lock")).isEqualTo(0);
+
+            assertThat(VaultShare.held(context.paths())).isEmpty();
+            assertThat(out.toString()).contains("locked");
+        } finally {
+            VaultShare.forget(context.paths());
+        }
+    }
+
+    @Test
     void refusesToUnlockAVaultThatDoesNotExistAndNamesInit(@TempDir Path dir) {
 
         // It used to cache the passphrase and exit 0, and the first 'vault put' then made the vault

@@ -1,0 +1,2 @@
+title: "The machines a CI leg boots from carry a pull-through cache of docker.io - a registry started at boot and named a mirror system-wide - filled when the snapshot is built, so every account on a leg pulls from the machine rather than from Docker Hub, with the registry's own digests. Its image is pinned and moved by the daily Machines job."
+type: changed

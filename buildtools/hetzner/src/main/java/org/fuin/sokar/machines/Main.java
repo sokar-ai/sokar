@@ -88,7 +88,7 @@ public final class Main {
                 Usage: sweep [--mine | --from <file>] [--now] [--older-than <minutes>]
                        snapshot --os <ubuntu|fedora> [--key <file>] [--repo <dir>] [--type <t>]
                        leg      --os <ubuntu|fedora> --repo <dir> [--key <file>] [--keep]
-                                [--fetch <dir>] [--acceptance] [--type <t,t...>]
+                                [--fetch <dir>] [--acceptance] [--type <t,t...>] [--accounts <n>]
                        acceptance (--package <p> | --candidate <dir>) (--script <f> | --cucumber <dir>)
                                 [--os <o>] [--type <t>] [--keep]
                        lease    --os <ubuntu|fedora> [--key <file>] [--write <file>] [--candidate <dir>]
@@ -522,6 +522,7 @@ public final class Main {
         boolean keep = false;
         boolean acceptance = false;
         String types = null;
+        int accounts = 1;
         for (int at = 1; at < args.length; at++) {
             switch (args[at]) {
                 case "--os" -> os = value(args, ++at);
@@ -529,6 +530,15 @@ public final class Main {
                 case "--repo" -> repo = value(args, ++at);
                 case "--keep" -> keep = true;
                 case "--fetch" -> into = value(args, ++at);
+                // Features beside each other, one account each; 1 runs them in order, as always.
+                case "--accounts" -> {
+                    final String count = value(args, ++at);
+                    if (!count.matches("[1-9]\\d?")) {
+                        complain.accept("--accounts needs a number from 1 to 99, not " + count);
+                        return 2;
+                    }
+                    accounts = Integer.parseInt(count);
+                }
                 case "--acceptance" -> acceptance = true;
                 // Which types to rent, in the order to try them - for comparing one against the default
                 // without changing it for every repository that rents the same machines.
@@ -548,7 +558,7 @@ public final class Main {
                     key == null ? null : java.nio.file.Path.of(key)),
                     archiveOf(java.nio.file.Path.of(repo)), keep,
                     into == null ? null : java.nio.file.Path.of(into),
-                    acceptance ? java.nio.file.Path.of(repo) : null);
+                    acceptance ? java.nio.file.Path.of(repo) : null, accounts);
         }
         return 0;
     }

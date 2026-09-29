@@ -23,6 +23,13 @@
         <sokar.acceptance.key>${user.home}/.claude/.ssh/claude_key</sokar.acceptance.key>
         <!-- Whose Sokar to drive. Empty means the user this suite connects as. -->
         <sokar.acceptance.as/>
+        <!-- Several accounts, comma-separated, to run features in parallel - one account per feature
+             at a time. Empty means the one account above and a run in order, as always. The machine
+             must have each account prepared as the one above is. -->
+        <sokar.acceptance.users/>
+        <!-- Features at a time; more than one needs as many accounts in sokar.acceptance.users. -->
+        <sokar.acceptance.parallelism>1</sokar.acceptance.parallelism>
+        <sokar.acceptance.parallel>false</sokar.acceptance.parallel>
         <!-- Nothing to publish: this module is a test harness. -->
         <maven.deploy.skip>true</maven.deploy.skip>
         <maven.install.skip>true</maven.install.skip>
@@ -67,6 +74,14 @@
                         <sokar.acceptance.user>${sokar.acceptance.user}</sokar.acceptance.user>
                         <sokar.acceptance.as>${sokar.acceptance.as}</sokar.acceptance.as>
                         <sokar.acceptance.key>${sokar.acceptance.key}</sokar.acceptance.key>
+                        <sokar.acceptance.users>${sokar.acceptance.users}</sokar.acceptance.users>
+                        <!-- A feature's scenarios in order on one thread, so it keeps its account;
+                             features beside each other, each on a thread and account of its own. -->
+                        <cucumber.execution.parallel.enabled>${sokar.acceptance.parallel}</cucumber.execution.parallel.enabled>
+                        <cucumber.execution.parallel.config.strategy>fixed</cucumber.execution.parallel.config.strategy>
+                        <cucumber.execution.parallel.config.fixed.parallelism>${sokar.acceptance.parallelism}</cucumber.execution.parallel.config.fixed.parallelism>
+                        <cucumber.execution.parallel.config.fixed.max-pool-size>${sokar.acceptance.parallelism}</cucumber.execution.parallel.config.fixed.max-pool-size>
+                        <cucumber.execution.execution-mode.feature>same_thread</cucumber.execution.execution-mode.feature>
                         <!-- Repository-relative, so an annotation lands on the feature file. -->
                         <sokar.acceptance.features>acceptance/suite/src/test/resources/</sokar.acceptance.features>
                         <cucumber.plugin>pretty, html:target/acceptance.html, json:target/acceptance.json, org.fuin.sokar.acceptance.GitHubReport</cucumber.plugin>

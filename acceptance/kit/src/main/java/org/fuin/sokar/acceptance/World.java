@@ -45,9 +45,11 @@ public final class World implements AutoCloseable {
 
     private @Nullable String daemonUnit;
 
-    /** Every project the kit made in this run, in any scenario - removed once the run is over. */
-    private static final java.util.Set<String> PROJECTS = java.util.Collections.synchronizedSet(
-            new java.util.LinkedHashSet<>());
+    /**
+     * Every project the kit made in this run, in any scenario, by the account it was made under - removed once
+     * the run is over, as that account.
+     */
+    private static final java.util.Map<String, java.util.Set<String>> PROJECTS = new java.util.LinkedHashMap<>();
 
     /**
      * A task this scenario started and left running.
@@ -65,7 +67,7 @@ public final class World implements AutoCloseable {
     }
 
     /**
-     * Returns the machine - the run's one connection, opened the first time any scenario asks.
+     * Returns the machine - this scenario's account's connection, opened the first time any scenario asks.
      *
      * @return The machine.
      * @throws IOException If it cannot be reached.
@@ -331,17 +333,21 @@ public final class World implements AutoCloseable {
      * @param name The project's name and directory in the operator's home.
      */
     public void made(String name) {
-        PROJECTS.add(name);
+        final String account = Accounts.forThisThread();
+        synchronized (PROJECTS) {
+            PROJECTS.computeIfAbsent(account, any -> new java.util.LinkedHashSet<>()).add(name);
+        }
     }
 
     /**
      * Returns every project the kit made in this run, and forgets them.
      *
-     * @return Their names, in the order they were first made.
+     * @return Their names by the account each was made under, in the order they were first made.
      */
-    static java.util.List<String> takeProjects() {
+    static java.util.Map<String, java.util.List<String>> takeProjects() {
         synchronized (PROJECTS) {
-            final java.util.List<String> made = java.util.List.copyOf(PROJECTS);
+            final java.util.Map<String, java.util.List<String>> made = new java.util.LinkedHashMap<>();
+            PROJECTS.forEach((account, names) -> made.put(account, java.util.List.copyOf(names)));
             PROJECTS.clear();
             return made;
         }

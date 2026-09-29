@@ -112,6 +112,31 @@ class SnapshotsTest {
     }
 
     @Test
+    void installsTheImageCacheBeforeThePullsSoTheyFillIt() {
+        final String recipe = Snapshots.recipe("ubuntu", contents());
+
+        // A system service, started at boot, running the pinned registry as a proxy of docker.io on loopback.
+        assertThat(recipe).contains("/etc/systemd/system/sokar-mirror.service")
+                .contains("systemctl enable --now sokar-mirror.service")
+                .contains("-p 127.0.0.1:5000:5000")
+                .contains("REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io")
+                .contains("docker.io/library/registry@sha256:" + "e".repeat(64));
+        // Named a mirror system-wide: rootless podman reads registries.conf.d, and so every account uses it.
+        assertThat(recipe).contains("/etc/containers/registries.conf.d/99-sokar-mirror.conf")
+                .contains("'location = \"127.0.0.1:5000\"' 'insecure = true'");
+        assertThat(recipe.indexOf("sokar-mirror.service")).as("the cache is up before anything is pulled")
+                .isLessThan(recipe.indexOf("podman pull"));
+    }
+
+    @Test
+    void refusesASnapshotWhoseCacheWasNotFilled() {
+        // Checked rather than assumed: pulls that went round the cache would ship it empty and say nothing.
+        assertThat(Snapshots.recipe("fedora", contents()))
+                .contains("grep -q '\"library/ubuntu\"' || { echo 'the image cache holds no library/ubuntu'; exit 1; }")
+                .contains("grep -q '\"library/alpine\"' || { echo 'the image cache holds no library/alpine'; exit 1; }");
+    }
+
+    @Test
     void takesTheJdkFromWhatThePomPins() {
         assertThat(Snapshots.recipe("ubuntu", contents()))
                 .contains("curl -fsSL https://github.example/graalvm-community-jdk-25i4_linux-x64_bin.tar.gz")
@@ -167,7 +192,8 @@ class SnapshotsTest {
         return Map.of("graalvm.version", "25.4.4.1.1", "graalvm.url", "https://github.example/graalvm-community-jdk-25i4_linux-x64_bin.tar.gz",
                 "graalvm.sha256", "b".repeat(64),
                 "image.ubuntu", "docker.io/library/ubuntu:24.04", "image.ubuntu.digest", UBUNTU,
-                "image.alpine", "docker.io/library/alpine:3.20", "image.alpine.digest", ALPINE);
+                "image.alpine", "docker.io/library/alpine:3.20", "image.alpine.digest", ALPINE,
+                "image.registry", "docker.io/library/registry:2", "image.registry.digest", "sha256:" + "e".repeat(64));
     }
 
     private static Snapshots.Contents contents() {

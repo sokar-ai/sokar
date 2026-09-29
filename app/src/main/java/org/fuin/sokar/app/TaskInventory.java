@@ -348,6 +348,21 @@ public final class TaskInventory {
         });
     }
 
+    /**
+     * Whether a task the restart took down needs its tokens from a vault that is locked right now.
+     * <p>
+     * Asked only for such a task, and only of the keyring - never by opening the vault - so a listing stays
+     * cheap: the answer an interface needs to offer unlocking before anybody presses Start.
+     *
+     * @param container The task's container.
+     * @return true when starting it would be refused until the vault is unlocked
+     */
+    private boolean needsLockedVault(String container) {
+        final boolean needsTokens = TaskHelpers.readFrom(context.paths().taskRecord(container)).helpers().stream()
+                .anyMatch(helper -> "gate".equals(helper.name()) || "vault".equals(helper.name()));
+        return needsTokens && context.vault().exists() && context.opener().isEmpty();
+    }
+
     private Task describe(ContainerSummary summary,
             Map<String, java.util.Set<String>> waitingCache) {
         final Sidecar sidecar = sidecarOf(summary.name());
@@ -394,7 +409,7 @@ public final class TaskInventory {
                 // The same test resume makes, and a directory check rather than a runtime call:
                 // a stopped task with no state directory was started before this machine
                 // restarted, and Start would refuse it. Said here so nobody learns it by pressing.
-                restartTookIt ? "RESUME"
+                restartTookIt ? (needsLockedVault(summary.name()) ? "NEEDS_VAULT" : "RESUME")
                         : !summary.running() && !Files.isDirectory(state) ? "PREDATES_RESTART"
                         : summary.running() ? "RUNNING" : "RESUME",
                 restartTookIt ? RESTARTED

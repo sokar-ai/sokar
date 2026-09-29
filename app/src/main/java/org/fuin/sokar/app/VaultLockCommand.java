@@ -51,8 +51,16 @@ public class VaultLockCommand implements Callable<Integer>, SokarFactory.Context
             return 0;
         }
 
-        final KernelKeyring.Forgotten forgotten =
+        // Both ways in, not only the passphrase: a device's share held here opens the vault as well, and
+        // forgetting the passphrase must not silently keep a device's way in. Measured: with a share held,
+        // 'lock' said "locked" while every command still opened the vault.
+        final KernelKeyring.Forgotten passphrase =
                 new KernelKeyring(context.paths().vaultKeyringKey()).forget();
+        final KernelKeyring.Forgotten share = VaultShare.forget(context.paths());
+        final KernelKeyring.Forgotten forgotten = passphrase == KernelKeyring.Forgotten.UNKNOWN
+                || share == KernelKeyring.Forgotten.UNKNOWN ? KernelKeyring.Forgotten.UNKNOWN
+                : passphrase == KernelKeyring.Forgotten.CLEARED || share == KernelKeyring.Forgotten.CLEARED
+                        ? KernelKeyring.Forgotten.CLEARED : KernelKeyring.Forgotten.NOTHING_CACHED;
         if (forgotten == KernelKeyring.Forgotten.UNKNOWN) {
             // Never reported as "nothing was cached": that is a claim about a secret nobody
             // checked, and the passphrase may still be sitting in the keyring.

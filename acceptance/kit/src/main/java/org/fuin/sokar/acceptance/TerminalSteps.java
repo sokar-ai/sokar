@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.cucumber.java.After;
 import io.cucumber.java.AfterAll;
+import io.cucumber.java.Scenario;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
@@ -48,7 +49,24 @@ public class TerminalSteps {
     }
 
     /**
-     * Closes the run's connection once every scenario has had it.
+     * Names the account a failed scenario ran under, in its report.
+     * <p>
+     * When features run in parallel, each under an account of its own, a failure caused by two accounts
+     * meeting - a port, a file under {@code /etc} - reads like one caused by the scenario itself, unless the
+     * report says which account it was and a second failure beside it names the other.
+     *
+     * @param scenario The scenario that ended.
+     */
+    @After
+    public void nameTheAccountOfAFailure(Scenario scenario) {
+        if (scenario.isFailed()) {
+            scenario.log("ran as account " + Accounts.forThisThread() + " on thread "
+                    + Thread.currentThread().getName());
+        }
+    }
+
+    /**
+     * Closes the run's connections once every scenario has had them.
      *
      * @throws IOException If it cannot be closed.
      */
@@ -74,14 +92,14 @@ public class TerminalSteps {
      * @throws IOException If the machine cannot be reached.
      */
     static void removeTheProjectsTheKitMade() throws IOException {
-        final java.util.List<String> made = World.takeProjects();
-        if (made.isEmpty()) {
-            return;
-        }
-        final Machine machine = Machine.shared();
-        for (final String name : made) {
-            machine.run("sokar project unfollow " + Shell.quote(name) + " --force");
-            machine.run("rm -rf -- ~/" + Shell.quote(name));
+        for (final var made : World.takeProjects().entrySet()) {
+            // As the account that made them, named rather than taken from the thread: this runs on
+            // whichever thread ends the run, which need not be one that held an account.
+            final Machine machine = Machine.forAccount(made.getKey());
+            for (final String name : made.getValue()) {
+                machine.run("sokar project unfollow " + Shell.quote(name) + " --force");
+                machine.run("rm -rf -- ~/" + Shell.quote(name));
+            }
         }
     }
 

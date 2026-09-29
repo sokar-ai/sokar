@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
 public final class Machine implements AutoCloseable {
 
     /**
-     * The connection every scenario in the run shares.
+     * The connections the run's scenarios share, one per account.
      * <p>
      * <strong>One connection, many channels.</strong> A connection per scenario meant one TCP
      * handshake and one key exchange per scenario - around eighty in two minutes - and CI's sshd
@@ -31,11 +31,11 @@ public final class Machine implements AutoCloseable {
      * connections and 15.7s before, 2 and 8.5s after. A terminal stays per scenario; that is a
      * channel on this connection, which is cheap.
      * <p>
-     * Cucumber has a scenario scope and the JVM, nothing between, so the run's connection lives
+     * Cucumber has a scenario scope and the JVM, nothing between, so the run's connections live
      * here as the JVM's scope, reached through {@link #shared()} and closed by an {@code AfterAll}.
-     * A {@link World} holds it as a member; nothing else touches the field.
+     * A {@link World} holds its account's as a member; nothing else touches the field.
      */
-    private static @org.jspecify.annotations.Nullable Machine shared;
+    private static final java.util.Map<String, Machine> OPEN = new java.util.LinkedHashMap<>();
 
     private final Ssh ssh;
 
@@ -46,41 +46,76 @@ public final class Machine implements AutoCloseable {
     private final Credential credential;
 
     /**
-     * Returns the run's connection, opening it the first time it is asked for.
+     * Returns the connection of the account the calling thread acts as, opening it the first time it is asked for.
+     * <p>
+     * One connection per account for the whole run: a connection per scenario got the suite refused by sshd.
+     * Which account a thread acts as is {@link Accounts}'; with one account, as an agent repository's run has,
+     * this is the run's one connection it always was.
      *
-     * @return The machine.
+     * @return The machine, as this thread's account.
      * @throws IOException If it cannot be reached or the key is refused.
      */
-    public static synchronized Machine shared() throws IOException {
-        if (shared == null) {
-            shared = new Machine();
-        }
-        return shared;
+    public static Machine shared() throws IOException {
+        return forAccount(Accounts.forThisThread());
     }
 
     /**
-     * Closes the run's connection, if one was opened.
+     * Returns one account's connection, opening it the first time it is asked for.
      *
-     * @throws IOException If it cannot be closed.
+     * @param user The account.
+     * @return The machine, as that account.
+     * @throws IOException If it cannot be reached or the key is refused.
+     */
+    public static synchronized Machine forAccount(String user) throws IOException {
+        Machine open = OPEN.get(user);
+        if (open == null) {
+            open = new Machine(user);
+            OPEN.put(user, open);
+        }
+        return open;
+    }
+
+    /**
+     * Closes every connection the run opened.
+     *
+     * @throws IOException If one cannot be closed; the others are closed all the same.
      */
     public static synchronized void closeShared() throws IOException {
-        if (shared != null) {
-            final Machine open = shared;
-            shared = null;
-            open.close();
+        final java.util.List<Machine> open = new java.util.ArrayList<>(OPEN.values());
+        OPEN.clear();
+        IOException failed = null;
+        for (final Machine machine : open) {
+            try {
+                machine.close();
+            } catch (IOException ex) {
+                failed = ex;
+            }
+        }
+        if (failed != null) {
+            throw failed;
         }
     }
 
     /**
-     * Connects to the machine the properties name.
+     * Connects to the machine the properties name, as the account they name.
      * <p>
      * A connection of its own; a scenario wants {@link #shared()} and never this.
      *
      * @throws IOException If it cannot be reached or the key is refused.
      */
     public Machine() throws IOException {
+        this(required("sokar.acceptance.user"));
+    }
+
+    /**
+     * Connects to the machine the properties name, as one account.
+     *
+     * @param user The account.
+     * @throws IOException If it cannot be reached or the key is refused.
+     */
+    public Machine(String user) throws IOException {
         this.host = required("sokar.acceptance.host");
-        this.user = required("sokar.acceptance.user");
+        this.user = user;
         this.credential = credential();
         this.ssh = Ssh.to(host, user, credential);
     }

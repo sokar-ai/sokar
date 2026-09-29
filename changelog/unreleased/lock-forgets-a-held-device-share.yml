@@ -1,0 +1,2 @@
+title: "'sokar vault lock' forgets a device's held share as well as the cached passphrase - it used to say 'locked' while a held share still opened the vault. 'Start' now says what it did or refused with on its final reply ('action': CREATE, RESUME, RUNNING, NEEDS_VAULT, PREDATES_RESTART), and 'List' answers NEEDS_VAULT for a task the restart took down while the vault is locked."
+type: fixed

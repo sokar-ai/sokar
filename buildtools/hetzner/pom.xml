@@ -37,6 +37,10 @@
         <machines.image.ubuntu.digest>sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3</machines.image.ubuntu.digest>
         <machines.image.alpine>docker.io/library/alpine:3.20</machines.image.alpine>
         <machines.image.alpine.digest>sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc</machines.image.alpine.digest>
+        <!-- The machine's image cache: a registry as a pull-through mirror of docker.io, so every account on a
+             leg pulls from the machine rather than from Docker Hub, and the snapshot ships it filled. -->
+        <machines.image.registry>docker.io/library/registry:2</machines.image.registry>
+        <machines.image.registry.digest>sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373</machines.image.registry.digest>
 
         <sokar.release.min-age>3d</sokar.release.min-age>
         <!-- GraalVM tags its builds graal-25.x beside the older jdk-25.0.x, and names the file after
@@ -55,6 +59,9 @@
         <sokar.release.pin.alpine-image.label>The alpine base image</sokar.release.pin.alpine-image.label>
         <sokar.release.pin.alpine-image.property>machines.image.alpine.digest</sokar.release.pin.alpine-image.property>
         <sokar.release.pin.alpine-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/alpine/tags/3.20</sokar.release.pin.alpine-image.upstream>
+        <sokar.release.pin.registry-image.label>The image cache's registry</sokar.release.pin.registry-image.label>
+        <sokar.release.pin.registry-image.property>machines.image.registry.digest</sokar.release.pin.registry-image.property>
+        <sokar.release.pin.registry-image.upstream>docker-hub https://hub.docker.com/v2/repositories/library/registry/tags/2</sokar.release.pin.registry-image.upstream>
     </properties>
 
     <dependencies>

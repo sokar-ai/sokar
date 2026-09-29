@@ -1004,10 +1004,12 @@ method Start(
   exitCode: ?int,
   # Everything that was printed, for a caller that did not ask to stream. Empty when it did.
   output: ?[]string,
-  # What it did, or the refusal it answered with. Set on the final reply.
+  # What it did, or the refusal it answered with. Set on the final reply: CREATE or RESUME for what
+  # it did; RUNNING, NEEDS_VAULT or PREDATES_RESTART for a refusal.
   #
-  # A refusal is an ordinary reply with this set and no container and no exitCode - not an error.
-  # NEEDS_VAULT in particular must arrive this way, or an interface cannot offer to unlock.
+  # A refusal is an ordinary reply, not an error, and carries container and exitCode like any
+  # other - the exit code is the refusal's. NEEDS_VAULT in particular arrives this way, so an
+  # interface can offer to unlock the vault rather than report a failure.
   action: ?StartAction,
   # How many recorded helpers were started, and how many the task is recorded as having had. Fewer
   # started than recorded is a partial start and an interface should say so. Absent when the task

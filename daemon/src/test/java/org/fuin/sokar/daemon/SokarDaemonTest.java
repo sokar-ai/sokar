@@ -152,6 +152,8 @@ class SokarDaemonTest {
 
                 assertThat(((Number) reply.get("exitCode")).intValue()).isEqualTo(69);
                 assertThat(reply).containsEntry("container", "sokar-uc-shell");
+                // The refusal named on the reply, as the contract says, not only in the text.
+                assertThat(reply).containsEntry("action", "PREDATES_RESTART");
                 @SuppressWarnings("unchecked")
                 final List<String> output = (List<String>) reply.get("output");
                 assertThat(String.join("\n", output))
@@ -209,6 +211,7 @@ class SokarDaemonTest {
                         Map.of("project", PROJECT, "task", "shell"));
 
                 assertThat(((Number) reply.get("exitCode")).intValue()).isEqualTo(65);
+                assertThat(reply).containsEntry("action", "RUNNING");
                 @SuppressWarnings("unchecked")
                 final List<String> output = (List<String>) reply.get("output");
                 assertThat(String.join("\n", output)).contains("is already running");

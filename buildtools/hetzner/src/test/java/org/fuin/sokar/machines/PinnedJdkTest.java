@@ -110,7 +110,8 @@ class PinnedJdkTest {
         return Snapshots.Contents.of(Map.of("graalvm.version", "25.4.4.1.1", "graalvm.url", URL,
                 "graalvm.sha256", sha256,
                 "image.ubuntu", "docker.io/library/ubuntu:24.04", "image.ubuntu.digest", "sha256:" + "c".repeat(64),
-                "image.alpine", "docker.io/library/alpine:3.20", "image.alpine.digest", "sha256:" + "d".repeat(64))::get);
+                "image.alpine", "docker.io/library/alpine:3.20", "image.alpine.digest", "sha256:" + "d".repeat(64),
+                "image.registry", "docker.io/library/registry:2", "image.registry.digest", "sha256:" + "e".repeat(64))::get);
     }
 
     /** A tarball shaped like GraalVM's: one top directory, the tools under bin/. */

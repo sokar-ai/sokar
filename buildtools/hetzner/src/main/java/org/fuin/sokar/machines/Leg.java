@@ -28,6 +28,14 @@ public final class Leg {
     /** The user a leg runs as: unprivileged, because that is the shape a task runs in. */
     private static final String USER = "build";
 
+    /** What the accounts beside the build user are called, numbered from 2. */
+    private static final String EXTRA = "accept";
+
+    /** The tag of a scenario that touches the whole machine - a restart - and so runs alone. */
+    private static final String MACHINE_WIDE = "@restart";
+
+    private static final String MACHINE_WIDE_EXCLUDED = "not " + MACHINE_WIDE;
+
     /**
      * How the product is built, named once and identical to what CI runs.
      * <p>
@@ -89,10 +97,12 @@ public final class Leg {
      * @param keep Whether to leave the machine running, to look at a failure.
      * @param into Where to put the built binaries, or {@code null} to leave them on the machine.
      * @param suite The repository to run the acceptance suite from, or {@code null} not to.
+     * @param accounts How many accounts run the suite's features beside each other; 1 runs them in order.
      * @throws IOException If any step fails, saying which.
      */
     public static void run(Machines hetzner, String os, List<String> types, Credential credential,
-            Path archive, boolean keep, @Nullable Path into, @Nullable Path suite) throws IOException {
+            Path archive, boolean keep, @Nullable Path into, @Nullable Path suite, int accounts) throws IOException {
+        final List<String> users = accounts(accounts);
         // root, so this run's key can be given to the build user. The image carries whatever key
         // built it, which is not the key a workflow holds - and a leg that assumed otherwise
         // waited five minutes for an ssh that was never going to be accepted. It passed locally
@@ -123,7 +133,7 @@ public final class Leg {
             // its machine is not a suite that can do anything else as root.
             step("letting the acceptance user restart the machine");
             run(lease.ssh(), "printf '%s ALL=(root) NOPASSWD: /usr/bin/systemd-run,"
-                    + " /usr/bin/systemctl, /sbin/reboot\\n' " + USER
+                    + " /usr/bin/systemctl, /sbin/reboot\\n' " + String.join(" ", users)
                     + " > /etc/sudoers.d/90-sokar-acceptance-reboot"
                     + " && chmod 0440 /etc/sudoers.d/90-sokar-acceptance-reboot"
                     + " && visudo -c -f /etc/sudoers.d/90-sokar-acceptance-reboot");
@@ -187,6 +197,16 @@ public final class Leg {
                     + " && PATH=$HOME/.local/bin:$PATH sokar doctor 2>&1 "
                     + "|| echo '(sokar doctor failed)'").all().strip());
 
+            if (users.size() > 1) {
+                step("preparing " + (users.size() - 1) + " more accounts, to run features beside each other");
+                for (final String extra : users.subList(1, users.size())) {
+                    run(lease.ssh(), prepare(extra));
+                    try (Ssh as = Ssh.to(lease.address(), extra, credential)) {
+                        run(as, "~/.local/bin/sokar setup");
+                    }
+                }
+            }
+
             if (into != null) {
                 step("fetching the binaries");
                 fetch(build, into);
@@ -194,7 +214,7 @@ public final class Leg {
 
             if (suite != null) {
                 step("what a person does at a terminal");
-                acceptance(suite, lease.address(), credential);
+                acceptance(suite, lease.address(), credential, users);
             }
 
             }
@@ -221,14 +241,45 @@ public final class Leg {
      * @param credential The key the suite connects with.
      * @throws IOException If the suite fails, or proves nothing.
      */
-    private static void acceptance(Path repository, String address, Credential credential)
+    private static void acceptance(Path repository, String address, Credential credential, List<String> users)
             throws IOException {
-        final ProcessBuilder maven = new ProcessBuilder("./mvnw", "-B",
+        if (users.size() == 1) {
+            // EVERY scenario - see suite(), which says why there is no filter at all.
+            suite(repository, address, credential, List.of());
+            return;
+        }
+        // Features beside each other, one account each, and then what touches the whole machine,
+        // alone and afterwards: a restart takes every account's daemon and connection with it, so
+        // it can neither run beside a feature nor between two scenarios of one. Which scenarios
+        // those are is their tag, in the feature, and not a list kept here.
+        suite(repository, address, credential, List.of(
+                "-Dsokar.acceptance.users=" + String.join(",", users),
+                "-Dsokar.acceptance.parallel=true",
+                "-Dsokar.acceptance.parallelism=" + users.size(),
+                "-Dcucumber.filter.tags=" + MACHINE_WIDE_EXCLUDED));
+        step("what touches the whole machine, alone");
+        suite(repository, address, credential, List.of("-Dcucumber.filter.tags=" + MACHINE_WIDE));
+    }
+
+    /**
+     * Runs the Cucumber suite once.
+     *
+     * @param repository Where to run Maven.
+     * @param address The machine.
+     * @param credential The key the suite connects with.
+     * @param options What this pass adds to the command line.
+     * @throws IOException If the suite fails, or proves nothing.
+     */
+    private static void suite(Path repository, String address, Credential credential, List<String> options)
+            throws IOException {
+        final List<String> command = new java.util.ArrayList<>(List.of("./mvnw", "-B",
                 "-pl", "acceptance/suite", "-am", "verify", "-s", "settings.xml",
                 "-Dsokar.acceptance.host=" + address,
                 "-Dsokar.acceptance.user=" + USER,
                 // The suite would otherwise look for a key file that CI deliberately does not have.
-                "-Dsokar.acceptance.key=unused-the-material-is-in-the-environment")
+                "-Dsokar.acceptance.key=unused-the-material-is-in-the-environment"));
+        command.addAll(options);
+        final ProcessBuilder maven = new ProcessBuilder(command)
                 // EVERY scenario, including @slow. Excluding them was reasonable - each builds a
                 // task image and that is minutes - and its consequence was not: the eleven they
                 // hide ran NOWHERE, in CI or anywhere else, and every green build reported them as
@@ -248,6 +299,8 @@ public final class Leg {
                 //
                 // No filter property at all rather than one that excludes nothing: a tag
                 // expression that is always true is a place for an exclusion to grow back.
+                // With several accounts, the two passes together are every scenario: the one
+                // filter there splits the suite, and excludes nothing from the whole.
                 .directory(repository.toFile()).inheritIO();
         maven.environment().put("SOKAR_ACCEPTANCE_KEY", credential.material());
         final int status;
@@ -261,6 +314,54 @@ public final class Leg {
             throw new IOException("the acceptance suite failed");
         }
         proved(repository.resolve("acceptance/suite/target/failsafe-reports"));
+    }
+
+    /**
+     * Names the accounts a leg runs its features under.
+     * <p>
+     * The first is the build user, which built and installed this run's Sokar and alone runs what
+     * touches the whole machine; the others are prepared as it was, and named so that nobody takes
+     * them for somebody's.
+     *
+     * @param count How many.
+     * @return The accounts, the build user first.
+     */
+    static List<String> accounts(int count) {
+        if (count < 1) {
+            throw new IllegalArgumentException("a leg needs at least one account, not " + count);
+        }
+        final List<String> users = new java.util.ArrayList<>(List.of(USER));
+        for (int at = 2; at <= count; at++) {
+            users.add(EXTRA + at);
+        }
+        return List.copyOf(users);
+    }
+
+    /**
+     * Prepares one more account exactly as the build user was prepared, as root.
+     * <p>
+     * Lingering, so its user manager and daemon survive between connections; subordinate ranges for
+     * rootless podman, which {@code useradd} assigns on both operating systems; this run's key; and the
+     * build user's install, copied rather than built again. Its images come from the machine's cache,
+     * so a fourth account costs a fourth copy of a few layers and nothing from the registry.
+     *
+     * @param user The account.
+     * @return The command.
+     */
+    static String prepare(String user) {
+        final String home = "/home/" + user;
+        final String from = "/home/" + USER;
+        return "id -u " + user + " >/dev/null 2>&1 || useradd -m -s /bin/bash " + user
+                + " && grep -q '^" + user + ":' /etc/subuid && grep -q '^" + user + ":' /etc/subgid"
+                + " && loginctl enable-linger " + user
+                + " && install -d -m 0700 -o " + user + " -g " + user + " " + home + "/.ssh"
+                + " && install -m 0600 -o " + user + " -g " + user + " /root/.ssh/authorized_keys "
+                + home + "/.ssh/authorized_keys"
+                + " && mkdir -p " + home + "/.local/share/sokar"
+                + " && cp -r " + from + "/.local/bin " + home + "/.local/"
+                + " && cp -r " + from + "/.local/share/sokar/agents " + from + "/.local/share/sokar/providers "
+                + from + "/.local/share/sokar/egress " + home + "/.local/share/sokar/"
+                + " && chown -R " + user + ":" + user + " " + home + "/.local";
     }
 
     /**

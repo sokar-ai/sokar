@@ -23,13 +23,27 @@ class TerminalStepsTest {
     }
 
     @Test
-    void remembersAProjectForTheWholeRunNotOneScenario() {
-        World.takeProjects();
-        new World().made("restarted");
-        new World().made("restarted");
+    void remembersAProjectForTheWholeRunNotOneScenarioUnderTheAccountThatMadeIt() {
+        // Whatever accounts the run was given - a leg gives the kit's own tests its accounts too.
+        final boolean named = System.getProperty("sokar.acceptance.user") != null
+                || System.getProperty(Accounts.USERS) != null;
+        if (!named) {
+            System.setProperty("sokar.acceptance.user", "operator");
+        }
+        try {
+            final String account = Accounts.forThisThread();
+            World.takeProjects();
+            new World().made("restarted");
+            new World().made("restarted");
 
-        assertThat(World.takeProjects()).as("a second scenario sharing the project names it once").containsExactly("restarted");
-        assertThat(World.takeProjects()).isEmpty();
+            assertThat(World.takeProjects()).as("a second scenario sharing the project names it once")
+                    .containsExactly(java.util.Map.entry(account, java.util.List.of("restarted")));
+            assertThat(World.takeProjects()).isEmpty();
+        } finally {
+            if (!named) {
+                System.clearProperty("sokar.acceptance.user");
+            }
+        }
     }
 
     @Test

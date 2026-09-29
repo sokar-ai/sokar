@@ -209,8 +209,21 @@ public final class TaskLaunch {
      * @param container Container name.
      * @param project Name of the project it belongs to.
      * @param code Exit code: 0 when it is up again, a refusal otherwise.
+     * @param action What Start did or refused with, in the contract's words - {@code RESUME}, {@code RUNNING},
+     *        {@code NEEDS_VAULT} or {@code PREDATES_RESTART} - or {@code null} for a refusal that has no word there.
      */
-    public record Existing(String container, String project, int code) {
+    public record Existing(String container, String project, int code, @Nullable String action) {
+
+        /**
+         * Constructor for a refusal the contract names no action for.
+         *
+         * @param container Container name.
+         * @param project Project name.
+         * @param code Exit code.
+         */
+        public Existing(String container, String project, int code) {
+            this(container, project, code, null);
+        }
     }
 
     /**
@@ -279,13 +292,21 @@ public final class TaskLaunch {
             err.println("sokar: " + container + " is already running");
             err.println("       go into it with 'sokar task attach " + container + "'.");
             err.flush();
-            return new Existing(container, project.name(), 65);
+            return new Existing(container, project.name(), 65, "RUNNING");
         }
 
         // Its workspace, its branch and its uncommitted changes are all in that container. What
         // has to be started again is everything that lives on the host, which is what resume does.
+        final TaskControl.Resumed resumed = new TaskControl(context).resume(container);
         return new Existing(container, project.name(),
-                TaskResumeCommand.resume(context, container, out, err, null));
+                TaskResumeCommand.render(resumed, container, out, err, null), switch (resumed.outcome()) {
+                    case NEEDS_VAULT -> "NEEDS_VAULT";
+                    // Neither can come back; the contract has one word for a task that cannot.
+                    case PREDATES_RESTART, TOKENS_NOT_KEPT -> "PREDATES_RESTART";
+                    case ALREADY_RUNNING -> "RUNNING";
+                    case RESUMED, NO_HELPERS_RECORDED, HELPERS_INCOMPLETE -> "RESUME";
+                    default -> null;
+                });
     }
 
     /**

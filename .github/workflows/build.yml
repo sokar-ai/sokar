@@ -69,9 +69,8 @@ jobs:
               -Dmdep.outputFile=target/cp.txt
 
       # HETZNER_API and HETZNER_SSH come from the environment; the key goes to an agent, never a file.
-      # '--type ccx33,cpx42': a measurement against the default cpx42 - dedicated cores, dearer - with
-      # cpx42 behind it so a ccx33 shortage costs the comparison rather than the leg. The log's
-      # 'creating ...: <type>' line says which one the leg ran on.
+      # Four accounts run the features beside each other, and a restart runs alone afterwards: the
+      # scenarios mostly wait, so a faster machine did not shorten them and doing four at once does.
       - name: Build, install and run the acceptance suite on ${{ matrix.os }}
         env:
           HETZNER_API: ${{ secrets.HETZNER_API }}
@@ -80,7 +79,7 @@ jobs:
           SOKAR_CI_LEG: ${{ matrix.os }}
         run: |
           java -cp "buildtools/hetzner/target/classes:$(cat buildtools/hetzner/target/cp.txt)" \
-              org.fuin.sokar.machines.Main leg --os ${{ matrix.os }} --repo . --acceptance --type ccx33,cpx42 \
+              org.fuin.sokar.machines.Main leg --os ${{ matrix.os }} --repo . --acceptance --accounts 4 \
               ${{ matrix.os == 'ubuntu' && '--fetch binaries' || '' }}
 
       # Only the ubuntu leg: a native image links glibc, so one built on Fedora will not start here.

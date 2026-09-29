@@ -79,9 +79,22 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
      */
     static int resume(SokarContext context, String container, PrintWriter out, PrintWriter err,
             @org.jspecify.annotations.Nullable Suggests suggests) {
-
         // Decided by TaskControl, which the daemon calls too. This renders, and nothing else.
-        final TaskControl.Resumed result = new TaskControl(context).resume(container);
+        return render(new TaskControl(context).resume(container), container, out, err, suggests);
+    }
+
+    /**
+     * Renders what resuming a task did.
+     *
+     * @param result What TaskControl decided.
+     * @param container Container name.
+     * @param out Where the outcome is written.
+     * @param err Where a refusal is written.
+     * @param suggests Command to offer names from when the name was wrong, or {@code null}.
+     * @return Exit code.
+     */
+    static int render(TaskControl.Resumed result, String container, PrintWriter out, PrintWriter err,
+            @org.jspecify.annotations.Nullable Suggests suggests) {
 
         switch (result.outcome()) {
             case NOT_A_TASK -> {

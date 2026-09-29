@@ -89,4 +89,29 @@ class LegTest {
                 .doesNotContain("GITHUB_RUN_ID")
                 .doesNotContain("sokar.snapshot.run");
     }
+
+    @Test
+    void oneAccountIsTheBuildUserAsAlways() {
+        assertThat(Leg.accounts(1)).containsExactly("build");
+    }
+
+    @Test
+    void moreAccountsAreNamedSoNobodyTakesThemForSomebodys() {
+        assertThat(Leg.accounts(4)).containsExactly("build", "accept2", "accept3", "accept4");
+        assertThatThrownBy(() -> Leg.accounts(0)).hasMessageContaining("at least one account");
+    }
+
+    @Test
+    void anExtraAccountIsPreparedAsTheBuildUserWas() {
+        final String command = Leg.prepare("accept2");
+
+        // Lingering, subordinate ranges for rootless podman, this run's key, and the build user's install.
+        assertThat(command).contains("useradd -m -s /bin/bash accept2")
+                .contains("grep -q '^accept2:' /etc/subuid")
+                .contains("loginctl enable-linger accept2")
+                .contains("/root/.ssh/authorized_keys /home/accept2/.ssh/authorized_keys")
+                .contains("cp -r /home/build/.local/bin /home/accept2/.local/")
+                .contains("/home/build/.local/share/sokar/providers")
+                .endsWith("chown -R accept2:accept2 /home/accept2/.local");
+    }
 }

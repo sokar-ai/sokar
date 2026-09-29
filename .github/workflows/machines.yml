@@ -62,7 +62,7 @@ jobs:
           failed=0
           moved=""
           answers=""
-          for pin in graalvm ubuntu-image alpine-image; do
+          for pin in graalvm ubuntu-image alpine-image registry-image; do
               if ! answer=$(release upstream-version --pom buildtools/hetzner/pom.xml --pin "$pin"); then
                   echo "::error::could not tell whether $pin has moved"
                   failed=1

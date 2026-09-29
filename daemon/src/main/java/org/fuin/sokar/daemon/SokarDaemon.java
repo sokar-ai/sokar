@@ -787,6 +787,8 @@ public final class SokarDaemon {
             // CLI makes first, so a stopped task answers the same over the socket as at a terminal.
             final TaskLaunch.Existing existing = launch.startExisting(sink, sink);
             final int code;
+            // What Start did, or the refusal it answered with - on the final reply, as the contract says.
+            final String action = existing == null ? "CREATE" : existing.action();
             if (existing != null) {
                 started.set(existing.container());
                 // Brought back with a prompt, it runs - continuing its session where the agent can - as a
@@ -812,9 +814,14 @@ public final class SokarDaemon {
             // The one trace a start leaves on the machine: what was output went to the caller only.
             final String container = java.util.Objects.requireNonNullElse(started.get(), "");
             System.out.println(startLine(text(parameters, "task"), container, code));
-            replies.last(Map.of("container", container, "exitCode", code,
-                    "output", replies.streaming() ? List.of()
-                            : List.of(collected.toString().split("\n", -1))));
+            final Map<String, Object> reply = new LinkedHashMap<>();
+            reply.put("container", container);
+            reply.put("exitCode", code);
+            reply.put("output", replies.streaming() ? List.of() : List.of(collected.toString().split("\n", -1)));
+            if (action != null) {
+                reply.put("action", action);
+            }
+            replies.last(reply);
         });
 
         // ------------------------------------------------------------- clearance prompts

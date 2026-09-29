@@ -262,6 +262,7 @@ class PinTest {
         assertThat(Pin.of(machines, "graalvm").url()).isEqualTo("machines.graalvm.url");
         assertThat(Pin.of(machines, "ubuntu-image").pinned()).startsWith("sha256:");
         assertThat(Pin.of(machines, "alpine-image").pinned()).startsWith("sha256:");
+        assertThat(Pin.of(machines, "registry-image").pinned()).startsWith("sha256:");
         assertThat(machines.optional(Release.PREFIX + "min-age")).isEqualTo("3d");
     }
 
