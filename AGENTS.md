@@ -1275,6 +1275,17 @@ one copy.
   agent". A rule keeps its reason, stated so that it stays true. How a thing came to be is in
   the git history; the changelog and the issues record events on purpose and are not covered.
   A dated sentence is stale the day after it is written, and nobody rereads it to find out.
+- **What a build runs is pinned, and moved only by review.** Every `uses:` names a commit with
+  its version beside it (`@<sha> # vX.Y.Z`), GitHub's own actions included; a JDK, a Maven
+  and an image are taken by version and checked against their digest, and the JDK comes from
+  `sokar-machines jdk --github`, never from a setup action that fetches one by its version
+  name. A tag or a branch is a name its owner may repoint, so what was reviewed and what runs
+  would differ. Dependabot moves the actions: `github-actions`, weekly, `cooldown:
+  default-days: 3`, every update in one group, watching `/` and `/.github/actions/*`, and
+  nothing merged automatically - the review is the point of a pin. `sokar-release
+  check-actions`, run in the build, refuses what breaks this, and no repository keeps a second
+  test for it. One pull request per update would be one CI run per update, and a release
+  younger than three days is not taken, as with every other pin here.
 
 ## Security rules that are not negotiable
 
