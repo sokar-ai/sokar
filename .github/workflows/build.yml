@@ -27,6 +27,10 @@ jobs:
   build:
     name: Build and unit tests
     runs-on: ubuntu-latest
+    # To cancel this run's legs when it fails, and nothing else.
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v7
 
@@ -41,12 +45,88 @@ jobs:
       - name: Every FFM downcall the tests made is registered
         run: ./mvnw -B -s settings.xml -Pnative,ffm-check -Dagent=true -pl buildtools/ffm-check,core,shield,vault -am verify
 
-  # Only what has landed on main, plus a manual run.
+      # The legs start beside this job rather than after it, and each rents a machine for about a
+      # quarter of an hour. A commit that fails here is not worth that: the run is cancelled, and each
+      # leg's clean-up, which runs on cancellation too, deletes what it created. Only where legs run.
+      - name: Stop the legs of a commit that failed here
+        if: failure() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+
+  # Only when a change that landed on main moved what a snapshot is made of - the pom changes for
+  # other reasons too. Beside the unit tests, and before the legs, which take the newest snapshot: a
+  # leg that started while its snapshot was being rebuilt booted the old one.
+  snapshots:
+    name: Snapshot - ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, fedora]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Across everything the push brought, not only its last commit.
+      - name: Did a pin move?
+        id: moved
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          base="$BEFORE"
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base=HEAD~1; fi
+          if git diff "$base" HEAD -- buildtools/hetzner/pom.xml | grep -Eq '^[-+][[:space:]]*<machines\.'; then
+              echo "moved=yes" >> "$GITHUB_OUTPUT"
+          else
+              echo "moved=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: The pinned GraalVM
+        if: steps.moved.outputs.moved == 'yes'
+        uses: ./.github/actions/pinned-jdk
+
+      - name: Build the machine tooling
+        if: steps.moved.outputs.moved == 'yes'
+        run: |
+          ./mvnw -B -q -s settings.xml -pl buildtools/hetzner -am install -DskipTests
+          ./mvnw -B -q -s settings.xml -pl buildtools/hetzner dependency:build-classpath \
+              -Dmdep.outputFile=target/cp.txt
+
+      # Proven by building the product on it before it is taken.
+      - name: Build the ${{ matrix.os }} snapshot
+        if: steps.moved.outputs.moved == 'yes'
+        env:
+          HETZNER_API: ${{ secrets.HETZNER_API }}
+          HETZNER_SSH: ${{ secrets.HETZNER_SSH }}
+          SOKAR_CI_LEG: snapshot-${{ matrix.os }}
+        run: |
+          java -cp "buildtools/hetzner/target/classes:$(cat buildtools/hetzner/target/cp.txt)" \
+              org.fuin.sokar.machines.Main snapshot --os ${{ matrix.os }} --repo .
+
+      - name: Delete what this run created
+        if: always() && steps.moved.outputs.moved == 'yes'
+        env:
+          HETZNER_API: ${{ secrets.HETZNER_API }}
+          SOKAR_CI_LEG: snapshot-${{ matrix.os }}
+        run: |
+          java -cp "buildtools/hetzner/target/classes:$(cat buildtools/hetzner/target/cp.txt)" \
+              org.fuin.sokar.machines.Main sweep --mine
+
+  # Only what has landed on main, plus a manual run - after the snapshots, rebuilt or not, and beside
+  # the unit tests rather than after them: a leg builds the product on its own machine from the same
+  # commit and needs nothing they make. Waiting for them cost 4.5 minutes of every run. A manual run
+  # rebuilds no snapshot, so it waits for nothing.
   legs:
     name: Leg - ${{ matrix.os }}
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: [snapshots]
+    if: >-
+      always()
+      && (needs.snapshots.result == 'success' || needs.snapshots.result == 'skipped')
+      && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
 
     strategy:
       # One leg failing must not cancel the other - which of them fails is usually the finding.
@@ -120,12 +200,17 @@ jobs:
           gpg_private_key: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
 
-      # Built and installed here, published further down. Nothing reaches Central or Artifactory
-      # until every check below has passed: a check that runs after one half is published can only
-      # ever ship that half. On 2026-09-11 it did exactly that - the jars went out, the check went
-      # red, and Central held a kit that no published CLI matched.
+      # Installed here, published further down. Nothing reaches Central or Artifactory until every
+      # check below has passed: a check that runs after one half is published can only ever ship that
+      # half. On 2026-09-11 it did exactly that - the jars went out, the check went red, and Central
+      # held a kit that no published CLI matched.
+      #
+      # Plain jars, for the packaging to resolve, and nothing else. The unit tests passed in this
+      # run, on this commit, before this job could start; javadoc was built there too. The signed
+      # jars are built once, by the step that publishes them - this step used to build them as well,
+      # 4m10s with the tests, and the deploy then built them again.
       - name: Build and install
-        run: ./mvnw -B clean install -Pcentral-sonatype-release -s settings.xml
+        run: ./mvnw -B clean install -s settings.xml -DskipTests -Dmaven.javadoc.skip=true -Dmaven.source.skip=true
 
 
       # The binaries come from the ubuntu acceptance leg rather than being rebuilt here, for two reasons.

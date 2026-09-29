@@ -6,13 +6,11 @@ on:
   # Daily: a release becomes old enough on a day of its own, not on the day it was published.
   schedule:
     - cron: '17 5 * * *'
-  # A merged move rebuilds the snapshots from what it pins.
-  push:
-    branches: [main]
-    paths: ['buildtools/hetzner/pom.xml']
+  # Merging the pull request it opens rebuilds the snapshots in Build, before its legs boot them:
+  # one run per push, and no leg racing a rebuild.
   workflow_dispatch:
 
-# Never two at once: two refreshes would open the same pull request, two rebuilds rent twice.
+# Never two at once: two refreshes would open the same pull request.
 concurrency:
   group: ${{ github.workflow }}
 
@@ -23,7 +21,6 @@ jobs:
   # is too young.
   refresh:
     name: Ask upstream
-    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -99,57 +96,3 @@ jobs:
               gh pr create --base main --head "$branch" --title "$title" --body "$body"
           fi
           exit "$failed"
-
-  # Only when a merged change moved what a snapshot is made of: the pom changes for other reasons too.
-  snapshots:
-    name: Snapshot - ${{ matrix.os }}
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu, fedora]
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 2
-
-      - name: Did a pin move?
-        id: moved
-        run: |
-          if git diff HEAD~1 HEAD -- buildtools/hetzner/pom.xml | grep -Eq '^[-+][[:space:]]*<machines\.'; then
-              echo "moved=yes" >> "$GITHUB_OUTPUT"
-          else
-              echo "moved=no" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: The pinned GraalVM
-        if: steps.moved.outputs.moved == 'yes'
-        uses: ./.github/actions/pinned-jdk
-
-      - name: Build the machine tooling
-        if: steps.moved.outputs.moved == 'yes'
-        run: |
-          ./mvnw -B -q -s settings.xml -pl buildtools/hetzner -am install -DskipTests
-          ./mvnw -B -q -s settings.xml -pl buildtools/hetzner dependency:build-classpath \
-              -Dmdep.outputFile=target/cp.txt
-
-      # Proven by building the product on it before it is taken; a leg takes the newest snapshot.
-      - name: Build the ${{ matrix.os }} snapshot
-        if: steps.moved.outputs.moved == 'yes'
-        env:
-          HETZNER_API: ${{ secrets.HETZNER_API }}
-          HETZNER_SSH: ${{ secrets.HETZNER_SSH }}
-          SOKAR_CI_LEG: snapshot-${{ matrix.os }}
-        run: |
-          java -cp "buildtools/hetzner/target/classes:$(cat buildtools/hetzner/target/cp.txt)" \
-              org.fuin.sokar.machines.Main snapshot --os ${{ matrix.os }} --repo .
-
-      - name: Delete what this run created
-        if: always() && steps.moved.outputs.moved == 'yes'
-        env:
-          HETZNER_API: ${{ secrets.HETZNER_API }}
-          SOKAR_CI_LEG: snapshot-${{ matrix.os }}
-        run: |
-          java -cp "buildtools/hetzner/target/classes:$(cat buildtools/hetzner/target/cp.txt)" \
-              org.fuin.sokar.machines.Main sweep --mine
