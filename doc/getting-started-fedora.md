@@ -323,24 +323,13 @@ Code takes an API key or a subscription OAuth token; say which when you store it
 
 ## 4. Describe your project
 
-**You do not have to write this file.** `sokar task start` in a directory without one offers
-to write it, taking the project name from the directory and Enter for every default:
+**You write this file, in the repository your code lives in, and commit it.** Sokar writes no
+project file anywhere: a machine gets it by following that repository (section 5), and a task
+start in a directory without one does nothing to change that. Only `name`, `security_class` and
+`base_image` are required.
 
-```
-No project definition here yet. One line each, Enter takes the default.
-
-  project name [my-project]:
-  security class (offline/guarded/online) [guarded]:
-  base image [ubuntu:24.04]:
-
-Write project.yml? [Y/n]
-```
-
-It only asks when there is a terminal to answer from. A script that lands here without a
-project file is more likely in the wrong directory than wanting one written, so it gets an
-error saying where to run this instead.
-
-`project.yml` is an ordinary file beside your code, and everything in it can be changed:
+`project.yml` sits at the root of that repository, beside your code, and everything in it can be
+changed - by a commit, which every machine following the project picks up:
 
 ```yaml
 project:
@@ -602,6 +591,32 @@ sokar gate approve shell --upstream git@github.com:you/myproject.git
 `approve` is the only command that sends anything anywhere, and it needs the
 upstream named. It refuses outright in an `offline` project. `--branch` picks the
 upstream branch; the default is `main`.
+
+### Working alone, with no forge
+
+**Your code's own repository on this machine can be the whole setup.** Commit `project.yml` into
+it - it is then the project's own repository - follow that path, and work:
+
+```
+sokar project follow myproject ~/myproject --signed-by "ssh-ed25519 AAAA..."   # or --unverified
+sokar task start --project myproject --repository myproject
+```
+
+**Approved work goes back into that same repository, on a branch of its own:**
+
+```
+sokar gate approve shell --upstream ~/myproject --branch sokar/shell
+git -C ~/myproject merge sokar/shell      # when you want it on your branch
+```
+
+Measured, and what refuses on the way (`project-solo.feature`):
+
+- **With no upstream at all** - none in `project.yml`, none named - `approve` refuses: "No upstream
+  is configured for this project". Nothing leaves the gate.
+- **Onto the branch you have checked out** there, git itself refuses: a repository with a working
+  copy does not let a push move the branch under your feet. Approve onto a branch of its own, as
+  above, and merge it yourself; the work stays pending in the gate until one approve succeeds.
+- `upstream: "/home/you/myproject"` in `project.yml` saves naming it each time.
 
 ## When something is blocked
 

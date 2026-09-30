@@ -133,7 +133,10 @@ public final class TaskSecrets {
         try {
             context.vault().update(opener.get(), entries -> {
                 final Map<String, VaultEntry> updated = new LinkedHashMap<>(entries);
-                updated.keySet().removeIf(name -> reserved(name) && !existing.contains(owner(name)));
+                // Only a task's own entries, whose owner is a container: a grant or a transport's secrets are the
+                // account's, owned by no task. Pruning every reserved name took them too, at every task start
+                // (found by Agent Frontend, 2026-09-30: the transport's provisioning token gone).
+                updated.keySet().removeIf(name -> name.startsWith(PREFIX) && !existing.contains(owner(name)));
                 put(updated, container + GATE, tokens.gate());
                 put(updated, container + PROVIDER, tokens.provider());
                 tokens.routes().forEach((name, token) -> put(updated, container + ROUTE + name, token));

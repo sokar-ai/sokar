@@ -151,6 +151,37 @@ class TaskStateTest {
     }
 
     @Test
+    void keepingATasksTokensPrunesGoneTasksOnlyAndNeverTheAccountsGrantsOrTransportSecrets() throws IOException {
+
+        // Found by Agent Frontend: every task start pruned every reserved name whose "owner" was no running
+        // container - and a grant or a transport's secrets are owned by no task, so they went every time.
+        org.junit.jupiter.api.Assumptions.assumeTrue(org.fuin.sokar.vault.KernelKeyring.available(),
+                "libkeyutils is not installed");
+        final SokarContext context = context();
+        final char[] passphrase = "correct horse battery staple".toCharArray();
+        final org.fuin.sokar.vault.KernelKeyring keyring =
+                new org.fuin.sokar.vault.KernelKeyring(context.paths().vaultKeyringKey());
+        try {
+            Files.createDirectories(context.vault().path().getParent());
+            context.vault().write(Map.of(
+                    TaskSecrets.GRANT_PREFIX + "forge-app", org.fuin.sokar.vault.VaultEntry.of("rt-1"),
+                    TaskSecrets.TRANSPORT_PREFIX + "matrix/account", org.fuin.sokar.vault.VaultEntry.of("{}"),
+                    TaskSecrets.PREFIX + "sokar-p-gone/gate-token", org.fuin.sokar.vault.VaultEntry.of("old"),
+                    "anthropic", org.fuin.sokar.vault.VaultEntry.of("sk-1")), passphrase);
+            keyring.store(passphrase);
+
+            assertThat(new TaskSecrets(context).keep(TASK, new TaskSecrets.Tokens(GATE_TOKEN, null),
+                    java.util.Set.of(TASK))).isEmpty();
+
+            assertThat(context.vault().read(passphrase)).containsKeys(TaskSecrets.GRANT_PREFIX + "forge-app",
+                    TaskSecrets.TRANSPORT_PREFIX + "matrix/account", "anthropic")
+                    .as("a task that is gone").doesNotContainKey(TaskSecrets.PREFIX + "sokar-p-gone/gate-token");
+        } finally {
+            keyring.forget();
+        }
+    }
+
+    @Test
     void aLockedVaultKeepsNothingAndSaysTheTaskCannotComeBack() {
         final String said = new TaskSecrets(context()).keep(TASK, new TaskSecrets.Tokens(GATE_TOKEN, null),
                 java.util.Set.of(TASK));
