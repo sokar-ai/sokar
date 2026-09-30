@@ -169,6 +169,7 @@ its container name.
 | `sokar talk pass TASK` | Moves the task's messages along once, rather than waiting for the daemon. |
 | `sokar talk verify TASK` | Walks the task's message record and names the first entry that does not check out. |
 | `sokar talk key [--as=PRINCIPAL] [--publish]` | Prints this machine's signing key as a peer's `allowed_signers` line. |
+| `sokar talk join PROJECT PERSON [--reset]` | Lets a person into a project's conversation - its room on a transport that keeps one - with an account made for them, and shows the login once. `--reset` gives an existing account a new password. |
 
 **Read before you release.** A held message is waiting for a decision, and `talk read` is how that
 decision is about what the message says: it shows the text exactly as written, with every control

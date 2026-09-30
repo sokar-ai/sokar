@@ -12,8 +12,19 @@ import java.util.regex.Pattern;
  * else. That is what keeps a container from learning where anything is.
  *
  * @param peers Who this project's tasks may address, in the order the file names them.
+ * @param transports What the project says to each transport under {@code mail.transports.<scheme>}, as it
+ *        is written: Sokar reads none of it and hands it to the transport, whose settings they are.
  */
-public record Mail(List<Peer> peers) {
+public record Mail(List<Peer> peers, java.util.Map<String, Object> transports) {
+
+    /**
+     * Constructor for a project that says nothing to any transport.
+     *
+     * @param peers Who this project's tasks may address.
+     */
+    public Mail(List<Peer> peers) {
+        this(peers, java.util.Map.of());
+    }
 
     /**
      * A name a task uses, and what the host resolves it to.
@@ -78,6 +89,10 @@ public record Mail(List<Peer> peers) {
         // peer name. The rest of an address is whatever that transport understands.
         private static final Pattern ADDRESS = Pattern.compile("([a-z0-9][a-z0-9-]*):(.+)");
 
+        // "<transport>:" with nothing after the colon: the project's own conversation on a transport that
+        // makes one - its room, say - which nobody can name before the transport has made it.
+        private static final Pattern CONVERSATION = Pattern.compile("[a-z0-9][a-z0-9-]*:");
+
         /**
          * Constructor with checks.
          *
@@ -90,7 +105,7 @@ public record Mail(List<Peer> peers) {
                 throw new ProjectException("A peer name is letters, digits, dash, underscore, dot"
                         + " and at sign, starting with a letter or digit: " + name);
             }
-            if (address == null || !ADDRESS.matcher(address).matches()) {
+            if (address == null || !ADDRESS.matcher(address).matches() && !CONVERSATION.matcher(address).matches()) {
                 throw new ProjectException("A peer's address is '<transport>:<address>', got: "
                         + address);
             }
@@ -120,6 +135,15 @@ public record Mail(List<Peer> peers) {
         public String destination() {
             return address.substring(address.indexOf(':') + 1);
         }
+
+        /**
+         * Returns whether this peer is reached through the project's own conversation on its transport.
+         *
+         * @return true for {@code <transport>:} with nothing after the colon.
+         */
+        public boolean conversation() {
+            return destination().isEmpty();
+        }
     }
 
     /**
@@ -129,6 +153,17 @@ public record Mail(List<Peer> peers) {
      */
     public static Mail none() {
         return new Mail(List.of());
+    }
+
+    /**
+     * Returns the transports whose conversation a peer of this project is reached through.
+     *
+     * @return Their schemes, in the order the peers name them.
+     */
+    public java.util.Set<String> conversations() {
+        final java.util.Set<String> schemes = new java.util.LinkedHashSet<>();
+        peers.stream().filter(Peer::conversation).forEach(peer -> schemes.add(peer.transport()));
+        return schemes;
     }
 
     /**

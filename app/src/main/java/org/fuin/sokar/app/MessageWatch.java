@@ -125,6 +125,27 @@ public final class MessageWatch implements AutoCloseable {
             // and the next tick tries again.
             return 0;
         }
+        // Every project's conversation first, once, so what arrived there is in each task's inbound before
+        // that task's pass delivers.
+        final TransportConversations conversations =
+                new TransportConversations(context, pass.transports());
+        final List<TransportConversations.Member> members = new ArrayList<>();
+        final java.util.Map<String, String> projects = new java.util.LinkedHashMap<>();
+        for (final Path mailbox : mailboxes) {
+            final String container = mailbox.getFileName().toString();
+            final String project = projectOf(container);
+            if (project == null) {
+                continue;
+            }
+            projects.put(container, project);
+            for (final String scheme : peersOf(container).conversations()) {
+                members.add(new TransportConversations.Member(container, new Mailbox(mailbox), project, scheme));
+            }
+        }
+        say(conversations.pass(members).failures());
+        pass.acting((transport, container) -> projects.get(container) == null ? null
+                : conversations.acting(transport, projects.get(container), container));
+
         int moved = 0;
         for (final Path mailbox : mailboxes) {
             try {
@@ -275,6 +296,23 @@ public final class MessageWatch implements AutoCloseable {
      * @param container The container.
      * @return Its project's name.
      */
+    /**
+     * Says what a conversation could not do, once per sentence: a transport that is misconfigured stays so
+     * until somebody fixes it, and saying it every minute buries everything else.
+     *
+     * @param failures What went wrong this pass.
+     */
+    private void say(final List<String> failures) {
+        for (final String failure : failures) {
+            if (reported.add(failure)) {
+                System.err.println("sokard: " + failure);
+            }
+        }
+        reported.retainAll(failures);
+    }
+
+    private final java.util.Set<String> reported = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private @Nullable String projectOf(final String container) {
         for (final ProjectInventory.Summary summary : new ProjectInventory(context).projects()) {
             if (container.startsWith("sokar-" + summary.name() + "-")) {
@@ -335,13 +373,17 @@ public final class MessageWatch implements AutoCloseable {
             if (sibling == null || written.contains(sibling)) {
                 continue;
             }
-            // The local transport takes the absolute path of the recipient's inbound directory and
-            // derives nothing itself - the host holds the peer table, which is this method.
+            // A project with a conversation of its own - a room - talks through it, its own tasks too: a
+            // person in it sees what the tasks say to each other. Otherwise the local transport takes the
+            // absolute path of the recipient's inbound directory and derives nothing itself - the host
+            // holds the peer table, which is this method.
+            final java.util.Set<String> conversations = project.mail().conversations();
             peers.add(new org.fuin.sokar.core.project.Mail.Peer(sibling,
-                    "local:" + new Mailbox(context.paths().mailbox(name)).inbound(),
+                    conversations.isEmpty() ? "local:" + new Mailbox(context.paths().mailbox(name)).inbound()
+                            : conversations.iterator().next() + ":",
                     org.fuin.sokar.core.project.Mail.Peer.VOUCHED));
         }
-        return new Mail(List.copyOf(peers));
+        return new Mail(List.copyOf(peers), project.mail().transports());
     }
 
     private List<Path> mailboxes() {

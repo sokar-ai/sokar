@@ -15,6 +15,6 @@ import picocli.CommandLine.Command;
         subcommands = { TalkPeersCommand.class, TalkPassCommand.class, TalkHeldCommand.class,
                 TalkReadCommand.class, TalkReleaseCommand.class, TalkHoldCommand.class,
                 TalkVerifyCommand.class, TalkSayCommand.class,
-                TalkKeyCommand.class })
+                TalkKeyCommand.class, TalkJoinCommand.class })
 public class TalkCommand {
 }

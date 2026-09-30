@@ -20,12 +20,27 @@ import org.fuin.sokar.wire.Json;
  * @param scheme The part before the colon in a peer's address.
  * @param polls Whether {@code poll} is worth calling at all.
  * @param attests What it proves about a message it hands over. Empty for one that carries bytes.
+ * @param confirms How far it can confirm a message: {@code handover}, {@code receipt} or {@code read}.
+ * @param lifecycle The lifecycle verbs it offers - {@code setup}, {@code enroll}, {@code retire},
+ *        {@code join} - empty for a transport that keeps no conversation of its own.
  */
-public record TransportDescription(String scheme, boolean polls, List<String> attests) {
+public record TransportDescription(String scheme, boolean polls, List<String> attests, String confirms,
+        List<String> lifecycle) {
 
     /** What is assumed of a transport that cannot be asked: the least, so nothing is granted. */
     public static final TransportDescription UNKNOWN =
-            new TransportDescription("", false, List.of());
+            new TransportDescription("", false, List.of(), "", List.of());
+
+    /**
+     * Constructor for a transport with no lifecycle, the shape before transports kept a conversation.
+     *
+     * @param scheme The part before the colon in a peer's address.
+     * @param polls Whether {@code poll} is worth calling at all.
+     * @param attests What it proves about a message it hands over.
+     */
+    public TransportDescription(String scheme, boolean polls, List<String> attests) {
+        this(scheme, polls, attests, "", List.of());
+    }
 
     /**
      * Asks a transport to describe itself.
@@ -50,9 +65,12 @@ public record TransportDescription(String scheme, boolean polls, List<String> at
             if (Json.parse(result.standardOutput()) instanceof Map<?, ?> said) {
                 final List<String> attests = said.get("attests") instanceof List<?> listed
                         ? listed.stream().map(String::valueOf).toList() : List.of();
+                final List<String> lifecycle = said.get("lifecycle") instanceof List<?> verbs
+                        ? verbs.stream().map(String::valueOf).toList() : List.of();
                 return new TransportDescription(
                         said.get("scheme") instanceof String scheme ? scheme : "",
-                        Boolean.TRUE.equals(said.get("poll")), attests);
+                        Boolean.TRUE.equals(said.get("poll")), attests,
+                        said.get("confirms") instanceof String confirms ? confirms : "", lifecycle);
             }
         } catch (final RuntimeException ex) {
             return UNKNOWN;
@@ -67,5 +85,25 @@ public record TransportDescription(String scheme, boolean polls, List<String> at
      */
     public boolean attestsOwner() {
         return attests.contains(OwnerAttestation.ATTESTS);
+    }
+
+    /**
+     * Says whether this transport keeps a conversation of its own - a room - that Sokar sets up and enrolls
+     * tasks into.
+     *
+     * @return {@code true} when it offers {@code setup}.
+     */
+    public boolean keepsConversation() {
+        return lifecycle.contains("setup");
+    }
+
+    /**
+     * Says whether this transport offers a lifecycle verb.
+     *
+     * @param verb {@code setup}, {@code enroll}, {@code retire} or {@code join}.
+     * @return {@code true} when it listed it.
+     */
+    public boolean offers(String verb) {
+        return lifecycle.contains(verb);
     }
 }

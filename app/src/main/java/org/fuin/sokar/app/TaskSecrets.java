@@ -38,6 +38,12 @@ public final class TaskSecrets {
      */
     public static final String GRANT_PREFIX = "grant/";
 
+    /**
+     * Where what a transport handed back is - the account's, a project's, a task's secrets for its
+     * conversation - hidden like a task's entries: no person put them there, and no task may be pointed at one.
+     */
+    public static final String TRANSPORT_PREFIX = "transport/";
+
     /** The gate token's entry, after the task's container name. */
     static final String GATE = "/gate-token";
 
@@ -84,10 +90,10 @@ public final class TaskSecrets {
      * Whether a vault entry's name is a task's own rather than a credential.
      *
      * @param name The entry's name.
-     * @return true for {@link #PREFIX} and {@link #GRANT_PREFIX} names
+     * @return true for {@link #PREFIX}, {@link #GRANT_PREFIX} and {@link #TRANSPORT_PREFIX} names
      */
     public static boolean reserved(String name) {
-        return name.startsWith(PREFIX) || name.startsWith(GRANT_PREFIX);
+        return name.startsWith(PREFIX) || name.startsWith(GRANT_PREFIX) || name.startsWith(TRANSPORT_PREFIX);
     }
 
     /**

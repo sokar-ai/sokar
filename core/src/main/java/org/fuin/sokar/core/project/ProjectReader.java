@@ -217,9 +217,10 @@ public final class ProjectReader {
         if (!(value instanceof Map<?, ?> mail)) {
             throw new ProjectException(origin + ": 'mail' must be a mapping");
         }
+        final Map<String, Object> transports = transports(mail, origin);
         final Object peers = mail.get("peers");
         if (peers == null) {
-            return Mail.none();
+            return new Mail(java.util.List.of(), transports);
         }
         if (!(peers instanceof Map<?, ?> declared)) {
             throw new ProjectException(origin + ": 'mail.peers' must be a mapping of name to peer");
@@ -238,7 +239,33 @@ public final class ProjectReader {
                             : text(peer.get("trust")),
                     perDay(peer, name, origin)));
         }
-        return new Mail(java.util.List.copyOf(read));
+        return new Mail(java.util.List.copyOf(read), transports);
+    }
+
+    /**
+     * Reads {@code mail.transports}: each transport's settings, kept as written.
+     *
+     * @param mail The mail section.
+     * @param origin Name used in error messages.
+     * @return Scheme to its settings, in the order written; empty when absent.
+     */
+    private static Map<String, Object> transports(Map<?, ?> mail, String origin) {
+        final Object value = mail.get("transports");
+        if (value == null) {
+            return Map.of();
+        }
+        if (!(value instanceof Map<?, ?> named)) {
+            throw new ProjectException(origin + ": 'mail.transports' must be a mapping of a transport to its"
+                    + " settings");
+        }
+        final Map<String, Object> transports = new java.util.LinkedHashMap<>();
+        for (final Map.Entry<?, ?> entry : named.entrySet()) {
+            if (!(entry.getValue() instanceof Map<?, ?>)) {
+                throw new ProjectException(origin + ": 'mail.transports." + entry.getKey() + "' must be a mapping");
+            }
+            transports.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+        return java.util.Collections.unmodifiableMap(transports);
     }
 
     /**

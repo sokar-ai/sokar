@@ -1,7 +1,9 @@
 # B86 — Messages Over Matrix, The Sokar Half
 
 **Status:** specified 2026-09-29; on 2026-09-30 the operator moved everything Matrix-specific into the
-transport behind a generic lifecycle (below), which Agent Matrix reviews and builds; not built. Written 2026-09-29 from `sokar-project` PJ02 at the operator's word, relayed by Agent
+transport behind a generic lifecycle (below), which Agent Matrix builds. **Sokar's generic side is
+built (2026-09-30)**, proven against a stand-in transport; the first run with the Matrix transport waits
+on its `setup`, `enroll`, `retire` and `join`. Written 2026-09-29 from `sokar-project` PJ02 at the operator's word, relayed by Agent
 Coordinator. Priority: after B28, B30 and B31. The transport itself is `sokar-message-matrix`'s (Agent
 Matrix), and so is starting the homeserver, which ships with the transport's package (operator, 2026-09-29).
 
@@ -352,6 +354,33 @@ error OfflineHomeserver(project: string, homeserver: string)
 - `transport-local` and `transport-spool` stay until the Matrix transport is released and a project on
   it has run on both VMs; then they are removed in one change that says so, and a project still naming
   `local:` or `spool:` is refused with the sentence that says what to write instead.
+
+## As built in Sokar, 2026-09-30
+
+- **`project.yml`:** `mail.transports.<scheme>` is kept as written and handed to the transport; a peer
+  address `<scheme>:` means the project's conversation (`Mail.Peer.conversation()`, `Mail.conversations()`).
+- **`TransportDescription`** reads `confirms` and `lifecycle`; a transport that offers `setup` keeps a
+  conversation.
+- **`TransportLifecycle`** runs the four verbs - settings on stdin, secrets in the environment - and keeps
+  what they print in the vault as `transport/<scheme>/account`, `.../project/<p>`, `.../task/<t>` (hidden like
+  a task's tokens) and the conversation and what it reaches in `$XDG_STATE_HOME/sokar/transport/<scheme>/<p>.json`.
+- **A task's start** (`TaskConversations.enroll`) runs `setup` and `enroll` for each conversation before
+  anything exists, and refuses (69) when a transport refuses or an offline project's conversation reaches
+  beyond loopback. **Its removal** runs `retire`; a refusal is said and does not stop the removal.
+- **Each message pass** (`TransportConversations`) polls each project's conversation once with the
+  project's secrets, hands what arrived to the project's task `metadata.to` names (short or container
+  name), drops the rest, and runs `read` with the task's secrets for what its agent moved into `inbox/cur`,
+  once, when the transport confirms reading. Failures are said once, not every pass.
+- **Sending** acts as the task: its secrets in the environment, and the conversation as `--to`.
+- **A mailbox's own poll** asks only transports a peer of its project names, and never a conversation's.
+- **A project's own tasks** are addressed through its conversation when it has one, not the local
+  transport.
+- **`sokar talk join PROJECT PERSON [--reset]`**, the daemon's **`JoinMessages`** and **`MessageMembers`**,
+  and **`Project.messages: ?ProjectMessages`**. Errors `NoConversation`, `MemberExists`,
+  `ConversationRefused`.
+- **Proven:** `TransportConversationsTest` against a stand-in, `ProjectMailTest`. Not yet on a VM: that waits
+  for the Matrix transport's verbs.
+- **Not built yet:** asking `receipt` for what a task sent and recording the read state (point 6).
 
 ## Acceptance
 

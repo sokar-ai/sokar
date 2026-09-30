@@ -91,4 +91,32 @@ class ProjectMailTest {
                     ops: "mail:ops@example.org"
                 """)).isInstanceOf(ProjectException.class).hasMessageContaining("mail.peers.ops");
     }
+
+    @Test
+    void a_peer_can_be_reached_through_the_projects_own_conversation() {
+        final Project project = read(HEAD + """
+                mail:
+                  transports:
+                    matrix:
+                      homeserver: https://matrix.example.org
+                      tls_verify: on
+                  peers:
+                    reviewer: { address: "matrix:", trust: vouched }
+                    ops: { address: "mail:ops@example.org" }
+                """);
+
+        assertThat(project.mail().peer("reviewer").conversation()).isTrue();
+        assertThat(project.mail().peer("ops").conversation()).isFalse();
+        assertThat(project.mail().conversations()).containsExactly("matrix");
+        // Handed to the transport as written: Sokar reads none of it.
+        assertThat(project.mail().transports()).containsOnlyKeys("matrix");
+        assertThat(project.mail().transports().get("matrix")).asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.map(Object.class, Object.class))
+                .containsEntry("homeserver", "https://matrix.example.org").containsEntry("tls_verify", true);
+    }
+
+    @Test
+    void a_transports_settings_are_a_mapping() {
+        assertThatThrownBy(() -> read(HEAD + "mail:\n  transports:\n    matrix: yes\n"))
+                .hasMessageContaining("'mail.transports.matrix' must be a mapping");
+    }
 }

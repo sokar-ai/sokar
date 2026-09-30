@@ -44,6 +44,8 @@ public final class TransportSend {
 
     private final TransportDirectory transports;
 
+    private final Access access;
+
     /**
      * Constructor.
      *
@@ -51,8 +53,45 @@ public final class TransportSend {
      * @param transports Where the adapters are.
      */
     public TransportSend(final CommandRunner runner, final TransportDirectory transports) {
+        this(runner, transports, (transport, container) -> null);
+    }
+
+    /**
+     * Constructor for transports that act as the sending task.
+     *
+     * @param runner How commands are run.
+     * @param transports Where the adapters are.
+     * @param access What a transport needs to act as a task, beyond the message.
+     */
+    public TransportSend(final CommandRunner runner, final TransportDirectory transports, final Access access) {
         this.runner = runner;
         this.transports = transports;
+        this.access = access;
+    }
+
+    /**
+     * What a transport is given to act as the task that sends: its environment - a token, never an
+     * argument - and, where the host decides it, the destination.
+     *
+     * @param environment Variables for the transport.
+     * @param to The destination to hand the transport instead of the peer's, or {@code null} for the peer's.
+     */
+    public record Acting(java.util.Map<String, String> environment, @org.jspecify.annotations.Nullable String to) {
+    }
+
+    /** Says what a transport needs to act as a task; {@code null} for nothing beyond the message. */
+    @FunctionalInterface
+    public interface Access {
+
+        /**
+         * Returns what a transport needs to act as a task.
+         *
+         * @param transport The transport.
+         * @param container The sending task.
+         * @return What it is given, or {@code null} for nothing.
+         * @throws IOException If it cannot be had; the message is deferred.
+         */
+        @org.jspecify.annotations.Nullable Acting acting(String transport, String container) throws IOException;
     }
 
     /**
@@ -79,6 +118,17 @@ public final class TransportSend {
             }
             return new Result(sent, deferred, refused);
         }
+        final Acting acting;
+        try {
+            acting = access.acting(transport, mailbox.root().getFileName().toString());
+        } catch (final IOException ex) {
+            // Its account or its room cannot be had now: nothing is lost, the queue waits for the next pass.
+            for (final Path message : queued(active)) {
+                deferred.add(message.getFileName().toString());
+                moveWithCompanions(message, waiting);
+            }
+            return new Result(sent, deferred, refused);
+        }
         // What was deferred is tried first, so a queue drains in the order it filled.
         for (final Path message : concat(queued(waiting), queued(active))) {
             final String name = message.getFileName().toString();
@@ -91,9 +141,13 @@ public final class TransportSend {
                         "it is queued without a destination, so nothing knows where it was going"));
                 continue;
             }
-            final CommandResult result = runner.run(Command.of(adapter.toString(), "send",
-                    message.toString(), signature.toString(), "--to",
-                    Files.readString(destination, StandardCharsets.UTF_8).strip()));
+            Command command = Command.of(adapter.toString(), "send", message.toString(), signature.toString(),
+                    "--to", acting != null && acting.to() != null ? acting.to()
+                            : Files.readString(destination, StandardCharsets.UTF_8).strip());
+            if (acting != null) {
+                command = command.withEnvironment(acting.environment());
+            }
+            final CommandResult result = runner.run(command);
             if (result.successful()) {
                 final Path receipt = mailbox.sent().resolve(name + ".receipt.json");
                 Files.writeString(receipt, result.standardOutput(), StandardCharsets.UTF_8);

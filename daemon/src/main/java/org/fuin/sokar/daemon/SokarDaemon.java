@@ -240,14 +240,14 @@ public final class SokarDaemon {
                 // Same shape as Watch: asked without 'more' it answers once, so one method serves
                 // a client that streams and one that cannot.
                 replies.last(Map.of("projects", new ProjectInventory(context).projects().stream()
-                        .map(ProjectInventory.Summary::asMap).toList()));
+                        .map(summary -> projectRow(context, summary)).toList()));
                 return;
             }
             List<Map<String, Object>> previous = null;
             while (true) {
                 final List<Map<String, Object>> projects =
                         new ProjectInventory(context).projects().stream()
-                                .map(ProjectInventory.Summary::asMap).toList();
+                                .map(summary -> projectRow(context, summary)).toList();
                 // The whole answer, unlike Watch, which has to strip an age first. Nothing here is
                 // derived from a clock: the counts are counts, and 'behindMeasured' moves only when
                 // the timer that measures it runs - which is a change worth pushing, because the
@@ -363,7 +363,7 @@ public final class SokarDaemon {
             // socket there is no filesystem on this side to look in, and every gate method takes
             // one.
             replies.last(Map.of("projects", new ProjectInventory(context).projects().stream()
-                    .map(ProjectInventory.Summary::asMap).toList()));
+                    .map(summary -> projectRow(context, summary)).toList()));
         });
 
         server.method("Prepare", (parameters, replies) -> {
@@ -1429,6 +1429,36 @@ public final class SokarDaemon {
 
         // A person grants an authorization once, in a browser somewhere else. The stream says "needed" with the
         // link, then how it ended: no client polls a consent flow, so no question gets two grants.
+        // A person joins a project's conversation with an account made for them. Answered once: the login is
+        // in this reply and nowhere else, never kept.
+        server.method("JoinMessages", (parameters, replies) -> {
+            final org.fuin.sokar.core.project.Project project = conversational(context, text(parameters, "project"));
+            final Map<?, ?> said;
+            try {
+                said = org.fuin.sokar.app.Conversations.join(context, project, text(parameters, "person"),
+                        flag(parameters, "reset"));
+            } catch (org.fuin.sokar.app.Conversations.Refused ex) {
+                if (ex.exists() != null) {
+                    throw new VarlinkException(INTERFACE + ".MemberExists",
+                            Map.of("person", text(parameters, "person"), "user", ex.exists()));
+                }
+                throw new VarlinkException(INTERFACE + ".ConversationRefused",
+                        Map.of("message", String.valueOf(ex.getMessage()), "code", ex.code()));
+            }
+            final Map<String, String> login = new LinkedHashMap<>();
+            if (said.get("login") instanceof Map<?, ?> given) {
+                given.forEach((key, value) -> login.put(String.valueOf(key), String.valueOf(value)));
+            }
+            replies.last(Map.of("transport", project.mail().conversations().iterator().next(), "login", login,
+                    "shown", said.get("shown") instanceof String shown ? shown : ""));
+        });
+
+        server.method("MessageMembers", (parameters, replies) -> {
+            final org.fuin.sokar.core.project.Project project = conversational(context, text(parameters, "project"));
+            replies.last(Map.of("members", org.fuin.sokar.app.Conversations.members(context, project).entrySet()
+                    .stream().map(member -> Map.of("person", member.getKey(), "user", member.getValue())).toList()));
+        });
+
         server.method("Authorize", (parameters, replies) -> {
             if (!replies.streaming()) {
                 throw new VarlinkException(INTERFACE + ".StreamRequired", Map.of("method", "Authorize"));
@@ -2093,6 +2123,53 @@ public final class SokarDaemon {
                     row.put("expires", credential.expires() == null ? "" : credential.expires());
                     return row;
                 });
+    }
+
+    /**
+     * Returns a project's row, with its conversation when it has one.
+     *
+     * @param context Where the state is.
+     * @param summary The project.
+     * @return The row.
+     */
+    private static Map<String, Object> projectRow(SokarContext context, ProjectInventory.Summary summary) {
+        final Map<String, Object> row = summary.asMap();
+        if (summary.file() == null) {
+            return row;
+        }
+        try {
+            final org.fuin.sokar.core.project.Project project =
+                    org.fuin.sokar.core.project.ProjectReader.read(java.nio.file.Path.of(summary.file()));
+            final Map<String, Object> messages = org.fuin.sokar.app.Conversations.row(context, project);
+            if (messages != null) {
+                final Map<String, Object> with = new LinkedHashMap<>(row);
+                with.put("messages", messages);
+                return with;
+            }
+        } catch (RuntimeException ex) {
+            // A project file that cannot be read has no conversation to show.
+        }
+        return row;
+    }
+
+    /**
+     * Returns a project that has a conversation, or refuses.
+     *
+     * @param context Where the projects are.
+     * @param name The project.
+     * @return The project.
+     */
+    private static org.fuin.sokar.core.project.Project conversational(SokarContext context, String name) {
+        final org.fuin.sokar.core.project.Project project;
+        try {
+            project = org.fuin.sokar.app.GateSupport.byName(context, name);
+        } catch (RuntimeException ex) {
+            throw new VarlinkException(INTERFACE + ".NoSuchProject", Map.of("project", name));
+        }
+        if (project.mail().conversations().isEmpty()) {
+            throw new VarlinkException(INTERFACE + ".NoConversation", Map.of("project", name));
+        }
+        return project;
     }
 
     private static String text(Map<String, Object> parameters, String name) {

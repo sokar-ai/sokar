@@ -517,6 +517,15 @@ public final class TaskLaunch {
                 err.flush();
                 return 69;
             }
+            // Into the project's conversations before anything exists: a task whose messages reach nobody is
+            // refused here, as a credential nobody can reach is.
+            final String unreachable = new TaskConversations(context).enroll(project, container);
+            if (unreachable != null) {
+                err.println("sokar: " + unreachable);
+                err.println("sokar: nothing was created");
+                err.flush();
+                return 69;
+            }
             // The run adds to what the project declares, and never takes one away or points it elsewhere.
             final java.util.Map<String, String> declaredOrAdded = new java.util.LinkedHashMap<>(project.credentials());
             for (final java.util.Map.Entry<String, String> added : request.credentials().entrySet()) {

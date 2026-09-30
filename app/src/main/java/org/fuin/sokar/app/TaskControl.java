@@ -319,6 +319,8 @@ public final class TaskControl {
             // A vault that is locked keeps them until the next task started prunes them: a removal is not refused
             // for want of a passphrase.
             new TaskSecrets(context).forget(container);
+            // Out of its project's conversations: its account there ends with it.
+            new TaskConversations(context).retire(context, container);
             // The mailbox outlives the container on purpose, so this is the one place it ends.
             try {
                 new Mailbox(context.paths().mailbox(container)).delete();

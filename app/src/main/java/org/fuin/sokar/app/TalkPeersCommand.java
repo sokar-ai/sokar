@@ -51,7 +51,8 @@ public class TalkPeersCommand implements Callable<Integer>, SokarFactory.Context
         out.printf("%-16s %-10s %-10s %s%n", "PEER", "TRANSPORT", "TRUST", "REACHED BY");
         for (final Mail.Peer peer : project.mail().peers()) {
             out.printf("%-16s %-10s %-10s %s%n", peer.name(), peer.transport(), peer.trust(),
-                    installed.containsKey(peer.transport()) ? peer.destination()
+                    installed.containsKey(peer.transport())
+                            ? peer.conversation() ? "the project's own conversation" : peer.destination()
                             : "no '" + peer.transport() + "' transport on this machine");
         }
         out.flush();

@@ -55,6 +55,8 @@ public final class MessagePass {
 
     private final TransportDirectory transports;
 
+    private TransportSend.Access acting = (transport, container) -> null;
+
     /**
      * Constructor.
      *
@@ -112,7 +114,7 @@ public final class MessagePass {
                 new HostBounce().write(mailbox, mailbox.hold().resolve(stuck.message()),
                         "it was not sent: " + stuck.reason(), false);
             }
-            final TransportSend send = new TransportSend(runner, transports);
+            final TransportSend send = new TransportSend(runner, transports, acting);
             for (final String transport : queues(mailbox)) {
                 final TransportSend.Result result = send.send(mailbox, transport);
                 sent.put(transport, result);
@@ -135,7 +137,7 @@ public final class MessagePass {
         // Asked before anything is delivered: a transport that keeps its arrivals elsewhere has
         // to be given the chance to put them here, or the delivery below would walk past them.
         final TransportPoll.Outcome polled =
-                new TransportPoll(runner, transports).poll(mailbox);
+                new TransportPoll(runner, transports).poll(mailbox, named(mail));
         for (final Map.Entry<String, String> failure : polled.failures().entrySet()) {
             record.append(MessageRecord.HELD, "", "", failure.getKey(),
                     "it could not be asked what arrived: " + failure.getValue(), MessageRecord.IN);
@@ -186,6 +188,37 @@ public final class MessagePass {
                     && TransportDescription.of(runner, adapter).attestsOwner();
             return OwnerAttestation.refuse(mailbox, message, peer, mail, attesting);
         };
+    }
+
+    /**
+     * Returns where the adapters are, for what runs beside the passes.
+     *
+     * @return The directory.
+     */
+    public TransportDirectory transports() {
+        return transports;
+    }
+
+    /**
+     * Says what a transport needs to act as the task that sends, for the passes that follow.
+     *
+     * @param access What a transport is given beyond the message.
+     */
+    public void acting(final TransportSend.Access access) {
+        this.acting = access;
+    }
+
+    /**
+     * Returns the transports a mailbox's own poll asks: those a peer of its project names, less those that
+     * keep a conversation, which are polled once per project beside the passes.
+     *
+     * @param mail The project's peers.
+     * @return Their schemes.
+     */
+    static java.util.Set<String> named(final Mail mail) {
+        final java.util.Set<String> schemes = new java.util.LinkedHashSet<>();
+        mail.peers().stream().filter(peer -> !peer.conversation()).forEach(peer -> schemes.add(peer.transport()));
+        return schemes;
     }
 
     private List<String> queues(final Mailbox mailbox) throws IOException {

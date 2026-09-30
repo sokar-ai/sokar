@@ -630,7 +630,34 @@ type Project (
   behindDetail: string,
   # What project.yml names under 'credentials:': a vault entry's name to the destination it is for, which
   # every task of the project holds. Names only, never a value.
-  credentials: [string]string
+  credentials: [string]string,
+  # The project's conversation - its room - when a peer is reached through a transport's own ('<scheme>:');
+  # absent otherwise.
+  messages: ?ProjectMessages
+)
+
+# A project's conversation, on a transport that keeps one.
+type ProjectMessages (
+  # The transport it is on, the scheme a peer's address names.
+  transport: string,
+  # What the transport calls it, "" before it was set up on this machine.
+  conversation: string,
+  # What the project's messages reach through it, as the transport says.
+  reaches: []string,
+  # Whether this machine can carry the project's messages now: the transport installed and the
+  # conversation set up. With detail when not.
+  ready: bool,
+  detail: string,
+  # True for an offline project: its conversation must be on this machine's loopback.
+  loopbackOnly: bool
+)
+
+# Someone who has joined a project's conversation.
+type MessageMember (
+  # The name join was given.
+  person: string,
+  # The account the transport made for them.
+  user: string
 )
 
 # One log a task has written.
@@ -2605,6 +2632,38 @@ method Moderate(
   mode: ?string
 ) -> (name: string, mode: string, held: bool)
 
+
+# Lets a person into a project's conversation with an account made for them, or gives it a new password
+# with reset. Answered once: the login is in this reply and nowhere else, never kept.
+#
+# 'login' is the transport's, passed through as it gave it. For Matrix: homeserver, user, room, password,
+# and loopback ("true" when the homeserver is this machine's loopback) with port - a client elsewhere then
+# forwards that port (ssh -L port:127.0.0.1:port) before its Matrix client reaches the homeserver. 'shown'
+# is what a terminal prints.
+method JoinMessages(
+  project: string,
+  # Whom the account is for, as MessageMembers lists them.
+  person: string,
+  # Give the person's existing account a new password; without it, a second join is MemberExists.
+  reset: ?bool
+) -> (
+  transport: string,
+  login: [string]string,
+  shown: string
+)
+
+# Who has joined a project's conversation, by the name join was given.
+method MessageMembers(project: string) -> (members: []MessageMember)
+
+# The person has joined already; reset gives them a new password.
+error MemberExists(person: string, user: string)
+
+# The project has no conversation: no peer is reached through a transport's own ('<scheme>:').
+error NoConversation(project: string)
+
+# The transport refused; message is its own words, code its exit code (75 temporary, 77 refused, 78
+# configuration missing).
+error ConversationRefused(message: string, code: int)
 
 # Grants an authorization once, for this account's later tasks. Streaming only.
 #

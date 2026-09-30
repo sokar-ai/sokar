@@ -67,6 +67,23 @@ public final class TransportPoll {
      * @throws IOException Listing failed.
      */
     public Outcome poll(final Mailbox mailbox) throws IOException {
+        return poll(mailbox, null);
+    }
+
+    /**
+     * Asks the installed transports that poll, of those named.
+     * <p>
+     * <strong>Only what a peer names</strong> (decided 2026-09-29): a transport installed machine-wide is
+     * otherwise asked by every account's daemon, including accounts that have nothing configured for it, and
+     * answers 78 on every cycle.
+     *
+     * @param mailbox The task's mailbox.
+     * @param named The schemes a peer of its project names, or {@code null} for every transport.
+     * @return What arrived and from where, and what could not be asked.
+     * @throws IOException Listing failed.
+     */
+    public Outcome poll(final Mailbox mailbox, final java.util.@org.jspecify.annotations.Nullable Set<String> named)
+            throws IOException {
         final Map<String, String> arrivals = new LinkedHashMap<>();
         final Map<String, String> failures = new LinkedHashMap<>();
         if (!Files.isDirectory(mailbox.inbound())) {
@@ -75,9 +92,13 @@ public final class TransportPoll {
             return new Outcome(arrivals, failures);
         }
         for (final Map.Entry<String, Path> transport : transports.byName().entrySet()) {
+            if (named != null && !named.contains(transport.getKey())) {
+                continue;
+            }
             final TransportDescription described =
                     TransportDescription.of(runner, transport.getValue());
-            if (!described.polls()) {
+            if (!described.polls() || described.keepsConversation()) {
+                // A conversation is polled once per project beside the passes, with the project's secrets.
                 continue;
             }
             final Set<String> before = listing(mailbox.inbound());
