@@ -1,6 +1,7 @@
 # B86 — Messages Over Matrix, The Sokar Half
 
-**Status:** specified 2026-09-29, every question decided; not built. Written 2026-09-29 from `sokar-project` PJ02 at the operator's word, relayed by Agent
+**Status:** specified 2026-09-29; on 2026-09-30 the operator moved everything Matrix-specific into the
+transport behind a generic lifecycle (below), which Agent Matrix reviews and builds; not built. Written 2026-09-29 from `sokar-project` PJ02 at the operator's word, relayed by Agent
 Coordinator. Priority: after B28, B30 and B31. The transport itself is `sokar-message-matrix`'s (Agent
 Matrix), and so is starting the homeserver, which ships with the transport's package (operator, 2026-09-29).
 
@@ -92,7 +93,98 @@ Matrix), and so is starting the homeserver, which ships with the transport's pac
   of one of the account's projects names its scheme. One that is named and answers 78 is reported once as
   misconfigured, not on every cycle.
 
-## The shape
+## Where the Matrix logic lives - decided 2026-09-30, by the operator
+
+**Sokar knows transports, conversations, identities and opaque secrets; the transport knows Matrix.** No
+Matrix client, room alias, registration flow, admin command or homeserver unit is in `sokar`. Everything
+below that names Matrix is the transport's (`sokar-message-matrix`); Sokar's side is a generic lifecycle
+any transport can implement, so a second transport adds nothing to `sokar`.
+
+### The lifecycle a transport may offer
+
+`describe` says which verbs it has: `"lifecycle": ["setup", "enroll", "retire", "join"]`, absent for a
+transport that has none (the local and spool transports). Every verb:
+
+- takes the project's settings for this transport **as JSON on stdin** - what `project.yml` says under
+  `mail.transports.<scheme>`, passed through verbatim; Sokar reads none of it;
+- takes the secrets Sokar kept for it **as environment variables**, never as arguments;
+- prints one JSON object on stdout; any `secrets` in it are Sokar's to keep in the account's vault and
+  hand back, and are never shown, logged or put into a task;
+- exits with the codes agreed for `send` (0, 64, 65, 75, 76, 77, 78).
+
+| Verb | When Sokar runs it | Given | Prints |
+|---|---|---|---|
+| `setup --project <p>` | before the first task of a project that names the transport starts, and whenever `setup`'s secrets are missing | the transport's account-level secrets, if any | `{"secrets": {...}, "account": {...}, "conversation": "<id>", "reaches": ["<host>", ...]}` |
+| `enroll --project <p> --task <t>` | when a task of the project starts, before its container exists | account- and project-level secrets | `{"secrets": {...}, "address": "<how the task is named in the conversation>"}` |
+| `retire --project <p> --task <t>` | when the task is removed | account-, project- and the task's secrets | `{}` |
+| `join --project <p> --person <n> [--reset]` | on `sokar messages join`, and `JoinMessages` | account- and project-level secrets | `{"login": {...}, "shown": "<the text a person reads>"}` |
+
+- **`account`** secrets are the account's, across projects (Matrix: the provisioning account on the
+  account's own homeserver). **`secrets` from `setup`** are the project's (Matrix: its relay). Sokar keeps
+  them in the vault under `transport/<scheme>/account`, `transport/<scheme>/project/<p>` and
+  `transport/<scheme>/task/<t>`, hidden like a task's tokens.
+- **`reaches`** is what the project's messages would reach through this transport. Sokar lets the transport
+  reach those hosts and nothing else, and **refuses an `offline` project whose `reaches` names anything but
+  loopback**, before a task exists - so the offline rule stays Sokar's, without Sokar reading a URL. It is
+  why `describe.hosts` stays `[]`.
+- **`join`** prints `login` for the interface (`JoinMessages` passes it through, answered once, never
+  kept: homeserver, user, room, password for Matrix, and `loopback`/`port` when it is on the machine's
+  loopback) and `shown` for the command line.
+- A verb a transport does not list is not run; a transport with no lifecycle works as today.
+
+### What Sokar does with it, for any transport
+
+- **Acting as someone:** `send`, `read` and `receipt` run with the sending or reading task's secrets;
+  `poll` runs **once per conversation** (one per project) with the project's secrets, so everything it
+  brings is known to be that project's.
+- **Handing out:** what `poll` brings goes to the task of that project that `metadata.to` names - by its
+  short name or its container's - and only among that project's tasks on this machine; anything else is
+  not this machine's and is dropped. Delivery then checks the signature against that project's peers, as
+  for every transport.
+- **Read on take:** a message a task's agent has moved from `inbox/new` to `inbox/cur` gets `read
+  <reference>` with that task's secrets, once, when the transport's `describe` says `confirms: "read"`.
+- **Polled only when named:** a transport is polled only for a project a peer of which names its scheme.
+- **Said once:** 77 and 78 from a lifecycle verb or a poll are said once per cause, not every cycle.
+- **A task's own tasks through the conversation:** a project whose peers use a transport with a
+  lifecycle has its tasks' siblings addressed through it too (`<scheme>:`), not through the local
+  transport.
+
+### `project.yml`
+
+```yaml
+mail:
+  transports:
+    matrix:                                    # passed to the transport verbatim, on stdin
+      homeserver: https://matrix.example.org   # the transport's own settings; for Matrix these three
+      ca_file: certs/intranet-ca.pem
+      tls_verify: on
+  peers:
+    reviewer: { address: "matrix:", trust: vouched }   # "matrix:" - the project's conversation
+```
+
+A peer address `<scheme>:` with nothing after the colon means the project's conversation on that
+transport; `enroll` and `setup` tell Sokar what that is.
+
+### What the Matrix transport does with each verb (Agent Matrix's, for review)
+
+- `setup`: with no account secrets, makes sure the account's own homeserver runs (port kept in the
+  account's state and written to `homeserver.conf`, `systemctl --user enable --now`, waits for
+  `/_matrix/client/versions`), registers the provisioning account first with `registration-token` and
+  returns it as `account`; then makes the project's room (invite-only, no guests, unpublished, alias
+  `#sokar-<project>:<server>`), registers the project's relay and joins it, and returns the relay as the
+  project's `secrets`; `reaches` is the homeserver's host.
+- `enroll`: registers `@<task>:<server>` with a password used once, invites and joins it into the room,
+  returns its token.
+- `retire`: `!admin users deactivate @<task>:<server>` in `#admins:<server>`.
+- `join`: makes `@<person>:<server>` (or resets its password with `--reset`), invites and joins it, and
+  returns the login.
+
+## The shape, as first specified on 2026-09-29
+
+*Where this differs from "Where the Matrix logic lives" above, that section holds*: the homeserver,
+accounts and rooms described here are the Matrix transport's to make through `setup`, `enroll`, `retire`
+and `join`, not Sokar's; the settings sit under `mail.transports.matrix`, not `messages:`; and there is a
+relay per project, not one per homeserver, so a poll's arrivals are known to be that project's.
 
 ### `project.yml`
 
