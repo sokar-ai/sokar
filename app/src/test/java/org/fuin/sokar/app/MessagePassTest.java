@@ -94,4 +94,18 @@ class MessagePassTest {
     private static Moderation undecided(final Path dir) {
         return new Moderation(dir.resolve("moderation").resolve("p.json"));
     }
+
+    @Test
+    void this_machines_own_key_is_believed_and_listed_only_once() {
+        final MessagePass pass = new MessagePass(runner, key, null, new TransportDirectory(List.of()));
+
+        final List<MessageDelivery.Peer> with = pass.withOwn(List.of());
+        assertThat(with).singleElement().satisfies(peer -> {
+            assertThat(peer.name()).isEqualTo("host");
+            assertThat(peer.keys()).singleElement().isEqualTo(key.keyBlob());
+        });
+        // An operator who named this machine's key already keeps their name for it.
+        final List<MessageDelivery.Peer> named = List.of(new MessageDelivery.Peer("this-box", List.of(key.keyBlob())));
+        assertThat(pass.withOwn(named)).isEqualTo(named);
+    }
 }
