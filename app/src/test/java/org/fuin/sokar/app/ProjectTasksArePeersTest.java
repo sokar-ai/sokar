@@ -51,6 +51,13 @@ class ProjectTasksArePeersTest {
                 """ + extra), "test");
     }
 
+    /** A project that messages: one peer reached through the project's own conversation on a transport. */
+    private static final String CONVERSATION = """
+            mail:
+              peers:
+                person: { address: "room:", trust: external }
+            """;
+
     /** What podman answers when the project has these three tasks. */
     private void tasks(final String... containers) {
         final StringBuilder answer = new StringBuilder();
@@ -66,10 +73,10 @@ class ProjectTasksArePeersTest {
         tasks("sokar-acme-planning", "sokar-acme-api", "sokar-acme-web");
 
         final Mail mail = new MessageWatch(context(dir), Duration.ZERO)
-                .withSiblings(project(""), "sokar-acme-planning");
+                .withSiblings(project(CONVERSATION), "sokar-acme-planning");
 
         assertThat(mail.peers()).extracting(Mail.Peer::name)
-                .containsExactlyInAnyOrder("api", "web");
+                .containsExactlyInAnyOrder("person", "api", "web");
     }
 
     @Test
@@ -78,7 +85,7 @@ class ProjectTasksArePeersTest {
         tasks("sokar-acme-planning", "sokar-acme-api");
 
         final Mail mail = new MessageWatch(context(dir), Duration.ZERO)
-                .withSiblings(project(""), "sokar-acme-planning");
+                .withSiblings(project(CONVERSATION), "sokar-acme-planning");
 
         assertThat(mail.peers()).extracting(Mail.Peer::name).doesNotContain("planning");
     }
@@ -92,22 +99,32 @@ class ProjectTasksArePeersTest {
         tasks("sokar-acme-api", "sokar-other-api");
 
         final Mail mail = new MessageWatch(context(dir), Duration.ZERO)
-                .withSiblings(project(""), "sokar-acme-planning");
+                .withSiblings(project(CONVERSATION), "sokar-acme-planning");
 
-        assertThat(mail.peers()).extracting(Mail.Peer::name).containsExactly("api");
+        assertThat(mail.peers()).extracting(Mail.Peer::name).containsExactly("person", "api");
     }
 
     @Test
-    void aSiblingIsReachedAtItsOwnMailboxAndIsVouchedFor(@TempDir Path dir) {
+    void aStandaloneProjectsTasksAreNobodysPeers(@TempDir Path dir) {
+
+        // No transport that keeps a conversation, so no messaging: the local transport is retired, and a
+        // project without a conversation works alone (decided by the operator on 2026-09-30).
+        tasks("sokar-acme-api", "sokar-acme-web");
+
+        assertThat(new MessageWatch(context(dir), Duration.ZERO).withSiblings(project(""), "sokar-acme-planning")
+                .peers()).isEmpty();
+    }
+
+    @Test
+    void aSiblingIsReachedThroughTheProjectsConversationAndIsVouchedFor(@TempDir Path dir) {
 
         tasks("sokar-acme-api");
 
         final Mail.Peer peer = new MessageWatch(context(dir), Duration.ZERO)
-                .withSiblings(project(""), "sokar-acme-planning").peer("api");
+                .withSiblings(project(CONVERSATION), "sokar-acme-planning").peer("api");
 
-        assertThat(peer.transport()).isEqualTo("local");
-        assertThat(peer.destination())
-                .isEqualTo(dir.resolve("state/sokar/mail/sokar-acme-api/inbound").toString());
+        assertThat(peer.transport()).isEqualTo("room");
+        assertThat(peer.conversation()).isTrue();
         // Both mailboxes belong to this installation and this Unix user, so what arrives was
         // checked where it was written.
         assertThat(peer.external()).isFalse();

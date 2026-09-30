@@ -89,4 +89,18 @@ class FollowedProjectsTest {
         assertThat(projects.all()).extracting(FollowedProjects.Followed::name)
                 .containsExactly("demo");
     }
+
+    @Test
+    void unfollowingTakesTheProjectsPinnedKeyAndLeavesAnotherProjectsAlone(@org.junit.jupiter.api.io.TempDir
+            final java.nio.file.Path dir) throws java.io.IOException {
+        final FollowedProjects projects = new FollowedProjects(dir.resolve("follow"));
+        projects.follow("alpha", "https://example.org/alpha.git");
+        final java.nio.file.Path signers = java.nio.file.Files.writeString(dir.resolve("configuration_signers"),
+                "alpha ssh-ed25519 AAAAone\nbeta ssh-ed25519 AAAAtwo\nalpha ssh-ed25519 AAAAthree\n");
+
+        org.assertj.core.api.Assertions.assertThat(projects.unfollow("alpha", signers)).isTrue();
+
+        org.assertj.core.api.Assertions.assertThat(java.nio.file.Files.readString(signers))
+                .isEqualTo("beta ssh-ed25519 AAAAtwo\n");
+    }
 }

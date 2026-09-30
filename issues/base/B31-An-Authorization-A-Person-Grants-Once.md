@@ -2,8 +2,8 @@
 
 **Status:** the device code flow, the redirect flow and revocation are built (2026-09-29); plain http on
 loopback, `AUTHORIZATION_NEEDED`, who granted a grant (on the credential row and in the task's record) and
-the cause of an unreachable service are built (2026-09-30); dynamic client registration and the
-"authorization needed" event are decided and not built;
+the cause of an unreachable service are built (2026-09-30); the "authorization needed" event is built
+(below); dynamic client registration is decided and not built;
 carrying an MCP session through the broker is to be measured. The only kind with a human in it. Driven by remote MCP servers, where the
 agent is expected to inherit a person's permissions rather than a service account's. Depends on
 [B28](B28-More-Than-One-Credential-In-A-Task.md) and, for everything after the first consent, on
@@ -259,6 +259,20 @@ is making the vault able to hold anyway.
   touch: `at`, `task`, `project`, `credential`, `grantedBy`, `grantedAt`.
 - **`NoSuchDestination(name)`**: from `Start`, `name` is the credential's; from `Destination`, the
   destination's. The contract says so.
+
+## As built, the event, 2026-09-30
+
+- **A stream of its own, `Authorizations()`, not the prompt stream:** `Prompts` answers the network
+  clearance's `Prompt` and a varlink method has one reply type, so the question is `AuthorizationNeeded
+  (credential, task, project, state, at)` on its own stream - what is open now first, then what changes.
+- **`never`** when a start is refused or warned for want of a grant, **`ended`** when the broker finds a
+  grant revoked or expired at the service (`TokenPurchase.Ended`) - and `never` too when the broker of a
+  shell task meets one nobody granted. **`granted`** when a grant lands, by `sokar vault authorize` or
+  `Authorize`.
+- **Once per credential until answered:** each is a file in `$XDG_STATE_HOME/sokar/authorizations/`, which a
+  second refusal for the same credential and reason leaves as it was; the grant removes it.
+- **Proven:** `AuthorizationsNeededTest`, the daemon test for the stream, and on the VM the refused
+  unattended run's question on the stream.
 
 ## To be checked
 

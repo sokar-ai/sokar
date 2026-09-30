@@ -12,7 +12,7 @@ Depends: podman, nftables, dnsmasq-base, git, util-linux
 # Recommended, not required: they depend on sokar, so requiring them would be a cycle. apt installs
 # a recommendation by default, which is what a machine without the setup script needs - without the
 # filter nothing leaves a task.
-Recommends: sokar-message-sluice-filter, sokar-message-transport-local
+Recommends: sokar-message-sluice-filter
 Description: [[description]]
  Sandboxes an AI agent task in a hardened, rootless podman container: egress is
  default-deny, credentials stay on the host behind a broker, and the agent hands

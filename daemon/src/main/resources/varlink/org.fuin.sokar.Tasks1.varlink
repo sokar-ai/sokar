@@ -2026,7 +2026,14 @@ method Approve(
   repository: ?string,
   name: string,
   # Branch to push to. Required.
-  branch: string
+  branch: string,
+  # Merge the work onto the branch as a commit signed with the signing key the daemon's user has configured
+  # in git (user.signingkey; gpg.format ssh for an ssh key), and push that, rather than pushing the work as
+  # it is. For what the project's configuration is made of - a machine's enrolment - which every machine
+  # accepts only signed with the project's key. The machine never holds the key; git signs. Refused as
+  # Failed when the merge cannot be made or comes out unsigned. From the daemon an ssh-agent is reached only
+  # if its socket is in the daemon's environment; 'sokar gate approve --signed' in a terminal always is.
+  signed: ?bool
 ) -> (forwarded: string, branch: string)
 
 # Drops a pending push. The work stays in the mirror; only the request is gone.
@@ -2042,7 +2049,49 @@ method Reject(project: string, upstream: ?string, repository: ?string, name: str
 #
 # One subscription covers every task, including tasks started after the call - an interface
 # does not discover and connect to each task's own socket.
-method Prompts() -> Prompt
+# The reply is a Prompt: varlink wants the reply spelt out as a struct, so its fields are repeated here.
+method Prompts() -> (
+  # Container name, for routing the answer back to the right task.
+  task: string,
+  # Pass this to Decide unchanged. It is derived from the other fields, but the derivation is
+  # the daemon's and a client that rebuilt it would answer a prompt that does not exist.
+  key: string,
+  # Host or address the task asked for.
+  destination: string,
+  # tcp or udp.
+  protocol: string,
+  port: int,
+  # When it was blocked, ISO-8601 - and on an event carrying a verdict, when it was decided.
+  # The two are the same field because they are the same event twice; keep the question's own
+  # value if you want the block time of an answered prompt.
+  at: string,
+  # Where in the ruleset it was stopped, for an operator who needs to know which rule fired.
+  # Empty on an event carrying a verdict: nothing decided it a second time.
+  prefix: string,
+  # When the watcher gives up, ISO-8601, on an open question. "" when it never will, and "" on
+  # an event carrying a verdict - nothing is waiting any more.
+  #
+  # A moment rather than a length, and computed where the timeout lives: an interface showing
+  # "three minutes left" would otherwise be doing arithmetic on a number nobody sent it. It is
+  # measured from when the question was asked rather than from "at", because "at" is when the
+  # connection was blocked and a reader that has fallen behind would publish a deadline already
+  # in the past.
+  #
+  # It belongs to the question, not to the packet. A dropped connection is retried, so the same
+  # destination arrives again while one question is open - "at" moves with each, the deadline does
+  # not. Recomputing it per event would hand a countdown a fresh minute every retry and it would
+  # never visibly run out.
+  deadline: string,
+  # A destination is announced as open at most once. Its connection is retried and the watcher
+  # sees every retry, but a key it has already answered is not published again - so a client that
+  # took a settled question off screen never has it put back with buttons under it.
+  #
+  # Absent while the question is open. Once it is settled the same destination arrives again
+  # carrying "allow", "deny" or "timeout", and that is the only way an interface learns that a
+  # prompt ran out: nothing will ask about it again, so a question that simply stops arriving is
+  # indistinguishable from one still waiting for its operator.
+  verdict: ?string
+)
 
 # Answers one prompt.
 #
@@ -2467,7 +2516,25 @@ type TalkPeer (
 #
 # Live only: it says what happens from the moment a client listens, and replays nothing. What is
 # already waiting for a person when a client starts is Held.
-method Talk() -> TalkEvent
+# The reply is a TalkEvent: varlink wants the reply spelt out as a struct, so its fields are repeated here.
+method Talk() -> (
+  # Container name of the task whose mailbox this is about.
+  task: string,
+  # When it happened, RFC 3339.
+  at: string,
+  # taken, queued, sent, deferred, held, delivered, duplicate, refused (by a person), overridden
+  # (delivered by a person although the filter refused it) or read (what the task sent was read where it
+  # went, as a transport that confirms reading says; detail gives when).
+  event: string,
+  # The message's file name.
+  message: string,
+  # Its message id, or "" when none could be read.
+  id: string,
+  # The peer it was going to or came from, or "".
+  peer: string,
+  # Why, for the events that have a why. "" otherwise.
+  detail: string
+)
 
 # Every message a person may be asked to decide about, as it stands now - for an interface that
 # starts after a message was held, which the live stream alone would show as "nothing needs you".
@@ -2665,6 +2732,40 @@ error NoConversation(project: string)
 # The transport refused; message is its own words, code its exit code (75 temporary, 77 refused, 78
 # configuration missing).
 error ConversationRefused(message: string, code: int)
+
+# What a person has to authorize before work can use it. Streaming only.
+#
+# First what is open now, then what changes: a start refused for want of a grant (state "never"), a grant
+# the broker found revoked or expired at the service ("ended"), and "granted" when a grant lands - by
+# Authorize, 'sokar vault authorize', or whoever answered. Raised once per credential until it is granted,
+# not once per refused start. Answering it is Authorize with 'credential'.
+# The reply is a AuthorizationNeeded: varlink wants the reply spelt out as a struct, so its fields are repeated here.
+method Authorizations() -> (
+  # The vault entry that names the service; pass it to Authorize as 'name'.
+  credential: string,
+  # The task that needed it, or "".
+  task: string,
+  # That task's project, or "".
+  project: string,
+  # never, ended or granted.
+  state: string,
+  # When it was raised - or, for granted, when the grant was seen - ISO 8601.
+  at: string
+)
+
+# A credential somebody has to authorize.
+type AuthorizationNeeded (
+  # The vault entry that names the service; pass it to Authorize as 'name'.
+  credential: string,
+  # The task that needed it, or "".
+  task: string,
+  # That task's project, or "".
+  project: string,
+  # never, ended or granted.
+  state: string,
+  # When it was raised - or, for granted, when the grant was seen - ISO 8601.
+  at: string
+)
 
 # Grants an authorization once, for this account's later tasks. Streaming only.
 #

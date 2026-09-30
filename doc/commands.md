@@ -129,7 +129,7 @@ Nothing an agent pushes reaches a real upstream without passing through here.
 | `sokar gate pending` | Lists what the agent pushed and how long it has been waiting. |
 | `sokar gate review NAME` | Shows what a pending push would change. |
 | `sokar gate checkout NAME` | Opens waiting work as a copy you can read. It can only go back to the gate. |
-| `sokar gate approve NAME` | Forwards a reviewed push to the upstream. |
+| `sokar gate approve NAME [--signed]` | Forwards a reviewed push to the upstream. `--signed` merges it onto the branch as a commit signed with your own git's signing key and pushes that - for what the project's configuration is made of, which machines accept only signed. |
 | `sokar gate reject NAME` | Discards a pending push without forwarding it. |
 | `sokar gate protect` | Installs a pre-push hook that catches unapproved agent work. |
 | `sokar gate check` | Reads a pre-push hook's input and refuses agent work nobody approved. |
@@ -150,6 +150,7 @@ or prints a value.
 | `sokar credentials declare MATCH --kind=KIND` | Records what a destination wants and where its value lives: `--vault`, `--file`, `--env` or `--agent`. |
 | `sokar credentials check URL` | Says which credential a URL would use, and whether it would work. |
 | `sokar credentials forget MATCH` | Forgets a credential record. The value itself is left alone. |
+| `sokar credentials deploy-key PROJECT [-r REPOSITORY] [--new]` | Makes this machine a deploy key for a repository's upstream: the secret half into the vault, declared for that upstream, and the public half printed once for a person to add to the forge with write access. Run again, it prints the same key; `--new` replaces it. |
 | `sokar credentials keys` | Lists the ssh keys this account has, without reading any of them. |
 | `sokar credentials trust-host HOST [--fingerprint=SHA256:...]` | Shows the keys a host offers, and records the one you confirm. |
 
@@ -198,6 +199,7 @@ sokar project follow NAME URL [--signed-by=<key> | --unverified] [--dry-run] [--
 sokar project following
 sokar project list
 sokar project unfollow NAME [--dry-run] [--force]
+| `sokar project enroll PROJECT [--remove] [--as=PRINCIPAL]` | Puts this machine's message key up for review as a signer of a project it follows, verified: a change to the project's `allowed_signers`, pending as `enroll-<machine>` in the project's gate. A person reviews it and merges it with `sokar gate approve enroll-<machine> --signed`. Prints this machine's key fingerprint beside the project's pinned one. `--remove` is the way back. |
 ```
 
 **A project comes to be on a machine by the machine following its repository**, and by nothing

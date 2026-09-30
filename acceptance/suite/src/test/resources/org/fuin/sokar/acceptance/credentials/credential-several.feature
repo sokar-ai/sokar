@@ -93,6 +93,8 @@ Feature: A task holds more than one credential
     Given the environment variable "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" is set
     And a vault of this scenario's own, unlocked with the passphrase "acceptance"
     And the vault holds the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" as "anthropic" of kind "api-key"
+    # Asked of the daemon below, so a second person would see the refused start as a question.
+    And a daemon of this scenario's own
     And a script runs:
       """
       # A public client: no secret, so its value is '-'.
@@ -113,6 +115,12 @@ Feature: A task holds more than one credential
       sokar task start ungranted --project granting --repository granting --agent stub --prompt 'say hello' --clearance deny
       echo "exit $?"
       podman ps -a --format '{{.Names}}' | grep -c 'sokar-granting-ungranted' | sed 's/^/containers: /'
+      # The refusal is a question every interface sees: the stream's first reply is what is open now.
+      printf '%s\0' '{"method":"org.fuin.sokar.Tasks1.Authorizations","parameters":{},"more":true}' \
+          | timeout 5 sokar daemon connect 2>&1 | tr '\0' '\n' | head -1 > "$HOME/asked.out"
+      grep -o '"credential":"forge-app"' "$HOME/asked.out" | sed 's/^/asked: /' || head -c 400 "$HOME/asked.out"
+      grep -o '"state":"never"' "$HOME/asked.out" | sed 's/^/asked: /'
+      rm -f "$HOME/asked.out" "${XDG_STATE_HOME:-$HOME/.local/state}/sokar/authorizations/forge-app.json"
       sokar vault authorize forge-app; echo "authorize exit $?"
       sokar vault list | grep -c 'grant/' | sed 's/^/grants listed: /'
       rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/sokar/destinations/acceptance-forge.yaml"
@@ -121,6 +129,8 @@ Feature: A task holds more than one credential
     And its output contains "sokar vault authorize forge-app"
     And its output contains "exit 69"
     And its output contains "containers: 0"
+    And its output contains 'asked: "credential":"forge-app"'
+    And its output contains 'asked: "state":"never"'
     And its output contains "the service at sokar-acceptance.invalid could not be reached"
     And its output contains "authorize exit 1"
     And its output contains "grants listed: 0"

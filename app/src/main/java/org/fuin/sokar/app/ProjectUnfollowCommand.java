@@ -151,7 +151,7 @@ public class ProjectUnfollowCommand
         }
         // The clone goes with the rest, through ProjectDeletion, so the terminal and the socket
         // remove the same things. Doing it here as well was what hid that the socket did not.
-        projects.unfollow(name);
+        projects.unfollow(name, context.paths().configurationSigners());
         out.println("no longer following " + followed.url());
         out.flush();
         return 0;

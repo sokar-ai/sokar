@@ -40,6 +40,12 @@ public class GateApproveCommand implements Callable<Integer> {
             description = "Upstream branch. Default: ${DEFAULT-VALUE}")
     private String branch = "main";
 
+    @Option(names = "--signed",
+            description = "Merge the work onto the branch as a commit signed with your own git's signing key, and"
+                    + " push that - for what the project's configuration is made of, which every machine accepts"
+                    + " only signed.")
+    private boolean signed;
+
     @Spec
     private CommandSpec spec;
 
@@ -54,8 +60,13 @@ public class GateApproveCommand implements Callable<Integer> {
             final GitGate gate = GateSupport.gate(project,
                     GateSupport.repository(project, repository), upstream, null);
             gate.initialize();
-            gate.approve(name, branch);
-            out.println("forwarded " + name + " to " + branch);
+            if (signed) {
+                GateSupport.approveSigned(gate, name, branch);
+                out.println("merged    " + name + " onto " + branch + ", signed, and forwarded");
+            } else {
+                gate.approve(name, branch);
+                out.println("forwarded " + name + " to " + branch);
+            }
             out.flush();
             return 0;
         } catch (GateException ex) {

@@ -27,7 +27,7 @@ import picocli.CommandLine.Spec;
         mixinStandardHelpOptions = true,
         subcommands = { ProjectListCommand.class,
                 ProjectFollowCommand.class, ProjectFollowingCommand.class,
-                ProjectUnfollowCommand.class },
+                ProjectUnfollowCommand.class, ProjectEnrollCommand.class },
         description = "Follows project repositories, and lists the projects this machine follows.")
 public class ProjectsCommand implements Callable<Integer>, SokarFactory.ContextAware {
 

@@ -158,6 +158,16 @@ class InterfaceDescriptionTest {
     }
 
     @Test
+    void everyMethodRepliesWithAStruct() {
+
+        // Found by Agent Frontend on Authorizations, and Prompts and Talk had it too: varlink's grammar wants
+        // '-> (field: type, ...)', and a strict parser refuses '-> SomeType' - and with it the whole description.
+        assertThat(java.util.regex.Pattern.compile("(?m)^method\\s+\\w+\\([^)]*\\)\\s*->\\s*[A-Za-z]")
+                .matcher(SokarDaemon.description()).results().map(java.util.regex.MatchResult::group).toList())
+                .as("methods whose reply is not a struct").isEmpty();
+    }
+
+    @Test
     void noTypeMethodOrErrorIsDeclaredTwice() {
 
         // Found by Agent Frontend on build 215: a second 'type Grant' beside the egress one. varlink allows

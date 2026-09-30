@@ -1119,6 +1119,34 @@ class SokarDaemonTest {
     }
 
     @Test
+    void anAuthorizationSomebodyHasToGrantIsStreamedAndSoIsItsGrant(@TempDir Path dir) throws Exception {
+
+        // A start refused for want of a grant reaches only whoever started it; the stream reaches every interface.
+        final SokarContext context = context(dir);
+        org.fuin.sokar.app.AuthorizationsNeeded.raise(context, "search", "sokar-p-a", "p",
+                org.fuin.sokar.app.AuthorizationsNeeded.NEVER);
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Authorizations", Map.of()))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("StreamRequired");
+                final List<Map<String, Object>> seen = new java.util.ArrayList<>();
+                client.callMore(SokarDaemon.INTERFACE + ".Authorizations", Map.of(), answer -> {
+                    seen.add(answer);
+                    if (seen.size() == 1) {
+                        // Answered - by 'sokar vault authorize' here, or by Authorize from anybody.
+                        org.fuin.sokar.app.AuthorizationsNeeded.clear(context, "search");
+                    }
+                    return seen.size() < 2;
+                });
+
+                assertThat(seen.getFirst()).containsEntry("credential", "search").containsEntry("state", "never")
+                        .containsEntry("task", "sokar-p-a").containsEntry("project", "p");
+                assertThat(seen.get(1)).containsEntry("credential", "search").containsEntry("state", "granted");
+            }
+        });
+    }
+
+    @Test
     void anInterfaceManagesDestinationsAsTheFilesAPersonWouldEdit(@TempDir Path dir) throws Exception {
 
         // The operator's decision: the interface does all of it - list, read, write, remove.

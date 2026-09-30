@@ -1,6 +1,6 @@
 # B87 — A Machine Joins A Project In One Step
 
-**Status:** open, written 2026-09-29 from `sokar-project` PJ12 at the operator's word, relayed by Agent
+**Status:** built 2026-09-30 except forge access (point 5, the deploy key); written 2026-09-29 from `sokar-project` PJ12 at the operator's word, relayed by Agent
 Coordinator. All of PJ12's questions are decided. Priority: after B86. The interface's half (the enroll
 action, choosing a key, the fingerprint comparison, showing a new deploy key's public half) is
 `sokar-frontend`'s and waits on this.
@@ -44,6 +44,37 @@ replaying an older commit.
 of the key the project's configuration is signed with, once, out of band; a key is never read from the
 repository it verifies. `enroll` prints the fingerprint it was offered beside the one it expects, so the
 comparison is easy; the step itself stays.
+
+## Decided 2026-09-30, by the operator, while building it
+
+- **The signed merge is `sokar gate approve <name> --signed`.** Approving today only pushes the reviewed
+  commit upstream - no merge, no signature - and every machine accepts a configuration only when its commit
+  is signed with the project's key, which is the operator's. With `--signed`, approve makes a merge commit of
+  the reviewed work signed with the git signing key configured in the person's own git where they approve
+  (ssh-agent included), and pushes that. The machine never holds the key; without one configured it refuses
+  and says so.
+- **The file is `allowed_signers` beside `project.yml`**, at the repository's root, read from the followed
+  configuration like the project file.
+- **The change is put up for review in the project's mirror** as `refs/sokar/incoming/enroll-<machine>`: it
+  appears in `gate pending`, `gate review` and the daemon's `Review` exactly as a task's work does.
+
+## As built, 2026-09-30
+
+- **`sokar project enroll <project> [--remove] [--as <principal>]`** (a project followed and verified):
+  from the configuration in force, this machine's line (`sokar@<host> ssh-ed25519 ...`) is written into
+  `allowed_signers` - replacing an older line of the same machine, or deleted with `--remove` - committed in
+  a scratch clone with hooks off, and pushed to the project's mirror as `refs/sokar/incoming/enroll-<machine>`.
+  It prints this machine's key fingerprint and the fingerprint pinned for the project's configuration.
+- **`ReviewRanking`**: `allowed_signers` is dangerous by kind, "a signer list".
+- **`sokar gate approve <name> --signed`** and the daemon's `Approve(signed)`: a merge signed by the
+  approver's own git, pushed; an unsigned result is not pushed.
+- **`KnownPeers`** reads `allowed_signers` from each followed, verified configuration in force, after the
+  operator's own file and the machine's shared keys. A removal applies at the next reconciliation, and
+  following never moves to a non-descendant, so an older commit cannot bring a signer back.
+- **Not built: forge access (point 5)** - making a deploy key for the machine, or taking one it has.
+- **Proven:** `GitGateTest` (signed and unsigned approval with real git and a throwaway key),
+  `ReviewRankingTest`, and on the VM `project-enroll.feature`: follow a signed configuration, enroll,
+  review, approve signed, and the upstream holds the signed merge with the machine's line.
 
 ## Acceptance
 

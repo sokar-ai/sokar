@@ -264,11 +264,10 @@ public final class AgentLeg {
 
     /**
      * What a prepared machine always has beside Sokar, as the setup script installs it: the message
-     * filter, without which nothing leaves a task, and the local transport. The Sokar package names
-     * neither, so a machine that installed only it passed and held nothing, and a scenario about
-     * messages failed as if the product did.
+     * filter, without which nothing leaves a task. A transport is the machine's choice, and the local one
+     * is retired (2026-09-30), so none is installed by default.
      */
-    static final List<String> ALWAYS = List.of("sokar-message-sluice-filter", "sokar-message-transport-local");
+    static final List<String> ALWAYS = List.of("sokar-message-sluice-filter");
 
     /**
      * Returns how a distribution installs Sokar and the agent, in one command, and then what a

@@ -80,4 +80,11 @@ class ReviewRankingTest {
 
         assertThat(order).isEqualTo("odd\\[1]\\*.txt\n");
     }
+
+    @Test
+    void aSignerListIsDangerousByKind() {
+        // A machine's enrolment: one line added, and it decides which machines every other one believes.
+        assertThat(ReviewRanking.dangerByPath("allowed_signers")).contains("signer list");
+        assertThat(ReviewRanking.dangerByPath("sub/allowed_signers")).contains("signer list");
+    }
 }

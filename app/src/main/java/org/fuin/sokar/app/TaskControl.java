@@ -379,7 +379,7 @@ public final class TaskControl {
             return new Rescue(null, "this task pushes straight to its upstream, so unreviewed work"
                     + " cannot be rescued without publishing it");
         }
-        final String rescueRef = taskRef + "-rescued";
+        final String rescueRef = taskRef + org.fuin.sokar.gate.GitGate.RESCUED;
         final CommandResult pushed = context.podman().ask(container,
                 Map.of("SOKAR_TASK_REF", rescueRef), TaskWorkspace.pushCommand());
         // The output is checked as well as the exit code: this answer decides whether a container

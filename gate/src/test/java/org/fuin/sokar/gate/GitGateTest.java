@@ -175,6 +175,11 @@ class GitGateTest {
             assertThatThrownBy(() -> git(work, "push", url(server), "HEAD:" + GitGate.INCOMING + "task-2"))
                     .as("another task's ref").hasMessageContaining("403");
             git(work, "push", url(server), "HEAD:" + GitGate.INCOMING + "task-1");
+            // Its rescue, beside it: pushed through this same gate when the task is removed with work it never
+            // handed back. Refused until 2026-09-30, so every rescue failed.
+            git(work, "push", url(server), "HEAD:" + GitGate.INCOMING + "task-1" + GitGate.RESCUED);
+            assertThatThrownBy(() -> git(work, "push", url(server), "HEAD:" + GitGate.INCOMING + "task-2"
+                    + GitGate.RESCUED)).as("another task's rescue").hasMessageContaining("403");
         }
 
         assertThat(gate.resolves("refs/heads/main")).isFalse();
@@ -276,6 +281,80 @@ class GitGateTest {
         assertThat(runner.runOrFail(Command.of("git", "--git-dir", upstream.toString(),
                 "log", "--oneline", "main")).standardOutput()).contains("add agent.txt");
         assertThat(gate.pending()).isEmpty();
+    }
+
+    /**
+     * A runner whose git reads this test's own global configuration, so a signing key set up here - and
+     * nothing of the machine's - is what signs.
+     */
+    private CommandRunner withGitConfig(Path config) {
+        return command -> runner.run(command.withEnvironment(Map.of("GIT_CONFIG_GLOBAL", config.toString(),
+                "GIT_CONFIG_NOSYSTEM", "1", "GIT_TERMINAL_PROMPT", "0")));
+    }
+
+    private Path upstreamWithMain() throws IOException {
+        final Path upstream = root.resolve("upstream.git");
+        git(root, "init", "--bare", "--initial-branch=main", upstream.toString());
+        final Path seed = root.resolve("seed");
+        git(root, "init", "--initial-branch=main", seed.toString());
+        Files.writeString(seed.resolve("project.yml"), "project: {}\n");
+        git(seed, "add", "project.yml");
+        git(seed, "commit", "-m", "the project");
+        git(seed, "push", upstream.toString(), "HEAD:refs/heads/main");
+        return upstream;
+    }
+
+    private void pendingEnrolment(GitGate gate) throws IOException {
+        git(root, "clone", "--quiet", mirror.toString(), work.toString());
+        git(work, "fetch", "--quiet", root.resolve("upstream.git").toString(), "main");
+        git(work, "checkout", "--quiet", "-B", "enrol", "FETCH_HEAD");
+        makeCommit("allowed_signers", "sokar@second ssh-ed25519 AAAA\n");
+        git(work, "push", "--quiet", mirror.toString(), "HEAD:" + GitGate.INCOMING + "enroll-second");
+        assertThat(gate.pending()).containsExactly("enroll-second");
+    }
+
+    @Test
+    void approvingSignedMergesTheWorkAsACommitSignedByThePersonsOwnKey() throws IOException {
+
+        // What a machine's enrolment needs: every machine accepts a configuration only signed, and the key is
+        // a person's. Git signs with the key the person's own git names; the gate never holds it.
+        final Path upstream = upstreamWithMain();
+        final Path key = root.resolve("signing");
+        runner.runOrFail(Command.of("ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "person", "-f",
+                key.toString()));
+        final Path config = Files.writeString(root.resolve("gitconfig"), "[user]\n\tname = Person\n"
+                + "\temail = person@example.org\n\tsigningkey = " + key + ".pub\n[gpg]\n\tformat = ssh\n");
+        final GitGate gate = new GitGate(withGitConfig(config), mirror, GateMode.GATEKEEPING, upstream.toString());
+        gate.initialize();
+        pendingEnrolment(gate);
+
+        gate.approveSigned("enroll-second", "main", root.resolve("merge"));
+
+        final String log = runner.runOrFail(Command.of("git", "--git-dir", upstream.toString(), "log", "-1",
+                "--format=%s %P", "main")).standardOutput();
+        assertThat(log).startsWith("Merge enroll-second, reviewed and signed").as("a merge: two parents")
+                .matches("(?s).* \\S+ \\S+\\s*");
+        assertThat(runner.runOrFail(Command.of("git", "--git-dir", upstream.toString(), "cat-file", "-p", "main"))
+                .standardOutput()).contains("-----BEGIN SSH SIGNATURE-----");
+        assertThat(gate.pending()).isEmpty();
+    }
+
+    @Test
+    void approvingSignedWithNoSigningKeyPushesNothing() throws IOException {
+        final Path upstream = upstreamWithMain();
+        final Path config = Files.writeString(root.resolve("gitconfig"),
+                "[user]\n\tname = Person\n\temail = person@example.org\n");
+        final GitGate gate = new GitGate(withGitConfig(config), mirror, GateMode.GATEKEEPING, upstream.toString());
+        gate.initialize();
+        pendingEnrolment(gate);
+        final String before = runner.runOrFail(Command.of("git", "--git-dir", upstream.toString(), "rev-parse",
+                "main")).standardOutput();
+
+        assertThatThrownBy(() -> gate.approveSigned("enroll-second", "main", root.resolve("merge")))
+                .isInstanceOf(GateException.class).hasMessageContaining("user.signingkey");
+        assertThat(runner.runOrFail(Command.of("git", "--git-dir", upstream.toString(), "rev-parse", "main"))
+                .standardOutput()).as("nothing reached the upstream").isEqualTo(before);
+        assertThat(gate.pending()).as("still waiting for a person").containsExactly("enroll-second");
     }
 
     @Test

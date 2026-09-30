@@ -186,7 +186,7 @@ class TokenPurchaseTest {
         answer.set("{\"error\":\"invalid_grant\"}");
 
         assertThatThrownBy(() -> refreshing(new CopyOnWriteArrayList<>()).current())
-                .isInstanceOf(TokenPurchase.Refused.class)
+                .as("its own kind, so whoever finds it can ask a person").isInstanceOf(TokenPurchase.Ended.class)
                 .hasMessageContaining("no longer valid").hasMessageContaining("sokar vault authorize");
     }
 }

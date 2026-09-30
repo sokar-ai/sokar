@@ -383,14 +383,14 @@ public final class MessageWatch implements AutoCloseable {
             if (sibling == null || written.contains(sibling)) {
                 continue;
             }
-            // A project with a conversation of its own - a room - talks through it, its own tasks too: a
-            // person in it sees what the tasks say to each other. Otherwise the local transport takes the
-            // absolute path of the recipient's inbound directory and derives nothing itself - the host
-            // holds the peer table, which is this method.
+            // Through the project's conversation, on whichever transport keeps it: a person in it sees what the
+            // tasks say to each other. A project without one is standalone - its tasks do not message each
+            // other at all (decided by the operator on 2026-09-30, when the local transport was retired).
             final java.util.Set<String> conversations = project.mail().conversations();
-            peers.add(new org.fuin.sokar.core.project.Mail.Peer(sibling,
-                    conversations.isEmpty() ? "local:" + new Mailbox(context.paths().mailbox(name)).inbound()
-                            : conversations.iterator().next() + ":",
+            if (conversations.isEmpty()) {
+                break;
+            }
+            peers.add(new org.fuin.sokar.core.project.Mail.Peer(sibling, conversations.iterator().next() + ":",
                     org.fuin.sokar.core.project.Mail.Peer.VOUCHED));
         }
         return new Mail(List.copyOf(peers), project.mail().transports());

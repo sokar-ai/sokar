@@ -228,7 +228,9 @@ public class GitHttpServer implements AutoCloseable {
     }
 
     private boolean mayUpdate(String updated) {
-        return ref != null ? ref.equals(updated)
+        // A task's own ref, and its rescue beside it: the rescue pushes through this same gate, and a gate that
+        // took only the one ref refused it - every rescue failed, and the container was kept.
+        return ref != null ? ref.equals(updated) || (ref + GitGate.RESCUED).equals(updated)
                 : updated.startsWith(GitGate.INCOMING) && updated.length() > GitGate.INCOMING.length();
     }
 

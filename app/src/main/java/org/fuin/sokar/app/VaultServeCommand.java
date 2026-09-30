@@ -201,7 +201,10 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
             out.flush();
         };
         try (VaultProxy proxy = new VaultProxy(socket, upstream,
-                exchange(broker, token, credentials, purchases, ungranted), authHeader, authPrefix, authQuery, routes,
+                exchange(broker, token, credentials, purchases, ungranted, (scope, state) -> {
+                    final String project = new TaskInventory(context).projectOf(task);
+                    AuthorizationsNeeded.raise(context, scope, task, project == null ? "" : project, state);
+                }), authHeader, authPrefix, authQuery, routes,
                 requests)) {
 
             // The routes' tokens before the agent's own: the agent's is what a caller waits for.
@@ -244,7 +247,7 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
      */
     private static TokenExchange exchange(TokenBroker broker, PhantomToken token,
             Map<String, String> credentials, Map<String, org.fuin.sokar.supervisor.TokenPurchase> purchases,
-            java.util.Set<String> ungranted) {
+            java.util.Set<String> ungranted, java.util.function.BiConsumer<String, String> needed) {
 
         // The grant names the credential its token was scoped to, which is what picks the route. A credential
         // that has to be bought is attached as the token bought with it, never as the secret it was bought with.
@@ -252,7 +255,8 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
                 .<TokenExchange.Result>map(real -> {
                     final String scope = broker.issued(presented).map(PhantomToken::scope).orElse(null);
                     if (scope != null && ungranted.contains(scope)) {
-                        // Said as a question, with what answers it, never as a wrong key.
+                        // Said as a question, with what answers it, never as a wrong key - and asked of a person.
+                        needed.accept(scope, AuthorizationsNeeded.NEVER);
                         return new TokenExchange.Unavailable("nobody has granted '" + scope + "' yet; a person"
                                 + " authorizes it once with 'sokar vault authorize " + scope + "'");
                     }
@@ -262,6 +266,11 @@ public class VaultServeCommand implements Callable<Integer>, SokarFactory.Contex
                     }
                     try {
                         return new TokenExchange.Granted(purchase.current(), scope);
+                    } catch (org.fuin.sokar.supervisor.TokenPurchase.Ended ex) {
+                        // The grant ended at the service: a person authorizes again, and is asked to.
+                        needed.accept(scope, AuthorizationsNeeded.ENDED);
+                        return new TokenExchange.Unavailable(java.util.Objects.requireNonNullElse(ex.getMessage(),
+                                "the grant is no longer valid"));
                     } catch (org.fuin.sokar.supervisor.TokenPurchase.Refused ex) {
                         // Said as the authorization server's, not as a wrong key or an expired task token.
                         return new TokenExchange.Unavailable(java.util.Objects.requireNonNullElse(ex.getMessage(),

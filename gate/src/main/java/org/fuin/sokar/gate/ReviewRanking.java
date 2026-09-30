@@ -86,6 +86,8 @@ public final class ReviewRanking {
 
     private static final String ON_CHECKOUT = "it runs, or is read by a tool, when the repository is checked out or opened";
 
+    private static final String SIGNERS = "a signer list: it decides whose messages and which machines are believed";
+
     /** Directories whose every file is dangerous by kind, with the reason. */
     private static final Map<String, String> DIRECTORIES = Map.ofEntries(
             Map.entry(".github/workflows/", CI), Map.entry(".github/actions/", CI), Map.entry(".circleci/", CI),
@@ -140,6 +142,8 @@ public final class ReviewRanking {
                 "lefthook.yml", ".lefthook.yml", ".envrc", ".tool-versions", ".mise.toml", "mise.toml")) {
             names.put(name, ON_CHECKOUT);
         }
+        // A machine's enrolment adds its key here; a new or removed signer is the finding, however small.
+        names.put("allowed_signers", SIGNERS);
         return Map.copyOf(names);
     }
 

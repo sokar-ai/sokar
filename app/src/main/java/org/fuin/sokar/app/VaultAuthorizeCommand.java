@@ -230,5 +230,7 @@ public class VaultAuthorizeCommand implements Callable<Integer>, SokarFactory.Co
             entries.put(TaskSecrets.GRANT_PREFIX + name, kept);
             return entries;
         });
+        // The question is answered: an interface showing it sees "granted" next.
+        AuthorizationsNeeded.clear(context, name);
     }
 }

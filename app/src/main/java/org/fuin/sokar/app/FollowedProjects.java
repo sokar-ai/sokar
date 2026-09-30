@@ -249,6 +249,31 @@ public final class FollowedProjects {
     }
 
     /**
+     * Forgets a project, and the configuration key pinned for it.
+     * <p>
+     * <strong>The pin goes with the project.</strong> {@code follow --signed-by} writes it as a line named
+     * after the project into the signers the configuration is verified with; left behind, a key trusted for
+     * a project no longer followed kept verifying configurations, and following the same name again piled
+     * a second key beside the first (found on the VM, 2026-09-30). Only lines named after this project go;
+     * a key another project pinned under its own name stays.
+     *
+     * @param name The project.
+     * @param signers The pinned configuration keys.
+     * @return {@code true} when there was one.
+     * @throws IOException Deleting or rewriting failed.
+     */
+    public boolean unfollow(final String name, final Path signers) throws IOException {
+        final boolean was = unfollow(name);
+        if (Files.isRegularFile(signers)) {
+            final List<String> lines = new ArrayList<>(Files.readAllLines(signers));
+            if (lines.removeIf(line -> line.startsWith(name + " "))) {
+                Files.writeString(signers, lines.isEmpty() ? "" : String.join("\n", lines) + "\n");
+            }
+        }
+        return was;
+    }
+
+    /**
      * Returns a project the caller knows is followed, such as one it has just followed.
      *
      * @param name The project.

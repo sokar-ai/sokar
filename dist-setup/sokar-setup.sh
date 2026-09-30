@@ -11,19 +11,19 @@
 #   --user <name>       The account tasks run as. Default: agents
 #   --distribution <d>  Which published distribution to install from. Default: snapshots
 #   --with <package>    Also install this package. May be given several times.
-#   --between-users on|off
-#                       Allows, or takes back, messaging between the Unix users of this machine.
-#                       Off by default and off until somebody says otherwise: two users are two
-#                       Sokar installations, and a message between them is carriage between hosts.
+#   --between-users off
+#                       Removes what an earlier version set up for messaging between the Unix users
+#                       of this machine. 'on' is retired with the spool transport that used it.
 #   --list              Print what this machine could install, install nothing, and stop
 #   --json              With --list: one JSON object on stdout, for a program rather than a person
 #   --show              Print every command and run none of them
 #   --os-release <file> Read the system description from here instead of /etc/os-release
 #   --help              This text
 #
-# What is always installed: Sokar, the message filter and the local transport. The filter because
-# without it nothing leaves, which is the point of it. Agents and any further transports are
-# chosen - '--list' says what there is, '--with' installs them.
+# What is always installed: Sokar and the message filter. The filter because without it nothing
+# leaves, which is the point of it. Agents and transports are chosen - '--list' says what there is,
+# '--with' installs them. A project messages only through a transport it configures; without one its
+# tasks work alone.
 #
 # Exit codes, which a caller may rely on:
 #   0  the machine is prepared, or already was
@@ -327,13 +327,13 @@ say "Sokar"
 # shellcheck disable=SC2086
 run $INSTALL sokar
 
-# Always: the filter, because without it nothing leaves a task, and the local transport, because
-# a machine whose tasks only talk to each other still has to be able to.
-say "the message filter and the local transport"
+# Always: the filter, because without it nothing leaves a task. Which transport carries messages is
+# the machine's choice ('--with'), and a project messages only through one it configures.
+say "the message filter"
 MESSAGING=no
 if $HAVE sokar-message-sluice-filter >/dev/null 2>&1; then
     # shellcheck disable=SC2086
-    run $INSTALL sokar-message-sluice-filter sokar-message-transport-local
+    run $INSTALL sokar-message-sluice-filter
     MESSAGING=yes
 else
     note "not published yet - this machine can run tasks but not exchange messages"
@@ -397,6 +397,13 @@ drop_for() { # user
 }
 
 if [ "$BETWEEN" = on ]; then
+    # Retired with the spool transport, which was the only thing that carried a message between two
+    # accounts here. Two accounts message through a transport that keeps a conversation.
+    echo "sokar-setup: --between-users on is retired with the spool transport; accounts message each" >&2
+    echo "other through a transport that keeps a conversation, installed with --with" >&2
+    exit 2
+fi
+if [ "$BETWEEN" = retired-on ]; then
     say "messaging between the users of this machine"
     if ! command -v setfacl >/dev/null 2>&1; then
         # Without a default ACL a dropped file is readable by every member of the group, which is
@@ -484,9 +491,9 @@ cat <<DONE
 DONE
 if [ "$MESSAGING" = yes ]; then
     cat <<MESSAGING_ON
-   This machine's tasks can message each other: the filter and the local transport are
-   installed. Between the Unix users of this machine they cannot, until somebody runs
-   'sokar-setup.sh --between-users on' - two accounts are two Sokar installations.
+   The message filter is installed. A project's tasks message each other, and anybody else, only
+   through a transport the project configures ('--list' says which there are, '--with' installs
+   one); without one, its tasks work alone.
 MESSAGING_ON
 else
     cat <<MESSAGING_OFF

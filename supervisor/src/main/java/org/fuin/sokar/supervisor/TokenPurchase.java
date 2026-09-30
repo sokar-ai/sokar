@@ -45,7 +45,7 @@ public final class TokenPurchase {
      * Kept apart from a wrong key and from an expired task token: the operator's fix is at the
      * authorization server, and a message that sends them to the vault or to the task costs an afternoon.
      */
-    public static final class Refused extends Exception {
+    public static class Refused extends Exception {
 
         private static final long serialVersionUID = 1L;
 
@@ -55,6 +55,19 @@ public final class TokenPurchase {
 
         Refused(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    /**
+     * A grant the service no longer honours - revoked or expired: a person has to authorize again. Kept apart
+     * so whoever finds it can ask that person, rather than report a failure.
+     */
+    public static final class Ended extends Refused {
+
+        private static final long serialVersionUID = 1L;
+
+        Ended(String message) {
+            super(message);
         }
     }
 
@@ -216,7 +229,7 @@ public final class TokenPurchase {
                     ? String.valueOf(document.get("error")) : "no error named";
             if (refresh != null && "invalid_grant".equals(error)) {
                 // Revoked or expired at the service: the person has to grant it again, which is not a wrong key.
-                throw new Refused("the grant at " + host() + " is no longer valid (revoked or expired); it needs"
+                throw new Ended("the grant at " + host() + " is no longer valid (revoked or expired); it needs"
                         + " authorizing again with 'sokar vault authorize'");
             }
             throw new Refused("the authorization server at " + host() + " refused these "

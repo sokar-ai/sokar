@@ -28,12 +28,13 @@ class AgentLegTest {
     }
 
     @Test
-    void installsTheFilterAndTheLocalTransportAsAPreparedMachineHasThem() {
+    void installsTheFilterAsAPreparedMachineHasIt() {
         // Measured on an agent repository's lease on 2026-09-29: with sokar alone, 'talk pass' passed
         // nothing and 'talk held' listed nothing, while the same scenario held on a prepared machine.
         for (final String os : new String[] {"ubuntu", "fedora"}) {
             final String script = AgentLeg.install(os, "https://x", "sokar-agent-pi");
-            assertThat(script).contains("for p in sokar-message-sluice-filter sokar-message-transport-local; do");
+            assertThat(script).contains("for p in sokar-message-sluice-filter; do")
+                    .as("the local transport is retired").doesNotContain("sokar-message-transport-local");
             // After the command that installs sokar and any candidate, so a candidate filter wins.
             assertThat(script.indexOf("for p in")).isGreaterThan(script.indexOf("install -y -q"));
         }

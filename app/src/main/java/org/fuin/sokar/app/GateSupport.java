@@ -19,6 +19,32 @@ import org.jspecify.annotations.Nullable;
  */
 public final class GateSupport {
 
+    /**
+     * Approves pending work as a merge signed by the person approving, in a scratch clone removed afterwards.
+     *
+     * @param gate The gate.
+     * @param name The pending push.
+     * @param branch The upstream branch.
+     */
+    public static void approveSigned(org.fuin.sokar.gate.GitGate gate, String name, String branch) {
+        final java.nio.file.Path scratch;
+        try {
+            scratch = java.nio.file.Files.createTempDirectory("sokar-approve-");
+        } catch (java.io.IOException ex) {
+            throw new org.fuin.sokar.gate.GateException("Cannot make a scratch directory to merge in", ex);
+        }
+        try {
+            // A directory of its own inside the scratch one: git init wants to make it.
+            gate.approveSigned(name, branch, scratch.resolve("merge"));
+        } finally {
+            try (java.util.stream.Stream<java.nio.file.Path> walk = java.nio.file.Files.walk(scratch)) {
+                walk.sorted(java.util.Comparator.reverseOrder()).forEach(path -> path.toFile().delete());
+            } catch (java.io.IOException ex) {
+                // A scratch directory left behind in the temp directory harms nothing.
+            }
+        }
+    }
+
     private GateSupport() {
         throw new UnsupportedOperationException("Utility class");
     }

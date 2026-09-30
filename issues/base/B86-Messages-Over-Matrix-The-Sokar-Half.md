@@ -5,7 +5,8 @@ generic lifecycle (below). Proven end to end by Agent Matrix on the ubuntu VM wi
 `sokar-message-matrix` `dcc7c0a`: setup and enroll on start, a message from task to task through the room,
 delivered, read on take, a person joining, retire on removal, an offline project refused before it reaches
 anything. Open: a central homeserver for several machines (who admits a second machine - the operator's to
-decide), and retiring the local and spool transports (`sokar-message-sluice` SL20).
+decide). The local and spool transports are retired (SL20); a project without a conversation is
+standalone.
 
 ## What is decided, and not re-argued here
 
@@ -19,8 +20,12 @@ decide), and retiring the local and spool transports (`sokar-message-sluice` SL2
   not the account, carries authorship.
 - No end-to-end encryption, on a homeserver the operator runs; the accepted risk is written down in
   `sokar-message-matrix`'s `doc/decisions.md`.
-- Matrix is the only channel, on one machine too. `transport-local` and `transport-spool` are retired once
-  the Matrix transport is in place, not before.
+- ~~Matrix is the only channel, on one machine too.~~ **Corrected by the operator on 2026-09-30:** there
+  is no such rule. Sokar is generic about messaging: a project messages only through a transport it
+  configures that keeps a conversation - Matrix is today the only one - and a project without one is
+  standalone: its tasks work alone and do not message each other. `transport-local` and
+  `transport-spool` are retired (`sokar-message-sluice` SL20, 2026-09-30), with no built-in path in their
+  place.
 
 ## The contract as agreed with the transport, 2026-09-29
 

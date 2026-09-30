@@ -100,7 +100,6 @@ Where SELinux is enforcing, a task container cannot reach sokar's sockets until 
                                  leaves a task. -->
                             <recommends>
                                 <recommend>sokar-message-sluice-filter</recommend>
-                                <recommend>sokar-message-transport-local</recommend>
                             </recommends>
                             <signature>
                                 <skip>${rpm.sign.skip}</skip>

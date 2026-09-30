@@ -30,6 +30,12 @@ public class GitGate {
     /** Namespace every agent push lands in. */
     public static final String INCOMING = "refs/sokar/incoming/";
 
+    /**
+     * After a task's own ref: where what it never handed back is rescued to when the task is removed - beside
+     * its reviewed work, never in it.
+     */
+    public static final String RESCUED = "-rescued";
+
     private final CommandRunner runner;
 
     private final Path mirror;
@@ -482,6 +488,78 @@ public class GitGate {
             gitWith(lease, "push", upstreamUrl, INCOMING + name + ":refs/heads/" + branch);
         }
         gitIn("update-ref", "-d", INCOMING + name);
+    }
+
+    /**
+     * Forwards an incoming ref to the upstream as a merge commit signed by the person approving.
+     * <p>
+     * <strong>For what the project's configuration is made of</strong> - a machine's enrolment, say: every
+     * machine accepts a configuration only when its commit is signed with the project's key, which is a
+     * person's, never a machine's. Approving otherwise only pushes the reviewed commit, unsigned. Here the
+     * reviewed work is merged onto the upstream branch with {@code git merge --no-ff -S}, in a scratch clone,
+     * so git signs with the key the person's own git is set up to sign with - an ssh-agent included - and
+     * the machine never holds it. A merge that comes out unsigned is not pushed.
+     *
+     * @param name Incoming ref name, without the namespace prefix.
+     * @param branch Upstream branch to merge onto and push to.
+     * @param scratch An empty directory to merge in; removed afterwards by the caller.
+     * @throws GateException If the mode forbids forwarding, no upstream is configured, the merge cannot be
+     *         made or signed, or the push is refused.
+     */
+    public void approveSigned(String name, String branch, Path scratch) {
+        if (!mode.canForward()) {
+            throw new GateException("This project's security class is offline, so nothing is"
+                    + " forwarded upstream");
+        }
+        if (upstreamUrl == null) {
+            throw new GateException("No upstream is configured for this project");
+        }
+        requirePending(name);
+        final String target = scratch.toString();
+        git("init", "--quiet", target);
+        final Path noHooks = scratch.resolve(".git").resolve("sokar-no-hooks");
+        try {
+            Files.createDirectories(noHooks);
+        } catch (java.io.IOException ex) {
+            throw new GateException("Cannot make " + noHooks, ex);
+        }
+        gitAt(target, "config", "core.hooksPath", noHooks.toString());
+        try (GitCredentials.Lease lease = lending.forUrl(upstreamUrl)) {
+            gitAtWith(lease, target, "fetch", "--quiet", upstreamUrl, "refs/heads/" + branch);
+            gitAt(target, "checkout", "--quiet", "-B", branch, "FETCH_HEAD");
+            gitAt(target, "fetch", "--quiet", mirror.toString(), INCOMING + name);
+            final CommandResult merged;
+            try {
+                merged = gitAt(target, "merge", "--no-ff", "-S", "-m", "Merge " + name + ", reviewed and signed",
+                        "FETCH_HEAD");
+            } catch (CommandException ex) {
+                throw new GateException("The merge of '" + name + "' could not be made or signed: "
+                        + ex.getMessage() + ". Signing uses your own git: set user.signingkey (and gpg.format ssh"
+                        + " for an ssh key) where you approve", ex);
+            }
+            // Whether it carries a signature at all - not whether this machine can verify it: '%G?' answers "N" for an
+            // ssh signature whenever no allowed-signers file is configured, which is the ordinary case here.
+            final boolean signed = gitAt(target, "cat-file", "commit", "HEAD").standardOutput().lines()
+                    .anyMatch(line -> line.startsWith("gpgsig "));
+            if (!signed) {
+                throw new GateException("The merge of '" + name + "' came out unsigned, so it is not pushed; set"
+                        + " user.signingkey where you approve (" + merged.standardOutput().strip() + ")");
+            }
+            gitAtWith(lease, target, "push", upstreamUrl, "HEAD:refs/heads/" + branch);
+        }
+        gitIn("update-ref", "-d", INCOMING + name);
+    }
+
+    private CommandResult gitAtWith(GitCredentials.Lease lease, String directory, String... arguments) {
+        final List<String> all = new ArrayList<>(List.of("git"));
+        all.addAll(lease.arguments());
+        all.addAll(List.of("-C", directory));
+        all.addAll(List.of(arguments));
+        try {
+            return runner.runOrFail(Command.of(all).withEnvironment(lease.environment()));
+        } catch (CommandException ex) {
+            throw new GateException(ex.getMessage() == null ? "git failed" : ex.getMessage(), ex);
+        }
     }
 
     /**

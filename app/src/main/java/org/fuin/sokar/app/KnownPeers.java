@@ -13,6 +13,9 @@ import java.util.List;
  * read only the first would refuse every message from the account next door with "signed by a key
  * no peer is allowed to use", which is true and useless.
  * <p>
+ * A third source follows them: the {@code allowed_signers} each followed, verified project keeps beside its
+ * {@code project.yml}.
+ * <p>
  * <strong>The file wins on a name they both claim.</strong> The operator wrote that one down by
  * hand; the shared directory fills itself from whoever is on the machine. Where they disagree, the
  * deliberate one is the one to keep.
@@ -32,8 +35,29 @@ public final class KnownPeers {
      *         stops everything rather than quietly admitting fewer peers.
      */
     public static List<MessageDelivery.Peer> of(final SokarContext context) throws IOException {
-        return of(context.paths().allowedSigners(), context.paths().sharedKeys());
+        final List<MessageDelivery.Peer> peers = new ArrayList<>(
+                of(context.paths().allowedSigners(), context.paths().sharedKeys()));
+        // Then the signers each followed project names beside its project.yml - how an enrolled machine's key
+        // reaches every other machine of the project, through a commit a person reviewed and signed. Only a
+        // configuration that was verified and is in force: an unverified one is anybody's who can push there.
+        final List<String> named = new ArrayList<>(peers.stream().map(MessageDelivery.Peer::name).toList());
+        for (final FollowedProjects.Followed followed : new FollowedProjects(context.paths().followed()).all()) {
+            if (followed.unverified() || followed.commit().isBlank()) {
+                continue;
+            }
+            final java.nio.file.Path signers = context.paths().followedClone(followed.name()).resolve(SIGNERS);
+            for (final MessageDelivery.Peer peer : AllowedSigners.read(signers)) {
+                if (!named.contains(peer.name())) {
+                    peers.add(peer);
+                    named.add(peer.name());
+                }
+            }
+        }
+        return List.copyOf(peers);
     }
+
+    /** A project's signer list, beside its {@code project.yml}. */
+    public static final String SIGNERS = "allowed_signers";
 
     /**
      * Reads both sources, named.

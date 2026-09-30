@@ -577,6 +577,10 @@ public final class TaskLaunch {
                 if (refused == null) {
                     continue;
                 }
+                if (ungrantedAuthorization(name)) {
+                    // Asked of a person too, not only said here: somebody else may be the one who can grant it.
+                    AuthorizationsNeeded.raise(context, name, container, project.name(), AuthorizationsNeeded.NEVER);
+                }
                 if (refusesWithoutCredential(request.mode())) {
                     err.println("sokar: credential '" + name + "': " + refused);
                     err.println("sokar: nothing was created; a task that cannot buy its token would fail on its first"
@@ -1288,6 +1292,12 @@ public final class TaskLaunch {
      * @param name The credential's vault entry.
      * @return Why it could not be bought, or {@code null} when it could or is not of that kind.
      */
+    private boolean ungrantedAuthorization(String name) {
+        final org.fuin.sokar.vault.VaultEntry entry = context.readableCredentials()
+                .map(stored -> stored.get(name)).orElse(null);
+        return entry != null && org.fuin.sokar.supervisor.Grants.isGrant(entry.type());
+    }
+
     private @Nullable String purchaseRefused(String name) {
         final org.fuin.sokar.vault.VaultEntry entry = context.readableCredentials()
                 .map(stored -> stored.get(name)).orElse(null);

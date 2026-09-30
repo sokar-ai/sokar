@@ -773,7 +773,11 @@ public final class SokarDaemon {
                 throw new VarlinkException(INTERFACE + ".BranchRequired",
                         Map.of("name", text(parameters, "name")));
             }
-            gate.approve(text(parameters, "name"), branch);
+            if (flag(parameters, "signed")) {
+                org.fuin.sokar.app.GateSupport.approveSigned(gate, text(parameters, "name"), branch);
+            } else {
+                gate.approve(text(parameters, "name"), branch);
+            }
             replies.last(Map.of("forwarded", text(parameters, "name"), "branch", branch));
         });
 
@@ -1270,7 +1274,7 @@ public final class SokarDaemon {
                             == org.fuin.sokar.app.ProjectDeletion.Outcome.TASKS_RUNNING;
             if (following && !refused && deleted.outcome()
                     != org.fuin.sokar.app.ProjectDeletion.Outcome.PREVIEWED) {
-                projects.unfollow(name);
+                projects.unfollow(name, context.paths().configurationSigners());
             }
             replies.last(Map.of("outcome", deleted.outcome().name(),
                     "unreviewed", deleted.unreviewed(), "running", deleted.running(),
@@ -1425,6 +1429,40 @@ public final class SokarDaemon {
                             org.fuin.sokar.app.MessageRelease.peersOf(context, text(parameters, "task")));
             replies.last(Map.of("outcome", result.outcome().name(), "message", result.message(),
                     "id", result.id(), "detail", result.detail()));
+        });
+
+        // What a person has to authorize before work can use it: a start refused for want of a grant, a grant the
+        // broker found ended. Every interface sees it, so a second person can answer what the first was refused.
+        // What is open now first, then what changes; "granted" when a grant lands. Streaming only.
+        server.method("Authorizations", (parameters, replies) -> {
+            if (!replies.streaming()) {
+                throw new VarlinkException(INTERFACE + ".StreamRequired", Map.of("method", "Authorizations"));
+            }
+            Map<String, Map<String, String>> previous = new LinkedHashMap<>();
+            try {
+                while (true) {
+                    final Map<String, Map<String, String>> now = new LinkedHashMap<>();
+                    org.fuin.sokar.app.AuthorizationsNeeded.open(context)
+                            .forEach(question -> now.put(question.get("credential"), question));
+                    for (final Map.Entry<String, Map<String, String>> open : now.entrySet()) {
+                        if (!open.getValue().equals(previous.get(open.getKey()))) {
+                            replies.more(new LinkedHashMap<>(open.getValue()));
+                        }
+                    }
+                    for (final Map.Entry<String, Map<String, String>> gone : previous.entrySet()) {
+                        if (!now.containsKey(gone.getKey())) {
+                            final Map<String, Object> granted = new LinkedHashMap<>(gone.getValue());
+                            granted.put("state", "granted");
+                            granted.put("at", java.time.Instant.now().toString());
+                            replies.more(granted);
+                        }
+                    }
+                    previous = now;
+                    Thread.sleep(PROMPT_INTERVAL.toMillis());
+                }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
         });
 
         // A person grants an authorization once, in a browser somewhere else. The stream says "needed" with the
