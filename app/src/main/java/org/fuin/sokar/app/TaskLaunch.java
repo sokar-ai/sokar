@@ -936,7 +936,14 @@ public final class TaskLaunch {
     }
 
     private Project project(PrintWriter out, PrintWriter err) {
-        return ProjectReader.read(request.projectFile());
+        final Project project = ProjectReader.read(request.projectFile());
+        // A key this Sokar does not know and that is no provable mistake - a later version's, most likely - is
+        // taken and said, so nobody believes it applied.
+        for (final String unknown : ProjectReader.unknownKeys(request.projectFile())) {
+            err.println("warning   project.yml: '" + unknown + "' is not a setting this Sokar knows; it has no effect");
+        }
+        err.flush();
+        return project;
     }
 
     /**

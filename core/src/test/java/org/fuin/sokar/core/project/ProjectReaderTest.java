@@ -82,6 +82,9 @@ class ProjectReaderTest {
                 """);
 
         assertThat(project.name()).isEqualTo("uc");
+        // Accepted, and said: a warning names each, so nobody believes it applied.
+        assertThat(ProjectReader.unknownKeys(new java.io.StringReader(MINIMAL + "git:\n  upstream_url: x\n"), "t"))
+                .containsExactly("git");
     }
 
     @Test

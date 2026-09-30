@@ -1,6 +1,23 @@
 # B88 — A Setting In The Wrong Place Is Refused
 
-**Status:** open, written 2026-09-30 at the operator's word. Priority: after B86.
+**Status:** built 2026-09-30, narrowed by the operator the same day (below).
+
+## Decided 2026-09-30, by the operator
+
+**Refuse what is provably a mistake, warn about the rest.** A test pinned an older rule - a project file
+written for a later Sokar must still run on an older one - which refusing every unknown key would break.
+So: a key that belongs in another section, or one spelt within two letters of a key that belongs where it
+is, is refused, naming where it goes or what was meant; any other unknown key is accepted, and `task start`
+warns that it has no effect.
+
+## As built
+
+- `ProjectSchema` holds the keys of each section; `ProjectReader.read` refuses the provable mistakes;
+  `ProjectReader.unknownKeys` lists the rest for a warning.
+- Open by design: the names under `credentials` and `repositories`, and everything under
+  `mail.transports.<scheme>`.
+- Proven by `ProjectMailTest` and `ProjectReaderTest` (a later version's section still reads).
+
 
 ## What happened
 

@@ -51,6 +51,36 @@ public final class ProjectReader {
     }
 
     /**
+     * Returns the keys a project file holds that this Sokar does not know and that are no provable mistake -
+     * a later Sokar's, most likely - to be warned about. What is certainly a mistake is refused by
+     * {@link #read(Reader, String)}.
+     *
+     * @param file The project file.
+     * @return Where each such key is, as {@code section.key}; empty when there is none or the file cannot be read.
+     */
+    public static java.util.List<String> unknownKeys(java.nio.file.Path file) {
+        try (Reader reader = java.nio.file.Files.newBufferedReader(file, java.nio.charset.StandardCharsets.UTF_8)) {
+            return unknownKeys(reader, file.toString());
+        } catch (java.io.IOException | RuntimeException ex) {
+            return java.util.List.of();
+        }
+    }
+
+    /**
+     * Returns the keys a project file holds that this Sokar does not know and that are no provable mistake.
+     *
+     * @param reader The file's content.
+     * @param origin Name used in error messages.
+     * @return Where each such key is.
+     */
+    public static java.util.List<String> unknownKeys(Reader reader, String origin) {
+        final LoaderOptions options = new LoaderOptions();
+        options.setAllowDuplicateKeys(false);
+        final Object loaded = new Yaml(new SafeConstructor(options)).load(reader);
+        return loaded instanceof Map<?, ?> root ? ProjectSchema.check(root, origin) : java.util.List.of();
+    }
+
+    /**
      * Reads a project definition from a reader.
      *
      * @param reader Source of the YAML.
@@ -72,6 +102,10 @@ public final class ProjectReader {
         if (!(loaded instanceof Map<?, ?> root)) {
             throw new ProjectException(origin + " is empty or is not a YAML mapping");
         }
+
+        // Before anything is read from it: a setting in the wrong place, or misspelt, is no setting at all, and
+        // the file looked applied (found by Agent Matrix, 2026-09-30, with a key one section too low).
+        ProjectSchema.check(root, origin);
 
         final Map<?, ?> project = section(root, "project", origin);
         final Map<?, ?> image = section(root, "image", origin);

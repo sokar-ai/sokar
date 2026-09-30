@@ -119,4 +119,34 @@ class ProjectMailTest {
         assertThatThrownBy(() -> read(HEAD + "mail:\n  transports:\n    matrix: yes\n"))
                 .hasMessageContaining("'mail.transports.matrix' must be a mapping");
     }
+
+    @Test
+    void a_setting_in_the_wrong_place_is_refused_and_named_where_it_belongs() {
+        // Found by Agent Matrix: under 'mail:', one section too low, followed without a word and never read.
+        assertThatThrownBy(() -> read(HEAD + "mail:\n  unread_work_may_leave: true\n"))
+                .hasMessageContaining("'mail.unread_work_may_leave' is not a setting; it belongs under 'project:'");
+        assertThatThrownBy(() -> read(HEAD.replace("security_class", "securty_class")
+                + "  security_class: \"guarded\"\n"))
+                .hasMessageContaining("'project.securty_class' is not a setting; did you mean 'security_class'?");
+        assertThatThrownBy(() -> read(HEAD + "mail:\n  peers:\n    r: { address: \"matrix:\", trusted: vouched }\n"))
+                .hasMessageContaining("'mail.peers.r.trusted' is not a setting; did you mean 'trust'?");
+        // Unknown and near nothing: a later Sokar's, accepted and warned about.
+        assertThat(read(HEAD + "gate:\n  on: true\n").name()).isEqualTo("p");
+        assertThat(ProjectReader.unknownKeys(new StringReader(HEAD + "gate:\n  on: true\n"), "test"))
+                .containsExactly("gate");
+    }
+
+    @Test
+    void what_is_the_projects_own_or_a_transports_is_not_checked() {
+        final Project project = read(HEAD + """
+                credentials:
+                  anything-at-all: somewhere
+                repositories:
+                  backend: { upstream: "git@example.org:b.git", limits: { memory: "4g" } }
+                mail:
+                  transports:
+                    matrix: { whatever_the_transport_takes: 1 }
+                """);
+        assertThat(project.credentials()).containsKey("anything-at-all");
+    }
 }
