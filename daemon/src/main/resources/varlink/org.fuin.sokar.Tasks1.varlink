@@ -2511,8 +2511,9 @@ type TalkEvent (
   task: string,
   # When it happened, RFC 3339.
   at: string,
-  # taken, queued, sent, deferred, held, delivered, duplicate, refused (by a person) or overridden
-  # (delivered by a person although the filter refused it).
+  # taken, queued, sent, deferred, held, delivered, duplicate, refused (by a person), overridden
+  # (delivered by a person although the filter refused it) or read (what the task sent was read where it
+  # went, as a transport that confirms reading says; detail gives when).
   event: string,
   # The message's file name.
   message: string,

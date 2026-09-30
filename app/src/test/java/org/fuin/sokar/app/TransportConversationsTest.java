@@ -158,6 +158,57 @@ class TransportConversationsTest {
     }
 
     @Test
+    void whatATaskSentIsAskedAboutByTheRecipientsAddressAndRecordedReadOnce() throws Exception {
+        Assumptions.assumeTrue(KernelKeyring.available(), "libkeyutils is not installed");
+        final SokarContext context = context();
+        final KernelKeyring keyring = new KernelKeyring(context.paths().vaultKeyringKey());
+        try {
+            Files.createDirectories(context.vault().path().getParent());
+            context.vault().write(Map.of(), PASSPHRASE);
+            keyring.store(PASSPHRASE);
+            runner.answering("describe", "{\"scheme\":\"room\",\"poll\":true,\"confirms\":\"read\","
+                    + "\"lifecycle\":[\"setup\",\"enroll\"]}");
+            runner.answering("setup", "{\"secrets\":{\"POLLER\":\"p-1\"},\"conversation\":\"!r\","
+                    + "\"reaches\":[\"127.0.0.1\"]}");
+            runner.answering("--task sokar-p-write", "{\"secrets\":{\"TASK\":\"w-1\"},\"address\":\"@write\"}");
+            runner.answering("--task sokar-p-review", "{\"secrets\":{\"TASK\":\"r-1\"},\"address\":\"@review\"}");
+            runner.answering(" receipt ", "{\"state\":\"read\",\"at\":\"2026-09-30T08:00:00Z\"}");
+            final TaskConversations tasks = new TaskConversations(context);
+            assertThat(tasks.enroll(project("guarded"), "sokar-p-write")).isNull();
+            assertThat(tasks.enroll(project("guarded"), "sokar-p-review")).isNull();
+            final Mailbox write = mailbox("sokar-p-write");
+            Files.writeString(write.sent().resolve("m-1.json"),
+                    "{\"messageId\":\"m-1\",\"metadata\":{\"to\":\"review\"}}");
+            Files.writeString(write.sent().resolve("m-1.json.receipt.json"), "{\"reference\":\"$e1\"}");
+            final TransportConversations conversations =
+                    new TransportConversations(context, context.paths().transportDirectory());
+            final List<TransportConversations.Member> members = List.of(
+                    new TransportConversations.Member("sokar-p-write", write, "p", "room"));
+
+            conversations.pass(members);
+            conversations.pass(members);
+
+            final org.fuin.sokar.core.process.Command asked = runner.only(" receipt ");
+            assertThat(asked.arguments()).endsWith("receipt", "$e1", "--by", "@review");
+            assertThat(asked.environment()).as("as the sender").containsEntry("TASK", "w-1");
+            assertThat(Files.readString(write.record().resolve(MessageRecord.FILE)))
+                    .contains("\"event\":\"read\"").contains("\"peer\":\"review\"");
+        } finally {
+            keyring.forget();
+        }
+    }
+
+    @Test
+    void anAddressIsATasksShortOrFullNameOrAPersons() {
+        final Map<String, String> tasks = Map.of("sokar-p-review", "@review");
+        final Map<String, String> people = Map.of("michi", "@michi");
+        assertThat(TransportConversations.addressOf("review", "p", tasks, people)).isEqualTo("@review");
+        assertThat(TransportConversations.addressOf("sokar-p-review", "p", tasks, people)).isEqualTo("@review");
+        assertThat(TransportConversations.addressOf("michi", "p", tasks, people)).isEqualTo("@michi");
+        assertThat(TransportConversations.addressOf("nobody", "p", tasks, people)).isNull();
+    }
+
+    @Test
     void anOfflineProjectsConversationMustNotReachBeyondLoopback() throws Exception {
         Assumptions.assumeTrue(KernelKeyring.available(), "libkeyutils is not installed");
         final SokarContext context = context();

@@ -128,6 +128,63 @@ final class TransportLifecycle {
         if (said.get("secrets") instanceof Map<?, ?> secrets && !secrets.isEmpty()) {
             keep(scheme, "task/" + task, secrets);
         }
+        if (said.get("address") instanceof String address && !address.isBlank()) {
+            // How the task is named in the conversation - not a secret - so what is sent to it can be asked
+            // about: 'receipt --by' takes it.
+            final Map<String, String> addresses = new LinkedHashMap<>(addresses(scheme, project));
+            addresses.put(task, address);
+            try {
+                final Path file = addressesFile(scheme, project);
+                Files.createDirectories(file.getParent());
+                Files.writeString(file, Json.write(addresses), StandardCharsets.UTF_8);
+            } catch (IOException ex) {
+                // The task takes part all the same; only whether it read something cannot be asked.
+            }
+        }
+    }
+
+    /**
+     * Returns how each enrolled task of a project is named in its conversation, as {@code enroll} said.
+     *
+     * @param scheme The transport.
+     * @param project The project.
+     * @return Task container to its address; empty when the transport named none.
+     */
+    Map<String, String> addresses(String scheme, String project) {
+        return names(addressesFile(scheme, project));
+    }
+
+    /**
+     * Returns who has joined a project's conversation, as {@code join} named their account.
+     *
+     * @param scheme The transport.
+     * @param project The project.
+     * @return Person to their account.
+     */
+    Map<String, String> people(String scheme, String project) {
+        return names(context.paths().xdg().state().resolve("transport").resolve(scheme).resolve("members")
+                .resolve(project + ".json"));
+    }
+
+    private Path addressesFile(String scheme, String project) {
+        return context.paths().xdg().state().resolve("transport").resolve(scheme).resolve("addresses")
+                .resolve(project + ".json");
+    }
+
+    private static Map<String, String> names(Path file) {
+        if (!Files.isRegularFile(file)) {
+            return Map.of();
+        }
+        try {
+            if (Json.parse(Files.readString(file, StandardCharsets.UTF_8)) instanceof Map<?, ?> read) {
+                final Map<String, String> names = new LinkedHashMap<>();
+                read.forEach((key, value) -> names.put(String.valueOf(key), String.valueOf(value)));
+                return names;
+            }
+        } catch (IOException | RuntimeException ex) {
+            // Unreadable: nobody is named.
+        }
+        return Map.of();
     }
 
     /**

@@ -41,6 +41,12 @@ final class TransportConversations {
     /** Beside a mailbox's record: those already marked read, one file name per line. */
     static final String MARKED = "conversation-read";
 
+    /** Beside a mailbox's record: what this task sent that was read where it went, one file name per line. */
+    static final String ANSWERED = "conversation-sent-read";
+
+    /** How long what a task sent is asked about: a message nobody read in a week is not waited on. */
+    static final java.time.Duration ASKED_FOR = java.time.Duration.ofDays(7);
+
     /**
      * A task that takes part in a conversation on this machine.
      *
@@ -136,6 +142,7 @@ final class TransportConversations {
                 if ("read".equals(TransportDescription.of(context.runner(), adapter).confirms())) {
                     for (final Member member : group) {
                         marked.addAll(markRead(adapter, member, failures));
+                        askRead(adapter, member, failures);
                     }
                 }
             } catch (IOException ex) {
@@ -215,6 +222,97 @@ final class TransportConversations {
             }
         }
         return marked;
+    }
+
+    /**
+     * Asks, for what this task sent through the conversation in the last week and nobody has read yet,
+     * whether it has been read where it went - {@code receipt <reference> --by <address>} - and records it as
+     * read when it has. The address is the recipient's as the transport named it: a task's from {@code enroll},
+     * a person's from {@code join}. One the transport never named is not asked about.
+     *
+     * @param adapter The transport.
+     * @param member The task that sent.
+     * @param failures Filled with what could not be asked.
+     * @throws IOException If a record cannot be read or written.
+     */
+    private void askRead(Path adapter, Member member, List<String> failures) throws IOException {
+        final Path sent = member.mailbox().sent();
+        if (!Files.isDirectory(sent)) {
+            return;
+        }
+        final Set<String> answered = lines(member.mailbox().record().resolve(ANSWERED));
+        final Map<String, String> tasks = lifecycle.addresses(member.scheme(), member.project());
+        final Map<String, String> people = lifecycle.people(member.scheme(), member.project());
+        final Map<String, String> secrets = lifecycle.secrets(member.scheme(), "task/" + member.container());
+        if (secrets.isEmpty() || tasks.isEmpty() && people.isEmpty()) {
+            return;
+        }
+        final java.time.Instant since = java.time.Instant.now().minus(ASKED_FOR);
+        final List<Path> receipts;
+        try (Stream<Path> listed = Files.list(sent)) {
+            receipts = listed.filter(path -> path.getFileName().toString().endsWith(".receipt.json")).sorted().toList();
+        }
+        for (final Path receipt : receipts) {
+            final String name = receipt.getFileName().toString().replace(".receipt.json", "");
+            final Path message = sent.resolve(name);
+            if (answered.contains(name) || !Files.isRegularFile(message)
+                    || Files.getLastModifiedTime(receipt).toInstant().isBefore(since)) {
+                continue;
+            }
+            final String reference = text(receipt, null, "reference");
+            final String to = recipient(message);
+            final String address = to == null ? null : addressOf(to, member.project(), tasks, people);
+            if (reference == null || address == null || to == null) {
+                continue;
+            }
+            final CommandResult result = context.runner().run(Command.of(adapter.toString(), "receipt", reference,
+                    "--by", address).withEnvironment(secrets));
+            if (!result.successful()) {
+                if (result.exitCode() != TransportSend.TEMPORARY) {
+                    failures.add("whether " + to + " read a message from " + member.container()
+                            + " could not be asked (exit " + result.exitCode() + "): " + result.standardError().strip());
+                }
+                continue;
+            }
+            final Object answer;
+            try {
+                answer = org.fuin.sokar.wire.Json.parse(result.standardOutput());
+            } catch (RuntimeException ex) {
+                continue;
+            }
+            if (answer instanceof Map<?, ?> said && "read".equals(said.get("state"))) {
+                new MessageRecord(member.mailbox()).append(MessageRecord.READ, name, MessageFile.id(message), to,
+                        said.get("at") instanceof String at ? "read at " + at : "", MessageRecord.OUT);
+                Files.writeString(member.mailbox().record().resolve(ANSWERED), name + "\n", StandardCharsets.UTF_8,
+                        StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            }
+        }
+    }
+
+    /**
+     * Returns the address a peer name stands for in a project's conversation.
+     *
+     * @param to The name a message addressed.
+     * @param project The project.
+     * @param tasks Task container to address.
+     * @param people Person to address.
+     * @return The address, or {@code null} when the transport named none for it.
+     */
+    static @Nullable String addressOf(String to, String project, Map<String, String> tasks, Map<String, String> people) {
+        final String task = tasks.containsKey(to) ? tasks.get(to) : tasks.get("sokar-" + project + "-" + to);
+        return task != null ? task : people.get(to);
+    }
+
+    private static @Nullable String text(Path file, @Nullable String section, String key) {
+        try {
+            if (org.fuin.sokar.wire.Json.parse(Files.readString(file, StandardCharsets.UTF_8))
+                    instanceof Map<?, ?> document && document.get(key) instanceof String value) {
+                return value;
+            }
+        } catch (IOException | RuntimeException ex) {
+            // Unreadable: nothing to ask about.
+        }
+        return null;
     }
 
     /**

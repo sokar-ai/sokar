@@ -380,7 +380,11 @@ error OfflineHomeserver(project: string, homeserver: string)
   `ConversationRefused`.
 - **Proven:** `TransportConversationsTest` against a stand-in, `ProjectMailTest`. Not yet on a VM: that waits
   for the Matrix transport's verbs.
-- **Not built yet:** asking `receipt` for what a task sent and recording the read state (point 6).
+- **The read state of what a task sent (point 6):** `enroll` may print `"address"` - how the task is named in
+  the conversation, not a secret - which Sokar keeps beside the project; a person's comes from `join`'s
+  `login.user`. Each pass asks `receipt <reference> --by <recipient's address>` with the sender's secrets,
+  for what it sent in the last week and nobody read yet, and records `read` in the task's message record
+  (and so in the `Talk` stream) once. A recipient the transport named no address for is not asked about.
 
 ## Acceptance
 

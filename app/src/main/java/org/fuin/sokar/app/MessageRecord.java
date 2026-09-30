@@ -68,6 +68,9 @@ public final class MessageRecord {
     /** A person delivered it after reading it, although the filter had refused it. */
     public static final String OVERRIDDEN = "overridden";
 
+    /** What a task sent was read where it went, as the transport's {@code receipt} says. */
+    public static final String READ = "read";
+
     private final Path file;
 
     /**
