@@ -90,8 +90,9 @@ public final class CodeGrant {
                 throw new IllegalArgumentException("an " + KIND + " entry needs the settings authorization_url,"
                         + " token_url and client_id");
             }
-            if (!authorization.startsWith("https://") || !token.startsWith("https://")) {
-                throw new IllegalArgumentException("the authorization and token URLs must be https");
+            if (!Grants.secure(authorization) || !Grants.secure(token)) {
+                throw new IllegalArgumentException("the authorization and token URLs must be https, or http on"
+                        + " loopback");
             }
             final int port;
             try {

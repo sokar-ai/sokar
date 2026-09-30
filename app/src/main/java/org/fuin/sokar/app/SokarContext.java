@@ -196,6 +196,36 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
     }
 
     /**
+     * Returns the grants people have given, keyed by the entry they were given for, without their value
+     * ever leaving this process: who granted each and when is what callers read.
+     * <p>
+     * Hidden from {@link #readableCredentials()}, as a task's own tokens are; this is the one view of them.
+     *
+     * @return The grants, or empty when the vault is locked or unreadable.
+     */
+    public java.util.Optional<java.util.Map<String, org.fuin.sokar.vault.VaultEntry>> readableGrants() {
+        final org.fuin.sokar.vault.VaultFile vault = vault();
+        if (!vault.exists()) {
+            return java.util.Optional.of(java.util.Map.of());
+        }
+        final java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> opener = opener();
+        if (opener.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        try {
+            final java.util.Map<String, org.fuin.sokar.vault.VaultEntry> grants = new java.util.LinkedHashMap<>();
+            vault.read(opener.get()).forEach((name, entry) -> {
+                if (name.startsWith(TaskSecrets.GRANT_PREFIX)) {
+                    grants.put(name.substring(TaskSecrets.GRANT_PREFIX.length()), entry);
+                }
+            });
+            return java.util.Optional.of(grants);
+        } catch (org.fuin.sokar.vault.VaultException ex) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    /**
      * Returns the agents installed on this machine, started and handshaken.
      * <p>
      * The caller closes it: each agent is a process, and leaving them running would leak one per

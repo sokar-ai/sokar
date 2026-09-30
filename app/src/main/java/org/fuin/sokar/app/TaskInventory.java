@@ -51,6 +51,8 @@ public final class TaskInventory {
      * @param repository The repository it works on, or {@code null}.
      * @param commit What its configuration was verified at, or {@code null}.
      * @param derived Whether it waits for a person, derived from its agent's own declaration - never observed.
+     * @param credentials What it was given beyond its agent's own credential: entry to destination.
+     * @param grants For each credential a person granted: {@code grantedBy} and {@code grantedAt}.
      */
     public record Task(String name, @Nullable String project, @Nullable String securityClass,
             String state, boolean running, long helpers, @Nullable String agent,
@@ -58,7 +60,45 @@ public final class TaskInventory {
             String since, Activity activity, @Nullable String waitingFor,
             @Nullable String clearance, @Nullable String label, int waiting,
             String startAction, String startDetail, @Nullable String repository,
-            @Nullable String commit, AgentWaiting.Derived derived, Map<String, String> credentials) {
+            @Nullable String commit, AgentWaiting.Derived derived, Map<String, String> credentials,
+            Map<String, Map<String, String>> grants) {
+
+        /**
+         * Constructor for a task that acts as nobody, the shape before grants were recorded.
+         *
+         * @param name Container name.
+         * @param project Project, or {@code null}.
+         * @param securityClass Class, or {@code null}.
+         * @param state Container state.
+         * @param running Whether it is up.
+         * @param helpers How many host processes it has.
+         * @param agent Agent, or {@code null}.
+         * @param mode Mode, or {@code null}.
+         * @param prompt Prompt, or {@code null}.
+         * @param branch Branch, or {@code null}.
+         * @param since Since when.
+         * @param activity What its work is doing.
+         * @param waitingFor What it is waiting for, or {@code null}.
+         * @param clearance Its clearance mode, or {@code null}.
+         * @param label Its label, or {@code null}.
+         * @param waiting Whether its work is waiting for review.
+         * @param startAction What starting it would do.
+         * @param startDetail Why.
+         * @param repository Repository, or {@code null}.
+         * @param commit Commit, or {@code null}.
+         * @param derived What its screen and messages say.
+         * @param credentials What it was given beyond its agent's own credential.
+         */
+        public Task(String name, @Nullable String project, @Nullable String securityClass, String state,
+                boolean running, long helpers, @Nullable String agent, @Nullable String mode, @Nullable String prompt,
+                @Nullable String branch, String since, Activity activity, @Nullable String waitingFor,
+                @Nullable String clearance, @Nullable String label, int waiting, String startAction,
+                String startDetail, @Nullable String repository, @Nullable String commit,
+                AgentWaiting.Derived derived, Map<String, String> credentials) {
+            this(name, project, securityClass, state, running, helpers, agent, mode, prompt, branch, since, activity,
+                    waitingFor, clearance, label, waiting, startAction, startDetail, repository, commit, derived,
+                    credentials, Map.of());
+        }
 
         /**
          * Constructor for a task given no credential beyond its agent's own, the shape before a task held
@@ -94,7 +134,7 @@ public final class TaskInventory {
                 AgentWaiting.Derived derived) {
             this(name, project, securityClass, state, running, helpers, agent, mode, prompt, branch, since, activity,
                     waitingFor, clearance, label, waiting, startAction, startDetail, repository, commit, derived,
-                    Map.of());
+                    Map.of(), Map.of());
         }
 
         /**
@@ -241,6 +281,8 @@ public final class TaskInventory {
             map.put("session", derived.session());
             // What it was given beyond its agent's own credential, by name and destination - never a token.
             map.put("credentials", credentials);
+            // Whom it acts as, for each of those a person granted: an audit fact, never the grant itself.
+            map.put("grants", grants);
 
             // Nothing records a phase yet. "" is the honest answer for a task that is in none,
             // and it is what every task answers until a detached Start has something to report.
@@ -468,11 +510,38 @@ public final class TaskInventory {
                 agentWaiting == null ? AgentWaiting.Derived.NOTHING
                         : agentWaiting.about(summary.name(), summary.running(), profile == null ? null : profile.agent(),
                                 profile == null ? null : profile.mode().name(), state),
-                credentialsGiven(restartTookIt ? context.paths().taskRecord(summary.name()) : state));
+                credentialsGiven(restartTookIt ? context.paths().taskRecord(summary.name()) : state),
+                grantsGiven(restartTookIt ? context.paths().taskRecord(summary.name()) : state));
     }
 
     /** What a task was given beyond its agent's own credential, written when it is launched. */
     static final String CREDENTIALS_FILE = "credentials.json";
+
+    /** Whom a task acts as: for each credential a person granted, who and when, written when it is launched. */
+    static final String GRANTS_FILE = "grants.json";
+
+    private static Map<String, Map<String, String>> grantsGiven(Path directory) {
+        final Path file = directory.resolve(GRANTS_FILE);
+        if (!Files.isRegularFile(file)) {
+            return Map.of();
+        }
+        try {
+            if (org.fuin.sokar.wire.Json.parse(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8))
+                    instanceof Map<?, ?> named) {
+                final Map<String, Map<String, String>> given = new java.util.LinkedHashMap<>();
+                named.forEach((name, grant) -> {
+                    if (grant instanceof Map<?, ?> fields) {
+                        given.put(String.valueOf(name), Map.of("grantedBy", String.valueOf(fields.get("grantedBy")),
+                                "grantedAt", String.valueOf(fields.get("grantedAt"))));
+                    }
+                });
+                return given;
+            }
+        } catch (java.io.IOException | RuntimeException ex) {
+            // A file that cannot be read says nothing; the task is still listed.
+        }
+        return Map.of();
+    }
 
     private static Map<String, String> credentialsGiven(Path directory) {
         final Path file = directory.resolve(CREDENTIALS_FILE);

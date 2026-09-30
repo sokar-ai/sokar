@@ -243,4 +243,52 @@ class StartCheckTest {
         assertThat(StartCheck.withCredentials(context(dir), READY, credentialed(dir), java.util.Map.of()))
                 .isEqualTo(READY);
     }
+
+    @Test
+    void anUndeclaredDestinationIsAnsweredBeforeAMissingCredential(@TempDir Path dir) throws Exception {
+
+        // Measured by Agent Frontend: told only that the agent's credential was missing, an interface offered a
+        // shell, and Start then refused it for the destination - which refuses in every mode.
+        final StartCheck.Result missing = new StartCheck.Result(StartCheck.Outcome.CREDENTIAL_MISSING, "asker", "p",
+                "anthropic", "the vault holds no credential for 'anthropic'");
+
+        assertThat(StartCheck.withCredentials(context(dir), missing, credentialed(dir), java.util.Map.of())
+                .outcome()).isEqualTo(StartCheck.Outcome.UNKNOWN_DESTINATION);
+        final StartCheck.Result declared = StartCheck.withCredentials(context(dir), missing, threeRepositories(dir),
+                java.util.Map.of());
+        assertThat(declared).as("nothing else in the way: the missing credential stands").isEqualTo(missing);
+    }
+
+    @Test
+    void aCredentialNobodyGrantedIsItsOwnOutcomeWithTheCommandThatGrantsIt(@TempDir Path dir) throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(org.fuin.sokar.vault.KernelKeyring.available(),
+                "libkeyutils is not installed");
+        final SokarContext context = context(dir);
+        Files.createDirectories(dir.resolve("data/sokar/destinations"));
+        Files.writeString(dir.resolve("data/sokar/destinations/nowhere.yaml"),
+                "name: nowhere\nupstream: https://api.example.com\n");
+        final char[] passphrase = "correct horse battery staple".toCharArray();
+        final org.fuin.sokar.vault.VaultEntry service = new org.fuin.sokar.vault.VaultEntry("-", "oauth-device",
+                java.util.Map.of("client_id", "x", "device_authorization_url", "https://a/d", "token_url", "https://a/t"));
+        final org.fuin.sokar.vault.KernelKeyring keyring =
+                new org.fuin.sokar.vault.KernelKeyring(context.paths().vaultKeyringKey());
+        try {
+            Files.createDirectories(context.vault().path().getParent());
+            context.vault().write(java.util.Map.of("search", service), passphrase);
+            keyring.store(passphrase);
+
+            final StartCheck.Result needed = StartCheck.withCredentials(context, READY, credentialed(dir),
+                    java.util.Map.of());
+            assertThat(needed.outcome()).isEqualTo(StartCheck.Outcome.AUTHORIZATION_NEEDED);
+            assertThat(needed.credential()).isEqualTo("search");
+            assertThat(needed.detail()).contains("sokar vault authorize search");
+
+            context.vault().write(java.util.Map.of("search", service, TaskSecrets.GRANT_PREFIX + "search",
+                    new org.fuin.sokar.vault.VaultEntry("rt-1", "refresh-token", java.util.Map.of())), passphrase);
+            assertThat(StartCheck.withCredentials(context, READY, credentialed(dir), java.util.Map.of()))
+                    .as("granted: nothing in the way").isEqualTo(READY);
+        } finally {
+            keyring.forget();
+        }
+    }
 }

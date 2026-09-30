@@ -681,6 +681,7 @@ public final class SokarDaemon {
             answer.put("vault", context.vault().path().toString());
             answer.put("exists", context.vault().exists());
             final var readable = context.readableCredentials();
+            final Map<String, org.fuin.sokar.vault.VaultEntry> grants = context.readableGrants().orElseGet(Map::of);
             final List<Map<String, Object>> entries = readable.orElseGet(Map::of).entrySet()
                     .stream()
                     .map(entry -> {
@@ -691,6 +692,12 @@ public final class SokarDaemon {
                         row.put("characters", entry.getValue().value().length());
                         // Configuration, never a secret: a client id, a token URL, scopes.
                         row.put("settings", entry.getValue().settings());
+                        // Who granted it and when, for an entry a person grants; the grant itself never.
+                        final org.fuin.sokar.vault.VaultEntry grant = grants.get(entry.getKey());
+                        if (grant != null && org.fuin.sokar.supervisor.Grants.isGrant(entry.getValue().type())) {
+                            row.put("grant", Map.of("grantedBy", grant.settings().getOrDefault("granted_by", ""),
+                                    "grantedAt", grant.settings().getOrDefault("granted_at", "")));
+                        }
                         return row;
                     }).toList();
             answer.put("credentials", entries);

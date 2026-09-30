@@ -157,6 +157,23 @@ class InterfaceDescriptionTest {
         }
     }
 
+    @Test
+    void noTypeMethodOrErrorIsDeclaredTwice() {
+
+        // Found by Agent Frontend on build 215: a second 'type Grant' beside the egress one. varlink allows
+        // one definition per name; a strict parser refuses the whole description, and a lenient one reads
+        // one of the two fields' sets with the other's.
+        final String description = SokarDaemon.description();
+        for (final Pattern pattern : List.of(TYPE, METHOD, ERROR)) {
+            final java.util.List<String> all = new java.util.ArrayList<>();
+            final Matcher matcher = pattern.matcher(description);
+            while (matcher.find()) {
+                all.add(matcher.group(1));
+            }
+            assertThat(all).as("declared twice").doesNotHaveDuplicates();
+        }
+    }
+
     private static Set<String> names(Pattern pattern, String idl) {
         final Set<String> found = new TreeSet<>();
         final Matcher matcher = pattern.matcher(idl);

@@ -276,7 +276,10 @@ type Task (
   session: string,
   # What this task was given beyond its agent's own credential, from the project and its run: a vault
   # entry's name to the destination it is for. Names only, never a token.
-  credentials: [string]string
+  credentials: [string]string,
+  # For each of those credentials a person granted: who and when, as it stood when the task started - the
+  # person this task acts as. Empty when none is a grant.
+  grants: [string]Authorization
 )
 
 # What became of a Stop or a Remove.
@@ -399,7 +402,18 @@ type Credential (
   characters: int,
   # What goes with the secret and is not secret - a client id, a token URL, scopes - by name.
   # Configuration, shown whole; never a secret.
-  settings: [string]string
+  settings: [string]string,
+  # For an entry a person grants (oauth-device, oauth-code): who granted it and when, or absent while
+  # nobody has. The grant itself is never shown.
+  grant: ?Authorization
+)
+
+# Who granted an authorization, and when. Not a secret: the audit fact that a task acts as this person.
+type Authorization (
+  # The account that ran the grant.
+  grantedBy: string,
+  # When, ISO 8601.
+  grantedAt: string
 )
 
 # A service a credential is for that is not a model provider: where it is, and where its key goes.
@@ -1233,7 +1247,12 @@ type StartOutcome (
   # A credential the project or the run names is for a destination nobody declared here, or the run points
   # one of the project's elsewhere. 'credential' names it; 'detail' says whether the project or the run
   # named it. Start refuses the same case with NoSuchDestination, before anything is launched.
-  UNKNOWN_DESTINATION
+  UNKNOWN_DESTINATION,
+  # A credential the project or the run names is one a person grants (oauth-device, oauth-code), and
+  # nobody has granted it. 'credential' names the entry; 'detail' gives the command that grants it, and
+  # Authorize is how an interface grants it. Start refuses an unattended or agent run for it; a shell
+  # starts with a warning. A grant that ended at the service is not seen here: it is found when spent.
+  AUTHORIZATION_NEEDED
 )
 
 # Whether work could start here, asked before anything is created.
@@ -2625,7 +2644,9 @@ method WriteDestination(
 # name exists, it is in force again afterwards.
 method RemoveDestination(name: string) -> (removed: bool, file: string)
 
-# The name is not a destination declared on this machine.
+# The name is not a destination declared on this machine. From Destination, 'name' is the destination asked
+# for. From Start, it is the CREDENTIAL whose destination is not declared - the entry the project or the run
+# named, which is what the person corrects - and never the destination's name.
 error NoSuchDestination(name: string)
 
 # The destination as given is not one Sokar can use; the message says why.

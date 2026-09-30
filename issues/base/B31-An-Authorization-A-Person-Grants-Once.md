@@ -1,7 +1,10 @@
 # B31 — An Authorization A Person Grants Once
 
-**Status:** the device code flow and the redirect flow are built (2026-09-29); carrying an MCP session
-through the broker is unmeasured. The only kind with a human in it. Driven by remote MCP servers, where the
+**Status:** the device code flow, the redirect flow and revocation are built (2026-09-29); plain http on
+loopback, `AUTHORIZATION_NEEDED`, who granted a grant (on the credential row and in the task's record) and
+the cause of an unreachable service are built (2026-09-30); dynamic client registration and the
+"authorization needed" event are decided and not built;
+carrying an MCP session through the broker is to be measured. The only kind with a human in it. Driven by remote MCP servers, where the
 agent is expected to inherit a person's permissions rather than a service account's. Depends on
 [B28](B28-More-Than-One-Credential-In-A-Task.md) and, for everything after the first consent, on
 [B30](B30-Credentials-The-Broker-Has-To-Fetch.md). Compared with the other kinds in
@@ -208,32 +211,76 @@ is making the vault able to hold anyway.
 
 ## Still open
 
-- **Found by Agent Frontend on build 213, to fix:** a service that cannot be reached is said as "could not
-  be reached: null" - the JDK's connect failures often carry no message. The sentence names the cause
-  instead: no such host, refused, timed out. And the contract says what already holds: a failure before
-  the first reply (no such entry, a setting missing, the service unreachable at the start) is the error
+- **Fixed 2026-09-30, found by Agent Frontend on build 213:** a service that cannot be reached was said as
+  "could not be reached: null". It now names the cause: no such host, the connection was refused, timed
+  out, no route, or its TLS was refused. A failure before the first reply of `Authorize` is the error
   `Failed`; the state `failed` is only ever a last reply after "needed".
 
-- **Whether the broker can carry an MCP session**, a long-lived stream, is unmeasured.
+
+## Decided 2026-09-30, by the operator
+
+- **Dynamic client registration (RFC 7591) is built now.** Where a service offers it, Sokar registers a
+  client itself when the entry is set up - on the host, never in a task - and keeps the registration
+  (`client_id`, a client secret if issued, the registration access token if any) in the account's vault
+  beside the entry, so it is done once and not per task, which servers rate-limit. An entry may then name
+  only the service; the endpoints come from its metadata: the protected resource's
+  `/.well-known/oauth-protected-resource` (RFC 9728) names the authorization server, whose
+  `/.well-known/oauth-authorization-server` (RFC 8414) names the registration, device, authorization,
+  token and revocation endpoints. A service without registration still takes a `client_id` the operator
+  registered by hand, as today. Removing the entry deletes the registration too, at the service where it
+  offers that (RFC 7592).
+- **An MCP session through the broker is measured on the next build day, then fixed if it breaks.**
+  Measured against a stand-in on loopback: streamable HTTP with server-sent events, and a stream held open
+  for an hour. If it breaks, the broker streams without a bound once the response's headers arrived, and
+  closes when either side does.
+- **A task acting as a person is recorded in the task's record now.** Per credential it keeps who granted
+  the grant it spends and when; `Task.credentials` shows it, and the record outlives the task in the
+  account's state. [B26](B26-What-This-Machine-Has-Been-Doing.md) takes it over when its machine log is
+  built.
+- **"A service that accepts consent only from the agent's own browser" is closed, not decided**: no such
+  service is known, and the shape does not hold. A task behind the broker never sees a 401, so its agent
+  never starts a login of its own; the service sees the broker as the client. Sender-constrained tokens
+  (DPoP, RFC 9449; mutual TLS, RFC 8705) are brokered the same way: the broker makes the request, so the
+  broker holds the key that signs it. If a real service turns up that cannot be brokered, it is written
+  down then, with its name.
+
+## As built, 2026-09-30
+
+- **`Grants.secure`**: every endpoint of a grant or a bought token is https, or plain http to `127.0.0.1`,
+  `::1` or `localhost`. A stand-in service on the machine can be measured against.
+- **`CanStart` answers `AUTHORIZATION_NEEDED`** (the last value of `StartOutcome`) for a credential the
+  project or the run names whose entry is `oauth-device` or `oauth-code` and has no grant, with the entry's
+  name and `sokar vault authorize <name>`. It is asked after `UNKNOWN_DESTINATION`, which is now asked
+  before a missing or unusable agent credential too: it refuses in every mode.
+- **A `Credential` row carries `grant: ?Authorization (grantedBy, grantedAt)`** for an entry a person granted.
+- **`Task.grants: [string]Authorization`**: whom the task acts as, for each credential a person granted, as it
+  stood when the task started (`grants.json` in the task's state, kept across a restart). Each also goes as
+  one JSON line into the account's `$XDG_STATE_HOME/sokar/grants.log`, which removing the task does not
+  touch: `at`, `task`, `project`, `credential`, `grantedBy`, `grantedAt`.
+- **`NoSuchDestination(name)`**: from `Start`, `name` is the credential's; from `Destination`, the
+  destination's. The contract says so.
 
 ## To be checked
 
 - **Whether the broker can carry an MCP session at all.** It bounds the start of a response and then
   streams, which server-sent events tolerate; a long-lived session with a server that expects to keep
-  one open is unmeasured.- **How the wait ends when the person is elsewhere.** The grant completes in a browser, and nothing
+  one open is unmeasured. *Measured next build day (above).*
+- **How the wait ends when the person is elsewhere.** The grant completes in a browser, and nothing
   in an interface observes it. Either the daemon raises a second event when the authorization lands,
   or a client polls — and polling a consent flow is the shape that produces two grants for one
   question. The interface's owner named the first as the one to build; it is the daemon's to build.
+  *Decided 2026-09-29: the daemon's `Authorize` stream, and the "authorization needed" event.*
 - **Whether consent can reuse the clearance prompt outright**, or only its shape. A clearance answer
   is a verdict on a waiting connection; a consent answer arrives out of band, after the person has
-  been somewhere else entirely.
+  been somewhere else entirely. *Its shape only: "authorization needed" is raised on the prompt stream,
+  answered by `Authorize` (decided 2026-09-29).*
 - **Whether an authorization is per operator or per machine.** Individual authentication says the
   first; a node that several people start tasks on then holds several grants for one service, and a
-  task has to be told which one it acts as.
+  task has to be told which one it acts as. *Decided 2026-09-29: the account's.*
 - **What revocation at the end looks like.** RFC 7009 revocation is the tidy answer for a grant that
   is finished with, and a task ending is not the grant being finished with. The two must not be
-  confused.
+  confused. *Decided 2026-09-29: a task ending does not revoke; `vault remove` does (built).*
 - **A refusal that may be the honest answer for some servers**: one that requires interactive consent
   and will accept it only from the agent's own browser cannot be brokered at all. It would be the
   fifth of that shape in this set, after the agent roster, hardware access, key routing and
-  instruction files.
+  instruction files. *Closed 2026-09-30 (above): no such service is known.*

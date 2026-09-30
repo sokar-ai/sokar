@@ -680,6 +680,7 @@ public final class TaskLaunch {
                     err.println("sokar: could not record which credentials this task holds: " + ex.getMessage());
                     err.flush();
                 }
+                GrantRecord.record(context, container, project.name(), this.extras.keySet(), err);
             }
             // The agent's URL endpoint, or any other credential: those are always reached over the URL.
             final boolean needsRelay = serving != null

@@ -87,7 +87,13 @@ public final class StartCheck {
         /** A credential the project or the run names is for a destination nobody declared here, or the
          *  run points one of the project's elsewhere. {@code credential} names it; {@code detail} says which
          *  named it. */
-        UNKNOWN_DESTINATION
+        UNKNOWN_DESTINATION,
+
+        /** A credential the project or the run names is one a person grants (kind {@code oauth-device} or
+         *  {@code oauth-code}) and nobody has granted it yet. {@code credential} names the entry; {@code detail}
+         *  gives the command that grants it. Refuses an unattended or agent run; a shell starts with a warning.
+         *  A grant that ended at the service is not seen here: it is found when the broker spends it. */
+        AUTHORIZATION_NEEDED
     }
 
     /**
@@ -241,16 +247,67 @@ public final class StartCheck {
      */
     static Result withCredentials(SokarContext context, Result rest, @Nullable Path projectFile,
             Map<String, String> run) {
-        if (rest.outcome() != Outcome.READY) {
+        // Before the agent's own credential: an undeclared destination refuses a start in every mode, where a
+        // missing credential does not stop a shell - an interface told only the second would offer a start
+        // that Start then refuses (found by Agent Frontend, 2026-09-29).
+        if (rest.outcome() != Outcome.READY && rest.outcome() != Outcome.CREDENTIAL_MISSING
+                && rest.outcome() != Outcome.CREDENTIAL_UNUSABLE && rest.outcome() != Outcome.VAULT_LOCKED) {
             return rest;
         }
         final String refused = undeclared(context, projectFile, run);
-        if (refused == null) {
+        if (refused != null) {
+            final String credential = refused.substring(0, refused.indexOf('\n'));
+            return new Result(Outcome.UNKNOWN_DESTINATION, rest.agent(), rest.provider(), credential,
+                    refused.substring(refused.indexOf('\n') + 1));
+        }
+        if (rest.outcome() != Outcome.READY) {
             return rest;
         }
-        final String credential = refused.substring(0, refused.indexOf('\n'));
-        return new Result(Outcome.UNKNOWN_DESTINATION, rest.agent(), rest.provider(), credential,
-                refused.substring(refused.indexOf('\n') + 1));
+        final String ungranted = ungranted(context, projectFile, run);
+        if (ungranted != null) {
+            return new Result(Outcome.AUTHORIZATION_NEEDED, rest.agent(), rest.provider(), ungranted,
+                    "nobody has granted '" + ungranted + "' yet; a person authorizes it once with 'sokar vault"
+                            + " authorize " + ungranted + "'");
+        }
+        return rest;
+    }
+
+    /**
+     * Names the first credential the project or the run names that a person grants and nobody has granted.
+     * <p>
+     * Asks only whether a grant is there: spending it here could rotate it under the broker.
+     *
+     * @param context Where the vault is.
+     * @param projectFile The project file, or {@code null}.
+     * @param run The credentials the run adds.
+     * @return The entry's name, or {@code null} when every such credential is granted or the vault is locked.
+     */
+    static @Nullable String ungranted(SokarContext context, @Nullable Path projectFile, Map<String, String> run) {
+        final java.util.Set<String> named = new java.util.LinkedHashSet<>();
+        if (projectFile != null) {
+            try {
+                named.addAll(org.fuin.sokar.core.project.ProjectReader.read(projectFile).credentials().keySet());
+            } catch (RuntimeException ex) {
+                // An unreadable project file is answered elsewhere.
+            }
+        }
+        named.addAll(run.keySet());
+        if (named.isEmpty()) {
+            return null;
+        }
+        final var stored = context.readableCredentials();
+        final var grants = context.readableGrants();
+        if (stored.isEmpty() || grants.isEmpty()) {
+            return null;
+        }
+        for (final String name : named) {
+            final org.fuin.sokar.vault.VaultEntry entry = stored.get().get(name);
+            if (entry != null && org.fuin.sokar.supervisor.Grants.isGrant(entry.type())
+                    && !grants.get().containsKey(name)) {
+                return name;
+            }
+        }
+        return null;
     }
 
     /**

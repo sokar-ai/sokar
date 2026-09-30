@@ -86,8 +86,9 @@ public final class TokenPurchase {
                         + " client_id; store it with 'sokar vault put <name> --type " + KIND
                         + " --setting token_url=... --setting client_id=...'");
             }
-            if (!url.startsWith("https://")) {
-                throw new IllegalArgumentException("the token URL must be https, not '" + url + "'");
+            if (!Grants.secure(url)) {
+                throw new IllegalArgumentException("the token URL must be https, or http on loopback, not '"
+                        + url + "'");
             }
             return new Client(url, id, secret, settings.getOrDefault("scopes", ""), settings.get("audience"));
         }
@@ -197,7 +198,7 @@ public final class TokenPurchase {
                     .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
                     HttpResponse.BodyHandlers.ofString());
         } catch (IOException ex) {
-            throw new Refused("the authorization server at " + host() + " could not be reached: " + ex.getMessage(), ex);
+            throw new Refused("the authorization server at " + host() + " could not be reached: " + Grants.cause(ex), ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new Refused("interrupted while buying a token from " + host(), ex);

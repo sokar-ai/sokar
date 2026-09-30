@@ -82,10 +82,69 @@ public final class Grants {
      */
     static @Nullable String revocationUrl(Map<String, String> settings) {
         final String revocation = settings.get("revocation_url");
-        if (revocation != null && !revocation.startsWith("https://")) {
-            throw new IllegalArgumentException("the revocation URL must be https, not '" + revocation + "'");
+        if (revocation != null && !secure(revocation)) {
+            throw new IllegalArgumentException("the revocation URL must be https, or http on loopback, not '"
+                    + revocation + "'");
         }
         return revocation;
+    }
+
+    /**
+     * Returns whether an endpoint may be used: https, or plain http on this machine's loopback only.
+     * <p>
+     * Decided by the operator on 2026-09-30, as for a homeserver: nothing leaves the machine unencrypted,
+     * and a stand-in service on the machine can be measured against.
+     *
+     * @param url The endpoint.
+     * @return true for https anywhere, or http to {@code 127.0.0.1}, {@code ::1} or {@code localhost}.
+     */
+    public static boolean secure(String url) {
+        if (url.startsWith("https://")) {
+            return true;
+        }
+        if (!url.startsWith("http://")) {
+            return false;
+        }
+        try {
+            final String host = URI.create(url).getHost();
+            return "127.0.0.1".equals(host) || "[::1]".equals(host) || "::1".equals(host) || "localhost".equals(host);
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * Says why a service could not be reached, in words: the JDK's connect failures often carry no
+     * message, and "could not be reached: null" tells a person nothing.
+     *
+     * @param failure What the client threw.
+     * @return The cause, for a sentence.
+     */
+    public static String cause(IOException failure) {
+        for (Throwable each = failure; each != null; each = each.getCause()) {
+            if (each instanceof java.net.http.HttpConnectTimeoutException
+                    || each instanceof java.net.http.HttpTimeoutException
+                    || each instanceof java.net.SocketTimeoutException) {
+                return "timed out";
+            }
+            if (each instanceof java.nio.channels.UnresolvedAddressException
+                    || each instanceof java.net.UnknownHostException) {
+                return "no such host";
+            }
+            if (each instanceof java.net.NoRouteToHostException) {
+                return "no route to the host";
+            }
+            if (each instanceof javax.net.ssl.SSLException) {
+                return "its certificate or TLS was refused (" + String.valueOf(each.getMessage()) + ")";
+            }
+        }
+        for (Throwable each = failure; each != null; each = each.getCause()) {
+            if (each instanceof java.net.ConnectException) {
+                return "the connection was refused";
+            }
+        }
+        final String said = failure.getMessage();
+        return said == null || said.isBlank() ? failure.getClass().getSimpleName() : said;
     }
 
     /**
@@ -140,7 +199,7 @@ public final class Grants {
                     .header("Content-Type", "application/x-www-form-urlencoded").header("Accept", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
         } catch (IOException ex) {
-            throw new TokenPurchase.Refused("the service at " + host(url) + " could not be reached: " + ex.getMessage(), ex);
+            throw new TokenPurchase.Refused("the service at " + host(url) + " could not be reached: " + cause(ex), ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new TokenPurchase.Refused("interrupted while asking " + host(url), ex);

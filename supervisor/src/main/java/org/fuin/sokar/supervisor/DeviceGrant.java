@@ -76,8 +76,9 @@ public final class DeviceGrant {
                 throw new IllegalArgumentException("an " + KIND + " entry needs the settings device_authorization_url,"
                         + " token_url and client_id");
             }
-            if (!device.startsWith("https://") || !token.startsWith("https://")) {
-                throw new IllegalArgumentException("the device authorization and token URLs must be https");
+            if (!Grants.secure(device) || !Grants.secure(token)) {
+                throw new IllegalArgumentException("the device authorization and token URLs must be https, or"
+                        + " http on loopback");
             }
             return new Client(device, token, id, secret.isBlank() || "-".equals(secret) ? null : secret,
                     settings.getOrDefault("scopes", ""), Grants.revocationUrl(settings));
