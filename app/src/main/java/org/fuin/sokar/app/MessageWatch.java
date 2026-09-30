@@ -125,26 +125,7 @@ public final class MessageWatch implements AutoCloseable {
             // and the next tick tries again.
             return 0;
         }
-        // Every project's conversation first, once, so what arrived there is in each task's inbound before
-        // that task's pass delivers.
-        final TransportConversations conversations =
-                new TransportConversations(context, pass.transports());
-        final List<TransportConversations.Member> members = new ArrayList<>();
-        final java.util.Map<String, String> projects = new java.util.LinkedHashMap<>();
-        for (final Path mailbox : mailboxes) {
-            final String container = mailbox.getFileName().toString();
-            final String project = projectOf(container);
-            if (project == null) {
-                continue;
-            }
-            projects.put(container, project);
-            for (final String scheme : peersOf(container).conversations()) {
-                members.add(new TransportConversations.Member(container, new Mailbox(mailbox), project, scheme));
-            }
-        }
-        say(conversations.pass(members).failures());
-        pass.acting((transport, container) -> projects.get(container) == null ? null
-                : conversations.acting(transport, projects.get(container), container));
+        say(conversations(pass, mailboxes));
 
         int moved = 0;
         for (final Path mailbox : mailboxes) {
@@ -297,6 +278,35 @@ public final class MessageWatch implements AutoCloseable {
      * @return Its project's name.
      */
     /**
+     * Runs every project's conversation once, so what arrived there is in each task's inbound before that
+     * task's pass delivers, and lets the pass send as each task.
+     *
+     * @param pass The pass that follows.
+     * @param mailboxes The mailboxes it moves along.
+     * @return What the conversations could not do.
+     */
+    List<String> conversations(final MessagePass pass, final List<Path> mailboxes) {
+        final TransportConversations conversations = new TransportConversations(context, pass.transports());
+        final List<TransportConversations.Member> members = new ArrayList<>();
+        final java.util.Map<String, String> projects = new java.util.LinkedHashMap<>();
+        for (final Path mailbox : mailboxes) {
+            final String container = mailbox.getFileName().toString();
+            final String project = projectOf(container);
+            if (project == null) {
+                continue;
+            }
+            projects.put(container, project);
+            for (final String scheme : peersOf(container).conversations()) {
+                members.add(new TransportConversations.Member(container, new Mailbox(mailbox), project, scheme));
+            }
+        }
+        final List<String> failures = conversations.pass(members).failures();
+        pass.acting((transport, container) -> projects.get(container) == null ? null
+                : conversations.acting(transport, projects.get(container), container));
+        return failures;
+    }
+
+    /**
      * Says what a conversation could not do, once per sentence: a transport that is misconfigured stays so
      * until somebody fixes it, and saying it every minute buries everything else.
      *
@@ -322,7 +332,7 @@ public final class MessageWatch implements AutoCloseable {
         return null;
     }
 
-    private Mail peersOf(final String container) {
+    Mail peersOf(final String container) {
         for (final ProjectInventory.Summary summary : new ProjectInventory(context).projects()) {
             if (summary.file() == null || !container.startsWith("sokar-" + summary.name() + "-")) {
                 continue;

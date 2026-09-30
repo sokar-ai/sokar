@@ -132,6 +132,28 @@ class MessageDispatchTest {
     }
 
     /** The project's decisions, beside the mailbox and outside it, as the host keeps them. */
+    @Test
+    void a_message_a_person_released_goes_although_the_peer_is_undecided_but_never_to_a_refused_peer(
+            @TempDir final Path dir) throws IOException {
+
+        // Found by Agent Matrix: released, then held again by the same mode at the next pass, for ever.
+        final Mailbox mailbox = accepted(dir, "m-9.json",
+                "{\"messageId\":\"m-9\",\"metadata\":{\"to\":\"reviewer\"}}");
+        Files.writeString(mailbox.accepted().resolve("m-9.json" + MessageDispatch.RELEASED_SUFFIX), "");
+
+        final MessageDispatch.Outcome outcome = new MessageDispatch().dispatch(mailbox, mail, undecided(mailbox));
+
+        assertThat(outcome.queued()).containsEntry("m-9.json", "local");
+        assertThat(mailbox.accepted()).as("the mark goes with the release").isEmptyDirectory();
+
+        final Mailbox refusing = accepted(dir.resolve("other"), "m-10.json",
+                "{\"messageId\":\"m-10\",\"metadata\":{\"to\":\"reviewer\"}}");
+        Files.writeString(refusing.accepted().resolve("m-10.json" + MessageDispatch.RELEASED_SUFFIX), "");
+        final Moderation denying = undecided(refusing);
+        assertThat(denying.set("reviewer", null, "deny", sending()).refused()).isEmpty();
+        assertThat(new MessageDispatch().dispatch(refusing, mail, denying).queued()).isEmpty();
+    }
+
     private static Moderation undecided(final Mailbox mailbox) {
         return new Moderation(mailbox.root().resolveSibling("moderation-p.json"));
     }

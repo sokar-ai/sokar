@@ -165,8 +165,8 @@ public final class MessageRelease {
      * @return The project's peers, or none when the task names no project.
      */
     public static org.fuin.sokar.core.project.Mail peersOf(final SokarContext context, final String container) {
-        final String project = new TaskInventory(context).projectOf(container);
-        return project == null ? org.fuin.sokar.core.project.Mail.none() : GateSupport.byName(context, project).mail();
+        // With the project's own tasks, as a pass sees them: a message to one of them is deliverable.
+        return new MessageWatch(context, java.time.Duration.ZERO).peersOf(container);
     }
 
     private static String addressee(final Path message) throws IOException {
@@ -197,6 +197,13 @@ public final class MessageRelease {
             // re-signing on release would put the host's name on a decision a person made.
             Files.move(signature, target.resolve(name + ".sig"),
                     StandardCopyOption.REPLACE_EXISTING);
+        }
+        if (!refuse) {
+            // A person released this message: the next pass sends it whatever the peer's mode or hold says -
+            // asking that mode again held it again, for ever (found by Agent Matrix, 2026-09-30). A peer set to
+            // refuse still refuses: that is a decision about the peer, and it is final.
+            Files.writeString(target.resolve(name + MessageDispatch.RELEASED_SUFFIX), "",
+                    java.nio.charset.StandardCharsets.UTF_8);
         }
         Files.move(held, target.resolve(name), StandardCopyOption.REPLACE_EXISTING);
         if (refuse) {

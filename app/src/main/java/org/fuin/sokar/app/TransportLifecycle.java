@@ -91,6 +91,7 @@ final class TransportLifecycle {
      * @throws Refused If the transport refused, or its secrets cannot be kept.
      */
     Conversation setup(String scheme, String project, Map<String, Object> settings) throws Refused {
+        writable(scheme);
         // The account's and the project's, as they were printed: so it keeps what it made - the project's relay
         // - rather than making it again (asked by Agent Matrix, 2026-09-30).
         final Map<String, String> given = new LinkedHashMap<>(secrets(scheme, "account"));
@@ -120,6 +121,7 @@ final class TransportLifecycle {
      * @throws Refused If the transport refused, or its secrets cannot be kept.
      */
     void enroll(String scheme, String project, String task, Map<String, Object> settings) throws Refused {
+        writable(scheme);
         final Map<String, String> given = new LinkedHashMap<>(secrets(scheme, "account"));
         given.putAll(secrets(scheme, "project/" + project));
         final Map<?, ?> said = run(scheme, settings, given, "enroll", "--project", project, "--task", task);
@@ -224,6 +226,25 @@ final class TransportLifecycle {
             // A damaged entry holds nothing usable; the verb that made it is run again.
         }
         return Map.of();
+    }
+
+    /**
+     * Refuses before a verb runs when what it hands back could not be kept: a transport that made an
+     * account whose token is then dropped has an account nobody can use or remove (found by Agent Matrix,
+     * 2026-09-30, with a locked vault: the homeserver's administrator registered and lost).
+     *
+     * @param scheme The transport.
+     * @throws Refused If the vault is locked or does not exist.
+     */
+    private void writable(String scheme) throws Refused {
+        if (!context.vault().exists()) {
+            throw new Refused("there is no vault, and what the " + scheme + " transport hands back has to be kept in"
+                    + " one; 'sokar vault init' at the machine", 0);
+        }
+        if (context.opener().isEmpty()) {
+            throw new Refused("the vault is locked, and what the " + scheme + " transport hands back has to be kept"
+                    + " in it; 'sokar vault unlock' at the machine", 0);
+        }
     }
 
     private Map<?, ?> run(String scheme, Map<String, Object> settings, Map<String, String> secrets, String... verb)

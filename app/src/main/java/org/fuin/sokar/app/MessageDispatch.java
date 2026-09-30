@@ -37,6 +37,9 @@ public final class MessageDispatch {
             Map<String, String> peers) {
     }
 
+    /** Beside a message in {@code accepted/}: a person released it, so no mode or hold keeps it back. */
+    static final String RELEASED_SUFFIX = ".released";
+
     /**
      * Queues every accepted message whose peer a person has not held.
      *
@@ -90,7 +93,9 @@ public final class MessageDispatch {
             }
             // Last, and after the peer is known to exist: a person's decision is about a peer,
             // and "held" is a different answer from "this project may not address that name".
-            final String waiting = moderation.whyNotNow(addressed.get(0));
+            final Path released = mailbox.accepted().resolve(name + RELEASED_SUFFIX);
+            final String waiting = Files.isRegularFile(released) && !moderation.refuses(addressed.get(0)) ? ""
+                    : moderation.whyNotNow(addressed.get(0));
             if (!waiting.isEmpty()) {
                 hold(mailbox, message, name);
                 held.add(new MessageDelivery.Held(name, waiting));
@@ -112,6 +117,7 @@ public final class MessageDispatch {
                     StandardCharsets.UTF_8);
             move(mailbox.accepted().resolve(name + ".sig"), active.resolve(name + ".sig"));
             Files.move(message, active.resolve(name), StandardCopyOption.ATOMIC_MOVE);
+            Files.deleteIfExists(released);
             queued.put(name, peer.transport());
             addressedTo.put(name, peer.name());
             queuedNow.merge(peer.name(), 1, Integer::sum);
@@ -137,6 +143,8 @@ public final class MessageDispatch {
 
     private void hold(final Mailbox mailbox, final Path message, final String name)
             throws IOException {
+        // Held again for another reason - a full budget, say: the release was for that once.
+        Files.deleteIfExists(mailbox.accepted().resolve(name + RELEASED_SUFFIX));
         move(mailbox.accepted().resolve(name + ".sig"), mailbox.hold().resolve(name + ".sig"));
         Files.move(message, mailbox.hold().resolve(name), StandardCopyOption.REPLACE_EXISTING);
     }

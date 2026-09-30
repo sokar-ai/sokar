@@ -62,8 +62,14 @@ public class TalkPassCommand implements Callable<Integer>, SokarFactory.ContextA
         final var pass = new MessagePass(context.runner(),
                 HostKey.loadOrCreate(context.paths().messageKey(), "sokar@" + hostName()),
                 context.paths().messageFilter(), context.paths().transportDirectory());
-        final MessagePass.Report report = pass.run(mailbox,
-                GateSupport.byName(context, project).mail(),
+        // As the daemon's pass does it: the project's conversation first, the task's siblings as its peers, and
+        // sending as the task - so a pass by hand and one by the timer cannot disagree.
+        // Read first, so a project whose file is gone stops here and is named, rather than passing with no peers.
+        GateSupport.byName(context, project);
+        final MessageWatch watch = new MessageWatch(context, java.time.Duration.ZERO);
+        watch.conversations(pass, java.util.List.of(mailbox.root()))
+                .forEach(failure -> err.println("sokar: " + failure));
+        final MessagePass.Report report = pass.run(mailbox, watch.peersOf(container),
                 KnownPeers.of(context), Moderation.of(context.paths(), project));
 
         report.polled().failures().forEach((transport, why) ->
