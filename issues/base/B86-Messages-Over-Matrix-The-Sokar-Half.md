@@ -132,6 +132,15 @@ transport that has none (the local and spool transports). Every verb:
   loopback) and `shown` for the command line.
 - A verb a transport does not list is not run; a transport with no lifecycle works as today.
 
+**The secrets, as agreed with Agent Matrix (2026-09-30):** every map a verb prints is complete for the
+verbs that use it, so Sokar never assembles one. `setup`'s project `secrets` are exactly what `poll` reads
+(for Matrix: `SOKAR_MATRIX_HOMESERVER`, the relay's `SOKAR_MATRIX_ACCESS_TOKEN`, and
+`SOKAR_MATRIX_CA_FILE`/`SOKAR_MATRIX_TLS_VERIFY` when set); a task's from `enroll` are the same keys with
+its token, for `send`, `read` and `receipt`; the `account` secrets (for Matrix `SOKAR_MATRIX_ADMIN_TOKEN`)
+go only to `setup`, `enroll`, `retire` and `join`, never to `poll` or `send`. `setup` is run again and
+again and keeps what exists; a homeserver whose first account exists while Sokar holds no account secrets
+is refused (78), not guessed around.
+
 ### What Sokar does with it, for any transport
 
 - **Acting as someone:** `send`, `read` and `receipt` run with the sending or reading task's secrets;
@@ -364,6 +373,14 @@ error OfflineHomeserver(project: string, homeserver: string)
 - No token appears on a command line, in a log, or in `vault list`.
 
 ## Still open
+
+- **Several machines on one central homeserver: who lets the second machine into the room?** (Agent
+  Matrix, 2026-09-30.) The room is invite-only; the first machine's provisioning account made it, and the
+  second machine's accounts get in only if someone in the room invites them. For the operator to decide
+  before the central case is built; the single-machine case is built first.
+- **A central homeserver's first registration** takes the central server's registration token from the
+  vault as `SOKAR_MATRIX_REGISTRATION_TOKEN` in `setup`'s environment; how the operator puts it there is
+  decided with the central case.
 
 
 - **A central homeserver, measured.** Everything above for one is specified, none of it is measured: the
