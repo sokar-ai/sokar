@@ -1,11 +1,11 @@
 # B86 — Messages Over Matrix, The Sokar Half
 
-**Status:** specified 2026-09-29; on 2026-09-30 the operator moved everything Matrix-specific into the
-transport behind a generic lifecycle (below), which Agent Matrix builds. **Sokar's generic side is
-built (2026-09-30)**, proven against a stand-in transport; the first run with the Matrix transport waits
-on its `setup`, `enroll`, `retire` and `join`. Written 2026-09-29 from `sokar-project` PJ02 at the operator's word, relayed by Agent
-Coordinator. Priority: after B28, B30 and B31. The transport itself is `sokar-message-matrix`'s (Agent
-Matrix), and so is starting the homeserver, which ships with the transport's package (operator, 2026-09-29).
+**Status:** built for one machine, 2026-09-30. Everything Matrix-specific is the transport's, behind a
+generic lifecycle (below). Proven end to end by Agent Matrix on the ubuntu VM with Sokar 221 (`347f122`) and
+`sokar-message-matrix` `dcc7c0a`: setup and enroll on start, a message from task to task through the room,
+delivered, read on take, a person joining, retire on removal, an offline project refused before it reaches
+anything. Open: a central homeserver for several machines (who admits a second machine - the operator's to
+decide), and retiring the local and spool transports (`sokar-message-sluice` SL20).
 
 ## What is decided, and not re-argued here
 
