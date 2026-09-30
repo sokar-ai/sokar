@@ -131,6 +131,10 @@ class TransportConversationsTest {
             final Mailbox review = mailbox("sokar-p-review");
 
             assertThat(new TaskConversations(context).enroll(project("guarded"), "sokar-p-review")).isNull();
+            // Set up again at the next start: given back what it printed, the account's and the project's.
+            assertThat(new TaskConversations(context).enroll(project("guarded"), "sokar-p-other")).isNull();
+            assertThat(runner.invocations().stream().filter(command -> command.describe().contains(" setup "))
+                    .toList().getLast().environment()).containsEntry("ADMIN", "a-1").containsEntry("POLLER", "p-1");
             Files.writeString(review.record().resolve(TransportConversations.ARRIVED), "$a.json\n");
             Files.writeString(review.inboxCur().resolve("$a.json"), "{}");
             final TransportConversations.Outcome outcome = new TransportConversations(context,
@@ -142,7 +146,7 @@ class TransportConversationsTest {
             assertThat(poll.environment()).as("the project's secrets, never the account's")
                     .containsEntry("POLLER", "p-1").doesNotContainKey("ADMIN");
             assertThat(runner.only(" read ").environment()).containsEntry("TASK", "t-1").doesNotContainKey("ADMIN");
-            assertThat(runner.only(" enroll ").input()).as("the project's settings, verbatim")
+            assertThat(runner.only("--task sokar-p-review").input()).as("the project's settings, verbatim")
                     .contains("\"server\":\"https://example.org\"");
             // Sending acts as the task, to the conversation setup named.
             assertThat(new TransportConversations(context, context.paths().transportDirectory())

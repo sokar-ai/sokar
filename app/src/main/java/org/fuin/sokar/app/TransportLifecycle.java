@@ -91,7 +91,11 @@ final class TransportLifecycle {
      * @throws Refused If the transport refused, or its secrets cannot be kept.
      */
     Conversation setup(String scheme, String project, Map<String, Object> settings) throws Refused {
-        final Map<?, ?> said = run(scheme, settings, secrets(scheme, "account"), "setup", "--project", project);
+        // The account's and the project's, as they were printed: so it keeps what it made - the project's relay
+        // - rather than making it again (asked by Agent Matrix, 2026-09-30).
+        final Map<String, String> given = new LinkedHashMap<>(secrets(scheme, "account"));
+        given.putAll(secrets(scheme, "project/" + project));
+        final Map<?, ?> said = run(scheme, settings, given, "setup", "--project", project);
         if (said.get("account") instanceof Map<?, ?> account && !account.isEmpty()) {
             keep(scheme, "account", account);
         }
