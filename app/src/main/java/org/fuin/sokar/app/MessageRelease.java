@@ -169,6 +169,28 @@ public final class MessageRelease {
         return new MessageWatch(context, java.time.Duration.ZERO).peersOf(container);
     }
 
+    /** A released message's detail when it goes in, to this task, rather than out. */
+    public static final String INWARD = "it goes to this task at the next pass, which checks it as it checks every"
+            + " arrival - one held for its signature is held again unless its sender's key is trusted";
+
+    /**
+     * Returns which way a held message was going, from the last time the record held it.
+     *
+     * @param mailbox The task's mailbox.
+     * @param name The message's file name.
+     * @return {@link MessageRecord#IN}, {@link MessageRecord#OUT}, or "" when the record does not say.
+     * @throws IOException Reading failed.
+     */
+    static String direction(final Mailbox mailbox, final String name) throws IOException {
+        String direction = "";
+        for (final java.util.Map<String, Object> line : new MessageRecord(mailbox).entries()) {
+            if (MessageRecord.HELD.equals(line.get("event")) && name.equals(line.get("message"))) {
+                direction = line.get("direction") instanceof String recorded ? recorded : "";
+            }
+        }
+        return direction;
+    }
+
     private static String addressee(final Path message) throws IOException {
         final Object parsed = org.fuin.sokar.wire.Json.parse(
                 Files.readString(message, java.nio.charset.StandardCharsets.UTF_8));
@@ -184,6 +206,17 @@ public final class MessageRelease {
         final String name = held.getFileName().toString();
         final String messageId = MessageFile.id(held);
         final Path signature = mailbox.hold().resolve(name + ".sig");
+        if (!refuse && MessageRecord.IN.equals(direction(mailbox, name))) {
+            // Held on its way IN: released, it goes to this task, never out - it was turning outgoing and held
+            // again as "this project may not address" its own task (found by Agent Matrix, 2026-09-30). Back
+            // into inbound, so the next pass delivers it and checks it as it checks every arrival: a message
+            // held for its signature is held again unless its sender's key is trusted.
+            if (Files.isRegularFile(signature)) {
+                Files.move(signature, mailbox.inbound().resolve(name + ".sig"), StandardCopyOption.REPLACE_EXISTING);
+            }
+            Files.move(held, mailbox.inbound().resolve(name), StandardCopyOption.REPLACE_EXISTING);
+            return new Result(Outcome.RELEASED, name, messageId, INWARD);
+        }
         final Path target = refuse ? mailbox.rejected() : mailbox.accepted();
         Files.createDirectories(target);
         if (refuse) {

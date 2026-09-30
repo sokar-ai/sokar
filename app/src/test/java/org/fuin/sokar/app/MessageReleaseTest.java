@@ -70,4 +70,22 @@ class MessageReleaseTest {
                 .isEqualTo(MessageRelease.Outcome.AMBIGUOUS);
         assertThat(mailbox.accepted()).as("nothing was moved on a guess").isEmptyDirectory();
     }
+
+    @Test
+    void a_message_held_on_its_way_in_is_released_to_this_task_never_out(@TempDir final Path dir)
+            throws IOException {
+
+        // Found by Agent Matrix: released, it turned outgoing and was held as "may not address" its own task.
+        final Mailbox mailbox = held(dir, "m-7.json", "{\"messageId\":\"m-7\",\"metadata\":{\"to\":\"t\"}}");
+        new MessageRecord(mailbox).append(MessageRecord.HELD, "m-7.json", "m-7", "", "it is signed by a key no"
+                + " peer is allowed to use", MessageRecord.IN);
+
+        final MessageRelease.Result result = release.decide(mailbox, "m-7", false);
+
+        assertThat(result.outcome()).isEqualTo(MessageRelease.Outcome.RELEASED);
+        assertThat(result.detail()).isEqualTo(MessageRelease.INWARD);
+        assertThat(mailbox.inbound().resolve("m-7.json")).exists();
+        assertThat(mailbox.inbound().resolve("m-7.json.sig")).exists();
+        assertThat(mailbox.accepted().resolve("m-7.json")).as("never out").doesNotExist();
+    }
 }

@@ -54,8 +54,8 @@ public class TalkReleaseCommand implements Callable<Integer>, SokarFactory.Conte
                 MessageRelease.peersOf(context, container));
         return switch (result.outcome()) {
             case RELEASED -> {
-                out.println("released  " + result.message()
-                        + " - the next pass sends it, subject to the peer's mode");
+                out.println("released  " + result.message() + " - " + (result.detail().isEmpty()
+                        ? "the next pass sends it; only a peer set to deny still refuses it" : result.detail()));
                 out.flush();
                 yield 0;
             }

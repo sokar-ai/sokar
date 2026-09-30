@@ -91,12 +91,32 @@ final class TransportLifecycle {
      * @throws Refused If the transport refused, or its secrets cannot be kept.
      */
     Conversation setup(String scheme, String project, Map<String, Object> settings) throws Refused {
+        return setup(scheme, project, settings, false);
+    }
+
+    /**
+     * Sets up a project's conversation, telling the transport when it may reach nothing beyond this machine.
+     * <p>
+     * <strong>{@code --loopback-only}</strong> for an offline project: the transport refuses (78) before it
+     * contacts anything but this machine's loopback. Checking {@code reaches} afterwards alone came too late -
+     * the transport had already reached out (found by Agent Matrix, 2026-09-30). Both hold: the transport is
+     * told, and what it says it reaches is still checked.
+     *
+     * @param scheme The transport.
+     * @param project The project.
+     * @param settings What the project says to this transport.
+     * @param loopbackOnly Whether the project is offline.
+     * @return What the conversation is and what it reaches.
+     * @throws Refused If the transport refused, or its secrets cannot be kept.
+     */
+    Conversation setup(String scheme, String project, Map<String, Object> settings, boolean loopbackOnly)
+            throws Refused {
         writable(scheme);
         // The account's and the project's, as they were printed: so it keeps what it made - the project's relay
         // - rather than making it again (asked by Agent Matrix, 2026-09-30).
         final Map<String, String> given = new LinkedHashMap<>(secrets(scheme, "account"));
         given.putAll(secrets(scheme, "project/" + project));
-        final Map<?, ?> said = run(scheme, settings, given, "setup", "--project", project);
+        final Map<?, ?> said = run(scheme, settings, given, loopbackOnly, "setup", "--project", project);
         if (said.get("account") instanceof Map<?, ?> account && !account.isEmpty()) {
             keep(scheme, "account", account);
         }
@@ -121,10 +141,26 @@ final class TransportLifecycle {
      * @throws Refused If the transport refused, or its secrets cannot be kept.
      */
     void enroll(String scheme, String project, String task, Map<String, Object> settings) throws Refused {
+        enroll(scheme, project, task, settings, false);
+    }
+
+    /**
+     * Enrolls a task, telling the transport when it may reach nothing beyond this machine.
+     *
+     * @param scheme The transport.
+     * @param project The task's project.
+     * @param task The task's container.
+     * @param settings What the project says to this transport.
+     * @param loopbackOnly Whether the project is offline.
+     * @throws Refused If the transport refused, or its secrets cannot be kept.
+     */
+    void enroll(String scheme, String project, String task, Map<String, Object> settings, boolean loopbackOnly)
+            throws Refused {
         writable(scheme);
         final Map<String, String> given = new LinkedHashMap<>(secrets(scheme, "account"));
         given.putAll(secrets(scheme, "project/" + project));
-        final Map<?, ?> said = run(scheme, settings, given, "enroll", "--project", project, "--task", task);
+        final Map<?, ?> said = run(scheme, settings, given, loopbackOnly, "enroll", "--project", project, "--task",
+                task);
         if (said.get("secrets") instanceof Map<?, ?> secrets && !secrets.isEmpty()) {
             keep(scheme, "task/" + task, secrets);
         }
@@ -205,7 +241,7 @@ final class TransportLifecycle {
         final Map<String, String> given = new LinkedHashMap<>(secrets(scheme, "account"));
         given.putAll(secrets(scheme, "project/" + project));
         given.putAll(own);
-        run(scheme, settings, given, "retire", "--project", project, "--task", task);
+        run(scheme, settings, given, false, "retire", "--project", project, "--task", task);
         forget(scheme, "task/" + task);
     }
 
@@ -222,10 +258,27 @@ final class TransportLifecycle {
      */
     Map<?, ?> join(String scheme, String project, String person, boolean reset, Map<String, Object> settings)
             throws Refused {
+        return join(scheme, project, person, reset, settings, false);
+    }
+
+    /**
+     * Lets a person in, telling the transport when it may reach nothing beyond this machine.
+     *
+     * @param scheme The transport.
+     * @param project The project.
+     * @param person Whom the account is for.
+     * @param reset Whether to give an existing one a new password.
+     * @param settings What the project says to this transport.
+     * @param loopbackOnly Whether the project is offline.
+     * @return What the transport printed.
+     * @throws Refused If the transport refused.
+     */
+    Map<?, ?> join(String scheme, String project, String person, boolean reset, Map<String, Object> settings,
+            boolean loopbackOnly) throws Refused {
         final Map<String, String> given = new LinkedHashMap<>(secrets(scheme, "account"));
         given.putAll(secrets(scheme, "project/" + project));
-        return reset ? run(scheme, settings, given, "join", "--project", project, "--person", person, "--reset")
-                : run(scheme, settings, given, "join", "--project", project, "--person", person);
+        return reset ? run(scheme, settings, given, loopbackOnly, "join", "--project", project, "--person", person,
+                "--reset") : run(scheme, settings, given, loopbackOnly, "join", "--project", project, "--person", person);
     }
 
     /**
@@ -304,8 +357,8 @@ final class TransportLifecycle {
         }
     }
 
-    private Map<?, ?> run(String scheme, Map<String, Object> settings, Map<String, String> secrets, String... verb)
-            throws Refused {
+    private Map<?, ?> run(String scheme, Map<String, Object> settings, Map<String, String> secrets,
+            boolean loopbackOnly, String... verb) throws Refused {
         final Path adapter = transports.find(scheme);
         if (adapter == null) {
             throw new Refused("no transport for '" + scheme + "' is installed", 0);
@@ -313,6 +366,9 @@ final class TransportLifecycle {
         final List<String> arguments = new java.util.ArrayList<>();
         arguments.add(adapter.toString());
         arguments.addAll(List.of(verb));
+        if (loopbackOnly) {
+            arguments.add("--loopback-only");
+        }
         final CommandResult result = context.runner().run(Command.of(arguments)
                 .withInput(Json.write(settings)).withEnvironment(secrets));
         if (!result.successful()) {

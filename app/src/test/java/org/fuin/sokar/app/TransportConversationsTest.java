@@ -224,6 +224,8 @@ class TransportConversationsTest {
                     .contains("an offline project's messages never leave this machine")
                     .contains("matrix.example.org");
             assertThat(runner.lines()).as("never enrolled").noneMatch(line -> line.contains(" enroll "));
+            assertThat(runner.only(" setup ").arguments()).as("told before it reaches anything")
+                    .endsWith("--loopback-only");
         } finally {
             keyring.forget();
         }

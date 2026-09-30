@@ -133,6 +133,10 @@ transport that has none (the local and spool transports). Every verb:
   kept: homeserver, user, room, password for Matrix, and `loopback`/`port` when it is on the machine's
   loopback) and `shown` for the command line.
 - A verb a transport does not list is not run; a transport with no lifecycle works as today.
+- **`--loopback-only`** (added 2026-09-30, after Agent Matrix's end-to-end run): for an offline project
+  Sokar adds it to `setup`, `enroll` and `join`. The transport refuses (78) before it contacts anything
+  but this machine's loopback - checking `reaches` afterwards alone came after the transport had already
+  reached out. Sokar still checks `reaches` as well.
 
 **The secrets, as agreed with Agent Matrix (2026-09-30):** every map a verb prints is complete for the
 verbs that use it, so Sokar never assembles one. `setup`'s project `secrets` are exactly what `poll` reads

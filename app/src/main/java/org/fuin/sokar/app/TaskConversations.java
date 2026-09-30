@@ -44,7 +44,9 @@ final class TaskConversations {
         for (final String scheme : project.mail().conversations()) {
             final Map<String, Object> settings = settings(project, scheme);
             try {
-                final TransportLifecycle.Conversation conversation = lifecycle.setup(scheme, project.name(), settings);
+                final boolean offline = project.securityClass() == SecurityClass.OFFLINE;
+                final TransportLifecycle.Conversation conversation =
+                        lifecycle.setup(scheme, project.name(), settings, offline);
                 if (project.securityClass() == SecurityClass.OFFLINE) {
                     final List<String> away = conversation.reaches().stream().filter(host -> !loopback(host)).toList();
                     if (!away.isEmpty()) {
@@ -53,7 +55,7 @@ final class TaskConversations {
                                 + "; give it a conversation on this machine's loopback";
                     }
                 }
-                lifecycle.enroll(scheme, project.name(), container, settings);
+                lifecycle.enroll(scheme, project.name(), container, settings, offline);
             } catch (TransportLifecycle.Refused ex) {
                 return "the task cannot take part in the project's " + scheme + " conversation: " + ex.getMessage();
             }
@@ -121,8 +123,9 @@ final class TaskConversations {
             throw new TransportLifecycle.Refused("'" + person + "' has joined " + project.name()
                     + " already, as " + members(context, project).get(person) + "; --reset gives them a new password", 17);
         }
-        lifecycle.setup(scheme, project.name(), settings(project, scheme));
-        final Map<?, ?> said = lifecycle.join(scheme, project.name(), person, reset, settings(project, scheme));
+        final boolean offline = project.securityClass() == SecurityClass.OFFLINE;
+        lifecycle.setup(scheme, project.name(), settings(project, scheme), offline);
+        final Map<?, ?> said = lifecycle.join(scheme, project.name(), person, reset, settings(project, scheme), offline);
         final String user = said.get("login") instanceof Map<?, ?> login && login.get("user") != null
                 ? String.valueOf(login.get("user")) : person;
         final Map<String, String> members = new java.util.LinkedHashMap<>(members(context, project));
