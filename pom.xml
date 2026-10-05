@@ -15,7 +15,7 @@
 
     <groupId>org.fuin.sokar</groupId>
     <artifactId>sokar</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Sokar</name>
     <description>Sandboxing AI agents in YOLO mode using Podman and Java/GraalVM (PARENT)</description>
@@ -69,7 +69,7 @@
              interpolates, so a parent's ${project.version} is evaluated against the
              module that inherits it - and an agent module is on a different version.
              Kept equal to <version> above by maven-enforcer-plugin below. -->
-        <sokar.version>0.4.0</sokar.version>
+        <sokar.version>0.4.1-SNAPSHOT</sokar.version>
         <!-- What distinguishes one snapshot package from the next.
              Without it every build of main produced 0.1.0~SNAPSHOT, which is the SAME version -
              so 'apt upgrade' saw nothing to do and somebody who installed yesterday stayed on it
