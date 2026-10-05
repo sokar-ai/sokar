@@ -66,8 +66,8 @@ hides AVX2, which an operator learns only by running it.
 Each image carries the list of CPU features it checks for at startup. `sokar-cpu-check` reads
 that list in `package`, right after the images are built, and fails unless it is exactly
 `[CX8, CMOV, FXSR, MMX, SSE, SSE2]` - in either direction, since a list that changed means the
-target changed. A native profile turns it on and names its images in `sokar.cpu.images`; a new
-image is added there.
+target changed. A native profile turns it on and names its images in `sokar.cpu.images`; an image not named there
+is not checked.
 
 ### FFM metadata
 
@@ -77,11 +77,11 @@ registrations are generated from a test run rather than maintained by hand:
 
 ```
 ./mvnw -s settings.xml -Pnative,ffm-check -Dagent=true -pl core,shield,vault -am verify                            # verify; fails on drift
-./mvnw -s settings.xml -Pnative,ffm-check -Dagent=true -pl core,shield,vault -am verify -Dsokar.ffm.update=true  # add, then commit the result
+./mvnw -s settings.xml -Pnative,ffm-check -Dagent=true -pl core,shield,vault -am verify -Dsokar.ffm.update=true  # writes the registrations
 ```
 
-The check is `sokar-ffm-check`, the exec plugin's dependency. Run it in CI. After adding or changing a downcall, run it with `-Dsokar.ffm.update=true` and commit
-`reachability-metadata.json` alongside the code.
+The check is `sokar-ffm-check`, the exec plugin's dependency, and CI runs it. With `-Dsokar.ffm.update=true` it
+writes what the run found into `reachability-metadata.json`, which is kept beside the code that makes the downcall.
 
 ### Packages
 

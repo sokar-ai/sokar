@@ -122,7 +122,8 @@ The command line and the daemon's logic are modules by area, `app-<area>`, each 
   `<dependencyManagement>` resolves against the inheriting module; an enforcer rule checks the two match.
 - **An FFM downcall is not found by static analysis**: `./mvnw -s settings.xml -Pnative,ffm-check -Dagent=true
   -pl core,shield,vault -am verify` fails on one the tests made that is not registered, and
-  `-Dsokar.ffm.update=true` records it.
+  `-Dsokar.ffm.update=true` records it; the changed `reachability-metadata.json` goes into the commit that adds or
+  changes the downcall.
 - **Two files are shell, since they run where there is no Java yet**:
   - `selinux/install-selinux-policy.sh` loads the shipped SELinux module, run once by an administrator;
   - `dist-setup/sokar-setup.sh` prepares a machine that has nothing installed, run as root.
