@@ -19,6 +19,9 @@ declaration, not silence.
 It also closes, for attached tasks, the gap `sokar-frontend`'s `doc/Contract-Gaps.md` names: "a quiet task is shown
 as a guess".
 
+Rest is taken by B120's rule, held on two looks a short while apart, so status and the wake never disagree about
+an instant between a prompt and the agent's working line.
+
 ## Acceptance
 
 - An attached task whose agent declares `at_rest` is listed `at rest` while its screen matches and `working` while
