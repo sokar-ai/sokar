@@ -1,0 +1,883 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+         child.project.url.inherit.append.path="false">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin</groupId>
+        <artifactId>pom</artifactId>
+        <version>2.0.2</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>org.fuin.sokar</groupId>
+    <artifactId>sokar</artifactId>
+    <version>0.4.0</version>
+    <packaging>pom</packaging>
+    <name>Sokar</name>
+    <description>Sandboxing AI agents in YOLO mode using Podman and Java/GraalVM (PARENT)</description>
+
+    <!-- Overrides the LGPL block inherited from org.fuin:pom, which flatten copies into the
+         published poms of sokar-agent-api and sokar-wire. -->
+    <licenses>
+        <license>
+            <name>GPL-3.0-or-later</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0.html</url>
+            <distribution>repo</distribution>
+            <comments>GNU General Public License v3.0 or later</comments>
+        </license>
+    </licenses>
+
+    <!-- Without the inherit.append.path attributes Maven appends each child's artifactId,
+         so a module would advertise .../sokar-agents/sokar-agent-api/ in its published pom -
+         a path that does not exist. One repository, one url. The project one belongs on
+         <project> and the scm ones on <scm>: they are fields of different model objects. -->
+
+    <url>https://github.com/sokar-ai/sokar/</url>
+
+    <scm child.scm.url.inherit.append.path="false"
+         child.scm.connection.inherit.append.path="false"
+         child.scm.developerConnection.inherit.append.path="false">
+        <url>https://github.com/sokar-ai/sokar/</url>
+        <connection>scm:git:git://github.com/sokar-ai/sokar.git</connection>
+        <developerConnection>scm:git:git@github.com:sokar-ai/sokar.git</developerConnection>
+    </scm>
+
+    <issueManagement>
+        <system>GitHub Issues</system>
+        <url>https://github.com/sokar-ai/sokar/issues</url>
+    </issueManagement>
+
+    <properties>
+
+        <!-- Nothing is published unless a module opts in. Sokar ships as binaries and packages;
+             the only artifacts anyone resolves from Maven are the agent API and what it drags
+             in, so every other module would be publishing an internal for people to depend on. -->
+        <!-- Read by maven-deploy-plugin, which -Pcentral-sonatype-release never runs. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <!-- Read by central-publishing-maven-plugin, which is what that profile does run. -->
+        <skipPublishing>true</skipPublishing>
+
+        <!-- Panama FFM is only stable from 22 on, and native-image is built with GraalVM 25. -->
+        <java.release.version>25</java.release.version>
+        <!-- Sokar's own release line. Every internal module except an agent is on it.
+             A literal, deliberately: writing ${project.version} here would reintroduce
+             the very bug this exists to avoid. Maven assembles inheritance BEFORE it
+             interpolates, so a parent's ${project.version} is evaluated against the
+             module that inherits it - and an agent module is on a different version.
+             Kept equal to <version> above by maven-enforcer-plugin below. -->
+        <sokar.version>0.4.0</sokar.version>
+        <!-- What distinguishes one snapshot package from the next.
+             Without it every build of main produced 0.1.0~SNAPSHOT, which is the SAME version -
+             so 'apt upgrade' saw nothing to do and somebody who installed yesterday stayed on it
+             until they purged. A repository literally called 'snapshots' whose packages never
+             update. CI passes the run number; a local build is 0, which sorts below every CI
+             build and above the old flat ~SNAPSHOT, so an existing install upgrades cleanly.
+             Verified against dpkg and rpm themselves, including 9 < 10, which is a numeric
+             comparison in both and not a lexical one. -->
+        <sokar.snapshot.run>0</sokar.snapshot.run>
+        <!-- The build and test tooling, from sokar-ai/sokar-buildtools on Central: sokar-machines, sokar-release and the three checks. -->
+        <sokar.buildtools.version>0.4.0</sokar.buildtools.version>
+        <!-- The command line 'exec:exec@machines' gives sokar-machines, such as 'jdk' or 'sweep'. -->
+        <machines.args></machines.args>
+        <!-- Options for exec:java@deploy, such as the one that skips the build. -->
+        <deploy.options></deploy.options>
+        <!-- Appended to a package version when this is NOT a CI build. Empty here; the
+             'local-package' profile at the end of this file sets it.
+
+             Why it exists: the run number cannot say where a package came from, and a local
+             build that wants to replace a published one has to claim a HIGHER number to be
+             installable at all. That number then outranks every future CI build, so apt and dnf
+             refuse to upgrade the machine ever again - silently, because refusing is the correct
+             answer to the question they were asked. Measured on a test VM carrying
+             0.1.0~snapshot.9011 against a repository at 0.1.0~snapshot.99: three weeks behind and
+             reporting nothing to do.
+
+             '+local.<stamp>' sorts ABOVE the run it names and BELOW the next one, so a local
+             package replaces the published build it was made from and the next CI build takes the
+             machine back. Verified against dpkg itself, in sokar-package-check. -->
+        <sokar.snapshot.suffix></sokar.snapshot.suffix>
+        <maven.build.timestamp.format>yyyyMMdd'T'HHmmss</maven.build.timestamp.format>
+        <build-helper.version>3.6.1</build-helper.version>
+        <fuin-bom.version>1.0.2</fuin-bom.version>
+        <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
+        <!-- The library the plugin above builds bills with, so a bill is read by the code that wrote it. -->
+        <cyclonedx-core-java.version>9.0.5</cyclonedx-core-java.version>
+        <exec-maven-plugin.version>3.5.1</exec-maven-plugin.version>
+        <error-prone.version>2.50.0</error-prone.version>
+        <nullaway.version>0.14.2</nullaway.version>
+        <!-- The FFM check runs only in a module whose ffm-check profile turns it on. -->
+        <sokar.ffm.skip>true</sokar.ffm.skip>
+        <!-- The CPU check runs only in a native profile, which names its images here and turns it on. -->
+        <sokar.cpu.skip>true</sokar.cpu.skip>
+        <sokar.cpu.images></sokar.cpu.images>
+        <logchange-maven-plugin.version>1.19.16</logchange-maven-plugin.version>
+        <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
+        <picocli.version>4.7.7</picocli.version>
+        <!-- A pure-Java zstd decoder, so the broker can read a compressed request it must check for a token grant;
+             an agent compresses its requests with zstd, and the JDK has no codec for it. -->
+        <aircompressor.version>3.10</aircompressor.version>
+        <snakeyaml.version>2.7</snakeyaml.version>
+        <dbus-java.version>5.2.0</dbus-java.version>
+        <bouncycastle.version>1.85.2</bouncycastle.version>
+        <cucumber.version>7.34.8</cucumber.version>
+        <sshj.version>0.40.0</sshj.version>
+        <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
+        <!-- The JUnit BOM, imported below so that Jupiter, the platform and the suite engine are
+             one set rather than three guesses. Matches the Jupiter the fuin BOM pins: picking a
+             suite version by "what is newest on Central" put platform 1.14 beside Jupiter 5.12,
+             which worked only because declaration order happened to favour it - and stopped the
+             moment the artifact moved one level deeper.
+
+             5.14.2 rather than the 5.12.2 the fuin BOM pins, because that is the set Cucumber
+             7.34 is built against and the acceptance suite will not discover a test without it.
+             Raising the whole build rather than overriding one module: two coherent sets in one
+             reactor is still two, and the next person to move an artifact between modules meets
+             the same failure this comment is about. -->
+        <junit.version>5.14.2</junit.version>
+        <!-- musl cross-toolchain used for the statically linked hook binaries.
+             Install with the build tools' 'musl' command (doc/build.md), or override on the command line. -->
+        <musl.home>${user.home}/.local/opt/x86_64-linux-musl-native</musl.home>
+        <musl.gcc>${musl.home}/bin/x86_64-linux-musl-gcc</musl.gcc>
+        <!-- Late-replaced by surefire. Declared empty so '@{argLine}' resolves when JaCoCo,
+             which normally sets this property, is not active. -->
+        <argLine/>
+    </properties>
+
+    <modules>
+        <module>bom</module>
+        <module>wire</module>
+        <module>core</module>
+        <module>testing</module>
+        <module>runtime</module>
+        <module>shield</module>
+        <module>clearance</module>
+        <module>vault</module>
+        <module>gate</module>
+        <module>supervisor</module>
+        <module>agents</module>
+        <module>app-base</module>
+        <module>app-model</module>
+        <module>app-agents</module>
+        <module>app-vault</module>
+        <module>app-messaging</module>
+        <module>app-egress</module>
+        <module>app-task</module>
+        <module>app-project</module>
+        <module>app-gate</module>
+        <module>app</module>
+        <module>daemon</module>
+        <module>hooks</module>
+        <module>acceptance</module>
+        <module>dist-deb</module>
+        <module>dist-rpm</module>
+    </modules>
+
+    <dependencyManagement>
+
+        <dependencies>
+
+            <!-- Bill of Materials (aligned with Quarkus and Spring Boot BOMs).
+                 Also pins Byte Buddy to 1.17.8, which is required on JDK 25:
+                 earlier versions reject class-file major version 69. -->
+
+            <!-- Before the fuin BOM, so these versions are the ones that win: they have to
+                 agree with each other more than they have to agree with anything else. -->
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin</groupId>
+                <artifactId>bom</artifactId>
+                <version>${fuin-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Third party not covered by the BOM -->
+
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli</artifactId>
+                <version>${picocli.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.airlift</groupId>
+                <artifactId>aircompressor-v3</artifactId>
+                <version>${aircompressor.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli-codegen</artifactId>
+                <version>${picocli.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>${snakeyaml.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.github.hypfvieh</groupId>
+                <artifactId>dbus-java-core</artifactId>
+                <version>${dbus-java.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.github.hypfvieh</groupId>
+                <artifactId>dbus-java-transport-native-unixsocket</artifactId>
+                <version>${dbus-java.version}</version>
+            </dependency>
+
+            <!-- Modules -->
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-wire</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-core</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-testing</artifactId>
+                <version>${sokar.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-runtime</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-shield</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-clearance</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-vault</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-gate</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-supervisor</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-agent-api</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app-base</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app-model</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app-agents</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app-vault</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app-messaging</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app-egress</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app-task</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app-project</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-app-gate</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokard</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-hooks</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-dist-deb</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-dist-rpm</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+
+        </dependencies>
+
+    </dependencyManagement>
+
+    <build>
+
+        <pluginManagement>
+
+            <plugins>
+
+                <!-- The FFM check, where a module's ffm-check profile sets sokar.ffm.skip to false, and the
+                     CPU check, where a native profile sets sokar.cpu.skip to false. -->
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>${exec-maven-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <id>ffm-check</id>
+                            <phase>prepare-package</phase>
+                            <goals>
+                                <goal>java</goal>
+                            </goals>
+                            <configuration>
+                                <skip>${sokar.ffm.skip}</skip>
+                                <mainClass>org.fuin.sokar.ffmcheck.ForeignRegistrations</mainClass>
+                                <includeProjectDependencies>false</includeProjectDependencies>
+                                <includePluginDependencies>true</includePluginDependencies>
+                                <arguments>
+                                    <argument>${project.build.directory}/native/agent-output</argument>
+                                    <argument>${project.basedir}/src/main/resources/META-INF/native-image/org.fuin.sokar/${project.artifactId}/reachability-metadata.json</argument>
+                                </arguments>
+                            </configuration>
+                        </execution>
+                        <!-- The CPU check: each image asks for exactly x86-64 v1. In package, not verify,
+                             because the legs and the snapshot build stop at package; a module declares
+                             this plugin after native-maven-plugin, so it runs after the images exist. -->
+                        <execution>
+                            <id>cpu-check</id>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>java</goal>
+                            </goals>
+                            <configuration>
+                                <skip>${sokar.cpu.skip}</skip>
+                                <mainClass>org.fuin.sokar.cpucheck.CpuFloor</mainClass>
+                                <includeProjectDependencies>false</includeProjectDependencies>
+                                <includePluginDependencies>true</includePluginDependencies>
+                                <arguments>
+                                    <argument>${project.build.directory}</argument>
+                                    <argument>${sokar.cpu.images}</argument>
+                                </arguments>
+                            </configuration>
+                        </execution>
+                    </executions>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.fuin.sokar</groupId>
+                            <artifactId>sokar-ffm-check</artifactId>
+                            <version>${sokar.buildtools.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.fuin.sokar</groupId>
+                            <artifactId>sokar-cpu-check</artifactId>
+                            <version>${sokar.buildtools.version}</version>
+                        </dependency>
+                    </dependencies>
+                </plugin>
+
+                <!-- A CycloneDX bill for anything published. Managed here, bound only in the
+                     modules that publish: a native image is opaque to a scanner and an archive
+                     hides what is inside it, so what a dependency graph says at build time is
+                     the only thing that can be checked later. -->
+
+                <plugin>
+                    <groupId>org.cyclonedx</groupId>
+                    <artifactId>cyclonedx-maven-plugin</artifactId>
+                    <version>${cyclonedx-maven-plugin.version}</version>
+                    <configuration>
+                        <projectType>library</projectType>
+                        <schemaVersion>1.6</schemaVersion>
+                        <outputFormat>json</outputFormat>
+                        <outputName>${project.artifactId}-${project.version}-cyclonedx</outputName>
+                        <!-- Runtime and compile only. A bill that lists junit tells an operator
+                             nothing about what they installed. -->
+                        <includeCompileScope>true</includeCompileScope>
+                        <includeRuntimeScope>true</includeRuntimeScope>
+                        <includeProvidedScope>false</includeProvidedScope>
+                        <includeSystemScope>false</includeSystemScope>
+                        <includeTestScope>false</includeTestScope>
+                    </configuration>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <!-- Panama downcalls are a restricted operation and will be blocked
+                             outright in a future release without this. -->
+                        <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
+                        <!-- A unit test runs what it starts as it is, on every machine: with a
+                             systemd user manager, task processes would otherwise go into scopes of
+                             their own here and not on a CI runner, and a test would pass on one. -->
+                        <environmentVariables>
+                            <SOKAR_TASK_SCOPES>off</SOKAR_TASK_SCOPES>
+                            <!-- And git as a runner has it: a developer's global configuration signed
+                                 every commit a test made, with a key that needs a passphrase, and the
+                                 tests failed whenever its agent did not hold it (2026-10-04). -->
+                            <GIT_CONFIG_GLOBAL>/dev/null</GIT_CONFIG_GLOBAL>
+                            <GIT_CONFIG_NOSYSTEM>1</GIT_CONFIG_NOSYSTEM>
+                        </environmentVariables>
+                        <!-- And with nothing installed, on every machine: an agent, a filter or a
+                             transport the sokar packages put under /usr would otherwise be found by
+                             the tests on a developer's machine that has them and not on a runner. -->
+                        <systemPropertyVariables>
+                            <sokar.packaged.root>${project.build.directory}/no-packages</sokar.packaged.root>
+                        </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.graalvm.buildtools</groupId>
+                    <artifactId>native-maven-plugin</artifactId>
+                    <version>${native-maven-plugin.version}</version>
+                    <extensions>true</extensions>
+                    <configuration>
+                        <fallback>false</fallback>
+                        <!-- '- -no-fallback' was here and is gone: this GraalVM answers it with
+                             "Using a deprecated option - -no-fallback from command line. No effect,
+                             no replacement available", so it only put a warning in every build.
+                             Fallback images no longer exist, and <fallback>false</fallback> above
+                             says what we mean. Noticed by the filter's agent, confirmed in this
+                             build's own output on 2026-09-18. -->
+                        <buildArgs>
+                            <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                            <!-- x86-64 v1, the baseline every x86-64 CPU has. The default is the build
+                                 host's generation - v3 on any recent machine - and such a binary will not
+                                 start on an older CPU or a VM that hides AVX2. Spelled as the level, not
+                                 'compatibility', which is the tool's alias and the tool's to redefine.
+                                 sokar-cpu-check holds every image to the exact set. -->
+                            <buildArg>-march=x86-64</buildArg>
+                        </buildArgs>
+                    </configuration>
+                </plugin>
+
+            </plugins>
+
+        </pluginManagement>
+
+        <plugins>
+
+            <!-- The package version, computed once for every module.
+
+                 It used to be computed twice, in dist-deb and dist-rpm, and nowhere else - so the
+                 binary could not say which build it was. The version command read ${project.version}
+                 and answered '0.1.0-SNAPSHOT' for every build there has ever been, and the daemon
+                 reported the same string over the wire. An interface therefore could not tell two
+                 daemons apart, which is exactly what it needed to do: a test VM sat three weeks
+                 behind on 0.1.0~snapshot.9011 and nothing could say so.
+
+                 Here rather than in the dist profile, because the answer has to exist in an
+                 ordinary build too - app filters it into sokar-version.properties at
+                 process-resources, and validate runs first.
+
+                 Per-module by design: regex-property resolves ${project.version} against the
+                 project it runs in. Agent modules are on their own version line and compute
+                 'agent.package.version' for themselves; this one is Sokar's. -->
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>${build-helper.version}</version>
+                <executions>
+                    <execution>
+                        <id>package-version</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>regex-property</goal>
+                        </goals>
+                        <configuration>
+                            <!-- '~' sorts below everything in both dpkg and rpm, so
+                                 0.1.0~snapshot.N is older than 0.1.0. Left as '-SNAPSHOT' it
+                                 sorts ABOVE the release and apt refuses the upgrade. -->
+                            <name>sokar.package.version</name>
+                            <value>${project.version}</value>
+                            <regex>-SNAPSHOT$</regex>
+                            <replacement>~snapshot.${sokar.snapshot.run}${sokar.snapshot.suffix}</replacement>
+                            <failIfNoMatch>false</failIfNoMatch>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- sokar.version duplicates <version> above, and the duplication is load-bearing:
+                 a parent's ${project.version} is interpolated against the module that inherits
+                 it, and agent modules are deliberately on their own version line. This turns
+                 the two drifting apart into a build failure here, rather than a resolution
+                 error three modules later.
+
+                 'inherited' is on the EXECUTION, not the plugin: the fuin parent already
+                 declares maven-enforcer-plugin with an inherited Java/Maven version check, and
+                 plugin-level inherited would merge into that declaration and suppress it
+                 everywhere. In an agent module ${project.version} legitimately differs, so this
+                 rule must not run there. -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-sokar-version-property</id>
+                        <phase>validate</phase>
+                        <inherited>false</inherited>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireProperty>
+                                    <property>project.version</property>
+                                    <regex>\Q${sokar.version}\E</regex>
+                                    <regexMessage>The root &lt;version&gt; and the sokar.version property in pom.xml have drifted apart. Bump both.</regexMessage>
+                                </requireProperty>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Resolved versions inline, so the parent and aggregator poms need not be
+                 published. In the main build, not a release profile: what is installed is
+                 then what is deployed. Pom modules are skipped, so aggregators keep theirs. -->
+
+            <!-- One bill for everything the packages carry. 'inherited' is on the execution:
+                 the aggregate goal runs once, at the root, over the whole reactor - a module
+                 that publishes on its own gets its own bill from pluginManagement instead. -->
+
+            <plugin>
+                <groupId>dev.logchange</groupId>
+                <artifactId>logchange-maven-plugin</artifactId>
+                <version>${logchange-maven-plugin.version}</version>
+                <!-- One changelog for the repository, kept at the root rather than in every module. -->
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>logchange-lint</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>lint</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- NullAway makes a broken @NullMarked contract a compile error; main code only, tests pass null on purpose. -->
+            <!-- The lists append: app's picocli processor writes the native image's metadata, and replacing it loses that silently. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-compile</id>
+                        <configuration>
+                            <compilerArgs combine.children="append">
+                                <arg>-XDcompilePolicy=simple</arg>
+                                <arg>--should-stop=ifError=FLOW</arg>
+                                <arg>-Xplugin:ErrorProne -XepDisableAllChecks -Xep:NullAway:ERROR -XepOpt:NullAway:OnlyNullMarked=true -XepOpt:NullAway:ExcludedFieldAnnotations=picocli.CommandLine.Option,picocli.CommandLine.Parameters,picocli.CommandLine.Spec,picocli.CommandLine.ParentCommand,picocli.CommandLine.Mixin</arg>
+                            </compilerArgs>
+                            <annotationProcessorPaths combine.children="append">
+                                <path>
+                                    <groupId>com.google.errorprone</groupId>
+                                    <artifactId>error_prone_core</artifactId>
+                                    <version>${error-prone.version}</version>
+                                </path>
+                                <path>
+                                    <groupId>com.uber.nullaway</groupId>
+                                    <artifactId>nullaway</artifactId>
+                                    <version>${nullaway.version}</version>
+                                </path>
+                            </annotationProcessorPaths>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- The tooling run by hand or by a workflow, from the root with -N and bound to no phase. Only here: the checks
+                 above are inherited, and these must not put an SSH stack on every module's plugin classpath. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <inherited>false</inherited>
+                <executions>
+                    <!-- The root has no tests and no images. -->
+                    <execution>
+                        <id>ffm-check</id>
+                        <phase>none</phase>
+                    </execution>
+                    <execution>
+                        <id>cpu-check</id>
+                        <phase>none</phase>
+                    </execution>
+                    <!-- Builds the packages CI would and installs them on the machine SOKAR_VM and SOKAR_VM_KEY name. -->
+                    <execution>
+                        <id>deploy</id>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.fuin.sokar.machines.Main</mainClass>
+                            <includeProjectDependencies>false</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-machines</artifactId>
+                            </executableDependency>
+                            <commandlineArgs>deploy --repo ${maven.multiModuleProjectDirectory} ${deploy.options}</commandlineArgs>
+                        </configuration>
+                    </execution>
+                    <!-- Any other sokar-machines command, in a JVM of its own: it exits with the command's code. -->
+                    <execution>
+                        <id>machines</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <includeProjectDependencies>false</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-machines</artifactId>
+                            </executableDependency>
+                            <commandlineArgs>-classpath %classpath org.fuin.sokar.machines.Main ${machines.args}</commandlineArgs>
+                        </configuration>
+                    </execution>
+                    <!-- Every workflow step pinned by commit, refused in the build rather than found in review. -->
+                    <execution>
+                        <id>check-actions</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <includeProjectDependencies>false</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-release</artifactId>
+                            </executableDependency>
+                            <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-actions ${maven.multiModuleProjectDirectory}/.github</commandlineArgs>
+                        </configuration>
+                    </execution>
+                    <!-- The shared blocks of AGENTS.md carry the hash of their text, so a copy edited on its own fails here. -->
+                    <execution>
+                        <id>check-shared</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <includeProjectDependencies>false</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-release</artifactId>
+                            </executableDependency>
+                            <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-shared ${maven.multiModuleProjectDirectory}/AGENTS.md</commandlineArgs>
+                        </configuration>
+                    </execution>
+                    <!-- After -Pdist verify: the two packages against each other, then installed in clean containers. -->
+                    <execution>
+                        <id>package-check</id>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>org.fuin.sokar.packagecheck.Main</mainClass>
+                            <includeProjectDependencies>false</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-package-check</artifactId>
+                            </executableDependency>
+                            <arguments>
+                                <argument>${maven.multiModuleProjectDirectory}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.fuin.sokar</groupId>
+                        <artifactId>sokar-machines</artifactId>
+                        <version>${sokar.buildtools.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.fuin.sokar</groupId>
+                        <artifactId>sokar-package-check</artifactId>
+                        <version>${sokar.buildtools.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.fuin.sokar</groupId>
+                        <artifactId>sokar-release</artifactId>
+                        <version>${sokar.buildtools.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.8.0</version>
+                <configuration>
+                    <flattenMode>oss</flattenMode>
+                    <updatePomFile>true</updatePomFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+    <dependencies>
+
+        <!-- compile -->
+
+        <dependency>
+            <groupId>org.jspecify</groupId>
+            <artifactId>jspecify</artifactId>
+        </dependency>
+
+        <!-- test -->
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <profiles>
+        <profile>
+            <!-- Not a CI build. Keyed on the same signal 'org.fuin.sokar.machines' uses to tell
+                 one from the other, so the two cannot come to disagree about what local means. -->
+            <id>local-package</id>
+            <activation>
+                <property>
+                    <name>!env.GITHUB_RUN_ID</name>
+                </property>
+            </activation>
+            <properties>
+                <sokar.snapshot.suffix>+local.${maven.build.timestamp}</sokar.snapshot.suffix>
+            </properties>
+        </profile>
+    </profiles>
+
+</project>

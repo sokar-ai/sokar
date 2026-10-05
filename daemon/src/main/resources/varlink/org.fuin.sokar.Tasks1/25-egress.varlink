@@ -1,0 +1,345 @@
+
+# A curated group of hosts a project can opt into by name.
+type EgressSet (
+  # What a project writes in its egress.sets list, and what SetEgress takes.
+  name: string,
+  # Human-readable name, for a listing.
+  label: string,
+  # The hosts it grants, in the order the file declares them.
+  domains: []string
+)
+
+# A host a task may reach, and who granted it.
+type EgressHost (
+  host: string,
+  # "agent <name>", "provider <name>", "set <name>", "project" or "upstream". The first grant
+  # wins, so a host in both a set and an agent's list is reported as the agent's.
+  origin: string
+)
+
+# How far a change to a running task goes. There is no default: "this run only" and "this run
+# and the project file" are different intentions, and a client that did not say which it meant
+# must not have one picked for it.
+type Scope (
+  # The running task, and nothing else. The project file is untouched and the next task will
+  # ask again - a resumed task loses it too, because its ruleset and resolver are rebuilt from
+  # what is on disk.
+  RUN,
+  # The running task, and the project file, so the next task starts with it.
+  RUN_AND_PROJECT
+)
+
+# What became of widening a running task.
+type WidenOutcome (
+  # Applied to the running task. persisted says whether the file was written too.
+  WIDENED,
+  # NarrowTask: taken back from the running task.
+  NARROWED,
+  # What it would do, having changed nothing.
+  PREVIEWED,
+  # Every name was already granted to this run.
+  NO_CHANGE,
+  # No such task, or it is not up. Nothing can be changed in a container that is gone.
+  NOT_RUNNING,
+  # The project is offline, so its tasks reach nothing and this is not a way around that.
+  REFUSED_BY_CLASS,
+  # A name asked for is refused for this task - by its agent, its project or its repository - and
+  # a widening does not take a refusal back. Nothing was changed; detail names it and who refused.
+  REFUSED_NAME,
+  # The run WAS widened and the project file was not, because nothing knows where it is. Not a
+  # failure: the task can now reach the host, and detail says why the file was not written.
+  NO_PROJECT_FILE,
+  # The run could not be widened at all. detail says why.
+  FAILED
+)
+
+# What became of a change to a project's egress.
+type EgressOutcome (
+  # Applied and written to the project file.
+  CHANGED,
+  # What it would do. Nothing was written, because dryRun was set.
+  PREVIEWED,
+  # The file already said that. Nothing was written.
+  NO_CHANGE,
+  # A named set is not installed on this machine, so the file would name nothing real. Nothing
+  # was written; detail says which.
+  NO_SUCH_SET,
+  # The project's security class forbids declaring egress at all - an offline project declares
+  # nothing. detail says so in the words the project reader uses.
+  REFUSED_BY_CLASS,
+  # The project file could not be read. detail says why.
+  UNREADABLE,
+  # The change was right and the file could not be written. detail says why; opens and closes
+  # still describe what it would have done.
+  NOT_WRITTEN
+)
+
+# Reads one of a task's log files, and with "more" follows it as it is written.
+#
+# The log name is checked against the files that are there rather than resolved as a path.
+# The curated egress sets installed on this machine.
+#
+# What a chooser offers, so nobody has to author a host list. Scanned from a directory each time
+# it is asked, so a set an operator dropped in appears without anything being rebuilt - and
+# theirs wins over a packaged one of the same name, which is why the locations are given in the
+# order they are searched.
+#
+# Not every set can be complete: os-packages-fedora reaches mirrors named by a mirrorlist, which
+# differ by region and by day, so hosts beyond the list arrive as clearance prompts. An interface
+# should not present it as equivalent to the others.
+method Sets() -> (
+  sets: []EgressSet,
+  # Directories searched, most specific first. Empty means none is installed.
+  locations: []string
+)
+
+# What a project may reach, and who granted each host.
+#
+# The agent's own hosts and its provider's are included, because what an operator wants to know
+# is what a task will reach and half of it is not in the project file. Which agent that is
+# follows the same rule a run does: the one named, or the only one installed.
+method Egress(
+  # Project NAME, as Projects.name gives it.
+  project: string,
+  # Which of its repositories to answer for. Default: the project's own.
+  #
+  # A repository's grants are ADDED to the project's, so without this you get the project-level
+  # set - true of every repository - and with it that set PLUS what the repository adds. Each host
+  # says which of the two granted it, in EgressHost.origin: "project", "set <name>", or
+  # "repository <name>".
+  repository: ?string,
+  # Agent whose grants to include. Default: the only one installed.
+  agent: ?string
+) -> (
+  hosts: []EgressHost,
+  # Hosts an agent declares it asks for and is deliberately not given. Distinguishable from a
+  # host nobody added, which is the distinction the firewall itself cannot make.
+  refused: []string
+)
+
+# Changes what a project may reach, or says what a change would do.
+#
+# The highest-consequence edit in the product, so it answers in hosts rather than in set names: a
+# set is a name for several hosts and whoever adds one is entitled to see them. The project file
+# is edited in place - comments, key order and quoting survive - and the result is parsed by the
+# reader that would have to read it later before anything is written.
+#
+# Nothing here applies to a task that is already running: a container's ruleset and resolver are
+# built when it starts.
+method SetEgress(
+  # Project NAME, as Projects.name gives it.
+  project: string,
+  # Which of the project's repositories to declare this for. Default: the project's own.
+  #
+  # A repository's grants are ADDED to the project's, so declaring one here never takes away what
+  # the project granted - and never widens the project's other repositories, which is the whole
+  # reason this parameter exists. A repository this file does not name is refused rather than
+  # written to the project's block.
+  repository: ?string,
+  # Curated sets to declare. A set this machine does not have is refused rather than written.
+  addSets: ?[]string,
+  removeSets: ?[]string,
+  # Hosts to declare directly, for a mirror no set covers.
+  addDomains: ?[]string,
+  removeDomains: ?[]string,
+  # Stop before writing and report what would have happened.
+  dryRun: ?bool
+) -> (
+  outcome: EgressOutcome,
+  # Hosts the change adds, with the origin that grants each. In the order they were granted.
+  opens: []EgressHost,
+  # Hosts it takes away.
+  closes: []EgressHost,
+  # What reaching a forge costs a guarded project, when this change opens one and the project
+  # did not already reach one. "" otherwise - said once, when it becomes true.
+  cost: string,
+  # Why it was refused, or what could not be written. "" when nothing went wrong.
+  detail: string
+)
+
+# Gives a task that is already running somewhere new to reach.
+#
+# The alternative is to stop the run and start another one, which throws away a workspace, a gate
+# token, commits that never reached the gate and an agent halfway through something - to add one
+# host. This changes it in place: the resolver is told without being restarted, and the name is
+# recorded so the clearance watcher lets it through without asking anybody.
+#
+# Names only. A set is a name for several hosts and granting one would be the same operation
+# repeated; narrowing a running task is not offered at all, because taking a grant away from a
+# container that already has it is a different thing and is not decided yet.
+#
+# **The attempt that was already refused is not retried.** The packet was dropped; whether the
+# agent tries again is the agent's business. An interface may say the host is now reachable and
+# must not say that the request which just failed will now succeed.
+# Takes names back from a running task, and optionally from its project file.
+#
+# THIS STOPS NEW CONNECTIONS AND NOT THE ONES ALREADY RUNNING. The name stops resolving and its
+# recorded addresses come out of the firewall, so nothing new can be reached - but the ruleset
+# accepts established traffic without consulting the set again, so a transfer in progress runs to
+# its end. Do not render this as "the host is now unreachable": it is not, yet. If a transfer has
+# to stop, stopping the task is what does that.
+#
+# The addresses removed are the ones recorded when each grant was applied, never the answer to
+# resolving the name again now - a CDN or round-robin answers the daemon and the container
+# differently, and the addresses that differ are exactly the ones that would be left open.
+#
+# 'scope' is required, exactly as for WidenTask. Narrowing only the run when somebody meant the
+# project too leaves the next task starting with the host still open.
+# Turns enforcement on or off on a task that is already running.
+#
+# Deliberately not WidenTask with a special value. Those grant and withdraw names, and that the
+# firewall stays loaded is what they mean; folding "stop asking about anything" into them would
+# make one method mean two unrelated things, and the quiet one would be the dangerous one.
+#
+# What it cannot undo: turning enforcement off does not recall a connection that was already
+# refused - the packet was dropped and nothing retries it - and turning it back on does not recall
+# anything waved through while it was off. The ruleset is loaded throughout, so this never opens a
+# destination by itself; what changes is whether a blocked connection produces a question.
+method SetClearance(
+  task: string,
+  # prompt, allow, deny or off.
+  mode: string,
+  # Says what would happen and changes nothing.
+  dryRun: ?bool
+) -> (
+  # CHANGED, UNCHANGED, PREVIEWED, NO_SUCH_TASK, NOT_RUNNING, UNKNOWN_MODE, NOT_RECORDED or
+  # FAILED.
+  #
+  # UNCHANGED is not a failure: it was already in that mode and nothing was restarted, which is
+  # worth saying rather than reporting a change that did not happen.
+  outcome: string,
+  # The mode before. "" for a task started before this was recorded.
+  was: string,
+  # The mode after. "" when nothing changed.
+  now: string,
+  detail: string
+)
+
+method NarrowTask(
+  # Task name, as List reports it.
+  task: string,
+  # Names to take back. Anything not currently granted to this run is ignored, not an error.
+  domains: []string,
+  # RUN or RUN_AND_PROJECT. Required; there is no default.
+  scope: Scope,
+  # Reports what it would take back, having changed nothing.
+  dryRun: ?bool
+) -> (
+  #   NARROWED         taken back from the run; persisted says whether the file was too
+  #   PREVIEWED        what it would take back, having changed nothing
+  #   NO_CHANGE        none of these names is granted to this run
+  #   NOT_RUNNING      no such task, or it is not up
+  #   NO_PROJECT_FILE  the RUN was narrowed and the file was not; NOT a failure
+  #   FAILED           the run could not be narrowed; detail says why
+  outcome: WidenOutcome,
+  # Names taken back, in the order they were asked for.
+  closes: []string,
+  # How many addresses came out of the firewall. Zero with a non-empty 'closes' is a real state:
+  # the name was granted and the container never reached it, so nothing was in the set.
+  addresses: int,
+  # Whether the project file was changed as well.
+  persisted: bool,
+  # Why it was refused or what went wrong. "" otherwise.
+  detail: string
+)
+
+method WidenTask(
+  # Container name, from Task.name.
+  task: string,
+  # Host names to grant. A grant covers what is under it, as the resolver does.
+  domains: []string,
+  # Required. RUN or RUN_AND_PROJECT.
+  scope: Scope,
+  # Stop before changing anything and report what would happen.
+  dryRun: ?bool
+) -> (
+  outcome: WidenOutcome,
+  # The names it grants, in the order they were asked for.
+  opens: []string,
+  # Whether the project file was written as well. Always false for RUN.
+  persisted: bool,
+  # Why it was refused, or what could not be written. "" when nothing went wrong.
+  detail: string
+)
+
+# ---------------------------------------------------------------------------- clearance
+
+# Blocked connections from every running task, as they happen.
+#
+# Streaming only: answering this once would look like it worked and then deliver nothing ever
+# again, so a call without "more" is refused.
+#
+# One subscription covers every task, including tasks started after the call - an interface
+# does not discover and connect to each task's own socket.
+# The reply is a Prompt: varlink wants the reply spelt out as a struct, so its fields are repeated here.
+method Prompts() -> (
+  # Container name, for routing the answer back to the right task.
+  task: string,
+  # Pass this to Decide unchanged. It is derived from the other fields, but the derivation is
+  # the daemon's and a client that rebuilt it would answer a prompt that does not exist.
+  key: string,
+  # Host or address the task asked for.
+  destination: string,
+  # tcp or udp.
+  protocol: string,
+  port: int,
+  # When it was blocked, ISO-8601 - and on an event carrying a verdict, when it was decided.
+  # The two are the same field because they are the same event twice; keep the question's own
+  # value if you want the block time of an answered prompt.
+  at: string,
+  # Where in the ruleset it was stopped, for an operator who needs to know which rule fired.
+  # Empty on an event carrying a verdict: nothing decided it a second time.
+  prefix: string,
+  # When the watcher gives up, ISO-8601, on an open question. "" when it never will, and "" on
+  # an event carrying a verdict - nothing is waiting any more.
+  #
+  # A moment rather than a length, and computed where the timeout lives: an interface showing
+  # "three minutes left" would otherwise be doing arithmetic on a number nobody sent it. It is
+  # measured from when the question was asked rather than from "at", because "at" is when the
+  # connection was blocked and a reader that has fallen behind would publish a deadline already
+  # in the past.
+  #
+  # It belongs to the question, not to the packet. A dropped connection is retried, so the same
+  # destination arrives again while one question is open - "at" moves with each, the deadline does
+  # not. Recomputing it per event would hand a countdown a fresh minute every retry and it would
+  # never visibly run out.
+  deadline: string,
+  # A destination is announced as open at most once. Its connection is retried and the watcher
+  # sees every retry, but a key it has already answered is not published again - so a client that
+  # took a settled question off screen never has it put back with buttons under it.
+  #
+  # Absent while the question is open. Once it is settled the same destination arrives again
+  # carrying "allow", "deny" or "timeout", and that is the only way an interface learns that a
+  # prompt ran out: nothing will ask about it again, so a question that simply stops arriving is
+  # indistinguishable from one still waiting for its operator.
+  verdict: ?string,
+  # How many events were dropped since the previous one on this stream, because it was read more
+  # slowly than they arrived. Absent when none were.
+  #
+  # A dropped question is not asked again, so its task stays blocked until its deadline with
+  # nothing on screen. A client that sees this should tell its operator that questions may be
+  # waiting unseen, rather than go on as if it had seen everything.
+  missed: ?int
+)
+
+# Answers one prompt.
+#
+# A task that is not running has no watcher to tell, and that is refused rather than accepted
+# and dropped: an answer that goes nowhere leaves the operator believing they unblocked
+# something.
+method Decide(
+  # Container name, from Prompt.task.
+  task: string,
+  # From Prompt.key, unchanged.
+  key: string,
+  # From Prompt.destination.
+  address: string,
+  # Whether to let it through.
+  allow: ?bool
+) -> (ok: bool)
+
+# The task is not running, so nothing can act on the answer.
+error NoClearance(task: string)
+
+# WidenTask was called without saying how far the change goes.
+error ScopeRequired()

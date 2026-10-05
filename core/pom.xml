@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.4.0</version>
+    </parent>
+
+    <artifactId>sokar-core</artifactId>
+    <name>Sokar Core</name>
+    <description>Sokar - Domain model and config stack (CORE)</description>
+
+    <dependencies>
+
+        <!-- compile -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-wire</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+
+        <plugins>
+
+        </plugins>
+
+    </build>
+
+    <profiles>
+
+        <!-- Runs the tests under the native-image tracing agent, which records every FFM downcall
+             this module makes. FFM downcalls are not found by static analysis: an unregistered one
+             is a runtime failure in the shipped binary, so the registration is generated from a
+             test run rather than maintained by hand. See the ffm-check profile below. -->
+
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <agent>
+                                <enabled>true</enabled>
+                            </agent>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- -Pnative,ffm-check -Dagent=true fails on an unregistered downcall; -Dsokar.ffm.update=true adds it. -->
+        <profile>
+            <id>ffm-check</id>
+            <properties>
+                <sokar.ffm.skip>false</sokar.ffm.skip>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+</project>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 285" width="880" height="285" role="img" aria-label="At run time the container holds only a phantom token. It presents that to a credential proxy over a unix socket; the proxy reads the real credential from the vault, strips every credential header the agent sent, adds the real one and reissues the request to the provider over TLS. A dashed path shows the agent trying to reach the provider directly, denied by the task's own ruleset.">
+  <rect x="0" y="0" width="880" height="285" rx="8" fill="#ffffff"/>
+  <defs>
+    <marker id="ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#57606a"/>
+    </marker>
+    <marker id="agent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a8480f"/>
+    </marker>
+    <marker id="real" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1a6b56"/>
+    </marker>
+  </defs>
+  <g font-family="'Fira Sans','DejaVu Sans',sans-serif">
+    <rect x="16" y="22" width="430" height="150" rx="8" fill="none" stroke="#d0d7de" stroke-dasharray="5 4"/>
+    <text x="30" y="42" font-size="11" fill="#8c959f" font-family="'IBM Plex Mono',monospace">NODE</text>
+
+    <rect x="34" y="60" width="150" height="46" rx="6" fill="none" stroke="#57606a"/>
+    <text x="109" y="82" font-size="13" text-anchor="middle" fill="#24292f">Vault</text>
+    <text x="109" y="98" font-size="10.5" text-anchor="middle" fill="#57606a" font-family="'IBM Plex Mono',monospace">the real credential</text>
+
+    <rect x="250" y="60" width="170" height="46" rx="6" fill="none" stroke="#57606a"/>
+    <text x="335" y="82" font-size="13" text-anchor="middle" fill="#24292f">Credential proxy</text>
+    <text x="335" y="98" font-size="10.5" text-anchor="middle" fill="#57606a" font-family="'IBM Plex Mono',monospace">unix socket, one per task</text>
+
+    <rect x="470" y="34" width="212" height="140" rx="8" fill="none" stroke="#e0a281"/>
+    <text x="484" y="54" font-size="11" fill="#a8480f" font-family="'IBM Plex Mono',monospace">CONTAINER</text>
+    <rect x="492" y="66" width="168" height="42" rx="6" fill="none" stroke="#a8480f"/>
+    <text x="576" y="92" font-size="13" text-anchor="middle" fill="#a8480f">Agent</text>
+    <text x="576" y="130" font-size="11" text-anchor="middle" fill="#57606a">holds a phantom token</text>
+    <text x="576" y="148" font-size="11" text-anchor="middle" fill="#57606a">random · task-scoped · expires</text>
+
+    <rect x="726" y="60" width="136" height="46" rx="6" fill="none" stroke="#57606a"/>
+    <text x="794" y="88" font-size="13" text-anchor="middle" fill="#24292f">Provider</text>
+
+    <path d="M 490 78 L 426 78" stroke="#a8480f" stroke-width="1.6" fill="none" marker-end="url(#agent)"/>
+    <text x="458" y="70" font-size="10.5" text-anchor="middle" fill="#a8480f">phantom</text>
+
+    <path d="M 246 83 L 190 83" stroke="#57606a" stroke-width="1.6" fill="none" marker-end="url(#ink)"/>
+    <text x="218" y="74" font-size="10.5" text-anchor="middle" fill="#57606a">per request</text>
+
+    <path d="M 335 110 L 335 205 L 794 205 L 794 112" stroke="#1a6b56" stroke-width="1.8" fill="none" marker-end="url(#real)"/>
+    <text x="560" y="198" font-size="11.5" text-anchor="middle" fill="#1a6b56">every credential header dropped, the real one added, reissued over TLS</text>
+
+    <path d="M 664 87 L 720 87" stroke="#b3261e" stroke-width="1.6" fill="none" stroke-dasharray="5 4"/>
+    <path d="M 686 80 L 698 94 M 698 80 L 686 94" stroke="#b3261e" stroke-width="2" fill="none"/>
+    <text x="440" y="236" font-size="11.5" text-anchor="middle" fill="#b3261e">An agent with a compiled-in base URL would ignore the socket, so the ruleset denies the upstream host too.</text>
+
+    <text x="440" y="262" font-size="11.5" text-anchor="middle" fill="#57606a">An agent that leaks what it holds has leaked something that stops working when the task ends.</text>
+  </g>
+</svg>

@@ -1,0 +1,226 @@
+
+# ---------------------------------------------------------------------------- types
+
+# Who granted an authorization, and when. Not a secret: the audit fact that a task acts as this person.
+type Authorization (
+  # The account that ran the grant.
+  grantedBy: string,
+  # When, ISO 8601.
+  grantedAt: string
+)
+
+# A project's conversation, on a transport that keeps one.
+type ProjectMessages (
+  # The transport it is on, the scheme a peer's address names.
+  transport: string,
+  # What the transport calls it, "" before it was set up on this machine.
+  conversation: string,
+  # What the project's messages reach through it, as the transport says.
+  reaches: []string,
+  # Whether this machine can carry the project's messages now: the transport installed and the
+  # conversation set up. With detail when not.
+  ready: bool,
+  detail: string,
+  # True for an offline project: its conversation must be on this machine's loopback.
+  loopbackOnly: bool,
+  # The name this machine goes by on the transport, as the transport kept it; "" before the first setup.
+  # It is what this machine's account is named after, so read it from here rather than guessing a host name.
+  machine: string,
+  # Whether this machine is in the conversation. False on a shared server until a person there has let
+  # this machine's account in; while it is, no task of the project starts, and 'detail' says whom to let in.
+  admitted: bool,
+  # This machine's account there, as the server names it, and the conversation as a person names it: what
+  # a person needs to let it in. Plain, not secrets; "" when the transport does not say.
+  address: string,
+  room: string,
+  # Why nothing goes in or out of it now, for a person to act on, or "": "the vault is locked", for
+  # one, where the project's and its tasks' accounts cannot be read until it is unlocked.
+  waits: string
+)
+
+# A connection a task tried to make and was stopped for.
+#
+# This is the one event with a deadline. The task is blocked while it waits, and the watcher
+# gives up after its own timeout - so an interface that shows these must show them as they
+# arrive, which is why Prompts is a stream and not a poll.
+#
+# The answer comes back on the same stream: the same destination again, with verdict set. An
+# interface should match it to the question by task and key rather than showing it twice.
+type Prompt (
+  # Container name, for routing the answer back to the right task.
+  task: string,
+  # Pass this to Decide unchanged. It is derived from the other fields, but the derivation is
+  # the daemon's and a client that rebuilt it would answer a prompt that does not exist.
+  key: string,
+  # Host or address the task asked for.
+  destination: string,
+  # tcp or udp.
+  protocol: string,
+  port: int,
+  # When it was blocked, ISO-8601 - and on an event carrying a verdict, when it was decided.
+  # The two are the same field because they are the same event twice; keep the question's own
+  # value if you want the block time of an answered prompt.
+  at: string,
+  # Where in the ruleset it was stopped, for an operator who needs to know which rule fired.
+  # Empty on an event carrying a verdict: nothing decided it a second time.
+  prefix: string,
+  # When the watcher gives up, ISO-8601, on an open question. "" when it never will, and "" on
+  # an event carrying a verdict - nothing is waiting any more.
+  #
+  # A moment rather than a length, and computed where the timeout lives: an interface showing
+  # "three minutes left" would otherwise be doing arithmetic on a number nobody sent it. It is
+  # measured from when the question was asked rather than from "at", because "at" is when the
+  # connection was blocked and a reader that has fallen behind would publish a deadline already
+  # in the past.
+  #
+  # It belongs to the question, not to the packet. A dropped connection is retried, so the same
+  # destination arrives again while one question is open - "at" moves with each, the deadline does
+  # not. Recomputing it per event would hand a countdown a fresh minute every retry and it would
+  # never visibly run out.
+  deadline: string,
+  # A destination is announced as open at most once. Its connection is retried and the watcher
+  # sees every retry, but a key it has already answered is not published again - so a client that
+  # took a settled question off screen never has it put back with buttons under it.
+  #
+  # Absent while the question is open. Once it is settled the same destination arrives again
+  # carrying "allow", "deny" or "timeout", and that is the only way an interface learns that a
+  # prompt ran out: nothing will ask about it again, so a question that simply stops arriving is
+  # indistinguishable from one still waiting for its operator.
+  verdict: ?string,
+  # How many events were dropped since the previous one on this stream, because it was read more
+  # slowly than they arrived. Absent when none were.
+  #
+  # A dropped question is not asked again, so its task stays blocked until its deadline with
+  # nothing on screen. A client that sees this should tell its operator that questions may be
+  # waiting unseen, rather than go on as if it had seen everything.
+  missed: ?int
+)
+
+# One key a host offers, as this machine saw it.
+type HostKey (
+  # The algorithm, as ssh names it.
+  type: string,
+  # SHA256:... - the form ssh itself prints, and the form a person is told out of band.
+  fingerprint: string
+)
+
+type DeleteOutcome (
+  # Everything Sokar built for it is gone.
+  DELETED,
+  # What would go, having removed nothing.
+  PREVIEWED,
+  # Refused: work reached the gate and nobody reviewed it. The same name Stop uses, for the same
+  # situation, so it can read the same on a screen.
+  HOLDS_WORK,
+  # Refused: tasks are still up.
+  TASKS_RUNNING,
+  # Nothing here knows that project.
+  NO_SUCH_PROJECT,
+  # Something could not be removed. detail says what.
+  FAILED
+)
+
+# CreateProject is gone.
+#
+# A project comes to be on a machine by that machine following its repository, and nothing else.
+# Sokar writes no project.yml anywhere: a person writes one in their repository and commits it, and
+# what is wrong with it comes back from Follow as a named reason. A call that rendered and checked
+# one beforehand would be a second place the same question could be answered differently - and a
+# second way to have a project the machine never verified.
+#
+# There is no replacement and no render-only form. Offer "follow this repository" instead.
+
+# Something wrong with one answer.
+type Problem (
+  # Which answer, named as the call named it.
+  field: string,
+  what: string,
+  # Whether it stops the project being created. A non-fatal one is worth showing and not worth
+  # blocking on - a base image that is not on the machine yet will simply be pulled.
+  fatal: bool
+)
+
+type TalkEvent (
+  # Container name of the task whose mailbox this is about.
+  task: string,
+  # When it happened, RFC 3339.
+  at: string,
+  # taken, queued, sent, deferred, held, delivered, duplicate, refused (by a person), overridden
+  # (delivered by a person although the filter refused it) or read (what the task sent was read where it
+  # went, as a transport that confirms reading says; detail gives when).
+  event: string,
+  # The message's file name.
+  message: string,
+  # Its message id, or "" when none could be read.
+  id: string,
+  # The peer it was going to or came from, or "".
+  peer: string,
+  # Why, for the events that have a why. "" otherwise.
+  detail: string
+)
+
+# The project has no conversation: no peer is reached through a transport's own ('<scheme>:').
+error NoConversation(project: string)
+
+# A credential somebody has to authorize.
+type AuthorizationNeeded (
+  # The vault entry that names the service; pass it to Authorize as 'name'.
+  credential: string,
+  # The task that needed it, or "".
+  task: string,
+  # That task's project, or "".
+  project: string,
+  # never, ended or granted.
+  state: string,
+  # When it was raised - or, for granted, when the grant was seen - ISO 8601.
+  at: string
+)
+
+# The name is not a destination declared on this machine. From Destination, 'name' is the destination asked
+# for. From Start, it is the CREDENTIAL whose destination is not declared - the entry the project or the run
+# named, which is what the person corrects - and never the destination's name.
+error NoSuchDestination(name: string)
+
+# One thing a clearing handled: of a project, the account or the vault.
+type ClearedItem (
+  # task, mirror, image, follow, conversation, transport, deploy key, signer, vault, keyring, grant and the
+  # like.
+  kind: string,
+  # Which one, for a person.
+  what: string,
+  # REMOVED, WOULD_REMOVE, NOT_REMOVED, or FOR_A_PERSON: only a person's credentials can remove it.
+  status: string,
+  # Why, where it was not removed or is left for a person; "" otherwise.
+  why: string
+)
+
+# A deploy key this machine made for one repository: the public half, for a person or an interface to
+# register at the forge. The secret half never leaves this machine's vault.
+type MachineDeployKey (
+  # Its vault entry.
+  entry: string,
+  repository: string,
+  # The repository's upstream it is declared for.
+  upstream: string,
+  # 'ssh-ed25519 AAAA... sokar@<host>'.
+  publicKey: string,
+  # 'SHA256:...'.
+  fingerprint: string,
+  # What the forge should call it: 'sokar <machine> <project>/<repository>'.
+  title: string,
+  # Whether to register it with write access. False for the project's own repository, which a machine
+  # reads and never writes; true for a work repository, where approved work is pushed.
+  writeAccess: bool,
+  # Whether it was made just now rather than found.
+  made: bool
+)
+
+# ---------------------------------------------------------------------------- errors
+
+# The method only works as a stream and was called without "more".
+error StreamRequired(method: string)
+
+error ProjectRequired()
+
+# Anything else that went wrong. The message is for a person, not for a client to match on.
+error Failed(message: string)

@@ -1,0 +1,797 @@
+
+# What the work in a task is doing, as against what its container is doing.
+#
+# "running" answers the container's question. This answers the one an operator has, and they are
+# not the same: a task blocked on a question nobody saw and a task grinding through a build are
+# both running: true, and that difference is the one that costs an afternoon.
+type Activity (
+  # Its container is not up. Stopped, finished or dead - all three are gone.
+  DEAD,
+  # Waiting for a person to answer something, said by the thing that asked rather than guessed
+  # from how long it has been quiet. waitingFor says what about.
+  WAITING,
+  # Producing output.
+  WORKING,
+  # Up, producing nothing, and not waiting for anybody as far as anything can tell.
+  IDLE,
+  # Up, and its agent's run has ended - finished, or stopped by an error its agent read from its own
+  # output. agentEnded says how. Neither working nor idle: nothing will happen any more on its own.
+  ENDED,
+  # Up, and nothing on this side can see what it is doing - a task somebody attached a terminal
+  # to writes its work to that terminal. Its own value rather than "idle", because a state that
+  # is silently wrong is worse than one that says it does not know.
+  UNKNOWN
+)
+
+# How a task's agent ended its run, as the agent read its own last event.
+type AgentEnded (
+  # When the task's log was last written, ISO-8601.
+  at: string,
+  # Whether the prompt was answered to its end.
+  finished: bool,
+  # "" when finished; else the text as the agent or its provider gave it.
+  error: string,
+  # Whose the error is: "provider" or "agent". A provider's is named as the provider's, so a person
+  # looks there - credits, key, limits - and not at Sokar.
+  source: string,
+  # The provider's HTTP status, when the provider refused: 402, 401, 429, 403.
+  status: ?int,
+  # Changed files and commits in the workspace that never reached the gate: work an agent wrote
+  # before it ended and did not push.
+  unpushed: int
+)
+
+# How a person is meant to be involved in a task.
+type Mode (
+  # A terminal in the container, driven by hand.
+  SHELL,
+  # The agent's own session, attached, with a person working through it.
+  AGENT,
+  # Started with a prompt and left to run. Nobody is expected to be watching.
+  UNATTENDED
+)
+
+# What Start would do to one task, answered before anybody presses it.
+#
+# An interface names its action by this and shows a refusal as unavailable with its reason, rather
+# than letting somebody find out by pressing. Answered per task in List and Watch rather than by a
+# call per row: an interface drawing forty tiles would otherwise ask forty times for something the
+# listing already knew.
+#
+# Distinct from StartOutcome, which answers "can work begin in this PROJECT at all" - agent,
+# provider, credential. This answers "what happens to THIS task". A client MUST render a value it
+# does not know rather than failing on it; this enumeration will gain entries.
+type StartAction (
+  # Nothing exists under this name. Start creates the container and starts it.
+  CREATE,
+  # It exists and is stopped. Start brings it back with the workspace, the branch and the
+  # uncommitted changes it already has.
+  RESUME,
+  # It is already running. Start refuses rather than starting a second one; Attach is what
+  # somebody wants.
+  RUNNING,
+  # It would be resumed, but the gate token it has to come back holding is in a vault that is
+  # locked. The per-task face of StartOutcome's VAULT_LOCKED, and for the same reason: the one
+  # thing that helps is unlocking, so an interface offers that instead of reporting a failure.
+  NEEDS_VAULT,
+  # Its name carries a run id from before one container per task, so nothing maps it to a task and
+  # nothing starts it. Remove is what applies. 'startDetail' names the task it belonged to.
+  SUPERSEDED_NAME,
+  # It was started before this machine restarted. Its sockets were under the runtime directory,
+  # which the system clears on restart, and the container is bound to one of them, so Start
+  # refuses. The workspace is still inside the container: 'startDetail' says how to copy it out
+  # before Remove.
+  PREDATES_RESTART,
+  # Something not specific to this task is in the way - project file, agent, provider or
+  # credential. 'startDetail' carries the StartOutcome value naming which.
+  NOT_READY
+)
+
+# One task on this machine, running or not.
+#
+# A task is a container plus the helpers Sokar started beside it. Both halves matter: a
+# container that is up with no helpers has lost its gate or its clearance watcher, and is not
+# the same thing as a healthy task.
+# What an agent's screen says about waiting for a person. See Task.screen.
+type ScreenState (WAITING, NOT_WAITING, UNDECLARED, UNSEEN)
+
+# Whether a finished run's last message was a question. See Task.asked.
+type Asked (ASKED, DID_NOT_ASK, CANNOT_SAY)
+
+type Task (
+  # Container name, which is what every other method takes as its task parameter.
+  name: string,
+  # Project the task belongs to, or "" when nothing recorded it.
+  project: string,
+  # Which of the project's repositories this task works on.
+  #
+  # "" for a container created before repositories existed. That is a task on the project's own
+  # repository - the only one there was - and is to be rendered as such, NOT as "unknown".
+  #
+  # A task works on exactly one repository, fixed when the task was created. Carry it over when
+  # offering to start a stopped task again, and pass it back as Start's 'repository'.
+  repository: string,
+  # The commit this task's configuration was verified at, or "" when nothing verified it.
+  #
+  # A task of a followed project runs against the file the machine checked, and that file moves on.
+  # "What was this task actually running under" is asked after something went wrong, so it is kept
+  # with the task rather than read back out of the project.
+  commit: string,
+  # offline, guarded or online - or "" when nothing recorded it.
+  securityClass: string,
+  # The container runtime's own words, such as "Up 4 minutes" or "Exited (143) 2 seconds ago".
+  # Free text meant for a person; do not parse it. Use running for the decision.
+  state: string,
+  # Whether the runtime says it is up.
+  running: bool,
+  # How many recorded helper processes are alive.
+  helpers: int,
+  # Agent running in it, by the name Agents reports. "" when it has none, or when the task was
+  # started by a Sokar that did not record it.
+  agent: string,
+  # The model provider its agent was brokered to, by the name Providers reports. "" when it was
+  # brokered to none, or when the task was started by a Sokar that did not record it.
+  provider: string,
+  # How somebody is meant to be involved: SHELL, AGENT or UNATTENDED, spelled as Mode spells
+  # them. A string rather than the Mode type because it has a fourth state the type does not: ""
+  # for a task started before this field existed, where nothing recorded one and inventing an
+  # answer would be worse than admitting there is none.
+  mode: string,
+  # What an unattended task was asked to do. Kept after it has finished, because "what was this
+  # asked to do" is a question people have about a task that is over. "" for the other modes.
+  prompt: string,
+  # Ref its work goes to, such as refs/sokar/incoming/shell. "" when it has no gate.
+  branch: string,
+  # When the current state began, ISO-8601: a running task since it started, a stopped one since
+  # it exited. "" when the runtime could not say - a container that was created and never started
+  # has no honest answer. This is what "idle for forty minutes" is arithmetic on; state is not.
+  since: string,
+  # What the work is doing, beside state rather than instead of it.
+  activity: Activity,
+  # How its agent's run ended: while activity is ENDED, and for a stopped task whose container
+  # stopped with its run (activity DEAD). Absent while it runs, and for an agent that does not read
+  # its own end.
+  agentEnded: ?AgentEnded,
+  # What it is waiting to be told, when activity is WAITING. "" otherwise.
+  waitingFor: string,
+  # What this task does with a blocked connection: "prompt", "allow", "deny" or "off" - the value
+  # Start was given. "" when nothing recorded it, which is every task started before this field
+  # existed.
+  #
+  # "off" is the one to mark wherever the task appears: nothing asks and nothing is refused, so
+  # the firewall is loaded and no decision is ever put to anybody. It is a state somebody chose,
+  # and an interface that shows it like any other run is hiding the choice.
+  clearance: string,
+  # A changeable caption somebody gave this task. "" when nobody has, which is every task by
+  # default and is a normal state rather than a gap.
+  #
+  # BESIDE the name, never instead of it: 'name' is what every other method takes and what
+  # somebody types into sokar at the machine, so a row that showed only this would make the
+  # interface and the command line disagree about what a thing is called. Absent and empty are
+  # deliberately the same state.
+  label: string,
+  # Whether this task's own work is waiting at the gate. 1 when its ref is waiting for review, 0
+  # otherwise - and 0 for an online project, where nothing is ever reviewed, which is not a
+  # smaller number but a question the class does not have.
+  #
+  # Answered here rather than left to a join, because there is no join to make: 'name' is a
+  # CONTAINER name (sokar-<project>-<task>-<run>), PendingPush.name is a TASK name, and several
+  # containers over time share one ref. Anything lined up from the two would be right for at most
+  # one of them and silently wrong for the rest.
+  waiting: int,
+  # Name within the project, which is what Start takes. 'name' is the container it produced.
+  #
+  # Carried rather than derived: an interface must not cut a prefix off 'name' to get it, because
+  # the two are related only by a rule Sokar owns and may change - it changed in this release. ""
+  # for a container from before this field existed, where nothing recorded one.
+  task: string,
+  # What Start would do to this task, without doing it.
+  startAction: StartAction,
+  # Which refusal, when startAction is one: the StartOutcome value for NOT_READY, the task a
+  # SUPERSEDED_NAME belonged to, free text otherwise. For RESUME, "" - or, for a task the
+  # machine's restart took down, "the machine restarted; starting it brings it back whole", so an
+  # interface can say why it is down without reading a boot log. "" otherwise.
+  startDetail: string,
+  # What this task is doing that takes minutes and has no other visible sign, such as "building".
+  # "" when it is in none.
+  #
+  # Here rather than only in Start's stream, because a Start given 'now' returns at once and a
+  # stream tied to the call that started it dies with that call. A window opened a minute later, or
+  # a second machine watching the same daemon, would otherwise see a task with nothing behind it.
+  # The output itself is read with Tail.
+  phase: string,
+  # Whether the agent's own screen shows it waiting for a person - DERIVED from a rule the agent's
+  # package declares, read from the screen tmux draws in an attached task. Never observed, and kept
+  # apart from activity and waitingFor, which are: render it as a reading, not a fact.
+  #
+  # WAITING      a declared rule matched
+  # NOT_WAITING  the agent declares rules and none matched - quiet is not waiting
+  # UNDECLARED   the agent declares nothing for its screen, so nothing can be said. Not NOT_WAITING:
+  #              "this agent cannot tell us" is honest, "not waiting" would not be
+  # UNSEEN       nothing here can see its screen: not attached, not running, or a pager is over it
+  screen: ScreenState,
+  # What it waits for, when the rule that matched says. "" otherwise.
+  screenWaitingFor: string,
+  # The agent declares rules, its screen has been read for a day, and none has ever matched: more
+  # likely a declaration its current version no longer fits than an agent that never waits.
+  screenUnproven: bool,
+  # What its last unattended run said last, from the run's own records, where the agent declares
+  # which record that is. Observed, not derived. "" when it does not say, or said nothing yet. The
+  # run's next start replaces it.
+  lastMessage: string,
+  # Whether that last message put something to the person. DERIVED, and three-valued on purpose:
+  # CANNOT_SAY is what every agent answers until one can declare that it stopped to ask - a run that
+  # ended with a question looks exactly like one that finished.
+  asked: Asked,
+  # Where asked came from: "declared" for a rule the agent declares, "" for none.
+  askedFrom: string,
+  # The session its agent was running, recorded where the agent declares how to name one - from an
+  # unattended run's records, or an attached agent's own session files when the task stops. Starting
+  # the task again continues it, and says so. "" when none is recorded: the next start is a fresh
+  # session. An identifier, not a credential; gone when the task is removed.
+  session: string,
+  # What this task was given beyond its agent's own credential, from the project and its run: a vault
+  # entry's name to the destination it is for. Names only, never a token.
+  credentials: [string]string,
+  # For each of those credentials a person granted: who and when, as it stood when the task started - the
+  # person this task acts as. Empty when none is a grant.
+  grants: [string]Authorization
+)
+
+# What became of a Stop or a Remove.
+#
+# One enumeration serves both because one enumeration implements both. A client should render
+# every value it can receive: a refusal is the interesting outcome, not an error case.
+type Outcome (
+  # Stop: the name is not one Sokar created. Nothing was touched.
+  NOT_A_TASK,
+  # Stop: no container and no helpers by that name.
+  NOTHING_TO_STOP,
+  # Stop: the container is down and the helpers are gone.
+  STOPPED,
+  # Stop: refused, because the task holds commits that never reached the gate. work says what.
+  # Re-ask Remove with force to discard it, or with rescue to push it into the mirror first.
+  HOLDS_WORK,
+  # Stop: nothing could say whether there was work, so it was not removed.
+  NOTHING_KNOWS,
+  # Stop: rescue was asked for, but the container is already down and cannot be read.
+  RESCUE_NEEDS_IT_RUNNING,
+  # Stop: rescue was attempted and failed. detail says why. Nothing was removed.
+  RESCUE_FAILED,
+  # Remove: the container was removed and its helpers were already gone.
+  REMOVED,
+  # Remove: refused because the task is running. Stop it, or ask again with force.
+  STILL_RUNNING
+)
+
+# One log a task has written.
+type Log (
+  # Pass this to Tail unchanged.
+  name: string,
+  # How large it is now.
+  bytes: int,
+  # When it was last written, ISO-8601.
+  at: string,
+  # What this log holds, for a name that does not say - absent where it does.
+  #
+  # Two files need it and they are the two somebody looks for: 'events.jsonl' is what the firewall
+  # stopped, and 'reader.err' is the process that records those complaining. A table of names at
+  # the client end would drift the day a file is added - the list grows, the new one has no
+  # sentence, and it looks like the ordinary case. Only this side knows which files exist.
+  #
+  # Absent, empty and whitespace all mean the same thing: nothing to say. Sent absent rather than
+  # empty, because an empty line under a name reads as a description that failed.
+  what: ?string
+)
+
+# ---------------------------------------------------------------------------- what exists
+
+# Every task on this machine, running or stopped.
+method List() -> (tasks: []Task)
+
+# The same answer, again whenever it changes.
+#
+# Called without "more" this answers once, exactly as List does, so a client that cannot
+# stream is not locked out of the data.
+#
+# Called with "more" it sends the whole list on every change and nothing in between. The age
+# in state is deliberately not a change: it moves on its own, and a view that redrew for it
+# would redraw every second forever.
+method Watch() -> (tasks: []Task)
+
+# The purposes a credential may serve: "git" and "any". "git" is the only one anything reads
+# today; a record with another is kept and used by nothing. When a second consumer appears it will
+# be named here.
+
+# ---------------------------------------------------------------------------- running tasks
+
+# Starts a task: creates one that is not there, or brings back one that is stopped.
+#
+# One verb, because the caller cannot know which case they are in - and pressing is not how
+# somebody should find out. That is what startAction on the listing is for. A task that is already
+# running is refused rather than started twice.
+#
+# With "more" it streams the build as it happens, one reply per line, and an interface should show
+# them: building an image takes minutes, and showing nothing for that long is indistinguishable
+# from having hung. With "now" it returns as soon as the task exists and the build goes on without
+# it; the task is in List and Watch immediately with its phase set, and Tail reads the output.
+#
+# The task outlives this call and this connection either way. Closing the socket mid-build does not
+# cancel it; List shows it afterwards.
+method Start(
+  # Task name within the project. Omitted, the repository's name, or the next free one (my-first-2), never an
+  # existing task's.
+  task: ?string,
+  # Project NAME, as Projects.name gives it. REQUIRED - there is no default directory any more.
+  project: ?string,
+  # Agent to run, by the name Agents reports. Default: the only one installed, or an error naming
+  # them all when several are.
+  agent: ?string,
+  # Provider to route through. Default: the agent's own declared default, or an error when it
+  # declares none. A project file names neither an agent nor a provider.
+  provider: ?string,
+  # Overrides the stored credential kind for this run.
+  credentialType: ?string,
+  # Lifetime of the gate token. Default: 8.
+  tokenHours: ?int,
+  # Upstream to gate against. Default: the project's own.
+  upstream: ?string,
+  # Which of the project's repositories this task works on. REQUIRED, and there is no default.
+  #
+  # A project is a unit of work over one or more repositories, and a task works on exactly one of
+  # them. The project's own repository - where project.yml, the planning and the issues live - is
+  # one of the choices, and is how an agent gets a task for planning. Project.repositories lists
+  # what to offer, its own first.
+  #
+  # Not defaulted even when a project has exactly one. A default would be paid for later and
+  # somewhere else: a project that grew a second repository would silently change what an existing
+  # call does. Omitting it is refused, and the refusal names what there is to choose from.
+  repository: ?string,
+  # Credentials this task holds beyond the agent's own and the project's: a vault entry's name to the
+  # destination or provider it is for. They add to the project's and cannot point one of its elsewhere.
+  # Each reaches the task as SOKAR_TOKEN_<ENTRY> and SOKAR_URL_<ENTRY>, a token worthless anywhere else.
+  credentials: ?[string]string,
+  # Runs with no workspace and no git gate: the agent gets an empty directory and can commit
+  # nowhere.
+  noGate: ?bool,
+  # Does everything up to starting the container, then stops and reports. Nothing is created.
+  dryRun: ?bool,
+  # What to do with a blocked connection: prompt, allow, deny or off. Default: "prompt".
+  clearance: ?string,
+  # Removes the container when the session ends. Default: false.
+  #
+  # REPLACES 'keep', whose default was the other way round: the command a person reaches for first
+  # removed what it had just made, which is how an operator lost a task by typing the obvious
+  # thing. Keeping is the safe default; throwing away is the deliberate one.
+  rm: ?bool,
+  # Returns as soon as the task exists, instead of waiting for the build to finish.
+  #
+  # Named for what it does rather than 'detach': over this interface Start never attaches anything,
+  # so there is nothing to detach from. The command line has a second switch for not attaching a
+  # terminal, which is a question only a terminal has.
+  now: ?bool,
+  # How somebody is meant to be involved, recorded on the task and answered by List and Watch.
+  # Default: UNATTENDED when a prompt is given, SHELL otherwise - so a caller that gives a prompt
+  # need not repeat itself, and one that gives neither gets the honest answer for a container
+  # nobody is attached to.
+  mode: ?Mode,
+  # What an unattended task is asked to do. Recorded on the task and kept after it finishes.
+  #
+  # Giving one makes this call RUN the agent, not merely start the container: the call lasts as
+  # long as the run does, and with "more" the agent's own output arrives as it is produced. The
+  # exit code in the reply is then the agent's. Without a prompt the container comes up and the
+  # call returns, as it always did.
+  prompt: ?string,
+  # Model to ask the agent for, when it declares a model flag. Ignored otherwise.
+  model: ?string,
+  # Turn limit, when the agent declares one.
+  maxTurns: ?int,
+  # How long the agent may run, in minutes. Default: 30. On expiry the run is killed and whatever
+  # it produced is kept - the exit code is 124 and the log holds what it managed to say.
+  minutes: ?int
+) -> (
+  # One line of output. Set on every reply while continues is true, and only then.
+  line: ?string,
+  # Container name of the started task. Set on the final reply, and only then.
+  container: ?string,
+  # What the launch returned. 0 is success. Set on the final reply.
+  exitCode: ?int,
+  # Everything that was printed, for a caller that did not ask to stream. Empty when it did.
+  output: ?[]string,
+  # What it did, or the refusal it answered with. Set on the final reply: CREATE or RESUME for what
+  # it did; RUNNING, NEEDS_VAULT or PREDATES_RESTART for a refusal.
+  #
+  # A refusal is an ordinary reply, not an error, and carries container and exitCode like any
+  # other - the exit code is the refusal's. NEEDS_VAULT in particular arrives this way, so an
+  # interface can offer to unlock the vault rather than report a failure.
+  action: ?StartAction,
+  # How many recorded helpers were started, and how many the task is recorded as having had. Fewer
+  # started than recorded is a partial start and an interface should say so. Absent when the task
+  # was created rather than resumed - 0 of 0 would claim an answer to a question nobody asked.
+  helpersStarted: ?int,
+  helpersRecorded: ?int,
+  # What went wrong per helper, for the ones that did not come back.
+  problems: ?[]string,
+  # Set when the image the container was built from has changed since it was created.
+  imageDrift: ?string
+)
+
+# Stops a task and the helpers Sokar started beside it.
+#
+# The container is stopped, NOT removed: its filesystem is the task's workspace, so removing it
+# would throw away the agent's work. Removal is Remove's decision, and asking for it here is what
+# purge used to do.
+#
+# On the way down it writes what the task holds, while that is still knowable - whoever removes it
+# later cannot ask the container itself.
+method Stop(
+  # Container name.
+  task: string
+) -> (
+  outcome: Outcome,
+  # How many helper processes were stopped.
+  helpers: int,
+  # How many helper processes are still alive afterwards. Not zero is worth showing.
+  surviving: int,
+  # Why, in words, for an outcome that needs one. "" otherwise.
+  detail: string
+)
+
+# Removes a task: its container, its state, and the workspace inside it.
+#
+# Refuses rather than destroys, in three ways, and an interface should render each as a question
+# rather than an error:
+#
+#   STILL_RUNNING   it is up. Stop it first, or pass force.
+#   HOLDS_WORK      it holds commits that never reached the gate. 'work' says what. Ask again with
+#                   rescue to push them into the mirror first, or force to discard them.
+#   NOTHING_KNOWS   nothing could say what it holds, so nothing was removed.
+#
+# The record NOTHING_KNOWS rests on is written by Stop. Where that record lives decides whether
+# this guard survives a restart of the machine; see the note on the runtime directory.
+method Remove(
+  # Container name.
+  task: string,
+  # Push what it holds into the gate's mirror before removing it.
+  rescue: ?bool,
+  # Remove it anyway: stops it if it is running, and discards work that never reached the gate.
+  # One flag for both refusals, deliberately - it is the "I mean it" answer, and splitting it would
+  # invite passing whichever one happens to unblock this run without reading the other.
+  force: ?bool
+) -> (
+  outcome: Outcome,
+  # What it held, when that is why it was refused. "" otherwise.
+  work: string,
+  # Where rescued work was put. "" when none was.
+  rescuedRef: string,
+  # Whether the container was removed.
+  removed: bool,
+  # Why, in words, for an outcome that needs one. "" otherwise.
+  detail: string,
+  # How many paths the container had that its image did not - what the agent installed inside it,
+  # which is destroyed with the container and has nowhere to arrive, unlike the workspace. Counted
+  # only when it was removed, and zero otherwise. Show it beside the removal: nothing else records
+  # that any of it existed.
+  discarded: int
+)
+
+# One task a panic stopped, or would have stopped.
+type PanickedTask (
+  # Container name, which is what Start takes to bring it back.
+  name: string,
+  # How many helper processes it had.
+  helpers: int,
+  # Helpers that outlived the stop and have to be killed by hand. Empty is the normal case.
+  surviving: []string
+)
+
+# Stops every running task and every helper any of them started.
+#
+# No task names, on purpose: somebody reaching for this is not in a position to list what is
+# running first, and a stop that needs an inventory is one they will get wrong.
+#
+# IT STOPS; IT NEVER REMOVES. Every workspace, log and unpushed commit survives, and Start brings
+# a task back with the work it had. An interface that presented this as a cleanup would send
+# somebody looking for work that is still exactly where it was. Discarding is a separate decision,
+# made afterwards, by name, with Remove.
+method Panic(
+  # Lists what would be stopped and stops nothing.
+  dryRun: ?bool
+) -> (
+  # Every task that was running, in the order they were stopped. Empty means nothing was running.
+  tasks: []PanickedTask,
+  # Every helper that outlived its stop, across all tasks. Non-empty means somebody has processes
+  # to kill by hand, and they are named rather than counted.
+  surviving: []string,
+  # Whether this only listed what would happen.
+  previewed: bool
+)
+
+# Drops the cached vault passphrase, so the next thing that needs it has to ask.
+#
+# The only call that changes the credential store. There is deliberately no Unlock: a daemon has
+# no terminal to take a passphrase at, so it can shut the vault and can never open it - unlocking
+# stays at the machine, with 'sokar vault unlock'.
+method Lock() -> (
+  # Whether the kernel keyring exists here at all. Without it nothing can be cached, so nothing
+  # ever was, and "locked" would claim a change that did not happen.
+  keyring: bool,
+  # Whether a passphrase was cached and has now been dropped. False means it was already locked -
+  # which is the wanted state either way, so this is not a failure.
+  wasCached: bool,
+  # Running tasks whose credential proxy already read the credential and holds it in its own
+  # memory, where locking cannot reach. Stopping them is what ends that. An interface reporting
+  # "locked" without this would be claiming more than happened.
+  holding: int
+)
+
+# Why work could not start here, or that it could.
+#
+# New values may appear; render an unrecognised one rather than throwing, by the same rule as
+# every other enumeration here. The three that mean different ACTIONS are NO_PROVIDER_CHOSEN
+# (pick a provider), CREDENTIAL_MISSING (store a secret) and VAULT_LOCKED (unlock it) - showing
+# any of those as another is telling somebody to do the wrong thing.
+type StartOutcome (
+  # Nothing is in the way.
+  READY,
+  # The project file is not there, or cannot be read.
+  NO_PROJECT_FILE,
+  # The task name is one Start would refuse: lowercase letters, digits and inner hyphens, not
+  # only digits, and 'sokar-<project>-<task>' at most 65 characters. 'detail' says which.
+  BAD_TASK_NAME,
+  # No repository was named and Start never picks one, not even for a project that has exactly
+  # one. Somebody chooses a REPOSITORY; Project.repositories lists them, its own first, and
+  # 'detail' names them too. This is the outcome a start dialog turns into its required choice.
+  NO_REPOSITORY_CHOSEN,
+  # A repository was named and the project has none of that name. 'detail' lists what it has.
+  UNKNOWN_REPOSITORY,
+  # The chosen repository is reached over ssh at a host this machine never met. 'host' names it and
+  # 'hostKeys' says what it offers now, as Follow answers it: a person confirms one with TrustHostKey
+  # against what its owner publishes, then asks again. Before, the start went ahead without a gate.
+  UNKNOWN_HOST_KEY,
+  # Nothing is installed to run. A task with no agent can still be started as a plain shell, so
+  # this is not "the machine is broken".
+  NO_AGENT,
+  # A name was given and nothing is installed under it.
+  UNKNOWN_AGENT,
+  # Several are installed and none was named. Somebody chooses an agent.
+  SEVERAL_AGENTS,
+  # The agent names no default provider and none was chosen. Somebody chooses a PROVIDER - not a
+  # secret, which is why this is not folded into CREDENTIAL_MISSING.
+  NO_PROVIDER_CHOSEN,
+  # The provider asked for is not declared on this machine.
+  UNKNOWN_PROVIDER,
+  # The provider is declared but does not serve the dialect this agent speaks.
+  WRONG_DIALECT,
+  # The vault cannot be read, so this question cannot be answered yet. NOT a missing credential:
+  # the one thing that helps is unlocking, and telling somebody to store a secret they already
+  # have is the instruction that cannot help them.
+  VAULT_LOCKED,
+  # The vault is readable and holds nothing under the name this run would look for. 'credential'
+  # names it.
+  CREDENTIAL_MISSING,
+  # Something is stored and cannot be brokered - the wrong kind for this provider. 'detail' says
+  # what.
+  CREDENTIAL_UNUSABLE,
+  # A credential the project or the run names is for a destination nobody declared here, or the run points
+  # one of the project's elsewhere. 'credential' names it; 'detail' says whether the project or the run
+  # named it. Start refuses the same case with NoSuchDestination, before anything is launched.
+  UNKNOWN_DESTINATION,
+  # A credential the project or the run names is one a person grants (oauth-device, oauth-code), and
+  # nobody has granted it. 'credential' names the entry; 'detail' gives the command that grants it, and
+  # Authorize is how an interface grants it. Start refuses an unattended or agent run for it; a shell
+  # starts with a warning. A grant that ended at the service is not seen here: it is found when spent.
+  AUTHORIZATION_NEEDED
+)
+
+# Whether work could start here, asked before anything is created.
+#
+# This exists because the only other way to find out was to start a task and read an exit code and
+# a stream of prose. It takes the same choices Start takes and answers from the same code, so a
+# check that says READY and a Start that refuses cannot disagree.
+#
+# What it CANNOT tell you: whether the credential is still valid at the provider. It answers that
+# something usable is stored under the name this run would look for, which is a different claim.
+method CanStart(
+  # Project NAME, as Start takes it. Omitted, no project is checked - which is how an interface
+  # asks about the machine before a project has been chosen. A name this machine does not have is
+  # an ANSWER here (NO_PROJECT_FILE, naming what it does have), not an error.
+  project: ?string,
+  # Which of the project's repositories the task would be for, exactly as Start takes it.
+  # Omitted with a project given, the answer is NO_REPOSITORY_CHOSEN - because that is what Start
+  # would do. Pass noGate when the run would have no gate: such a run works on no repository.
+  repository: ?string,
+  # Whether the run would have no workspace and no git gate, as Start takes it.
+  noGate: ?bool,
+  # The task name Start would be given. Omitted, no name is checked. The length rule needs the
+  # project, so without one only the characters are.
+  task: ?string,
+  # Agent to run. Omitted, the only one installed.
+  agent: ?string,
+  # Provider to route through. Omitted, the agent's own declared default.
+  provider: ?string,
+  # Overrides the stored credential kind for this question, as Start takes it.
+  credentialType: ?string,
+  # The credentials the run would add, as Start takes them. Each the project or the run names must be for a
+  # destination declared here, or the answer is UNKNOWN_DESTINATION.
+  credentials: ?[string]string
+) -> (
+  # Whether work could start. True exactly when outcome is READY, so branch on whichever suits -
+  # but never infer the ACTION from this alone: three different things somebody has to do all
+  # arrive as false.
+  ready: bool,
+  outcome: StartOutcome,
+  # The agent this was answered for. "" when none was settled.
+  agent: string,
+  # The provider serving it. "" when the agent is not brokered, or none was settled.
+  provider: string,
+  # The vault key this run would look for. "" when the question never got that far.
+  #
+  # The name ACTUALLY looked for, not the one that ought to apply: a vault written before
+  # credentials were keyed by provider still answers under the agent's own name, so this can be
+  # either. Render this, not a name of your own composing - otherwise the sentence on screen names
+  # a key that would be right in a vault the person does not have.
+  credential: string,
+  # What to run ON THAT MACHINE to store it, as arguments, with CREDENTIAL_MISSING. Empty
+  # otherwise. Answered here rather than joined together from Providers() by a client: it is a
+  # string this already builds, and a second place that builds it is a second place it can drift.
+  storeCommand: []string,
+  # Prose for a person, always set. Never parsed.
+  detail: string,
+  # With UNKNOWN_HOST_KEY: the host, spelled exactly as TrustHostKey wants it. "" otherwise.
+  host: string,
+  # With UNKNOWN_HOST_KEY: what that host offers right now. Empty otherwise.
+  hostKeys: []HostKey
+)
+
+# Gives a task a changeable caption, or removes one.
+#
+# NOT a rename. A task's name is its identity in four places - the container, the gate ref it
+# pushes to, the workspace and the log files - and moving a ref that may have unreviewed pushes
+# behind it is a different and much larger thing. This changes what a person reads in a list and
+# nothing else.
+method Label(
+  # Task name, as List reports it.
+  task: string,
+  # The caption. Omitted or blank removes it.
+  label: ?string
+) -> (
+  #   LABELLED      the caption was written down
+  #   CLEARED       the caption was removed
+  #   NOT_A_TASK    no such task, or its state directory is gone
+  #   NOT_RECORDED  it exists but recorded nothing about itself - started by an older Sokar
+  #   FAILED        the profile could not be written
+  outcome: string,
+  # What the task's caption is now. "" after CLEARED, and "" for every outcome that changed
+  # nothing.
+  label: string
+)
+
+# Builds a project's task image without starting anything.
+#
+# The first task in a project otherwise waits minutes for something that has nothing to do with
+# the work. Use with "more": a build takes minutes, and showing nothing for that long is
+# indistinguishable from having hung.
+method Prepare(
+  # Absolute path of the project file, as Projects reports it.
+  project: string,
+  # Whose tooling to install. Omit when only one agent is installed. An image with no agent is a
+  # real thing to want - it is what somebody working in the container by hand needs - so this is
+  # not refused when no agent is found.
+  agent: ?string,
+  # CACHED, AGENT or EVERYTHING. Default CACHED.
+  #
+  # CACHED is not "skip the build": the build runs and podman's cache decides layer by layer, so
+  # an edited project file rebuilds what it changed and nothing else. It is what every task start
+  # already does.
+  #
+  # AGENT replaces the agent's tooling and keeps the base image and its packages. There is no
+  # podman flag for "rebuild from here" - it works by changing a build argument placed where the
+  # agent's layers begin, which invalidates the cache from that line down. So it is real, and it
+  # is a mechanism rather than a switch.
+  #
+  # EVERYTHING discards the base image's packages too, which means downloading them again.
+  rebuild: ?string,
+  # Says what it would do and does nothing.
+  dryRun: ?bool
+) -> (
+  # PREPARED, PREVIEWED, NO_SUCH_PROJECT or FAILED.
+  outcome: string,
+  # The image name, or "" when nothing was built.
+  image: string,
+  # The depth actually used, so an unrecognised one is visible rather than silently defaulted.
+  rebuild: string,
+  # Progress, when this was not called with "more". Empty when it was streamed.
+  output: []string,
+  # Why it failed, naming the step. "" otherwise.
+  detail: string
+)
+
+# Which logs a task has.
+#
+# Ask rather than assume: what a task writes depends on what it started - a task with no gate
+# has no gate.log, one run with --clearance off has no clearance.log - so a client holding a
+# list of names would show an empty viewer for a file that was never going to exist, and would
+# never show one a later release adds. Empty for a task whose state directory is gone, which is
+# what removal does.
+method Logs(task: string) -> (logs: []Log)
+
+# What a task holds that never reached the gate.
+#
+# Asked for ONE task, never on a listing. Every other field about a task comes from one 'ps' and
+# the state directory; this one runs git inside the container, which on a list a client redraws
+# would be a call per row - the cost 'since' and 'behindMeasured' both exist to avoid.
+#
+# 'readable' is not "holds nothing". Holding nothing is readable with two zeros. Unreadable means
+# nobody could look: a task killed, or stopped by a Sokar that left no note. Absence rendering as
+# nothing-to-worry-about is the failure this separation exists to prevent - the same one that put
+# 'readable' on Credentials and Providers.
+#
+# 'asOf' is absent while the task runs, because the answer is current. For a stopped task it is
+# when the answer was true: the workspace lives inside the container, so once it stops the only
+# source is what the stop wrote down.
+method WorkHeld(
+  # Container name.
+  task: string
+) -> (
+  # Whether what it holds could be established at all.
+  readable: bool,
+  # Files changed and not committed.
+  changedFiles: int,
+  # Commits on no remote.
+  unpushedCommits: int,
+  # When this was true, ISO-8601. Absent while the task runs.
+  asOf: ?string
+)
+
+method Tail(
+  # Container name.
+  task: string,
+  # File name within the task's state directory, ending in .log. Not a path.
+  log: string,
+  # Start this many lines before the end instead of at the first line; then follow. A long log
+  # is never sent whole for a client that shows its end.
+  last: ?int,
+  # Through the task's agent: each line as the agent shows it, the lines it hides left out. As
+  # they are when the task has no agent here, or its agent formats nothing.
+  formatted: ?bool
+) -> (
+  lines: []string,
+  # Byte position in the log where this reply's first line starts, so a client can later ask for
+  # what lies before it.
+  offset: int
+)
+
+# What a task's terminal session shows, read without attaching: for work in a terminal, which has
+# no log to follow. A snapshot, not a stream; a client asks again.
+method Screen(
+  # Container name.
+  task: string,
+  # How many of its last lines, at most the 10 000 a session keeps. 20 when absent.
+  last: ?int,
+  # Keep the colour and attribute escapes, for a client that draws them. Plain text when absent.
+  escapes: ?bool
+) -> (
+  # The last lines of history and screen, a wrapped line joined into one, the blank screen below
+  # them left out.
+  lines: []string,
+  # Whether the task has a terminal session: false for unattended work or a session that ended,
+  # and then lines is empty.
+  live: bool
+)
+
+# Start refuses a repository reached over ssh at a host this machine never met, before anything is
+# made: CanStart answers the same as UNKNOWN_HOST_KEY. detail says what to do.
+error UnknownHostKey(host: string, hostKeys: []HostKey, detail: string)
+
+error NoSuchTask(task: string)
+
+# The named log is not a file in that task's state directory.
+error NoSuchLog(task: string, log: string)
+
+# A gate method was called without naming a project file.
+# A rebuild depth this daemon does not know.
+#
+# Refused rather than treated as the default: quietly doing the cheapest thing when somebody asked
+# for the most expensive is exactly the failure the depths exist to prevent.
+error UnknownRebuild(rebuild: string)

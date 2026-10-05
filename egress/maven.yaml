@@ -1,0 +1,16 @@
+# Maven, measured rather than assumed: 193 artifacts resolved into an empty local repository
+# through a logging proxy, which recorded every host the resolver opened a tunnel to. Plugins,
+# parent POMs and transitive dependencies all came from the first name below - Maven Central is
+# fronted by a CDN under its own name, so no second host appears.
+#
+# A project with other repositories in its pom - a company Nexus, jitpack, a vendor's - reaches
+# those too, and they belong in the project's own 'egress.domains' rather than here.
+name: maven
+label: Maven Central
+domains:
+  - repo.maven.apache.org
+  # Snapshots. A different host from releases, and needed by any project building against an
+  # unreleased dependency.
+  - central.sonatype.com
+  # The same service under the name older poms and settings hard-code.
+  - repo1.maven.org

@@ -1,0 +1,22 @@
+# Anthropic. Reached by its own agent natively, and by any agent speaking its dialect.
+name: anthropic
+label: Anthropic
+upstream: https://api.anthropic.com
+
+# The dialect this provider *is* comes first: an agent asking for 'native' gets it. Anthropic
+# serves only its own, at the root - its clients append '/v1/messages' themselves.
+dialects:
+  anthropic-messages: ""
+
+# An API key and a subscription token are not interchangeable. They go in different headers, and
+# sending one as the other fails as an authentication error that looks exactly like a wrong key.
+auth_header:
+  _default: x-api-key
+  oauth: Authorization
+auth_prefix:
+  _default: ""
+  oauth: "Bearer "
+
+token_env:
+  _default: ANTHROPIC_API_KEY
+  oauth: CLAUDE_CODE_OAUTH_TOKEN

@@ -1,0 +1,282 @@
+
+# Someone who has joined a project's conversation.
+type MessageMember (
+  # The name join was given.
+  person: string,
+  # The account the transport made for them.
+  user: string
+)
+
+# This machine's message key, for an interface that writes its machine-signers line into a project itself.
+method MessageKey() -> (principal: string, key: string, line: string, fingerprint: string)
+
+# ---------------------------------------------------------------------------- messages
+
+# The peers this task may address, and what a person decided about each: the project file's, and the
+# project's other running tasks when it has a conversation (address '<transport>:', trust vouched).
+#
+# Two things at once because they are read together: the project says who may be addressed, and
+# the mailbox says whether anything currently goes there. An interface that showed only the first
+# would show a peer as available while every message to it waits.
+method Peers(
+  # Container name of the task.
+  task: string,
+  # The project's name, as the other project methods take it. Its verified project.yml is where the peers are declared.
+  project: string
+) -> (peers: []TalkPeer)
+
+type TalkPeer (
+  # What a message addresses.
+  name: string,
+  # '<transport>:<rest>'.
+  address: string,
+  # 'vouched' or 'external'. It decides whether what arrives is checked again here.
+  trust: string,
+  # How many messages a day this task may exchange with it, each way.
+  perDay: int,
+  # How many went out to it in the last day, as the budget counts them: a rolling day, so
+  # nothing is released by midnight arriving. The next one out is refused at perDay.
+  sentToday: int,
+  # How many from it reached the agent in the last day, counted the same way.
+  receivedToday: int,
+  # 'prompt', 'allow', 'deny' or 'off' - clearance's four, with the same meanings. Set once in the
+  # project's project.yml: 'mail.rules' for the project's own tasks, its conversation and everyone else,
+  # or the peer's own 'mode'.
+  mode: string,
+  # Whether a person holds everything for this peer, whatever the mode says. For the project: every
+  # task of it, including tasks started later, sees the same.
+  held: bool
+)
+
+# Every mailbox on this machine, as it moves. Streaming only, as Prompts is.
+#
+# The events come from each task's record, which is written as things happen. There is no second
+# copy of the conversation to disagree with it, and an entry never carries what a message said -
+# a stream that quoted refused messages would be a second copy of exactly what was refused.
+#
+# Live only: it says what happens from the moment a client listens, and replays nothing. What is
+# already waiting for a person when a client starts is Held.
+# The reply is a TalkEvent: varlink wants the reply spelt out as a struct, so its fields are repeated here.
+method Talk() -> (
+  # Container name of the task whose mailbox this is about.
+  task: string,
+  # When it happened, RFC 3339.
+  at: string,
+  # taken, queued, sent, deferred, held, delivered, duplicate, refused (by a person), overridden
+  # (delivered by a person although the filter refused it) or read (what the task sent was read where it
+  # went, as a transport that confirms reading says; detail gives when).
+  event: string,
+  # The message's file name.
+  message: string,
+  # Its message id, or "" when none could be read.
+  id: string,
+  # The peer it was going to or came from, or "".
+  peer: string,
+  # Why, for the events that have a why. "" otherwise.
+  detail: string
+)
+
+# Every message a person may be asked to decide about, as it stands now - for an interface that
+# starts after a message was held, which the live stream alone would show as "nothing needs you".
+#
+# Found exactly as ReadHeld and Release find a message, so the list, the reading and the decision
+# cannot disagree. Without what the messages say: reading one is a person's deliberate act, through
+# ReadHeld. held and refused-by-filter wait for a decision; refused-by-person and unchecked are
+# listed because they are still there, and neither can be sent.
+method Held(
+  # Container name of one task, or absent for every task on this machine.
+  task: ?string
+) -> (messages: []HeldMessage)
+
+type HeldMessage (
+  # Container name of the task whose mailbox holds it.
+  task: string,
+  # held, refused-by-filter, refused-by-person or unchecked.
+  standing: string,
+  # The file, as ReadHeld and Release take it.
+  message: string,
+  # The message id, or "" when none could be read.
+  id: string,
+  # ROLE_USER when a person wrote it, ROLE_AGENT when a task did, or "".
+  role: string,
+  # The peer it was going to or came from, or "".
+  peer: string,
+  # question, answer, status, review-request or handover, or "".
+  kind: string,
+  # When this host first recorded it, RFC 3339, or "".
+  at: string,
+  # Why it is held, or, for a refused one, the filter's own answer.
+  reason: string,
+  # "out" when this task was sending it, "in" when it was reaching this task - an external peer's
+  # message is held on its way in, before any agent sees it. "" for a message held before the
+  # record kept directions.
+  direction: string
+)
+
+# Writes a person's own message into a conversation.
+#
+# It lands in the outbox and goes out through the filter like any other message: a person is not a
+# reason to skip the check. What differs is the role, which says a person wrote it.
+#
+# NoSuchPeer when the project has no conversation and no peer of that name - nothing would carry it.
+method Say(
+  # Container name of the task.
+  task: string,
+  # Who it is addressed to.
+  peer: string,
+  # question, answer, status, review-request or handover. Empty means question.
+  kind: string,
+  # What it says.
+  text: string,
+  # The conversation it belongs to, or empty for a new one.
+  context: ?string
+) -> (
+  # The file written into the outbox.
+  message: string,
+  # WRITTEN. Not 'sent': the next pass decides that.
+  outcome: string
+)
+
+# Puts a person's own words straight into a task's inbox, where its agent reads - to the task itself, where
+# Say speaks for a person to a peer. It carries role ROLE_USER and metadata from "person"; it never leaves the
+# machine, so it is neither signed nor filtered.
+method Tell(
+  # Container name of the task.
+  task: string,
+  # What the person says.
+  text: string
+) -> (
+  # The file written into the task's inbox.
+  message: string
+)
+
+# Reads one message a person is asked to decide about, in full, so they decide about what it says
+# rather than releasing it unread: a held one, one the filter refused, or one it could not check.
+#
+# Looked up exactly as Release looks it up. A refused message holds what was refused, secrets
+# included, and is shown to the person asking - at the operator's word, so a person can still decide
+# to deliver it. It is never in the stream or the record, which stay without content.
+method ReadHeld(
+  # Container name of the task.
+  task: string,
+  # Message id or file name, as Talk, Release and 'sokar talk held' take it.
+  id: string
+) -> (
+  # FOUND, NO_SUCH_MESSAGE or AMBIGUOUS.
+  outcome: string,
+  # held, refused-by-filter, refused-by-person or unchecked, or "". What Release can do with it follows
+  # from this: held and refused-by-filter can be sent, the other two never.
+  standing: string,
+  # The file, or "".
+  message: string,
+  # The message id, or "".
+  id: string,
+  # ROLE_USER when a person wrote it, ROLE_AGENT when a task did, or "".
+  role: string,
+  # The peer it was going to or came from, or "".
+  peer: string,
+  # question, answer, status, review-request or handover, or "".
+  kind: string,
+  # When this host first recorded it, RFC 3339, or "".
+  at: string,
+  # Its parts, in order, exactly as written: render them as text and never interpret them - no
+  # markup, no link resolved, nothing fetched. A part that is not text is named by its media type.
+  text: []string,
+  # Why it is held, or, for a refused one, the filter's own answer - which rules it broke.
+  reason: string,
+  # "out" when this task was sending it, "in" when it was reaching this task - an external peer's
+  # message is held on its way in, before any agent sees it. "" for a message held before the
+  # record kept directions.
+  direction: string
+)
+
+# Releases one held message, or refuses it for good - or, for one the filter refused, delivers it
+# after all, or keeps it refused as a person's decision.
+#
+# Released or refused, never edited: what the record shows a task said has to be what the task
+# said. A refused message delivered after all goes straight to its transport, never through the
+# filter's accepted directory, and the record says it went despite the filter. An external peer's
+# own filter checks it again. What a person refused for good, and what the filter could not check,
+# is never sent.
+method Release(
+  # Container name of the task.
+  task: string,
+  # Message id or file name, as Talk and 'sokar talk held' show it.
+  id: string,
+  # Whether to refuse it for good. The sender is told.
+  refuse: ?bool,
+  # With refuse: why, in the person's words. The sender is told them with the refusal.
+  reason: ?string
+) -> (
+  # RELEASED, REFUSED, DELIVERED_DESPITE_FILTER, NOT_DELIVERABLE, NO_SUCH_MESSAGE or AMBIGUOUS.
+  outcome: string,
+  # The file it acted on, or "".
+  message: string,
+  # The message id, or "".
+  id: string,
+  # Why, for NOT_DELIVERABLE. "" otherwise.
+  detail: string
+)
+
+# Holds a peer or releases it, for the whole project: every task of it, including tasks started later.
+#
+# A mode is not set here: the project's project.yml sets it once, for every task, and a 'mode' given
+# here fails with a message that says where.
+method Moderate(
+  # Ignored: a decision is the project's, not one task's. Accepted so an older client still works.
+  task: ?string,
+  # The project's name, as the other project methods take it. Its verified project.yml decides whether unread work may leave.
+  project: string,
+  # The peer to decide about.
+  name: string,
+  # Whether to hold everything for it, or absent to leave that as it is.
+  held: ?bool,
+  # Refused when given: a mode is set in project.yml. Accepted so an older client is told why.
+  mode: ?string
+) -> (name: string, mode: string, held: bool)
+
+# Sets a project's conversation up on this machine, or confirms it, without starting a task: what binding a
+# machine to a project runs, so it learns the name this machine goes by there and whether it is let in yet.
+# Run again after a person let it in, and 'admitted' turns true. Refused with ConversationRefused, carrying
+# the transport's words and code.
+method SetUpMessages(project: string) -> (messages: ProjectMessages)
+
+# Lets a person into a project's conversation with an account made for them, or gives it a new password
+# with reset. Answered once: the login is in this reply and nowhere else, never kept.
+#
+# 'login' is the transport's, passed through as it gave it. For Matrix: homeserver, user, room, password,
+# and loopback ("true" when the homeserver is this machine's loopback) with port - a client elsewhere then
+# forwards that port (ssh -L port:127.0.0.1:port) before its Matrix client reaches the homeserver. 'shown'
+# is what a terminal prints.
+method JoinMessages(
+  project: string,
+  # Whom the account is for, as MessageMembers lists them.
+  person: string,
+  # Give the person's existing account a new password; without it, a second join is MemberExists.
+  reset: ?bool
+) -> (
+  transport: string,
+  login: [string]string,
+  shown: string
+)
+
+# Who has joined a project's conversation, by the name join was given.
+method MessageMembers(project: string) -> (members: []MessageMember)
+
+# The person has joined already; reset gives them a new password.
+error MemberExists(person: string, user: string)
+
+# The transport refused; message is its own words, code its exit code (75 temporary, 77 refused, 78
+# configuration missing).
+error ConversationRefused(message: string, code: int)
+
+# The name is not a task Sokar created.
+#
+# An error rather than an empty-looking answer, deliberately. WorkHeld answers "readable: false"
+# for a task nobody could look inside, and a name that was never a task is not that - conflating
+# them would let a client's wrong argument arrive as a legitimate answer, which is the failure
+# the Backups documentation gap produced.
+
+# A person's message to a name nothing would carry it to: the project has no conversation and no
+# peer of that name. detail says what to change.
+error NoSuchPeer(peer: string, detail: string)

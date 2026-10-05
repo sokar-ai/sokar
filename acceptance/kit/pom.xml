@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar-acceptance-parent</artifactId>
+        <version>0.4.0</version>
+    </parent>
+
+    <artifactId>sokar-acceptance-kit</artifactId>
+    <name>Sokar Acceptance Kit</name>
+    <description>Sokar - Drives a real machine over ssh from a Cucumber scenario, and reports where GitHub shows it (ACCEPTANCE-KIT)</description>
+
+    <properties>
+        <!-- Deployed to Central, like the agent API: an agent in its own repository resolves
+             this in test scope to run its scenarios, with no checkout of this one. -->
+        <maven.deploy.skip>false</maven.deploy.skip>
+        <skipPublishing>false</skipPublishing>
+        <!-- What the JUnit platform itself depends on; the junit BOM does not manage it. -->
+        <opentest4j.version>1.3.0</opentest4j.version>
+        <!-- The kit's own machine test is off unless a host is given, like every suite. -->
+        <sokar.acceptance.host/>
+        <sokar.acceptance.user>claude</sokar.acceptance.user>
+        <sokar.acceptance.key>${user.home}/.claude/.ssh/claude_key</sokar.acceptance.key>
+    </properties>
+
+    <dependencies>
+
+        <!-- compile: a test kit, so what a consumer's scenarios need is compile scope HERE and
+             test scope THERE. One dependency at the consumer rather than six. -->
+
+        <!-- Renting a machine and talking to one, shared with the CI tooling that creates
+             them. Four copies of that in Python is what this repository is unwinding. -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-machines</artifactId>
+            <version>${sokar.buildtools.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-wire</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+
+        <!-- Two glue classes - this kit's and a consumer's own - act on the same terminal, and
+             Cucumber without an object factory gives each its own instance. -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-picocontainer</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-junit-platform-engine</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+
+        <!-- The suite, at whatever version the junit BOM a consumer imports says - one set with
+             launcher, engine and commons, which is the whole point of a BOM. A consumer that
+             imports no junit BOM gets a mixed set through this kit and the suite engine dies on a
+             missing method; sokar-bom exists so that no consumer has to know that. -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite-engine</artifactId>
+        </dependency>
+
+        <!-- A scenario that needs a credential nobody gave is skipped, not failed; Cucumber reads
+             this exception as skipped without Jupiter on the classpath at all. -->
+        <dependency>
+            <groupId>org.opentest4j</groupId>
+            <artifactId>opentest4j</artifactId>
+            <version>${opentest4j.version}</version>
+        </dependency>
+
+        <!-- The ssh client. Chosen over MINA SSHD for the smaller API around a pty, and over
+             'ssh -tt' as a subprocess because window size and pty modes are what several
+             scenarios are about. -->
+        <dependency>
+            <groupId>com.hierynomus</groupId>
+            <artifactId>sshj</artifactId>
+            <version>${sshj.version}</version>
+        </dependency>
+
+        <!-- The key in use is ed25519, which sshj reads through BouncyCastle. -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+
+        <plugins>
+
+            <!-- Published, so it carries a bill of its own dependencies. -->
+
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>cyclonedx</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>makeBom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Automatic-Module-Name>org.fuin.sokar.acceptance.kit</Automatic-Module-Name>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!-- Central rejects a release without these, and the parent only manages them. -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
+
+            <!-- The kit's own test against a real machine, run only when one is named - the
+                 same switch every consumer's suite has. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${maven-failsafe-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <skipITs>${sokar.acceptance.skip}</skipITs>
+                    <systemPropertyVariables>
+                        <sokar.acceptance.host>${sokar.acceptance.host}</sokar.acceptance.host>
+                        <sokar.acceptance.user>${sokar.acceptance.user}</sokar.acceptance.user>
+                        <sokar.acceptance.key>${sokar.acceptance.key}</sokar.acceptance.key>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+    <profiles>
+        <profile>
+            <id>acceptance-off</id>
+            <activation>
+                <property><name>!sokar.acceptance.host</name></property>
+            </activation>
+            <properties>
+                <sokar.acceptance.skip>true</sokar.acceptance.skip>
+            </properties>
+        </profile>
+        <profile>
+            <id>acceptance-on</id>
+            <activation>
+                <property><name>sokar.acceptance.host</name></property>
+            </activation>
+            <properties>
+                <sokar.acceptance.skip>false</sokar.acceptance.skip>
+            </properties>
+        </profile>
+    </profiles>
+
+</project>

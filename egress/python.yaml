@@ -1,0 +1,6 @@
+# pip. The index and the file host are different names and both are needed.
+name: python
+label: Python packages
+domains:
+  - pypi.org
+  - files.pythonhosted.org

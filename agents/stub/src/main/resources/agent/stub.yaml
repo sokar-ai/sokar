@@ -1,0 +1,117 @@
+# The agent the acceptance suite drives.
+#
+# Not a mock of the machinery - everything around it is real: a real image build, a real
+# container, a real firewall, a real credential proxy. What is fake is only the tool inside,
+# which is a shell script this definition writes into the image.
+#
+# That is on purpose. A vendor CLI makes the suite depend on somebody else's release, a 320 MB
+# download and whatever that version happens to do; this one does exactly what the checks need
+# and nothing else, so a check that used to observe a vendor's behavior can assert ours.
+
+name: stub
+label: Stub Agent
+binary: sokar-stub-cli
+
+git_identity:
+  name: Sokar Stub
+  email: noreply@sokar.invalid
+
+headless:
+  # Positional, like Pi. Nothing here needs a flag the script would have to parse.
+  prompt_flag: ""
+
+session:
+  # Resumable, and says where it names its sessions, so the suite can prove a task that comes back
+  # continues its conversation: an unattended run names its session in a record, an attached one keeps
+  # a file per session, and '--resume <id>' continues one.
+  supports_resume: true
+  resume_flag: "--resume"
+  session_id:
+    record: { stub: session }
+    key: id
+    directory: ".sokar-stub-sessions"
+    suffix: ".session"
+  # What the stub shows once it is at work, attached, having asked nothing - the text a check
+  # waits for. A workspace holding '.sokar-stub-asks' makes it ask one question first, and one
+  # holding '.sokar-stub-covers' makes it draw this text and then a setup question over it, as a
+  # real agent was measured to - which is how a check proves it notices either.
+  ready_marker: "stub: at work, nothing asked"
+  ready_within_seconds: 30
+  # What waiting for a person looks like in the stub's own output: its question on the screen, and
+  # the record an unattended run ends with. Declared here because only the agent knows its wording -
+  # nothing outside agents/ may. The question is the one '.sokar-stub-asks' makes it ask.
+  waiting:
+    screen:
+      - contains: "Trust this folder?"
+        in_last_lines: 3
+        for: "whether to trust the folder"
+    last_message:
+      record: { stub: result }
+      text: said
+
+provider:
+  # Anthropic, because the credential-exchange check needs an upstream that answers a bad key
+  # with its own rejection - which is what proves the proxy swapped the phantom token rather
+  # than answering for itself. Any provider that rejects clearly would do.
+  default: anthropic
+  dialect: anthropic-messages
+  endpoint: socket
+  socket_env: SOKAR_STUB_SOCKET
+  base_url_env: SOKAR_STUB_BASE_URL
+
+# Resolved on purpose, and granted. IANA holds example.com for exactly this, so it will not
+# move, expire or start redirecting somewhere else.
+allowed_domains:
+  - example.com
+
+# Resolved on purpose, and NOT granted. This is the pair that makes domain coverage an
+# assertion rather than an observation: the suite can require that this name was asked for and
+# came back NXDOMAIN, so a firewall that quietly stopped working fails the run. With a vendor
+# CLI the same check depended on that vendor still shipping telemetry.
+refused_domains:
+  - example.net
+
+# Where the stub keeps what its login writes, as a real agent declares its own. Read by the same
+# copy and extractor every agent's login goes through, which is the point: the build logs the stub
+# in end to end, so a break in that chain is found by a run rather than by a person.
+config_dir: "~/.sokar-stub"
+
+# 'sokar-stub-cli login' writes an oauth-typed fixture where config_dir says, then stays a few
+# seconds as an agent carrying on into its own session does - long enough for the login to be
+# stored while it runs. No account, no network, no secret: the token is a fixture, put together
+# when it runs, so the image build that prints this script never prints the value a check looks for.
+login:
+  arguments: ["login"]
+
+install:
+  version: "${agent.cli.version}"
+
+  # Written into the image, not fetched: a build that downloads nothing cannot install different
+  # bytes on different days, and the suite gains no coverage from exercising curl.
+  #
+  # One RUN with printf, continued across lines - NOT a here-document. podman 5 parses a
+  # Containerfile heredoc; podman 4.9.3, which Ubuntu 24.04 ships, does not: it reads every line
+  # as an instruction and fails with `Unknown instruction: "IF"`. Measured, on the acceptance leg
+  # that exists for exactly that difference.
+  #
+  # No 'if' at all, so each line survives as one printf argument, and no '${...}' anywhere -
+  # this file is Maven-filtered and that is what filtering replaces.
+  as_root:
+    - "RUN printf '%s\\n' \\"
+    - "      '#!/bin/sh' \\"
+    - "      '[ \"$1\" = \"--version\" ] && { echo \"${agent.cli.version} (Sokar stub agent)\"; exit 0; }' \\"
+    - "      '[ \"$1\" = \"login\" ] && { mkdir -p \"$HOME/.sokar-stub\" && umask 077 && t=sokar-stub-fixture && ends=$(( $(date +%s) + 3600 ))000 && echo \"{\\\"stubOauth\\\":{\\\"accessToken\\\":\\\"$t-token\\\",\\\"refreshToken\\\":\\\"$t-refresh\\\",\\\"expiresAt\\\":\\\"$ends\\\",\\\"tokenUrl\\\":\\\"https://example.com/sokar-stub/token\\\",\\\"clientId\\\":\\\"sokar-stub\\\"}}\" > \"$HOME/.sokar-stub/.credentials.json\"; echo \"stub: logged in\"; linger=8; [ -n \"$SOKAR_STUB_LINGER\" ] && linger=$SOKAR_STUB_LINGER; sleep $linger; exit 0; }' \\"
+    - "      '[ \"$1\" = \"--resume\" ] && { resumed=\"$2\"; shift 2; }' \\"
+    - "      'id=\"$resumed\"; [ -n \"$id\" ] || id=\"s-$$-$(date +%s)\"' \\"
+    - "      '[ -z \"$1\" ] && [ -t 0 ] && { mkdir -p \"$HOME/.sokar-stub-sessions\"; touch \"$HOME/.sokar-stub-sessions/$id.session\"; [ -n \"$resumed\" ] && echo \"stub: continuing $resumed\"; }' \\"
+    - "      '[ -z \"$1\" ] && [ -t 0 ] && [ -e /workspace/.sokar-stub-covers ] && { echo \"stub: at work, nothing asked\"; sleep 1; printf \"\\033[2J\\033[HSetup step 1 of 5 \"; read answer; }' \\"
+    - "      '[ -z \"$1\" ] && [ -t 0 ] && { [ -e /workspace/.sokar-stub-asks ] && { printf \"Trust this folder? [y/N] \"; read answer; }; echo \"stub: at work, nothing asked\"; exec cat; }' \\"
+    - "      'getent hosts example.com >/dev/null 2>&1 && echo \"stub: example.com resolved\" || echo \"stub: example.com did not resolve\"' \\"
+    - "      'getent hosts example.net >/dev/null 2>&1 && echo \"stub: example.net resolved\" || echo \"stub: example.net refused\"' \\"
+    - "      'echo \"{\\\"stub\\\":\\\"session\\\",\\\"id\\\":\\\"$id\\\"}\"' \\"
+    - "      '[ -n \"$resumed\" ] && echo \"{\\\"stub\\\":\\\"result\\\",\\\"said\\\":\\\"stub: continued\\\"}\" || echo \"{\\\"stub\\\":\\\"result\\\",\\\"said\\\":\\\"stub: finished\\\"}\"' \\"
+    - "      '[ -S \"$SOKAR_STUB_SOCKET\" ] || { echo \"stub: no proxy socket\"; exit 0; }' \\"
+    - "      'curl -s --max-time 30 --unix-socket \"$SOKAR_STUB_SOCKET\" -H \"x-api-key: $ANTHROPIC_API_KEY\" -H \"anthropic-version: 2023-06-01\" -H \"content-type: application/json\" -X POST http://api.anthropic.com/v1/messages -d \"{}\"' \\"
+    - "      'echo' \\"
+    - "      > /usr/local/bin/sokar-stub-cli \\"
+    - "    && chmod 0755 /usr/local/bin/sokar-stub-cli"

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.4.0</version>
+    </parent>
+
+    <artifactId>sokar-wire</artifactId>
+    <name>Sokar Wire</name>
+    <description>Sokar - Cross-boundary records, varlink and socket labeling (WIRE)</description>
+
+    <properties>
+        <!-- Deployed to Central. Not interesting on its own - it is deployed because
+             sokar-agent-api's pom names it, so resolving the agent API needs it too. -->
+        <maven.deploy.skip>false</maven.deploy.skip>
+        <skipPublishing>false</skipPublishing>
+    </properties>
+
+    <build>
+
+        <plugins>
+
+            <!-- Published, so it carries a bill of its own dependencies. -->
+
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>cyclonedx</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>makeBom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Automatic-Module-Name>org.fuin.sokar.wire</Automatic-Module-Name>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!-- Central rejects a release without these, and the parent only manages them. -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>

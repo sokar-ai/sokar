@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar-acceptance-parent</artifactId>
+        <version>0.4.0</version>
+    </parent>
+
+    <artifactId>sokar-acceptance</artifactId>
+    <name>Sokar Acceptance Suite</name>
+    <description>Sokar - This repository's own scenarios, run through the kit (TESTING)</description>
+
+    <properties>
+        <!-- Nothing here runs without a machine to run it against, so the suite is off unless a
+             host is given. Naming one is what turns it on: see the module's README. -->
+        <sokar.acceptance.host/>
+        <sokar.acceptance.user>claude</sokar.acceptance.user>
+        <sokar.acceptance.key>${user.home}/.claude/.ssh/claude_key</sokar.acceptance.key>
+        <!-- Whose Sokar to drive. Empty means the user this suite connects as. -->
+        <sokar.acceptance.as/>
+        <!-- Several accounts, comma-separated, to run features in parallel - one account per feature
+             at a time. Empty means the one account above and a run in order, as always. The machine
+             must have each account prepared as the one above is. -->
+        <sokar.acceptance.users/>
+        <!-- Features at a time; more than one needs as many accounts in sokar.acceptance.users. -->
+        <sokar.acceptance.parallelism>1</sokar.acceptance.parallelism>
+        <sokar.acceptance.parallel>false</sokar.acceptance.parallel>
+        <!-- Nothing to publish: this module is a test harness. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.install.skip>true</maven.install.skip>
+    </properties>
+
+    <dependencies>
+
+        <!-- test: the kit brings Cucumber, the ssh client and the assertions with it. -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-acceptance-kit</artifactId>
+            <version>${sokar.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Failsafe, not surefire: these need a machine, so they are integration tests and
+                 they run at 'verify'. A unit test that cannot run without a rented server would
+                 make 'mvn test' mean something different in this module than in every other. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${maven-failsafe-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <!-- Skipped unless a host is named. A suite that fails because nobody gave it
+                         a machine is noise in every other build. -->
+                    <skipITs>${sokar.acceptance.skip}</skipITs>
+                    <systemPropertyVariables>
+                        <sokar.acceptance.host>${sokar.acceptance.host}</sokar.acceptance.host>
+                        <sokar.acceptance.user>${sokar.acceptance.user}</sokar.acceptance.user>
+                        <sokar.acceptance.as>${sokar.acceptance.as}</sokar.acceptance.as>
+                        <sokar.acceptance.key>${sokar.acceptance.key}</sokar.acceptance.key>
+                        <sokar.acceptance.users>${sokar.acceptance.users}</sokar.acceptance.users>
+                        <!-- A feature's scenarios in order on one thread, so it keeps its account;
+                             features beside each other, each on a thread and account of its own. -->
+                        <cucumber.execution.parallel.enabled>${sokar.acceptance.parallel}</cucumber.execution.parallel.enabled>
+                        <cucumber.execution.parallel.config.strategy>fixed</cucumber.execution.parallel.config.strategy>
+                        <cucumber.execution.parallel.config.fixed.parallelism>${sokar.acceptance.parallelism}</cucumber.execution.parallel.config.fixed.parallelism>
+                        <cucumber.execution.parallel.config.fixed.max-pool-size>${sokar.acceptance.parallelism}</cucumber.execution.parallel.config.fixed.max-pool-size>
+                        <cucumber.execution.execution-mode.feature>same_thread</cucumber.execution.execution-mode.feature>
+                        <!-- Repository-relative, so an annotation lands on the feature file. -->
+                        <sokar.acceptance.features>acceptance/suite/src/test/resources/</sokar.acceptance.features>
+                        <cucumber.plugin>pretty, html:target/acceptance.html, json:target/acceptance.json, org.fuin.sokar.acceptance.GitHubReport</cucumber.plugin>
+                    </systemPropertyVariables>
+                    <environmentVariables>
+                        <!-- Fake on purpose: a searched-for value proves the search, and no account is needed. -->
+                        <SOKAR_ACCEPTANCE_FAKE_CREDENTIAL>sk-sokar-acceptance-not-a-real-key</SOKAR_ACCEPTANCE_FAKE_CREDENTIAL>
+                        <SOKAR_ACCEPTANCE_MODEL>stub-model</SOKAR_ACCEPTANCE_MODEL>
+                    </environmentVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>acceptance-off</id>
+            <activation>
+                <property><name>!sokar.acceptance.host</name></property>
+            </activation>
+            <properties>
+                <sokar.acceptance.skip>true</sokar.acceptance.skip>
+            </properties>
+        </profile>
+        <profile>
+            <id>acceptance-on</id>
+            <activation>
+                <property><name>sokar.acceptance.host</name></property>
+            </activation>
+            <properties>
+                <sokar.acceptance.skip>false</sokar.acceptance.skip>
+            </properties>
+        </profile>
+    </profiles>
+
+</project>

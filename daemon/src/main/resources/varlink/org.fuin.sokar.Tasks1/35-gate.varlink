@@ -1,0 +1,167 @@
+
+# A push waiting at the gate for a decision.
+type PendingPush (
+  # Ref name under refs/sokar/incoming/, which is what Review, Approve and Reject take.
+  name: string,
+  commit: string,
+  # First line of the commit message.
+  subject: string,
+  # How long it has been waiting, as words: "4 minutes".
+  waiting: string,
+  # When it arrived, ISO-8601.
+  at: string,
+  # The `git fetch` that brings this push into a person's own clone of the repository, over their
+  # ssh, as "git fetch ssh://<user>@<host><mirror> refs/sokar/incoming/<name>:refs/remotes/sokar/<name>".
+  # The host is this machine's own name; a client that reached it by another may put that one in.
+  # Reading only: the work is the agent's and not reviewed - say to open it in the IDE's safe mode,
+  # and never to build or test it outside a container.
+  fetch: string
+)
+
+# One file a pending push changes, as a person should meet it in a review.
+#
+# Ranked by consequence, not by suspicion: nothing here detects anything. DANGEROUS is a fixed list of
+# kinds Sokar ships - a CI definition, a build script, a dependency manifest or lockfile, something that
+# runs on checkout or when the repository is opened, a file made executable, a symbolic link - and is
+# named however small the change. GENERATED and REFORMATTING are what is almost never the finding; they
+# are moved to the end, never hidden, and a dangerous file is never either.
+type ReviewFile (
+  # Its path in the repository, after the change. A rename is a removal and an addition.
+  path: string,
+  # A, M, D or T, as git reports it.
+  status: string,
+  # Lines added and removed; -1 for a binary file.
+  added: int,
+  removed: int,
+  # DANGEROUS, ORDINARY, GENERATED or REFORMATTING - the order to read them in.
+  rank: string,
+  # Why it has that rank, in words; "" for an ORDINARY file.
+  reason: string
+)
+
+# ---------------------------------------------------------------------------- the gate
+
+# What is waiting at a project's gate.
+#
+# The gate methods take a project NAME rather than a task, because a gate belongs to a project and
+# one daemon serves every project the operator has.
+#
+# A NAME and not a path: a client cannot see this machine's filesystem and has no path to invent,
+# and which project a call is about must not depend on a directory. The machine resolves it, and
+# prefers the file it verified - so a call and a task cannot end up reading two different files.
+#
+# Each of them also takes 'repository', because a gate belongs to ONE REPOSITORY of that project:
+# every repository has its own mirror, its own review branch and its own answer to "what is waiting
+# for review". Omitting it means the project's own repository - the one the project file belongs
+# to - which is the only default in this interface that is not Sokar picking between equals.
+# Project.repositories lists the names.
+method Pending(
+  # Project NAME, as Projects.name gives it.
+  project: string,
+  # Upstream to gate against. Default: the project's own.
+  upstream: ?string,
+  # Which repository of the project. Default: the project's own.
+  repository: ?string
+) -> (
+  # Path to the bare mirror the agent pushes into.
+  mirror: string,
+  # offline, gatekeeping or online.
+  mode: string,
+  # Where the mirror was seeded from, or "" when it was not.
+  seededFrom: string,
+  pending: []PendingPush
+)
+
+# What a pending push contains, so it can be judged before it is forwarded.
+method Review(
+  project: string,
+  upstream: ?string,
+  # Which repository of the project. Default: the project's own.
+  repository: ?string,
+  # Ref name, from PendingPush.name.
+  name: string,
+  # What to diff against. Default: the upstream's default branch.
+  against: ?string
+) -> (
+  # Unified diff, in the order of files: the dangerous first, reformatting and generated files last.
+  diff: string,
+  # Commit log over the same range.
+  log: string,
+  # What the push changes, ranked; the diff shows them in this order.
+  files: []ReviewFile,
+  # What the task that pushed this was asked, to show before the files - never compared with them.
+  # "" when it was started without an instruction; absent when the task is gone from this machine.
+  asked: ?string
+)
+
+# Forwards a pending push upstream. The only call in this interface that sends anything
+# anywhere, and it makes the caller name the branch rather than inferring one.
+method Approve(
+  project: string,
+  upstream: ?string,
+  # Which repository of the project. Default: the project's own.
+  repository: ?string,
+  name: string,
+  # Branch to push to. Required.
+  branch: string,
+  # Merge the work onto the branch as a commit signed with the signing key the daemon's user has configured
+  # in git (user.signingkey; gpg.format ssh for an ssh key), and push that, rather than pushing the work as
+  # it is. For what the project's configuration is made of - a machine's enrolment - which every machine
+  # accepts only signed with the project's key. The machine never holds the key; git signs. Refused as
+  # Failed when the merge cannot be made or comes out unsigned. From the daemon an ssh-agent is reached only
+  # if its socket is in the daemon's environment; 'sokar gate approve --signed' in a terminal always is.
+  signed: ?bool,
+  # The commit the person reviewed, as Pending answers it. Refused as MovedSinceReview when the push has moved since,
+  # so what goes is what was read; the task's gate stays up during a review. Empty: whatever it holds now.
+  commit: ?string
+) -> (forwarded: string, branch: string)
+
+# Pending work as a git bundle, for a person who merges it on their own computer - signed with their own key -
+# and pushes it: what is on the pending ref and not on 'branch' in the mirror (the whole history when the mirror
+# has no such branch). Fetch it with 'git fetch <file> refs/sokar/incoming/<name>'. Refused as BundleTooLarge
+# above the limit, rather than sent: a reply is one message.
+method PendingBundle(
+  project: string,
+  upstream: ?string,
+  # Which repository of the project. Default: the project's own.
+  repository: ?string,
+  name: string,
+  # The branch it is to be merged onto. Default: main.
+  branch: ?string
+) -> (
+  # The bundle, base64.
+  bundle: string,
+  bytes: int
+)
+
+# Clears pending work that was merged elsewhere and pushed, once the upstream's 'branch' holds its commit -
+# fetched with this machine's own credential. Not rejected, which it was not: it went, just not through here.
+# landed false changes nothing, and 'detail' says why: not on the branch yet, the upstream not reachable, no
+# upstream configured.
+method Landed(
+  project: string,
+  upstream: ?string,
+  # Which repository of the project. Default: the project's own.
+  repository: ?string,
+  name: string,
+  # The upstream branch it was merged onto. Required.
+  branch: string
+) -> (landed: bool, commit: string, detail: string)
+
+# The bundle is larger than a reply may be.
+error BundleTooLarge(bytes: int, limit: int)
+
+# Drops a pending push. The work stays in the mirror; only the request is gone.
+#
+# The task the work came from is told in its inbox, with the person's words when 'reason' gives them - an
+# agent whose work silently vanished hands it over again. 'told' is false when no task of that name has a
+# mailbox here any more.
+method Reject(project: string, upstream: ?string, repository: ?string, name: string, reason: ?string)
+    -> (rejected: string, told: bool)
+
+# Approve was given the commit the person reviewed, and the push has moved since: nothing was
+# forwarded. Review it again (now is what it holds) and approve that.
+error MovedSinceReview(name: string, reviewed: string, now: string)
+
+# Approve was called without a branch to push to.
+error BranchRequired(name: string)

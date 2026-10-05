@@ -1,0 +1,8 @@
+# The Go module proxy and its checksum database. sum.golang.org is not optional: without it a
+# build fails verification rather than falling back.
+name: go
+label: Go modules
+domains:
+  - proxy.golang.org
+  - sum.golang.org
+  - index.golang.org

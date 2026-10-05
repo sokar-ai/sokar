@@ -1,0 +1,177 @@
+
+# An agent binary installed on this machine.
+type Agent (
+  # Name the binary calls itself by, which is what Start takes.
+  name: string,
+  # Human-readable name.
+  label: string,
+  # The command it runs inside the container.
+  binary: string,
+  # The build this agent pins, from its own manifest, or "" when it pins none. NOT what the
+  # binary answers if asked its version: nothing here executes it to find out, so two machines
+  # showing the same value are running the same declared build.
+  version: string,
+  # Where the binary was found.
+  from: string,
+  # Hosts this agent needs, added to a task's egress on top of the project's own.
+  # How this agent logs itself in, as arguments to its own binary, and where that is described.
+  #
+  # Declared by the agent, never guessed here: some agents open a browser and some print a link
+  # and a code, and only the second kind works on a machine somebody reaches over ssh. A client
+  # runs these in a TERMINAL on that machine - the login writes into the agent's own config
+  # directory, and 'sokar vault import <agent>' then takes what it wrote into the vault.
+  #
+  # canLogIn is false for most agents: one whose credential is an API key has nothing to log in
+  # to, and the manifest saying nothing is how it says so.
+  canLogIn: bool,
+  # What to run ON THAT MACHINE, in a terminal, to log this agent in. Empty when it cannot.
+  #
+  # Answered rather than composed by a client: a client that spells out 'sokar vault login
+  # <agent>' is right until the day that verb moves, and then every client is wrong at once.
+  loginCommand: []string,
+  # What that command will run inside its throwaway container - the agent's own binary and
+  # whatever it declared. Shown so a person can see what they are about to start; running it is
+  # loginCommand's business, not a client's.
+  loginArguments: []string,
+  # Where that login is described, or "". Worth reading BEFORE running one on a remote machine.
+  loginDocumentation: string,
+  allowedDomains: []string,
+  # Hosts this agent declares and is deliberately NOT given. Not the same as absent from
+  # allowedDomains: these were asked for and refused on purpose, which is worth showing beside
+  # what was granted rather than leaving as a silence.
+  refusedDomains: []string,
+  # What this agent fetches when its image is built, each with the digest that pins it. Empty is
+  # a real state and not a gap: an agent that writes its tool into the image fetches nothing, so
+  # it has a pinned version and no digest at all.
+  artifacts: []InstallArtifact,
+  # The identity this agent's commits carry, from its own manifest. This is what tells a person
+  # looking at a commit whether an agent or a person wrote it, and it is what the pre-push guard
+  # on an operator's own checkout matches on.
+  commitsAs: GitIdentity
+)
+
+# How an agent signs its work.
+type GitIdentity (
+  # Author name on its commits.
+  name: string,
+  # Author address on its commits.
+  email: string
+)
+
+# One file an agent fetches while its image is built.
+type InstallArtifact (
+  # Where it is fetched from.
+  url: string,
+  # Expected SHA-256, or "" when there is none - in which case 'unverified' says whether that is
+  # deliberate.
+  sha256: string,
+  # Absolute path it is installed at.
+  target: string,
+  # Whether it is knowingly unverifiable. An artifact with no digest and no reason is a mistake;
+  # one with a reason is a decision somebody made and can be shown as such.
+  unverified: bool,
+  # Why it cannot be verified. "" unless 'unverified'.
+  reason: string
+)
+
+# An installed agent binary that never runs: either an earlier location holds one of the same
+# file name, or another binary claimed the same declared name first.
+type ShadowedAgent (
+  # The binary that is installed and not in use.
+  path: string,
+  # The one that runs instead. Locations are searched most specific first - the operator's own
+  # directory, then the packaged one - so this is a rule and not an accident of scan order.
+  usedInstead: string
+)
+
+# Agent binaries installed on this machine.
+method Agents() -> (
+  # One entry per agent NAME, never two: they are held by name, so a name appears once whatever
+  # is installed. A second binary claiming a name already taken does not appear here at all - it
+  # lands in 'failures'.
+  agents: []Agent,
+  # Binaries that are installed and could not be asked what they are, by file name. An agent
+  # that fails to describe itself is unusable, and leaving it out would read as not installed.
+  # A name collision is NOT here: nothing is broken in that case, one copy runs.
+  failures: [string]string,
+  # Binaries that are installed and never run. Two causes, one consequence: an earlier location
+  # holds the same file name, or another binary claimed the same declared name first. Neither has
+  # an Agent entry to carry a flag, which is why this is a list rather than a field on one.
+  shadowed: []ShadowedAgent
+)
+
+# Which model providers this machine has, and which of them work could start against.
+#
+# The read half of authentication, and it carries no secret: names, kinds and whether something is
+# stored, never a value.
+#
+# Cheap in the ordinary case. It consults the installed agents only when the vault holds a name
+# that is not a provider's - the one situation where the key below can be an agent's name - so a
+# vault written by a current Sokar costs nothing extra.
+method Providers() -> (
+  providers: []Provider,
+  # Whether the vault could be read at all. False means locked or undecryptable, and then
+  # 'authenticated' below is unknown rather than false - the same distinction Credentials draws,
+  # for the same reason: "we cannot tell you until you unlock it" and "there is none" send a
+  # person to different places.
+  readable: bool
+)
+
+type Provider (
+  # Short name, as an agent names it and as 'vault put' takes it.
+  name: string,
+  # Human-readable label.
+  label: string,
+  # Where requests are forwarded to.
+  upstream: string,
+  # Wire formats it serves, the provider's own first.
+  dialects: []string,
+  # Whether the vault holds a credential for it. MEANINGLESS unless 'readable' - render it only
+  # beside that.
+  authenticated: bool,
+  # The kind stored: "api-key", "oauth", or "" when none is stored or none was recorded.
+  credentialType: string,
+  # The name a credential for this provider is stored under. Usually the provider's own name -
+  # but a vault written before credentials were keyed by provider answers under the AGENT's name,
+  # and that key stays in use so upgrading does not stop anyone authenticating.
+  #
+  # Computed here because a client cannot: intersecting "providers" with "stored names" reports a
+  # missing credential for precisely the vault that has one, since the fallback key is invisible
+  # from outside.
+  credentialName: string,
+  # The exact line to run at the machine to store one, ready to render verbatim. Always with the
+  # provider's name, even when 'credentialName' is still an agent's: that is where it belongs, and
+  # a task finds it there first. A subscription
+  # token rather than an API key needs '--type oauth' on the end - they go in different headers,
+  # and sending one as the other fails as an authentication error that looks like a wrong key.
+  storeCommand: string
+)
+
+# What this machine could install, from its own package source.
+#
+# Nobody maintains a list: every agent package declares 'Provides: sokar-agent' and every transport
+# 'Provides: sokar-transport', so the repository is the catalogue and a package published today is
+# offered today. The names here are always real packages, never the virtual one - a virtual package
+# with several providers cannot be installed by its own name.
+#
+# The message filter is deliberately absent. It is not one of a kind to choose from: it is the one
+# thing without which nothing leaves, and it is always installed.
+#
+# As fresh as the machine's last index refresh, which needs root and is not done here.
+method Installable() -> (packages: []Installable)
+
+type Installable (
+  # The real package name, which is what may be installed.
+  name: string,
+  # 'agent', 'transport' or 'homeserver'. What a person chooses between - the virtual package name that
+  # this was read from ('sokar-agent', 'sokar-transport', 'sokar-homeserver') is the mechanism and is not
+  # returned. A homeserver is what a transport's conversation runs on when the project names none of its
+  # own; offer it beside the transport that needs it.
+  kind: string,
+  # One line, from the package itself.
+  description: string,
+  # Whether it is on this machine now.
+  installed: bool,
+  # What is installed, or what the repository offers. "" when neither is known.
+  version: string
+)

@@ -1,0 +1,16 @@
+{
+  "comment": [
+    "Every agent module ships its definition as agent/<name>.yaml. native-image resolves the",
+    "ServiceLoader classes by itself, but not the resources those classes read, so without this",
+    "an agent is discovered and then fails to construct: 'No agent definition at /agent/x.yaml'.",
+    "",
+    "Declared once here rather than once per agent. Resource registration is a pattern over the",
+    "whole classpath, so this glob covers every agent module that will ever exist and keeps",
+    "onboarding one to the files listed in agents/README.md."
+  ],
+  "resources": [
+    {
+      "glob": "agent/*.yaml"
+    }
+  ]
+}

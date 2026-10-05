@@ -1,0 +1,447 @@
+
+# One entry in the vault. Never its value: this interface cannot be used to read a secret.
+type Credential (
+  name: string,
+  # What kind of credential it is, or "" when nothing recorded it.
+  type: string,
+  # Length of the stored value, so an interface can show that something is there.
+  characters: int,
+  # What goes with the secret and is not secret - a client id, a token URL, scopes - by name.
+  # Configuration, shown whole; never a secret.
+  settings: [string]string,
+  # For an entry a person grants (oauth-device, oauth-code): who granted it and when, or absent while
+  # nobody has. The grant itself is never shown.
+  grant: ?Authorization
+)
+
+# A service a credential is for that is not a model provider: where it is, and where its key goes.
+type Destination (
+  name: string,
+  label: string,
+  # Where requests go, https.
+  upstream: string,
+  # The header the key goes in, and the text before it.
+  authHeader: string,
+  authPrefix: string,
+  # The URL parameter the key goes in instead of the header, or "" for the header.
+  authQuery: string,
+  # The file that declares it.
+  file: string,
+  # Whether a package installed it. A packaged one cannot be changed or removed here; writing one of
+  # the same name puts the user's own in its place.
+  packaged: bool,
+  # Whether it is the one in force for its name. A packaged one the user's own takes the place of is
+  # listed too, with this false.
+  inForce: bool
+)
+
+# What the vault holds, without any of it.
+method Credentials() -> (
+  # Where the vault file is.
+  vault: string,
+  # Whether that file exists.
+  exists: bool,
+  credentials: []Credential,
+  # Whether the list can be believed. The vault opens only if its passphrase is already in the
+  # kernel keyring - a daemon has no terminal to ask at - so an empty list from a locked vault
+  # and an empty list from an empty vault are different things an interface must not conflate.
+  # False means locked or undecryptable, and only then is there a passphrase to ask for. A vault
+  # that does not exist yet is readable and empty: there is nothing to unlock.
+  readable: bool,
+  # What this machine is CONFIGURED to connect with, which is a different list from the one above.
+  # Readable with the vault shut, because it holds no secret - which is what lets an interface say
+  # "a credential for this host is configured, unlock the vault" instead of "nothing is here".
+  connections: []Connection
+)
+
+# ---------------------------------------------------------------------------- connecting out
+
+# One credential this machine may use to reach somewhere, described without its secret.
+#
+# The metadata is NOT secret: what exists, for what, of what kind, under which name. That is why an
+# interface may write these records (CredentialDeclare) while no value ever crosses this socket.
+type Connection (
+  # What the secret is called: a vault entry, a file path, or an environment variable, by source.
+  id: string,
+  # SSH_KEY, TOKEN, BASIC or OAUTH. Said, never inferred: https may be a token OR a username and
+  # password, so the URL cannot decide it.
+  kind: string,
+  # The destinations this covers, as a prefix of the normalised URL - "ssh://github.com" or
+  # "https://gitlab.example/acme/". git@host:path normalises to ssh://host/path. The LONGEST match
+  # wins, so one record covers a forge and another covers one group on it.
+  match: string,
+  # Username, for BASIC and for a token that needs one. "" when the caller's default is fine.
+  user: string,
+  # What it may be used for: "git", "registry", ... or "any".
+  purpose: string,
+  # VAULT, FILE, ENVIRONMENT or AGENT.
+  #
+  # FILE and ENVIRONMENT point at something this machine did not create and does not protect - a
+  # key in ~/.ssh, a token already exported - which is what somebody working on their own computer
+  # wants, and is a state to SHOW rather than a fault. AGENT reads nothing at all: the command
+  # inherits the account's own ssh-agent.
+  source: string,
+  # Whether the secret is somewhere this machine encrypts and can shut. False for FILE,
+  # ENVIRONMENT and AGENT. Show it; do not refuse it.
+  protected: bool,
+  # Whether the secret is actually there right now: an entry in the vault, a readable file, a set
+  # variable. False with a shut vault only tells you the vault is shut - read 'readable' too.
+  present: bool,
+  # When an OAUTH token stops working, RFC 3339, or "". A machine that knows this refuses first
+  # and says what to run, instead of letting the destination answer 401.
+  expires: string
+)
+
+# Records a credential this machine may use. NO SECRET CROSSES THIS SOCKET.
+#
+# What this writes is the readable half - kind, destination, username, where the value lives. The
+# value itself is typed on the machine, and 'storeCommand' says exactly what to type. For source
+# FILE, ENVIRONMENT or AGENT there is nothing to type: the value is already somewhere, and this
+# records where.
+method CredentialDeclare(
+  # What the secret is called. For VAULT the entry name; for FILE the path; for ENVIRONMENT the
+  # variable. Omitted for AGENT.
+  #
+  # Omitted for VAULT too, which means "you name it": the name becomes the one this machine
+  # already looks in for that destination - git.ssh.<host> or git.token.<host> - so a credential
+  # declared without a name and one stored without a declaration are the same entry. A destination
+  # that names no host is refused rather than recorded namelessly.
+  id: ?string,
+  kind: string,
+  match: string,
+  user: ?string,
+  purpose: ?string,
+  # VAULT (the default), FILE, ENVIRONMENT or AGENT.
+  source: ?string,
+  # A file ON THAT MACHINE the value is in. Only with source VAULT, and only a convenience: the
+  # answer's storeCommand then reads that file instead of asking for the value to be piped or
+  # typed, so "use the key that is already here" is one command a client runs unchanged. Nothing
+  # is read here - the command does it, when somebody runs it.
+  fromFile: ?string,
+  # Says what declaring this would do, and writes NOTHING. Every refusal a real declaration gives:
+  # a kind that cannot open that destination, a public key, a value that is not there, a shut
+  # vault. For an ssh key it also asks the forge who that key logs in as - see 'identity' - which
+  # catches a key belonging to another account or another repository at the moment somebody
+  # chooses it, rather than at the first fetch.
+  dryRun: ?bool
+) -> (
+  # The record as it was written.
+  connection: Connection,
+  # What to run ON THAT MACHINE to store the value, as ARGUMENTS rather than a string: a client
+  # runs it over ssh and should never have to split a command line it did not write. Empty when
+  # there is nothing to store - FILE, ENVIRONMENT and AGENT already have their value somewhere.
+  storeCommand: []string,
+  # What that command needs on its standard input, in words, or "" when it prompts for the value
+  # itself. An ssh KEY is a file and cannot be typed at a prompt, so this says "the private key
+  # file" and the client arranges for it; a token is asked for, without echo, and this is "".
+  storeStdin: string,
+  # Whether this replaced a record that was already there for the same destination and purpose.
+  # Declaring twice is not an error - a wizard run again must land in the same place - so this is
+  # how an interface says "updated" rather than "added".
+  replaced: bool,
+  # Whether anything was written. False for a dry run.
+  recorded: bool,
+  # READY or the reason it would not work, for a dry run. "" for a real declaration, which either
+  # succeeds or fails with an error.
+  #
+  # READY, MISSING_VALUE, NO_VAULT, VAULT_LOCKED, NO_CREDENTIAL, EXPIRED or KEY_REFUSED.
+  # NO_VAULT is not MISSING_VALUE: there is nowhere to put anything yet, so 'sokar vault init'
+  # comes first and a wizard that sent somebody to 'vault put' would fail at its last step.
+  # KEY_REFUSED means the host turned this key away - the record would be perfect and the first
+  # fetch would fail.
+  outcome: string,
+  # What the forge said when asked who this key logs in as, for a dry run of an SSH_KEY - either
+  # "Hi fuinorg/utils4j!" or what it refused with - and "" when nothing could be asked. A key that
+  # reaches a different account, or a single other repository, or nothing at all, looks perfectly
+  # good until the first fetch, and only the machine can ask. When it was refused, 'outcome' is
+  # KEY_REFUSED: silence about that would read exactly like "nothing to report".
+  identity: string,
+  # One sentence for a person, for a dry run. "" otherwise.
+  detail: string
+)
+
+# Forgets a credential record. The secret is NOT removed: a key in ~/.ssh is the person's, and a
+# vault entry is removed with 'sokar vault remove' by somebody at the machine.
+method CredentialForget(
+  # The record's 'match', exactly as Connection gives it.
+  match: string
+) -> (
+  # Whether a record was there to forget.
+  forgotten: bool,
+  # What still holds a value, so an interface can offer the second step rather than implying the
+  # secret is gone. "" when nothing does.
+  leftBehind: string
+)
+
+# One ssh key this account has, described without its value.
+type SshKey (
+  # Where it is. This is what a FILE credential names.
+  path: string,
+  # The algorithm, or "" when a passphrase hides it - an encrypted key says nothing about itself.
+  type: string,
+  # SHA256:... of the public half, or "" when it cannot be worked out.
+  fingerprint: string,
+  # What the public half calls it, usually an address. Often the only thing that tells two keys
+  # apart to the person who made them.
+  comment: string,
+  # Whether a passphrase protects it.
+  encrypted: bool,
+  # Whether the PRIVATE half is there. False means only a .pub was found - which is not a
+  # credential, and is the mistake anybody makes once.
+  privateHalf: bool,
+  # Whether this machine can sign with it as it stands.
+  usable: bool,
+  # DIRECTORY (found in ~/.ssh) or CONFIGURED (named by an IdentityFile line in ~/.ssh/config).
+  found: string,
+  # Why it cannot be used as it stands, with what to do about it, or "".
+  obstacle: string
+)
+
+# The ssh keys this account already has.
+#
+# So that "use the key that is already here" is a choice from a list rather than a path typed from
+# memory. NO VALUE is ever read out of here: a key is opened far enough to say what it is and
+# whether a passphrase protects it.
+#
+# Deciding what is a private key means reading files, which is why this is answered by the machine
+# rather than by a client listing a home directory over ssh.
+method SshKeys() -> (
+  keys: []SshKey
+)
+
+# Which credential a destination would use, and whether it would work - before anything is tried.
+#
+# The call a dialog makes before offering 'Follow it' or 'Approve': it answers the same reasons
+# Follow(dryRun) does, without touching the network.
+method CredentialCheck(
+  # Where something would connect, such as a project repository's URL.
+  url: string,
+  # What for. Default: "git".
+  purpose: ?string
+) -> (
+  # READY, NO_CREDENTIAL, VAULT_LOCKED, MISSING_VALUE, EXPIRED or NOT_NEEDED.
+  #
+  # NOT_NEEDED is a local path: nothing authenticates, and offering to store something would waste
+  # somebody's afternoon. MISSING_VALUE means a record exists and its value does not - the file is
+  # gone, the variable is unset, the vault entry was never stored.
+  outcome: string,
+  # The record that would be used, or an empty one.
+  connection: Connection,
+  # What to run on that machine to fix it, as arguments. Empty when nothing would help - a local
+  # path, or a value this machine does not keep.
+  storeCommand: []string,
+  # What that command needs on its standard input, or "". See CredentialDeclare.
+  storeStdin: string,
+  # One sentence for a person.
+  detail: string
+)
+
+# Copies a credential an agent already holds on this machine into the vault.
+#
+# The one credential operation that carries no secret over this socket in either direction: the
+# daemon reads a file on its own disk and writes its own vault, and all that crosses is an agent's
+# name. So it is unaffected by whether storing a typed secret is ever allowed.
+#
+# It is the better first offer wherever an agent can log itself in, because nothing has to be
+# retyped - and the commonest typo when retyping is storing the guide's placeholder.
+method ImportCredential(
+  # Which agent to import from. Omit when only one is installed.
+  agent: ?string,
+  # Where it keeps its credentials. Omit for what the agent declares.
+  configDirectory: ?string
+) -> (
+  # IMPORTED, NO_SUCH_AGENT, NO_CONFIG_DIRECTORY, NOTHING_TO_IMPORT, VAULT_LOCKED or FAILED.
+  #
+  # NOTHING_TO_IMPORT is the ordinary case rather than a fault: the agent is installed and nobody
+  # has logged in with it here yet. VAULT_LOCKED is not a missing credential and must not be shown
+  # as one - it is "we cannot tell you until you unlock it at the machine".
+  outcome: string,
+  # The vault key it was stored under. "" when nothing was stored.
+  name: string,
+  # The kind, as the agent recorded it. "" when nothing was stored.
+  type: string,
+  # How many characters arrived, so somebody can see that it worked without seeing what worked.
+  # Never the value. 0 when nothing was stored.
+  length: int,
+  # The file it was read from, on the daemon's machine. "" when nothing was stored.
+  source: string,
+  # Why it failed, or a warning about what was stored - a credential that looks like a
+  # placeholder, or one a task will refuse. "" when there is nothing to say.
+  detail: string
+)
+
+# ---------------------------------------------------------------------------- keyslots
+
+# What can open this machine's vault.
+#
+# The vault's master key is stored only in wrapped form, once per credential allowed to open it.
+# Keyslot 0 is the passphrase and is recovery only; every other slot is one device, which keeps a
+# 32-byte share in its own platform's keystore. Adding a device adds a slot, removing one deletes a
+# slot, and neither re-keys anything nor disturbs another device.
+#
+# Readable while the vault is locked: a screen has to show which devices can open a vault before
+# anything opens it. Nothing here is secret.
+method Keyslots() -> (slots: []Keyslot)
+
+type Keyslot (
+  # Assigned by the node and kept by the device beside its share. Not derived from the share: the
+  # node discards that at enrollment and could derive nothing from it later.
+  id: string,
+  # What a person called this device. Shown in a list; never an identifier.
+  name: string,
+  # USER_SCOPED, APPLICATION_SCOPED, FIDO2 or TPM2, as the device declared it. Recorded, not
+  # verified - this machine cannot check what another one does with its own keystore.
+  storage: string,
+  enrolled: string,
+  # "" when it has not been used since it was enrolled.
+  lastUsed: string,
+  # True only for the slot whose share this machine is currently holding, so a list can mark
+  # "this device". About the session, not about the file.
+  self: bool,
+  # True for the passphrase, which is keyslot 0, is recovery only, and is not a device.
+  recovery: bool
+)
+
+# Lets a device open the vault from now on.
+#
+# The share arrives once, wraps the master key, and is discarded. It is never logged, never echoed
+# back and never written anywhere. What is left here is worth nothing without the device, and what
+# the device holds is worth nothing without this machine's vault file.
+method EnrollDevice(
+  # What to call the device in a list.
+  name: string,
+  # 32 random bytes, base64. The device generates them and keeps them in its platform's keystore.
+  share: string,
+  # USER_SCOPED, APPLICATION_SCOPED, FIDO2 or TPM2.
+  storage: string
+) -> (
+  # ENROLLED, ALREADY_ENROLLED, UNKNOWN_STORAGE, BAD_SHARE, VAULT_LOCKED,
+  # VAULT_WITHOUT_KEYSLOTS or FAILED.
+  outcome: string,
+  slot: ?Keyslot,
+  detail: string
+)
+
+# Takes a device's way in away.
+#
+# Deleting one wrapped blob and nothing else: no re-keying, no other device disturbed, no
+# passphrase rotated.
+method RevokeKeyslot(id: string) -> (
+  # REVOKED, NO_SUCH_SLOT, LAST_WAY_IN, VAULT_LOCKED, VAULT_WITHOUT_KEYSLOTS or FAILED.
+  outcome: string,
+  # What can still open the vault afterwards, so a screen can say it without asking again.
+  remaining: []Keyslot,
+  detail: string
+)
+
+# Opens the vault with a device's share, for a while.
+#
+# This is the one thing the daemon can do to the vault that it cannot do with a passphrase: a share
+# arrives from a device over this socket, where a passphrase would need a terminal the daemon does
+# not have.
+#
+# What is held afterwards is the share, in the kernel keyring, with the kernel enforcing the
+# timeout - not the unwrapped master key, which would be a secret on this machine that outlives
+# every revocation.
+method UnlockWithShare(
+  # The device's share, base64.
+  share: string,
+  # How long, in minutes. Absent means eight hours.
+  minutes: ?int
+) -> (
+  # UNLOCKED, SHARE_REJECTED, BAD_SHARE, VAULT_WITHOUT_KEYSLOTS or FAILED.
+  outcome: string,
+  # When the unlock runs out, RFC 3339, or "".
+  until: string,
+  slot: ?Keyslot,
+  detail: string
+)
+
+# What a person has to authorize before work can use it. Streaming only.
+#
+# First what is open now, then what changes: a start refused for want of a grant (state "never"), a grant
+# the broker found revoked or expired at the service ("ended"), and "granted" when a grant lands - by
+# Authorize, 'sokar vault authorize', or whoever answered. Raised once per credential until it is granted,
+# not once per refused start. Answering it is Authorize with 'credential'.
+# The reply is a AuthorizationNeeded: varlink wants the reply spelt out as a struct, so its fields are repeated here.
+method Authorizations() -> (
+  # The vault entry that names the service; pass it to Authorize as 'name'.
+  credential: string,
+  # The task that needed it, or "".
+  task: string,
+  # That task's project, or "".
+  project: string,
+  # never, ended or granted.
+  state: string,
+  # When it was raised - or, for granted, when the grant was seen - ISO 8601.
+  at: string
+)
+
+# Grants an authorization once, for this account's later tasks. Streaming only.
+#
+# The first reply is state "needed", with the link to open, whole. For a device code (kind oauth-device) it
+# carries the code to type if the link does not, and the person decides in any browser anywhere. For a
+# redirect (kind oauth-code) the code is empty and port is the loopback port on the machine the answer comes
+# back to: a client whose browser is elsewhere forwards that port (ssh -L port:127.0.0.1:port) before opening
+# the link. The last reply is "granted", "refused", "expired" or "failed" (with a detail). The grant is kept
+# in the account's vault, hidden, with who granted it and when; no task holds it. A service that grants a
+# token which never expires and nothing to renew it - GitHub's device flow for an OAuth app - is kept as it
+# is: "granted", with a detail saying it cannot be revoked from here. One that expires with nothing to renew
+# it is "refused", saying why.
+method Authorize(
+  # The vault entry of kind oauth-device or oauth-code that names the service.
+  name: string
+) -> (state: string, link: string, code: string, port: int, expiresIn: int, detail: string)
+
+# Every destination declared on this machine, the one in force for each name first.
+method Destinations() -> (destinations: []Destination)
+
+# One destination, as it is in force.
+method Destination(name: string) -> (destination: Destination)
+
+# Declares a destination in the user's own directory, taking the place of a packaged one of the same name.
+#
+# With dryRun, nothing is written and the answer says what would be: the destination as it would be read
+# back, or the refusal - a name that is not one, an upstream that is not https, no header.
+method WriteDestination(
+  name: string,
+  label: ?string,
+  upstream: string,
+  # Default: "Authorization".
+  authHeader: ?string,
+  authPrefix: ?string,
+  authQuery: ?string,
+  dryRun: ?bool
+) -> (destination: Destination, written: bool)
+
+# Removes the user's own declaration of a destination. A packaged one cannot be removed; if one of the same
+# name exists, it is in force again afterwards.
+method RemoveDestination(name: string) -> (removed: bool, file: string)
+
+# The destination as given is not one Sokar can use; the message says why.
+error DestinationRefused(message: string)
+
+# Clears the vault from this machine in one step - 'sokar vault clear', from the same code.
+#
+# First each transport clears the account a project keeps on a server it names itself, while the vault still
+# holds its token; then the vault file, its backup and its lock go, with every device's keyslot in it, and
+# the passphrase and shares the kernel keyring caches for it; then each transport's account-wide clear runs.
+# What the vault held is named: credentials, grants, the accounts a transport kept, stopped tasks' tokens.
+# Its deploy keys are answered in keys, for a person to remove at the forge. Afterwards 'sokar vault init'
+# starts as on a new machine.
+#
+# A running task that holds a token from the vault refuses it, force or not: stop the task first.
+method VaultClear(
+  # Says what would go, and removes nothing.
+  dryRun: ?bool,
+  # Clears a locked vault unread, or one whose transport could not clear a project's account.
+  force: ?bool
+) -> (
+  # Each thing, in the order it was handled.
+  items: []ClearedItem,
+  # The deploy keys this machine had at forges, for a person to remove there by title and fingerprint.
+  keys: []MachineDeployKey,
+  # Whether it stopped before removing the vault: a running task holding a token, a locked vault, or a
+  # transport that could not clear a project's account.
+  refused: bool
+)

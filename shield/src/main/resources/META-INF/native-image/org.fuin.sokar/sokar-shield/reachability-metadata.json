@@ -1,0 +1,17 @@
+{
+  "comment": [
+    "Written by hand, not generated. Binding an NFLOG group needs CAP_NET_ADMIN in the owning",
+    "user namespace, which a test process does not have, so the tracing agent never observes",
+    "these downcalls. The FFM check (sokar-ffm-check) treats the committed set as a superset",
+    "of what the agent records, so it will not delete them.",
+    "Verified by running the native binary inside a container network namespace."
+  ],
+  "foreign": {
+    "downcalls": [
+      { "returnType": "jint", "parameterTypes": ["jint"], "options": { "captureCallState": true } },
+      { "returnType": "jint", "parameterTypes": ["jint", "jint", "jint"], "options": { "captureCallState": true } },
+      { "returnType": "jint", "parameterTypes": ["jint", "void*", "jint"], "options": { "captureCallState": true } },
+      { "returnType": "jlong", "parameterTypes": ["jint", "void*", "jlong", "jint"], "options": { "captureCallState": true } }
+    ]
+  }
+}

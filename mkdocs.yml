@@ -1,0 +1,28 @@
+# The order of sokar's pages: the site at https://sokar-ai.github.io takes this nav as sokar's section, and it is
+# built there, not here. `mkdocs build --strict` here checks the pages and their links before a push.
+# The pages stay Markdown in doc/, readable and reviewable as they are; nothing about writing one changes.
+site_name: Sokar
+docs_dir: doc
+theme: readthedocs
+strict: true
+nav:
+  - Start here: index.md
+  - Getting started: getting-started.md
+  - Using it:
+      - How it works: how-it-works.md
+      - Commands: commands.md
+      - The project file: project-file.md
+      - Messages between tasks: messages.md
+      - Writing a transport: transports.md
+      - FAQ: faq.md
+  - How it keeps an agent in its place:
+      - Security classes, firewall and names: security.md
+      - What a task can reach: reach.md
+      - Credentials: credentials.md
+  - Running it: running.md
+  - Decisions: decisions.md
+  - For security officers: corporate-security.md
+  - Background:
+      - Three ways of working: way-of-working.md
+      - Why: why.md
+  - Building from source: build.md

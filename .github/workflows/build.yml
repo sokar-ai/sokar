@@ -1,0 +1,317 @@
+# What a change proves, and where.
+name: Build
+
+# A push that only touches documentation builds nothing.
+on:
+  push:
+    branches: ['**']
+    # A release: v<version>, built and published to the 'releases' channel. Paths are not filtered for a tag.
+    tags: ['v*']
+    paths-ignore: ['**/*.md', 'mkdocs.yml']
+  pull_request:
+    branches: ['**']
+    paths-ignore: ['**/*.md', 'mkdocs.yml']
+  workflow_dispatch:
+
+# One run per branch.
+# Runs queue rather than cancel each other. A newer push used to kill the run in progress, which
+# saved two rented machines when commits stacked up - and could also kill Publish halfway, between
+# the jars reaching Central and the packages reaching Artifactory. Both halves of that split break
+# every agent repository at once: their legs install the published CLI and resolve the published
+# kit, and either one alone is wrong. Queueing costs minutes on a busy branch; a split costs six
+# acceptance legs and three unattended update jobs, and nobody is watching when it happens.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+
+  # Every push and every pull request, including from a fork.
+  build:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    # About three times a normal run (5.5 min): GitHub's default is six hours, and a slow runner once took 14 times
+    # as long.
+    timeout-minutes: 20
+    # To cancel this run's legs when it fails, and nothing else.
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: The pinned GraalVM
+        uses: ./.github/actions/pinned-jdk
+
+      # -s settings.xml so a developer's own ~/.m2/settings.xml cannot be what makes a build work here.
+      - name: Build and unit tests
+        run: ./mvnw -B verify -s settings.xml
+
+      # FFM downcalls are not found by native-image's analysis: an unregistered one fails only in the shipped binary.
+      # The check is sokar-ffm-check, resolved from Central at the root pom's sokar.buildtools.version.
+      - name: Every FFM downcall the tests made is registered
+        run: ./mvnw -B -U -s settings.xml -Pnative,ffm-check -Dagent=true -pl core,shield,vault -am verify
+
+      # The legs start beside this job rather than after it, and each rents a machine for about a
+      # quarter of an hour. A commit that fails here is not worth that: the run is cancelled, and each
+      # leg's clean-up, which runs on cancellation too, deletes what it created. Only where legs run.
+      - name: Stop the legs of a commit that failed here
+        if: failure() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+
+  # Only what has landed on main, plus a manual run - beside the unit tests rather than after them: a
+  # leg builds the product on its own machine from the same commit and needs nothing they make.
+  # Waiting for them cost 4.5 minutes of every run. A leg boots the newest snapshot, which
+  # sokar-buildtools rebuilds when it moves a pin.
+  legs:
+    name: Leg - ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    # About three times a normal leg (17 min). The step that rents the machine stops sooner, so the clean-up below
+    # still runs inside this limit and deletes what the run created.
+    timeout-minutes: 60
+    if: >-
+      github.event_name == 'workflow_dispatch' || (github.event_name == 'push'
+          && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
+
+    strategy:
+      # One leg failing must not cancel the other - which of them fails is usually the finding.
+      fail-fast: false
+      matrix:
+        os: [fedora, ubuntu]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # For the acceptance suite, which runs from here rather than on the server.
+      - name: The pinned GraalVM
+        uses: ./.github/actions/pinned-jdk
+
+      # sokar-machines from Central at the root pom's sokar.buildtools.version, resolved before anything
+      # is created, so the cleanup below finds it in the local repository.
+      # HETZNER_API and HETZNER_SSH come from the environment; the key goes to an agent, never a file.
+      # Four accounts run the features beside each other, and a restart runs alone afterwards: the
+      # scenarios mostly wait, so a faster machine did not shorten them and doing four at once does.
+      - name: Build, install and run the acceptance suite on ${{ matrix.os }}
+        timeout-minutes: 45
+        env:
+          HETZNER_API: ${{ secrets.HETZNER_API }}
+          HETZNER_SSH: ${{ secrets.HETZNER_SSH }}
+          # Both legs share GITHUB_RUN_ID, so the leg is what makes a server's label unique.
+          SOKAR_CI_LEG: ${{ matrix.os }}
+        run: |
+          ./mvnw -B -q -U -s settings.xml -N exec:exec@machines \
+              -Dmachines.args="leg --os ${{ matrix.os }} --repo . --acceptance --accounts 4 ${{ matrix.os == 'ubuntu' && '--fetch binaries' || '' }}"
+
+      # Only the ubuntu leg: a native image links glibc, so one built on Fedora will not start here.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: matrix.os == 'ubuntu'
+        with:
+          name: native-binaries
+          path: binaries/
+          retention-days: 1
+          if-no-files-found: error
+
+      # Only what this run made.
+      - name: Delete what this run created
+        if: always()
+        env:
+          HETZNER_API: ${{ secrets.HETZNER_API }}
+          SOKAR_CI_LEG: ${{ matrix.os }}
+        run: ./mvnw -B -q -U -s settings.xml -N exec:exec@machines -Dmachines.args="sweep --mine"
+
+  # Snapshots of the agent API, so an agent repository can build without a checkout of this one.
+  deploy:
+    name: Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, legs]
+    if: >-
+      github.event_name == 'push'
+      && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # A tag publishes a release, everything else a snapshot. A release is refused unless the tag is exactly
+      # 'v' plus the version it carries, and a version is never a release and a snapshot at once.
+      - name: Which channel
+        id: channel
+        run: |
+          set -eu
+          VERSION="$(sed -n 's|^    <version>\(.*\)</version>$|\1|p' pom.xml | head -1)"
+          [ -n "$VERSION" ] || { echo "::error::no version in pom.xml"; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+              [ "$GITHUB_REF_NAME" = "v$VERSION" ] \
+                  || { echo "::error::the tag $GITHUB_REF_NAME is not v$VERSION, the version this commit carries"; exit 1; }
+              case "$VERSION" in
+                  *-SNAPSHOT) echo "::error::$VERSION is a snapshot; a release carries its own version"; exit 1 ;;
+              esac
+              echo "channel=releases" >> "$GITHUB_OUTPUT"
+          else
+              case "$VERSION" in
+                  *-SNAPSHOT) ;;
+                  *) echo "::error::$VERSION on a branch would publish a release as a snapshot"; exit 1 ;;
+              esac
+              echo "channel=snapshots" >> "$GITHUB_OUTPUT"
+          fi
+          echo "  $VERSION -> $(tail -1 "$GITHUB_OUTPUT")"
+
+      - name: The pinned GraalVM
+        uses: ./.github/actions/pinned-jdk
+
+      # Our own few lines rather than an action: the private key reaches only this repository's code and
+      # the runner. The passphrase is not needed here - Maven's signing passes it with loopback pinentry,
+      # from settings.xml.
+      - name: Import the signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.OSS_SONATYPE_GPG_PRIVATE_KEY }}
+        run: |
+          set -eu
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --quiet --import
+          gpg --batch --list-secret-keys --with-colons | grep -q '^sec:' \
+              || { echo "::error::no secret key was imported, so nothing could be signed"; exit 1; }
+
+      # Installed here, published further down. Nothing reaches Central or Artifactory until every
+      # check below has passed: a check that runs after one half is published can only ever ship that
+      # half. On 2026-09-11 it did exactly that - the jars went out, the check went red, and Central
+      # held a kit that no published CLI matched.
+      #
+      # Plain jars, for the packaging to resolve, and nothing else. The unit tests passed in this
+      # run, on this commit, before this job could start; javadoc was built there too. The signed
+      # jars are built once, by the step that publishes them - this step used to build them as well,
+      # 4m10s with the tests, and the deploy then built them again.
+      - name: Build and install
+        run: ./mvnw -B clean install -s settings.xml -DskipTests -Dmaven.javadoc.skip=true -Dmaven.source.skip=true
+
+
+      # The binaries come from the ubuntu acceptance leg rather than being rebuilt here, for two reasons.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: native-binaries
+
+      # The list comes from the leg that sent them; restating it here is how the two drifted once.
+      - name: Put the binaries where the packaging expects them
+        run: |
+          set -eu
+          [ -s fetched.txt ] || { echo "::error::the acceptance leg sent no manifest"; exit 1; }
+          while read -r f; do
+              [ -n "$f" ] || continue
+              [ -f "$f" ] || { echo "::error::$f did not arrive from the acceptance leg"; exit 1; }
+              chmod 0755 "$f"
+              printf '  %-46s %s\n' "$f" "$(du -h "$f" | cut -f1)"
+          done < fetched.txt
+
+      # Packaging only, on modules whose binary arrived.
+      - name: Build the packages
+        run: ./mvnw -B -s settings.xml -Pdist verify -DskipTests -pl agents/stub,dist-deb,dist-rpm
+             -Dsokar.snapshot.run=${{ github.run_number }}
+
+      # Checks the two packages against each other and installs both in a clean Debian and a clean Fedora.
+      # sokar-package-check from Central, at the root pom's sokar.buildtools.version.
+      - name: Check the packages
+        run: ./mvnw -B -q -U -s settings.xml -N exec:java@package-check
+
+      # Both halves, after the checks and as close together as the job can put them. They still
+      # cannot be made atomic: measured on 2026-09-11, the deb followed the jars by 15m42s, and a
+      # kit that builds one command beside a CLI that knows another breaks every agent repository
+      # in that window. What closes it is not this ordering but each consumer refusing to move
+      # until both halves are newer than what it has.
+      # Jars only.
+      - name: Deploy the jars
+        env:
+          OSS_SONATYPE_USERNAME: ${{ secrets.OSS_SONATYPE_USERNAME }}
+          OSS_SONATYPE_TOKEN: ${{ secrets.OSS_SONATYPE_TOKEN }}
+          OSS_SONATYPE_GPG_PASSPHRASE: ${{ secrets.OSS_SONATYPE_GPG_PASSPHRASE }}
+        run: ./mvnw -B deploy -Pcentral-sonatype-release -s settings.xml -DskipTests
+
+      # The action publishes build-info by itself at the end of the workflow.
+      - uses: jfrog/setup-jfrog-cli@68c0efdc951dd2359bbbfa15c48bc67b3ae8e4d6 # v5.2.0
+        with:
+          disable-auto-build-publish: true
+        env:
+          JF_URL: ${{ vars.JF_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+
+      # Into the channel this run publishes to. A release that is already there is refused: a published release
+      # is never replaced, as on Central.
+      - name: Publish the packages
+        env:
+          JF_URL: ${{ vars.JF_URL }}
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+        run: |
+          set -eux
+          if [ "$CHANNEL" = releases ] && curl -sfL "${JF_URL}/artifactory/sokar-dist-deb/dists/releases/main/binary-amd64/Packages" \
+                  | grep -qF "Filename: pool/main/s/sokar/$(basename dist-deb/target/sokar_*.deb)"; then
+              echo "::error::this release is published already"; exit 1
+          fi
+          # --flat, or the source directory travels and the package lands away from its siblings.
+          jf rt upload "dist-deb/target/*.deb" "sokar-dist-deb/pool/main/s/sokar/" \
+              --flat=true \
+              --target-props="deb.distribution=${CHANNEL};deb.component=main;deb.architecture=amd64"
+          jf rt upload "dist-rpm/target/*.rpm" "sokar-dist-rpm/${CHANNEL}/" --flat=true
+          # Sokar's own test agent, for a machine a leg leases ('lease --package sokar-agent-stub'): snapshots only,
+          # and never offered as an agent to install - it declares no 'Provides: sokar-agent', so it is taken by its
+          # name alone. A scenario that needs it fails where it is missing rather than skipping.
+          if [ "$CHANNEL" != releases ]; then
+              jf rt upload "agents/stub/target/*.deb" "sokar-dist-deb/pool/main/s/sokar-agent-stub/" \
+                  --flat=true \
+                  --target-props="deb.distribution=${CHANNEL};deb.component=main;deb.architecture=amd64"
+              jf rt upload "agents/stub/target/*.rpm" "sokar-dist-rpm/${CHANNEL}/" --flat=true
+          fi
+
+          # The bill beside the package, so it can be read without installing anything.
+          jf rt upload "target/sokar.cdx.json" "sokar-dist-deb/pool/main/s/sokar/" --flat=true
+          jf rt upload "target/sokar.cdx.json" "sokar-dist-rpm/${CHANNEL}/" --flat=true
+
+          # The setup script, versioned with the packages it installs. A machine being
+          # prepared has no daemon to ask, so this is the one Sokar interface that is a file: the
+          # wizard fetches it with 'curl -L', shows it to the person, and runs it as root. Named
+          # with the version so the script and the packages it configures cannot drift apart, and
+          # 'latest' beside it for a caller that has no version yet - from a release only, once there is one, so the
+          # address a person is given installs a release.
+          # Out of the package that was just built, with the tool that made it: the control
+          # directory jdeb works from is not left on disk, and a glob over target/ matches every
+          # .deb a machine has ever built there.
+          DEB="$(ls -t dist-deb/target/sokar_*.deb | head -1)"
+          VERSION="$(dpkg-deb -f "$DEB" Version)"
+          [ -n "$VERSION" ] || { echo "::error::no version in $DEB"; exit 1; }
+          jf rt upload "dist-setup/sokar-setup.sh" "sokar-dist-deb/setup/sokar-setup-${VERSION}.sh" --flat=true
+          if [ "$CHANNEL" = releases ] || ! curl -sfI "${JF_URL}/artifactory/sokar-dist-deb/dists/releases/Release" >/dev/null; then
+              jf rt upload "dist-setup/sokar-setup.sh" "sokar-dist-deb/setup/sokar-setup-latest.sh" --flat=true
+          fi
+
+      # Uploaded is not the same as installable.
+      - name: The packages are indexed, not merely stored
+        env:
+          JF_URL: ${{ vars.JF_URL }}
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+        run: |
+          set -eu
+          # As an installer sees it: anonymously, following the redirect Artifactory answers a
+          # large file with. The Debian index grew past that size and came back as an empty 302.
+          await() {
+              label="$1" path="$2" needle="$3" tries=0
+              while [ "$tries" -lt 20 ]; do
+                  if curl -sfL "${JF_URL}/artifactory${path}" | grep -qF "$needle"; then
+                      echo "  OK    $label lists '$needle'"
+                      return 0
+                  fi
+                  tries=$((tries + 1))
+                  sleep 6
+              done
+              echo "::error::$label never listed '$needle' after two minutes - uploaded but not indexed"
+              return 1
+          }
+          FAILED=0
+          # The file just uploaded, not any version of the package: an index that still lists an
+          # older one would otherwise pass.
+          DEB="$(basename dist-deb/target/*.deb)"
+          await "the Debian index" \
+              "/sokar-dist-deb/dists/${CHANNEL}/main/binary-amd64/Packages" \
+              "Filename: pool/main/s/sokar/$DEB" || FAILED=1
+          await "the RPM index" \
+              "/sokar-dist-rpm/${CHANNEL}/repodata/repomd.xml" \
+              "primary" || FAILED=1
+          exit "$FAILED"

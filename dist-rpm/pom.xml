@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.4.0</version>
+    </parent>
+
+    <artifactId>sokar-dist-rpm</artifactId>
+    <packaging>pom</packaging>
+    <name>Sokar RPM Package</name>
+    <description>Sandboxes AI agent tasks in hardened rootless containers</description>
+
+    <properties>
+        <rpm.version>1.13.0</rpm.version>
+        <package.name>sokar</package.name>
+        <hook.install.dir>/usr/libexec/sokar/hooks</hook.install.dir>
+        <provider.install.dir>/usr/share/sokar/providers</provider.install.dir>
+        <egress.install.dir>/usr/share/sokar/egress</egress.install.dir>
+        <selinux.install.dir>/usr/share/sokar/selinux</selinux.install.dir>
+        <sbom.install.dir>/usr/share/sokar/sbom</sbom.install.dir>
+        <!-- Signing is off for local and CI builds and on for releases, where the key exists. -->
+        <rpm.sign.skip>true</rpm.sign.skip>
+    </properties>
+
+    <!-- Reactor ordering only; see the note in dist-deb. -->
+    <dependencies>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-app</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokard</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-hooks</artifactId>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+
+        <!-- Requires -Pnative to have produced the binaries; run as: mvn -Pnative,dist package -->
+        <profile>
+            <id>dist</id>
+            <build>
+                <plugins>
+
+
+                    <plugin>
+                        <groupId>de.dentrassi.maven</groupId>
+                        <artifactId>rpm</artifactId>
+                        <version>${rpm.version}</version>
+                        <executions>
+                            <execution>
+                                <id>rpm</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>rpm</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <packageName>${package.name}</packageName>
+                            <version>${sokar.package.version}</version>
+                            <snapshotVersion>${sokar.package.version}</snapshotVersion>
+                            <release>1</release>
+                            <summary>${project.description}</summary>
+                            <description>Sandboxes an AI agent task in a hardened, rootless podman container: egress is default-deny, credentials stay on the host behind a broker, and the agent hands its work back through a git gate the operator reviews.
+
+Installs the sokar and sokard binaries and the three OCI hooks. The hooks are NOT registered by this package: podman reads hook descriptors per user, so each operator runs "sokar setup" once. Nothing here touches a system-wide podman configuration.
+
+This package contains no agent. Agents ship separately as sokar-agent-* packages, which sokar discovers by scanning /usr/libexec/sokar/agents.
+
+Where SELinux is enforcing, a task container cannot reach sokar's sockets until the policy module in /usr/share/sokar/selinux is installed. "sokar doctor" reports whether it is.</description>
+                            <!-- Without this the plugin substitutes a timestamp release for any
+                                 snapshot build, and the rpm and the deb then disagree about what
+                                 version they are. -->
+                            <forceRelease>true</forceRelease>
+                            <architecture>x86_64</architecture>
+                            <group>Applications/System</group>
+                            <license>GPL-3.0-or-later</license>
+                            <packager>fuin.org</packager>
+                            <requires>
+                                <!-- Podman 5 as setup demands, with Fedora's epoch: without one rpm reads epoch 0 and 5:4.9 passes. -->
+                                <require>podman &gt;= 5:5.0</require>
+                                <require>nftables</require>
+                                <require>dnsmasq</require>
+                                <require>git</require>
+                                <require>util-linux</require>
+                            </requires>
+                            <!-- Recommended, not required: they require sokar, so requiring them would
+                                 be a cycle. dnf installs a weak dependency by default, which is what a
+                                 machine without the setup script needs - without the filter nothing
+                                 leaves a task. -->
+                            <recommends>
+                                <recommend>sokar-message-sluice-filter</recommend>
+                            </recommends>
+                            <signature>
+                                <skip>${rpm.sign.skip}</skip>
+                            </signature>
+                            <entries>
+                                <!-- Declarations an operator can add to, not executables. Collected rather
+                                     than listed, as the egress sets are: a provider added to providers/ ships in
+                                     both packages without anyone remembering to edit this file. -->
+                                <entry>
+                                    <name>${provider.install.dir}</name>
+                                    <collect>
+                                        <from>${project.basedir}/../providers</from>
+                                        <includes>
+                                            <include>*.yaml</include>
+                                        </includes>
+                                    </collect>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <!-- Collected rather than listed: a set added to egress/ ships
+                                     without anyone remembering to edit this file. -->
+                                <entry>
+                                    <name>${egress.install.dir}</name>
+                                    <collect>
+                                        <from>${project.basedir}/../egress</from>
+                                        <includes>
+                                            <include>*.yaml</include>
+                                        </includes>
+                                    </collect>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>/usr/bin/sokar</name>
+                                    <file>${project.basedir}/../app/target/sokar</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>/usr/bin/sokard</name>
+                                    <file>${project.basedir}/../daemon/target/sokard</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${hook.install.dir}/sokar-hook-nft</name>
+                                    <file>${project.basedir}/../hooks/target/sokar-hook-nft</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${hook.install.dir}/sokar-hook-supervisor</name>
+                                    <file>${project.basedir}/../hooks/target/sokar-hook-supervisor</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${hook.install.dir}/sokar-hook-reader</name>
+                                    <file>${project.basedir}/../hooks/target/sokar-hook-reader</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <!-- Source, not a compiled module: a .pp is tied to the policy version of the machine that built it. -->
+                                <entry>
+                                    <name>${selinux.install.dir}/sokar_socket.te</name>
+                                    <file>${project.basedir}/../selinux/sokar_socket.te</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${selinux.install.dir}/install-selinux-policy.sh</name>
+                                    <file>${project.basedir}/../selinux/install-selinux-policy.sh</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${sbom.install.dir}/sokar.cdx.json</name>
+                                    <file>${project.basedir}/../target/sokar.cdx.json</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <!-- A user unit, installed and not enabled. Same path on both
+                                     distributions, unlike the zsh completion below. -->
+                                <entry>
+                                    <name>/usr/lib/systemd/user/sokard.service</name>
+                                    <file>${project.basedir}/../systemd/sokard.service</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <!-- TAB completion. Fedora's zsh reads site-functions and has
+                                     no vendor-completions, which is where the deb puts the same
+                                     file - the second place the two ecosystems differ on purpose,
+                                     after the license. -->
+                                <entry>
+                                    <name>/usr/share/bash-completion/completions/sokar</name>
+                                    <file>${project.basedir}/../app/src/main/resources/completion/sokar</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>/usr/share/zsh/site-functions/_sokar</name>
+                                    <file>${project.basedir}/../app/src/main/resources/completion/_sokar</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <!-- 'license' marks it %license, so 'rpm -qL' answers. -->
+                                <entry>
+                                    <name>/usr/share/licenses/${package.name}/LICENSE</name>
+                                    <file>${project.basedir}/../LICENSE</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                    <license>true</license>
+                                </entry>
+                            </entries>
+                        </configuration>
+                    </plugin>
+
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
+</project>

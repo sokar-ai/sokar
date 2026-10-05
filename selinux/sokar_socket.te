@@ -1,0 +1,54 @@
+module sokar_socket 1.0;
+
+# Lets a task container reach Sokar's host sockets, and nothing else.
+#
+# Without this, SELinux denies connectto from container_t to any socket an operator's own
+# process created, and the credential swap never happens: the request does not arrive, the
+# proxy log stays empty, and the agent reports an authentication failure. Measured on
+# Fedora 44.
+#
+# The type is placed on the socket OBJECT by the server, which sets its socket creation
+# context before bind(). Containers get connectto and nothing else - they cannot create a
+# socket of this type, so a compromised container cannot stand up a listener wearing the
+# label and collect another task's token.
+#
+# Three domains, for three different reasons:
+#
+#   unconfined_t       binds the sockets and connects to them as a host-side client.
+#   container_t        the task itself, which may only connect.
+#   container_runtime_t the relay that gives an agent a URL inside its own network namespace. It
+#                      enters that namespace through the container runtime's own unshare helper,
+#                      which puts it in this domain - measured, and refused before this rule
+#                      existed. It may only connect: it cannot create a socket of this type, so a
+#                      compromised container still cannot stand up a listener wearing the label.
+#
+# Install:  sudo ./install-selinux-policy.sh
+# Remove:   sudo semodule -r sokar_socket
+
+require {
+    type container_t;
+    type container_runtime_t;
+    type unconfined_t;
+    class process setsockcreate;
+    class unix_stream_socket {
+        create bind listen accept
+        read write getattr getopt setopt shutdown
+        connectto
+    };
+}
+
+type sokar_socket_t;
+
+allow unconfined_t self:process setsockcreate;
+
+# connectto included: Sokar talks to its own agent binaries over labeled sockets too, and
+# without it the operator's own process cannot reach a socket it just created.
+allow unconfined_t sokar_socket_t:unix_stream_socket {
+    create bind listen accept
+    read write getattr getopt setopt shutdown
+    connectto
+};
+
+allow container_t sokar_socket_t:unix_stream_socket connectto;
+
+allow container_runtime_t sokar_socket_t:unix_stream_socket connectto;

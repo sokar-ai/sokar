@@ -1,0 +1,734 @@
+
+# A project this machine knows about.
+#
+# Not something Sokar creates: a project is somebody's directory with a project.yml in it, and
+# this reports what has been seen of one rather than owning it.
+type Project (
+  # Project name, as its file declares it.
+  name: string,
+  # offline, guarded or online. "" when no task has recorded one.
+  securityClass: string,
+  # Absolute path of its project.yml on the daemon's machine, which every gate method and Start
+  # take. "" when nothing recorded one, or when the recorded file is no longer there - reported
+  # absent rather than as a path nothing can read, so a call made with it cannot fail for a
+  # reason that looks like a fault in the daemon.
+  file: string,
+  # The gate's mirror for it. "" when it has never used the gate.
+  mirror: string,
+  # How many pushes are waiting for review in that mirror.
+  pending: int,
+  # How many of its tasks exist right now, running or stopped.
+  tasks: int,
+  # How many of those are up. A project with none is the ordinary case - between tasks, or after
+  # one was stopped and can still be resumed - so both numbers are given rather than one being
+  # inferred from the other. This list is every project, not only the busy ones.
+  running: int,
+  # Whether a task image for this project exists, so work can start here without building one
+  # first. That is the whole claim: it does NOT say the image still matches the project file as
+  # it stands now. A project that has never run answers false, which is a normal state and not a
+  # fault - it means the first task here will spend minutes building before anything happens.
+  prepared: bool,
+  # Where this account has got following this project's repository, or an empty object when it
+  # follows nothing here - which is the ordinary case.
+  #
+  # Here as well as on Following() because they answer different questions: "what does this account
+  # follow" and "is what I am showing in force". Both are rendered from the same values, so they
+  # cannot drift.
+  following: ?Followed,
+  # The repositories this project has, its own first.
+  #
+  # Never empty for a project whose file can be read: every project has its own repository. Empty
+  # means the file could not be read, which is NOT the same as a project with one repository - do
+  # not render it as one.
+  #
+  # Objects rather than parallel lists of names, mirrors and counts: lists indexed together drift
+  # the moment one is built from a different source, and the drift is silent.
+  repositories: []Repository,
+  # ABSENT, READY, STALE or UNKNOWN - what 'prepared' cannot say.
+  #
+  # STALE means an image exists and was built before the project file changed under it, so work
+  # would start in something the file no longer describes and nothing would mention it. That is
+  # the state this field exists for; a bool could only ever say whether something was there.
+  #
+  # UNKNOWN is an image that does not record what it was built from - built by an older Sokar, or
+  # belonging to a project whose file has moved. Not stale: nothing here knows either way, and
+  # reporting it as stale would send somebody rebuilding for no reason.
+  #
+  # Only the base image and the image snippet decide this. Egress, limits and the upstream change
+  # what a task may do rather than what it is built from, and counting them would call an image
+  # stale after an edit that could not have changed it - which teaches people to ignore the word.
+  preparedState: string,
+  # Commits the upstream has that this project's mirror does not. MEANINGLESS unless
+  # behindReason is MEASURED - it is 0 for every other reason, and 0 there does not mean up to
+  # date. Never render this number without behindMeasured beside it.
+  behind: int,
+  # When 'behind' was measured, RFC 3339. "" when it never was.
+  #
+  # Not optional decoration. The daemon measures on a timer, because a reply field that fetched
+  # would make this list occasionally take thirty seconds for reasons nothing on screen explains
+  # - so what you get is a number with an age, and the only thing worse than a stale answer is a
+  # stale answer that looks fresh.
+  behindMeasured: string,
+  # Why 'behind' is what it is. New values may appear; render an unrecognised one rather than
+  # throwing, by the same rule as every other enumeration here.
+  #
+  #   MEASURED       the number is real, and behindMeasured says when it was taken
+  #   NEVER_CHECKED  nothing has looked yet. NOT the same as being up to date
+  #   NO_UPSTREAM    the mirror was created empty, so there is nothing to be behind
+  #   OFFLINE        the project reaches nothing by class, so asking would break that promise
+  #   FAILED         looking failed; behindDetail says what git said
+  behindReason: string,
+  # What went wrong, for FAILED. "" otherwise. Prose for a person - never parsed, and never
+  # rendered as a number.
+  behindDetail: string,
+  # What project.yml names under 'credentials:': a vault entry's name to the destination it is for, which
+  # every task of the project holds. Names only, never a value.
+  credentials: [string]string,
+  # The project's conversation - its room - when a peer is reached through a transport's own ('<scheme>:');
+  # absent otherwise.
+  messages: ?ProjectMessages
+)
+
+# What a host offers, so a person can compare it with what they were told.
+#
+# Shown, never recorded: recording is TrustHostKey, which takes the fingerprint back. Accepting a
+# host key on first use would be easier and is exactly what an interception looks like, so this
+# machine refuses to decide it - attended or not, because a timer that learns a host at three in
+# the morning has answered the question this refuses to answer.
+method HostKeys(
+  host: string
+) -> (
+  host: string,
+  # Whether this machine already remembers a key for it.
+  known: bool,
+  keys: []HostKey
+)
+
+# Records ONE key for a host: the one a person confirmed.
+#
+# The fingerprint comes from them, not from here. The host is asked again and the key is recorded
+# only if it still offers that one - which is what stops a key that arrived between being shown
+# and being confirmed from being the one written down.
+method TrustHostKey(
+  host: string,
+  # SHA256:..., exactly as HostKeys gave it.
+  fingerprint: string
+) -> (
+  recorded: bool,
+  type: string,
+  fingerprint: string,
+  detail: string
+)
+
+# Every project this machine knows about, alphabetically.
+#
+# The list is assembled from what is durable: the gate mirrors, the tasks that exist, and the
+# project files task starts have recorded. A project appears here once somebody has run a task
+# with it - there is no registration step, because nobody would run one.
+#
+# This is the method that makes the gate reachable from an interface. Pending, Review, Approve,
+# Reject and Start all take a project file path, and a client on another machine has no
+# filesystem here to find one in.
+# One thing a project deletion removes.
+type Removal (
+  # MIRROR, IMAGE, BUILD, REGISTRY, UPSTREAM_RECORD or TASK.
+  kind: string,
+  # The thing itself - a path, an image name, a container name - as a person would recognise it.
+  what: string
+)
+
+# DeleteProject is gone; Unfollow is the whole of it.
+#
+# A project exists on a machine because that machine follows its repository, so removing what Sokar
+# built while going on following it would only mean building it again at the next reconciliation.
+# Unfollow forgets the repository AND removes the mirrors, the image, the build directory, the
+# registry entry, the recorded distance, the followed clone and every task - with the same refusal
+# when work is held or a task is up, and the same --force past it.
+
+method Projects() -> (projects: []Project)
+
+# The same answer, again whenever it changes.
+#
+# Called without "more" this answers once, exactly as Projects does, so a client that cannot
+# stream is not locked out of the data.
+#
+# Called with "more" it sends the whole list on every change and nothing in between. Unlike
+# Watch there is no age to exclude: every field here is a count, a state or a recorded
+# moment, and "behindMeasured" moving IS a change - the age an interface draws beside the
+# number resets with it.
+#
+# Slower than Watch on purpose. A scan runs the container runtime and reads the gate's refs
+# for every project, and what it answers changes on human timescales: a project created, a
+# push arriving at the gate, an environment prepared. The one place where latency costs
+# something real is Prompts, where a question expires; work waiting at the gate has no
+# deadline.
+method WatchProjects() -> (projects: []Project)
+
+# Measures one repository's distance from its upstream, now.
+#
+# Its own operation on purpose. The distance is otherwise measured on a timer and read from a
+# record, because measuring reaches the network - and a listing that fetched would make the queue
+# cost what a listing must not. So this cannot be a flag on a read; it is something somebody asked
+# for.
+#
+# It goes through the same measurement the timer uses and writes the same record, so a triggered
+# fetch and a timed one cannot disagree about how far behind a project is, and Projects shows
+# whichever ran last without being told.
+method SyncUpstream(
+  # Project NAME, as Projects.name gives it.
+  project: string,
+  # Which of the project's repositories to measure. Default: the project's own.
+  #
+  # Each has its own mirror and its own upstream, so a project's distance was never one number
+  # once it had a second repository. Measuring one and showing it against all of them would be a
+  # number that is right about one repository.
+  repository: ?string) -> (
+  # MEASURED, NO_SUCH_PROJECT, NO_MIRROR, UNREADABLE or FAILED.
+  #
+  # NO_SUCH_PROJECT also answers a repository the project does not have; 'detail' says which.
+  #
+  # NO_MIRROR is ordinary: a project that has never used the gate has nothing to measure against.
+  outcome: string,
+  # Commits the upstream has that this repository's mirror does not. MEANINGLESS unless
+  # 'measured'.
+  behind: int,
+  # Whether the number above means anything. False for a repository with no upstream, and for one
+  # this machine could not reach.
+  measured: bool,
+  # What the measurement itself reported: MEASURED, NEVER_CHECKED, NO_UPSTREAM, OFFLINE or FAILED.
+  reason: string,
+  detail: string
+)
+
+# What backups have been taken of a project's mirror.
+#
+# A bundle is written wherever an operator names it, so nothing could work this out afterwards -
+# this is read from a record written when each one was taken. An interface cannot offer to restore
+# from a list it cannot read, which is what this is for.
+#
+# Newest first. Empty is an ordinary answer: a project nobody has backed up, or one backed up by a
+# Sokar older than the record.
+method Backups(
+  # Project NAME, as Projects.name gives it.
+  project: string,
+  # Which of the project's repositories the backups are of. Default: the project's own.
+  #
+  # A bundle belongs to ONE repository's mirror. Asking without this and restoring what comes back
+  # into a different repository would write one history over another's.
+  repository: ?string) -> (backups: []Backup)
+
+type Backup (
+  # When it was written, ISO-8601.
+  taken: string,
+  # Absolute path on the daemon's machine.
+  bundle: string,
+  # How many pushes were waiting for review when it was taken. What a restore would bring back.
+  refs: int,
+  # Whether that file is still there. A record is not the bundle: the file can be moved, deleted
+  # or replaced afterwards and nothing here would know, so an absent one is shown rather than
+  # quietly dropped - somebody moved it, and that is worth seeing.
+  present: bool,
+  # Its size now, or 0 when it is gone. Not what it was when taken: this is read from disk, and
+  # claiming a size for a file that is not there would be inventing one.
+  bytes: int
+)
+
+# Restores a project's mirror from a bundle.
+#
+# Refuses when the mirror holds pushes nobody has reviewed, and names them. Those exist ONLY in the
+# mirror - not on the upstream, not in a workspace, not in the bundle being restored - so
+# overwriting one destroys the only copy. Same outcome name as DeleteProject and Stop, for the same
+# situation.
+method RestoreBackup(
+  # Project NAME, as Projects.name gives it.
+  project: string,
+  # Which of the project's repositories to restore INTO. Default: the project's own.
+  #
+  # This writes over a mirror, and the pushes it destroys exist only there - so a bundle taken of
+  # one repository restored into another destroys the only copy of work that was never its. Pass
+  # the repository the bundle came from, as Backups was asked for it.
+  repository: ?string,
+  # Absolute path of the bundle, as Backups reports it.
+  bundle: string,
+  # Says what would happen and changes nothing.
+  dryRun: ?bool,
+  # Proceeds although unreviewed work would be destroyed.
+  force: ?bool
+) -> (
+  # RESTORED, PREVIEWED, HOLDS_WORK, NO_SUCH_PROJECT, NO_SUCH_BACKUP or FAILED.
+  outcome: string,
+  # The mirror that would be written, or was.
+  mirror: string,
+  # Refs nobody reviewed. Non-empty with HOLDS_WORK, and also under force - it is what force
+  # destroys, so it is worth showing afterwards as well as before.
+  unreviewed: []string,
+  detail: string
+)
+
+# Removes one backup: the bundle file and the record of it.
+#
+# The bundle may be somebody's only copy of work that never reached the gate, so this takes the
+# path rather than an index - a list that shifted between reading it and acting on it would
+# otherwise delete a different backup than the one somebody chose.
+method DeleteBackup(
+  # Project NAME, as Projects.name gives it.
+  project: string,
+  # Absolute path, exactly as Backups reported it.
+  bundle: string,
+  # Reports what would go, having removed nothing.
+  dryRun: ?bool
+) -> (
+  # DELETED, PREVIEWED, NO_SUCH_BACKUP or FAILED.
+  outcome: string,
+  # Whether the file itself was there to remove. False with DELETED means the record was cleared
+  # for a bundle somebody had already moved - which is a tidy-up, not a loss.
+  fileRemoved: bool,
+  # How many pushes it held, from the record. What a person is giving up.
+  refs: int,
+  detail: string
+)
+
+# The repositories of the project 'default': where work goes on a repository that no followed project
+# names. 'default' is the one project not followed - every machine has it, its settings are Sokar's
+# ('guarded', nothing reachable beyond the agent's provider, blocked connections refused, no
+# conversation), and it is never removed. A task is started in it with Start(project: "default",
+# repository: <name>) like any other. Following a project named 'default', unfollowing it, giving its
+# tasks egress or a credential, and choosing another upstream are refused, naming a project
+# repository as the way.
+method DefaultRepositories() -> (repositories: []DefaultRepository)
+
+# Adds a repository to 'default' by its address - named by hand or picked from a forge's list. The
+# same address again answers the entry already there. Refused with Failed for a name that is taken
+# or is not a repository name.
+method AddToDefault(
+  # Where its approved work goes: an ssh or https address, or a path on this machine.
+  upstream: string,
+  # What to call it. Default: after its address.
+  name: ?string
+) -> (repository: DefaultRepository)
+
+# Takes a repository out of 'default'. Its mirror, and anything waiting in it, stays. 'removed' is
+# false when 'default' has no repository of that name. This machine's deploy key for it is forgotten
+# and answered in 'keys', as Unfollow answers them, so it is removed at the forge too.
+method RemoveFromDefault(
+  # The repository's name in 'default'.
+  name: string
+) -> (removed: bool, keys: []MachineDeployKey)
+
+# One repository of 'default'.
+type DefaultRepository (
+  # What Start's 'repository' takes.
+  name: string,
+  # Where its approved work goes.
+  upstream: string,
+  # The checkout it was added from on this machine, or "" when it was added by address.
+  checkout: string,
+  # The followed project that names the same repository, or "". Its tasks then start there, and an
+  # interface offers to take the repository out of 'default'.
+  claimedBy: string
+)
+
+# Shows what nothing on this machine owns any more, and removes it with apply - what 'sokar prune'
+# does. Orphaned means only: a project not followed, with no running task and no readable project
+# file, with its mirrors, image, build context and stopped tasks; what is kept for a task whose
+# container is gone; and images, build contexts, records and vault entries named after a project
+# that exists nowhere. A running task and a followed project are never in it.
+#
+# What holds work nobody has looked at - a push nobody reviewed, a stopped task's workspace, a
+# message waiting for a person - is in 'keeps', saying what in 'holds', and stays unless
+# includingWork. Without apply nothing is removed and 'removes' is what would go.
+method Prune(
+  # Remove what is found. Without it nothing is removed.
+  apply: ?bool,
+  # Remove what holds work nobody has looked at too.
+  includingWork: ?bool
+) -> (
+  applied: bool,
+  removes: []PrunedThing,
+  keeps: []PrunedThing,
+  # What could not be looked at, and why: a locked vault, for one.
+  unchecked: []string
+)
+
+# One thing Prune found.
+type PrunedThing (
+  # PROJECT, TASK, IMAGE, BUILD, RECORD or VAULT.
+  kind: string,
+  # A project, a container, an image, a path or a vault entry.
+  name: string,
+  # What of it goes, as a person recognises it.
+  what: []string,
+  # What it holds that nobody has looked at, or why it was not removed; "" for what goes.
+  holds: string
+)
+
+# One repository of a project, and the state that belongs to it rather than to the project.
+#
+# A project is a unit of work over one or more repositories and a task works on exactly one of
+# them, so each of these has its own mirror, its own review branch and its own distance from its
+# own upstream. A screen that showed one of each per PROJECT would be showing one repository's
+# numbers against all of them.
+type Repository (
+  # What Start and the gate methods take as 'repository'.
+  name: string,
+  # Whether this is the project's own repository - where project.yml, the planning and the issues
+  # live. Reported rather than left to be worked out by comparing this to the project's name.
+  own: bool,
+  # Where approved work goes, or "" when it has none. A repository without an upstream is one
+  # whose work stays on this machine, which is a legitimate state.
+  upstream: string,
+  # The bare mirror on this machine, or "" when it has never been used.
+  mirror: string,
+  # Pushes waiting for review in that mirror. The project's own 'pending' is the sum of these.
+  pending: int,
+  # Commits this repository's upstream has that its mirror does not. MEANINGLESS unless
+  # behindReason is MEASURED, exactly as on the project. Never render it without behindMeasured.
+  behind: int,
+  # When 'behind' was measured, RFC 3339. "" when it never was.
+  behindMeasured: string,
+  # Why 'behind' is what it is. Same values as the project's.
+  behindReason: string,
+  behindDetail: string,
+  # Everything a task on this repository may reach, each saying which block granted it.
+  #
+  # ONE list with a source per entry, not two to subtract from one another: a repository's grants
+  # are ADDED to the project's, and a screen showing both halves should not have to work out which
+  # is which.
+  egress: []Grant,
+  # What a task on this repository may consume, and where each key came from.
+  limits: ResolvedLimits
+)
+
+# One thing a repository may reach.
+type Grant (
+  # The set name or the host.
+  value: string,
+  # "set" or "domain".
+  kind: string,
+  # "project" or "repository" - which block declared it.
+  from: string
+)
+
+# What a task on one repository may consume, resolved.
+#
+# A repository's limits REPLACE the project's key by key, so the interesting part is which key it
+# replaced. The three '...From' fields say "repository" when that repository declared the key and
+# "project" otherwise - and "project" covers BOTH a value the project file wrote and Sokar's own
+# default, which this side cannot tell apart today. Do not render "project" as "written by hand".
+type ResolvedLimits (
+  # Memory limit, or "" for no limit.
+  memory: string,
+  # CPU limit, or "" for no limit.
+  cpus: string,
+  # Process limit.
+  pids: int,
+  memoryFrom: string,
+  cpusFrom: string,
+  pidsFrom: string
+)
+
+# ---------------------------------------------------------------- following a repository
+
+# Which project repositories this account takes its configuration from.
+#
+# Per account and not per machine: two people here follow different projects, reconcile at different
+# moments, and each reaches their own vault for the credential a private repository needs.
+method Following() -> (projects: []Followed)
+
+type Followed (
+  name: string,
+  # Where its repository is.
+  url: string,
+  # The last commit this machine verified and applied, or "" when none ever was. WHAT IS RUNNING.
+  commit: string,
+  # When it last tried, RFC 3339, or "".
+  at: string,
+  # Why this project is where it is. "" when it never tried. New values may appear; render an
+  # unrecognised one rather than throwing.
+  #
+  #   APPLIED       the commit below is in force
+  #   UNCHANGED     it already held that commit
+  #   NOT_SIGNED    the fetched commit carries no signature. Usually somebody forgot to sign
+  #   UNKNOWN_KEY   a GOOD signature by a key this machine was never given. Either a key that has
+  #                 moved or somebody putting a project file past the machine - this is the one
+  #                 that belongs in front of a person as a possible attempt
+  #   NO_ANCHOR     nothing is pinned here, so nothing can be verified
+  #   UNREADABLE    the commit or the repository could not be read
+  #   REWRITTEN     verified, and not a descendant of what is in force. Waits for acceptRewrite
+  #   UNREACHABLE   the repository could not be reached. Look at the network or the URL
+  #   VAULT_LOCKED  this account's vault is shut, so the credential a private repository needs is
+  #                 out of reach. NOT the same as UNREACHABLE: the action is to unlock, and
+  #                 nothing is wrong with the network or the URL
+  #   UNUSABLE      signed, and project.yml does not read as a project
+  #   FAILED        something else, said in detail
+  outcome: string,
+  # The commit that was TURNED AWAY, or "" when nothing was.
+  #
+  # Never the same field as 'commit': what is running and what was rejected are different
+  # questions, and a screen asks both. A project goes on running what it had.
+  refused: string,
+  # The fingerprint of the key that signed the refused commit - or, once one is applied or
+  # unchanged, the commit in force - or "" when there is none to name.
+  #
+  # Only the fingerprint, which is not a secret - it is what lets a person compare it with the key
+  # they meant to pin. Nothing else about the key is said, and nothing from the vault ever is.
+  signer: string,
+  # Every key pinned for this project, by fingerprint, in the order pinned: a commit signed by any
+  # of them is accepted. Empty for a project followed without an anchor. Said here so an interface
+  # tells a person's keys in one place.
+  signers: []string,
+  # Whether nothing will change about this project until somebody acts.
+  #
+  # NOT the same as "it failed": an unreachable repository may answer on the next pass by itself,
+  # a refused signature never will. Derived from 'outcome' on this side, so a client never has to
+  # keep a list of which outcomes are stuck in step with ours - read this, not the outcome.
+  needsAPerson: bool,
+  # Whether this project is followed WITHOUT an anchor: what its repository says is applied with
+  # no signature checked at all.
+  #
+  # A state, not an error - somebody asked for it. But show it wherever this project is: without a
+  # signature the rule is "whoever may push there decides what tasks here may reach", rather than
+  # "whoever holds the signing key". It is per project; one unverified project says nothing about
+  # another.
+  unverified: bool,
+  detail: string
+)
+
+# Starts following a project's repository, and reconciles once, now.
+#
+# A repository URL is not a secret, so it may travel over this socket - unlike a credential, which
+# never does. Following the same project at the same address again is not an error; the same name at
+# a different address is refused, because that is a different project wearing a name.
+method Follow(
+  name: string,
+  url: string,
+  # The public key this project's configuration is signed with, as "ssh-ed25519 AAAA...".
+  #
+  # Pins it for this project and follows in one command. The key must come from the PERSON - a
+  # colleague, a wiki, the team lead - and NEVER out of the repository it verifies: an anchor that
+  # travels with the thing it authenticates authenticates nothing.
+  #
+  # A FINGERPRINT is accepted here too, as "SHA256:...". That is the string a refusal names, so it
+  # is the one a person has in front of them. The key itself is then read out of the commit that
+  # was turned away - and only once its fingerprint is the one they typed, which is what keeps the
+  # anchor coming from the person. A commit signed by any other key is refused and nothing is
+  # pinned.
+  signedBy: ?string,
+  # Several keys, each as "ssh-ed25519 AAAA...", for a person who signs from more than one
+  # computer - all of their signing keys at the forge, read by the interface from the person's own
+  # account, never from the repository. All are pinned or none: a key that does not read refuses
+  # the follow. Whole keys only; a fingerprint names one key and goes in signedBy.
+  #
+  # Mutually exclusive with signedBy and with unverified, refused rather than one quietly winning.
+  signers: ?[]string,
+  # Follows without an anchor. Nothing is checked, and 'unverified' says so from then on.
+  #
+  # Mutually exclusive with signedBy, which is refused rather than one of them quietly winning.
+  unverified: ?bool,
+  # Accepts a history rewrite: forgets the commit in force, so the next reconcile has nothing to
+  # descend from and applies what it verifies.
+  #
+  # ONLY in answer to REWRITTEN, and only when a person has said they mean it. A properly signed
+  # commit that is not a descendant of the one in force is either somebody with the key having
+  # rebased, or somebody WITHOUT it re-serving an older signed configuration to put back a rule
+  # that was taken away - which needs no key at all, only control of the route. From here the two
+  # are indistinguishable, so this must never be sent automatically or as a retry.
+  acceptRewrite: ?bool,
+  # Asks whether following this would work, and records NOTHING.
+  #
+  # Everything a real follow does, against a scratch clone that is deleted afterwards: it fetches
+  # with the credential this machine would use, verifies the signature, reads the file and checks
+  # the egress sets. The answer is READY, or the same named reason the real follow would give -
+  # so a dialog can offer 'Follow it' only when it would work, and put the way out of each refusal
+  # beside it. Nothing this account follows moves, and no project is created.
+  dryRun: ?bool
+) -> (
+  # READY (only with dryRun), APPLIED, UNCHANGED, REWRITTEN, UNREACHABLE, VAULT_LOCKED,
+  # NO_CREDENTIAL, UNUSABLE, NOT_SIGNED, UNKNOWN_KEY, NO_ANCHOR, UNREADABLE or FAILED.
+  #
+  # A project this account was NOT already following and that does not end in APPLIED or UNCHANGED
+  # is NOT recorded: the refusal is the whole answer and the machine is as it was. 'recorded' says
+  # so. A project it was already following keeps its record whatever happens, because that record
+  # is where the reason lives - see Following().
+  #
+  # REWRITTEN is the one that needs a person: 'detail' says what was found, and the only way past
+  # it is calling again with acceptRewrite. Do not treat it as a transient failure.
+  #
+  # The full set is Followed.outcome's.
+  outcome: string,
+  commit: string,
+  detail: string,
+  # The commit turned away, or "". Never the same as 'commit'.
+  refused: string,
+  # With UNKNOWN_HOST_KEY and HOST_KEY_CHANGED: the host, spelled exactly as TrustHostKey wants
+  # it, so a client passes it back unchanged. Answered rather than left to be read off the address
+  # again - 'user@host:path', a port, and an alias in somebody's ssh config are three readings of
+  # one thing. "" otherwise.
+  #
+  # It is the host the ADDRESS names. An alias in ~/.ssh/config that points somewhere else is
+  # resolved by ssh and not by this, so on a machine that uses one, what ssh records and what this
+  # reports can differ - the one case where this name is not the last word.
+  host: string,
+  # With UNKNOWN_HOST_KEY and HOST_KEY_CHANGED: what that host offers right now. A person cannot
+  # confirm a fingerprint they have not been shown, and sending them to another call to see it
+  # would be making them fetch what this already has. Empty otherwise.
+  hostKeys: []HostKey,
+  # What to type on that machine to store the credential a follow needs, with NO_CREDENTIAL, and
+  # "" otherwise. Named by the machine: which vault entry a follow reads is the machine's
+  # knowledge, and the secret itself must never travel over this socket.
+  storeCommand: string,
+  # Whether anything was written. False for a dry run, and false for a first follow that was
+  # refused - nothing of that project is here.
+  recorded: bool,
+  # The fingerprints of the keys this call pinned - with dryRun, the ones it would pin - in the
+  # order given. Empty when it pinned none.
+  pinned: []string,
+  # The fingerprint of the key that signed it, or "".
+  signer: string,
+  # Whether nothing will change until somebody acts. NOT the same as "it failed": an unreachable
+  # repository may answer on the next pass by itself, a refused signature never will.
+  needsAPerson: bool
+)
+
+# Stops following, and removes the project.
+#
+# It deletes, so it refuses first: a mirror may hold pushes nobody has reviewed and tasks may still
+# be up. The same refusal DeleteProject gives, from the same code.
+#
+# It answers for every project this machine LISTS, not only the ones it follows. A project made
+# before following existed - a task was started with a file, which wrote a mirror and a registry
+# entry - is in no follow record, and it used to get NoSuchProject here: an interface could offer
+# to clear it away and have nothing to show for it, while force would have swept it blind.
+# NoSuchProject now means what it says: this machine does not list that project at all.
+method Unfollow(
+  name: string,
+  # Says what would go, and removes nothing.
+  dryRun: ?bool,
+  # Removes it although work is waiting for review. That work is destroyed.
+  force: ?bool
+) -> (
+  # DELETED, PREVIEWED, HOLDS_WORK, TASKS_RUNNING or FAILED.
+  outcome: string,
+  # Refs nobody reviewed, with HOLDS_WORK and with force - it is what force destroys.
+  unreviewed: []string,
+  # Tasks that are up, with TASKS_RUNNING.
+  running: []string,
+  # What goes: the mirrors, the task image, the build directory, the registry entry, the recorded
+  # distance, the followed clone and every task. Filled for a REFUSAL too, so the cost stands
+  # beside the reason.
+  removes: []Removal,
+  # What is deliberately NOT touched - the real upstream above all. Named so a confirmation never
+  # lists the operator's own things among the casualties.
+  keeps: []string,
+  # Whether this account was following it at all. False for a project that predates following:
+  # there is a mirror and an image to clear away, and no repository to stop taking from. A
+  # confirmation says "stop following and remove" or just "remove" from this.
+  following: bool,
+  detail: string,
+  # This machine's deploy keys for the project, which it forgot with it: remove each at the forge by its
+  # title and fingerprint - that is what grants access. Empty with a refusal and a preview.
+  keys: []MachineDeployKey,
+  # This machine's message key, whose line the project's machine-signers should lose.
+  signer: MachineKey
+)
+
+# Clears a project from this machine, or with no project the whole account, in one step - 'sokar project
+# clear' and 'sokar clear', from the same code.
+#
+# Per project: its tasks with their workspaces and mailboxes (refused originals included), its mirrors and
+# image, the follow, its conversation through the transport's 'clear' and what this machine kept for it,
+# and its deploy keys from the vault. The account: every project, the built-in project's tasks, then what
+# each transport keeps for the account. The vault, the person's keys and the packages stay.
+#
+# What only a person's credentials can remove is answered, never attempted: the deploy keys at the forges
+# (keys) and this machine's line in each project's machine-signers (signer). Run twice, the second answer
+# has no items.
+method Clear(
+  # The project, or empty for the whole account.
+  project: ?string,
+  # Says what would go, and removes nothing.
+  dryRun: ?bool,
+  # Clears work nobody reviewed and running tasks too. That work is destroyed.
+  force: ?bool
+) -> (
+  # Each thing, in the order it was handled.
+  items: []ClearedItem,
+  # The deploy keys this machine had at forges, for a person to remove there by title and fingerprint.
+  keys: []MachineDeployKey,
+  # This machine's machine-signers line, for a person to take out of each project that lists it; "" when
+  # it has no message key.
+  signer: string,
+  # Whether it stopped before removing anything: work nobody reviewed, or a running task. force clears it.
+  refused: bool
+)
+
+# This machine's message key, as a project's machine-signers names it.
+type MachineKey (
+  # 'sokar@<host>'.
+  principal: string,
+  # 'ssh-ed25519 AAAA...'.
+  key: string,
+  # The machine-signers line: principal and key.
+  line: string,
+  fingerprint: string
+)
+
+# Makes this machine's deploy key for a repository of a project, or answers the one it has. The secret half
+# goes into the vault and is declared for the repository's upstream; only the public half is answered.
+method DeployKey(
+  project: string,
+  # Default: the project's own.
+  repository: ?string,
+  # Default: read-only for the project's own repository, write access for a work repository.
+  readOnly: ?bool,
+  # Make a new one although this machine has one; the old one should be removed at the forge.
+  new: ?bool,
+  # For a project this machine does not follow yet: the repository's upstream. A private repository cannot be
+  # followed before its key is registered at the forge, so the order is DeployKey with this, register the key,
+  # then Follow. Ignored for a project this machine follows.
+  upstream: ?string
+) -> (key: MachineDeployKey)
+
+# The keys a project file may hold in each section, as this machine's Sokar knows them - for an editor
+# built from what the machine would accept. 'sections' maps a section ("" is the top level;
+# 'mail.peers.<peer>' and 'repositories.<repository>' stand for each named one) to its keys; 'open' names
+# what Sokar does not check - the project's own names and each transport's settings. 'keys' describes
+# every key in 'sections', so a form a person new to Sokar can fill is built from Sokar's own words.
+method ProjectFileSchema() -> (sections: [string][]string, open: []string, keys: []ProjectFileKey)
+
+# One key a project file may hold, described.
+type ProjectFileKey (
+  # Where it sits, as in 'sections': "" for the top level, 'mail.peers.<peer>' and
+  # 'repositories.<repository>' for each named one.
+  section: string,
+  name: string,
+  # What it means, in one sentence.
+  describe: string,
+  # string, boolean, integer, list or map.
+  type: string,
+  # The values it takes when they are a fixed set, such as security_class's; empty otherwise.
+  values: []string,
+  # What it is when the file does not say, spelt as the file would; "" for nothing.
+  default: string,
+  # Whether a project file without it is refused.
+  required: bool
+)
+
+# Checks a draft project.yml against this machine, before a person commits it. 'refused' is what Sokar
+# refuses anywhere and blocks the commit; 'refusedHere' is what this machine's follow would refuse (an egress
+# set it does not have); 'warnings' is what only this machine lacks, or a key a later Sokar may know.
+#
+# A section under 'mail.transports' is asked of that transport here, when it is installed and its describe
+# lists 'settings': what it refuses anywhere comes back in 'refused', what it warns of in 'warnings', each
+# beginning 'mail.transports.<scheme>: '. A transport that does not offer the check leaves its section open.
+method CheckProjectFile(text: string) -> (refused: []string, refusedHere: []string, warnings: []string)
+
+# The deploy key could not be had: no upstream a key can be for, or the vault is locked.
+error DeployKeyRefused(message: string)
+
+# This account does not follow a project of that name.
+#
+# An error rather than an empty answer, for the same reason NoSuchTask is one: a caller that asked
+# about something that is not there has a wrong argument, and reporting it as "nothing to do" lets
+# that wrong argument arrive as a legitimate result.
+error NoSuchProject(project: string)

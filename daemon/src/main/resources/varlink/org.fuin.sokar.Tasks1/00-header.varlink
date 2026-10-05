@@ -1,0 +1,70 @@
+# The interface between Sokar and anything with a user in front of it.
+#
+# This file is the contract, not a description of one: the daemon serves it verbatim through
+# org.varlink.service.GetInterfaceDescription, and a test fails the build when a method is
+# registered without appearing here or appears here without being registered. A client may
+# therefore read it off a running daemon and trust that it matches.
+#
+# Everything is reached over one unix socket, owner-only, in Sokar's runtime directory
+# ($XDG_RUNTIME_DIR/sokar/sokard.sock). There is no port and no authentication of its own: the
+# filesystem decides who may connect, and a remote client forwards the socket over SSH rather
+# than reaching a listener.
+#
+# Framing is varlink's own: one JSON object per call, NUL-separated, no length prefix. A call
+# carrying "more": true asks for a stream, and every reply but the last carries
+# "continues": true.
+#
+# A field declared ?type is genuinely absent, not empty. Everything else is always present -
+# a string that has no value arrives as "", because an interface has to render something.
+
+# ---------------------------------------------------------------------------- compatibility
+#
+# NOT IN FORCE YET. Everything below describes what this interface promises once there is a
+# release. There is none: the version is a snapshot, there is no release tag, and the only
+# clients are the daemon and the frontend in this same organisation, changed together by the
+# people writing them. Until that stops being true, a method here may be renamed, removed or
+# given a different meaning in place, and the frontend is adapted in the same breath - rather
+# than growing a Tasks2 to carry a mistake nobody ever depended on.
+#
+# What this exemption does NOT license: silently changing a method while a client still reads
+# the old meaning. The rule it replaces is "keep the old shape"; the rule it does not replace is
+# "both sides agree, deliberately, and the change is written down".
+#
+# It ends at the first release, and the decision to release is the decision to freeze this. From
+# then on the interface only grows, exactly as described below, and a shape that turns out wrong
+# costs a Tasks2 instead of an edit.
+#
+# A fleet is not upgraded at once, so a frontend has to work against a daemon older than
+# itself. Three things make that possible, and a client should use all three.
+#
+# 1. The trailing 1 in the interface name is the promise. Within it this interface only ever
+#    grows: new methods, new ?parameters, new reply fields. Nothing that is here will be
+#    removed, renamed, given a different type, or made to mean something else. A change that
+#    cannot be made that way becomes org.fuin.sokar.Tasks2, and a daemon serves both for at
+#    least one release - so a client reads org.varlink.service.GetInfo, takes the highest
+#    interface name it understands from the interfaces list, and uses that. Version numbers
+#    are not compared to decide this.
+#
+# 2. Per feature, not per connection. Calling a method an older daemon does not have answers
+#    org.varlink.service.MethodNotFound. That is a normal answer, not a fault: an interface
+#    disables that one feature and keeps everything else. The same goes for a ?parameter an
+#    older daemon ignores - it will behave as though it were not given, which is what its
+#    default says it does.
+#
+# 3. Unknown values must not be fatal. New reply fields will appear in replies a client did
+#    not expect, and new values will appear in enumerations it does not know - Outcome in
+#    particular will gain entries. A client MUST ignore fields it does not recognize and MUST
+#    render an unrecognized enumeration value rather than failing on it. This is part of the
+#    contract: adding a value is not treated as a breaking change, so a client that cannot
+#    survive one will break on a routine release.
+#
+# org.varlink.service.GetInfo also reports the daemon's own version, which is a build
+# version and moves independently of the number in the interface name. Show it, log it, and
+# put it in a bug report - but do not gate features on it. What a daemon can do is answered
+# by 1 and 2 above, which stay true no matter how the product is numbered.
+#
+# org.varlink.service.GetInterfaceDescription returns this file, from the running daemon.
+# A client that wants certainty rather than assumption can read the contract off the thing
+# it is talking to.
+
+interface org.fuin.sokar.Tasks1

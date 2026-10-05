@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar-agents</artifactId>
+        <version>0.4.0</version>
+    </parent>
+
+    <artifactId>sokar-agent-stub</artifactId>
+
+    <!-- On Sokar's version, unlike a real agent: this one is not shipped and has no cadence of
+         its own. It exists so the acceptance suite still has an agent to drive once the real
+         ones live in their own repositories. -->
+
+    <name>Sokar Agent Stub</name>
+    <description>Sokar - Agent used by the acceptance suite (AGENT-STUB)</description>
+
+    <properties>
+        <!-- Filtered into stub.yaml and printed by the installed script, so the version check
+             has something to compare. -->
+        <agent.cli.version>1.0.0</agent.cli.version>
+        <!-- It packages itself, so the packaging machinery still has an agent to exercise once
+             the real agents live elsewhere. Never published: the publish step uploads dist-deb
+             and dist-rpm and nothing else. -->
+        <agent.package.skip>false</agent.package.skip>
+    </properties>
+
+    <dependencies>
+
+        <!-- compile: the agent API, and nothing else. Never another agent. -->
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-agent-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-wire</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <profiles>
+
+        <profile>
+            <id>native</id>
+            <properties>
+                <sokar.cpu.skip>false</sokar.cpu.skip>
+                <sokar.cpu.images>sokar-agent-stub</sokar.cpu.images>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>build-sokar-agent-stub</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>sokar-agent-stub</imageName>
+                                    <mainClass>org.fuin.sokar.agent.impl.stub.StubAgent</mainClass>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
+</project>

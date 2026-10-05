@@ -1,0 +1,23 @@
+# GitHub Copilot. Reached with the GitHub token a person grants once through GitHub's device flow, kept on
+# the host and attached by the broker: store an 'oauth-device' entry named 'github-copilot' and run
+# 'sokar vault authorize github-copilot'. Copilot gives that token no expiry and no refresh token, and
+# only the OAuth application's owner can revoke it at GitHub - a person does, under
+# Settings → Applications → Authorized OAuth Apps.
+name: github-copilot
+label: GitHub Copilot
+upstream: https://api.githubcopilot.com
+
+# Every path at the root - /chat/completions, /responses, /v1/messages, /models - so no prefix. The first
+# dialect is what an agent asking for 'native' gets.
+dialects:
+  openai: ""
+
+auth_header:
+  _default: Authorization
+auth_prefix:
+  _default: "Bearer "
+
+# Where a task's token goes: the variable the Pi family reads for Copilot. Without one nothing is brokered,
+# and a task that cannot authenticate is started.
+token_env:
+  _default: COPILOT_GITHUB_TOKEN

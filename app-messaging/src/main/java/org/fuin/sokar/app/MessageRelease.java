@@ -1,0 +1,377 @@
+package org.fuin.sokar.app;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Stream;
+
+/**
+ * Lets a person send a held message on its way, or refuse it for good.
+ * <p>
+ * <strong>Released or refused, never edited.</strong> What the record shows a task said has to be
+ * what the task said; a person who may rewrite it on the way out turns the record into a record of
+ * what somebody was willing to admit to. Somebody who disagrees with a message refuses it and says
+ * so, which is a thing the sender can read and act on.
+ * <p>
+ * A released message goes back where the filter left it, so the next pass treats it exactly like
+ * any other accepted message - one path out, not two.
+ */
+public final class MessageRelease {
+
+    private @org.jspecify.annotations.Nullable String reason;
+
+    /**
+     * Gives a refusal the person's own words, which the sender is told with it.
+     *
+     * @param said What the person said, or {@code null}.
+     * @return This.
+     */
+    /**
+     * Says which of its project's conversations the task has an account in, so a message to a peer reached through
+     * one it is not in is not released: it would be queued, run without the task's account and held again.
+     *
+     * @param schemes The transports the task is enrolled in, or {@code null} when that is not known.
+     * @return This, for chaining.
+     */
+    public MessageRelease enrolledIn(final java.util.@org.jspecify.annotations.Nullable Set<String> schemes) {
+        this.enrolled = schemes;
+        return this;
+    }
+
+    private java.util.@org.jspecify.annotations.Nullable Set<String> enrolled;
+
+    /**
+     * Returns the transports whose conversation a task has an account in.
+     *
+     * @param context The machine.
+     * @param container The task.
+     * @return Their schemes.
+     */
+    public static java.util.Set<String> enrolled(final SokarContext context, final String container) {
+        final java.util.Set<String> schemes = new java.util.LinkedHashSet<>();
+        final String project = ProjectNames.of(container, ProjectNames.labels(context),
+                new ProjectInventory(context).projects().stream().map(ProjectInventory.Summary::name).toList());
+        if (project == null) {
+            return schemes;
+        }
+        final TransportConversations conversations =
+                new TransportConversations(context, context.paths().messaging().transportDirectory());
+        for (final String scheme : peersOf(context, container).conversations()) {
+            try {
+                if (conversations.acting(scheme, project, container) != null) {
+                    schemes.add(scheme);
+                }
+            } catch (final IOException ex) {
+                // No account that can be read here: not in it, as far as a release can tell.
+            }
+        }
+        return schemes;
+    }
+
+    public MessageRelease because(final @org.jspecify.annotations.Nullable String said) {
+        this.reason = said == null || said.isBlank() ? null : said.strip();
+        return this;
+    }
+
+    private String refusedBy(final String what) {
+        return reason == null ? what : what + ". They said: " + reason;
+    }
+
+    /** What happened. */
+    public enum Outcome {
+
+        /** It is on its way again. */
+        RELEASED,
+
+        /** It will not be sent, and the sender has been told. */
+        REFUSED,
+
+        /** Nothing held is called that. */
+        NO_SUCH_MESSAGE,
+
+        /** Several held messages answer to that name, so a person says which. */
+        AMBIGUOUS,
+
+        /**
+         * The filter had refused it, and a person who read it sent it after all - straight to its
+         * transport, never through {@code accepted/}, which means the filter passed it.
+         */
+        DELIVERED_DESPITE_FILTER,
+
+        /**
+         * It is known and cannot be sent: a person refused it for good, the filter could not check it,
+         * or it has no one this project may address. {@code detail} says which.
+         */
+        NOT_DELIVERABLE
+    }
+
+    /**
+     * What one decision did.
+     *
+     * @param outcome What happened.
+     * @param message The file it acted on, or "".
+     * @param id The message id, or "" when the file could not be read.
+     * @param detail Why, for {@link Outcome#NOT_DELIVERABLE}; "" otherwise.
+     */
+    public record Result(Outcome outcome, String message, String id, String detail) {
+
+        /**
+         * Constructor for an outcome that needs no why.
+         *
+         * @param outcome What happened.
+         * @param message The file.
+         * @param id The message id.
+         */
+        public Result(final Outcome outcome, final String message, final String id) {
+            this(outcome, message, id, "");
+        }
+    }
+
+    /**
+     * Releases or refuses one held message.
+     *
+     * @param mailbox The task's mailbox.
+     * @param id The message id, or the file name; a person reads both off {@code talk held}.
+     * @param refuse {@code true} to refuse it for good, {@code false} to let it go.
+     * @return What happened.
+     * @throws IOException Reading or moving failed.
+     */
+    public Result decide(final Mailbox mailbox, final String id, final boolean refuse)
+            throws IOException {
+        return decide(mailbox, id, refuse, org.fuin.sokar.core.project.Mail.none());
+    }
+
+    /**
+     * Decides about one message a person read: a held one, or one the filter refused.
+     * <p>
+     * <strong>A message the filter refused can be delivered after all</strong>, at the operator's word:
+     * a person who read it in full decides. It goes from {@code rejected/} straight to its transport,
+     * never through {@code accepted/}, so "the filter passed it" keeps one meaning, and the record says
+     * it was delivered despite the filter. Refusing it keeps it refused, recorded as a person's decision.
+     * <strong>What a person refused for good, and what the filter could not check at all, is never
+     * sent</strong>: the first was final, the second is bytes nobody here could read.
+     *
+     * @param mailbox The task's mailbox.
+     * @param id The message id, or the file name.
+     * @param refuse {@code true} to refuse it for good, {@code false} to let it go.
+     * @param mail The project's peers, which say where a refused message would be delivered.
+     * @return What happened.
+     * @throws IOException Reading or moving failed.
+     */
+    public Result decide(final Mailbox mailbox, final String id, final boolean refuse,
+            final org.fuin.sokar.core.project.Mail mail) throws IOException {
+        // Under the pass's lock: a release moved a file a pass was moving at the same time.
+        return FileLocks.holding(mailbox.root().resolve(MessagePass.PASS_LOCK), () -> decideHeld(mailbox, id, refuse,
+                mail));
+    }
+
+    private Result decideHeld(final Mailbox mailbox, final String id, final boolean refuse,
+            final org.fuin.sokar.core.project.Mail mail) throws IOException {
+        final List<MessageLookup.Found> known = MessageLookup.find(mailbox, id);
+        if (known.size() != 1) {
+            return new Result(known.isEmpty() ? Outcome.NO_SUCH_MESSAGE : Outcome.AMBIGUOUS, "", "");
+        }
+        final MessageLookup.Found one = known.get(0);
+        final String file = one.file().getFileName().toString();
+        return switch (one.standing()) {
+            case HELD -> {
+                final String outside = refuse ? null : outside(mailbox, one.file(), mail);
+                yield outside == null ? held(mailbox, one.file(), refuse)
+                        : new Result(Outcome.NOT_DELIVERABLE, file, MessageFile.id(one.file()), outside);
+            }
+            case REFUSED_BY_FILTER -> refuse ? refusedAgain(mailbox, one.file())
+                    : despite(mailbox, one.file(), mail);
+            case REFUSED_BY_PERSON -> new Result(Outcome.NOT_DELIVERABLE, file, MessageFile.id(one.file()),
+                    "a person refused it for good, and the sender was told");
+            case UNCHECKED -> new Result(Outcome.NOT_DELIVERABLE, file, "",
+                    "the filter could not check it at all, so nothing here can say what a peer would read");
+        };
+    }
+
+    private Result refusedAgain(final Mailbox mailbox, final Path refused) throws IOException {
+        // It stays where it is; what changes is that a person has now decided, and that is final.
+        final String id = MessageFile.id(refused);
+        new MessageRecord(mailbox).append(MessageRecord.REFUSED, refused.getFileName().toString(), id,
+                "a person refused it after reading it");
+        if (reason != null) {
+            // The filter told the sender when it refused; a person who says why is worth telling again.
+            new HostBounce().write(mailbox, refused, refusedBy("a person read it and refused it too"), true);
+        }
+        return new Result(Outcome.REFUSED, refused.getFileName().toString(), id);
+    }
+
+    private Result despite(final Mailbox mailbox, final Path refused, final org.fuin.sokar.core.project.Mail mail)
+            throws IOException {
+        final String name = refused.getFileName().toString();
+        final String id = MessageFile.id(refused);
+        final String to = addressee(refused);
+        final org.fuin.sokar.core.project.Mail.Peer peer = to.isEmpty() ? null : mail.peer(to);
+        if (peer == null) {
+            return new Result(Outcome.NOT_DELIVERABLE, name, id, to.isEmpty()
+                    ? "it addresses nobody this host can send to" : "this project may not address '" + to + "'");
+        }
+        final Path signature = mailbox.rejected().resolve(name + ".sig");
+        if (!Files.isRegularFile(signature)) {
+            // Not signed again here: the host's signature is over the bytes it took in, and signing now
+            // would put its name on a decision a person made.
+            return new Result(Outcome.NOT_DELIVERABLE, name, id, "its signature is not beside it");
+        }
+        final Path active = mailbox.queueActive(peer.transport());
+        Files.createDirectories(active);
+        Files.writeString(active.resolve(name + MessageDispatch.DESTINATION_SUFFIX), peer.destination(),
+                java.nio.charset.StandardCharsets.UTF_8);
+        Files.move(signature, active.resolve(name + ".sig"), StandardCopyOption.REPLACE_EXISTING);
+        Files.move(refused, active.resolve(name), StandardCopyOption.REPLACE_EXISTING);
+        new MessageRecord(mailbox).append(MessageRecord.OVERRIDDEN, name, id, peer.name(),
+                "the filter refused it and a person delivered it after reading it");
+        return new Result(Outcome.DELIVERED_DESPITE_FILTER, name, id);
+    }
+
+    /**
+     * Returns the peers of the project a task belongs to, which say where a refused message may go.
+     *
+     * @param context The machine.
+     * @param container The task's container.
+     * @return The project's peers, or none when the task names no project.
+     */
+    public static org.fuin.sokar.core.project.Mail peersOf(final SokarContext context, final String container) {
+        // With the project's own tasks, as a pass sees them: a message to one of them is deliverable.
+        return new MessageWatch(context, java.time.Duration.ZERO).peersOf(container);
+    }
+
+    /** A released message's detail when it goes in, to this task, rather than out. */
+    public static final String INWARD = "it goes to this task at the next pass, which checks it as it checks every"
+            + " arrival - one held for its signature is held again unless its sender's key is trusted";
+
+    /**
+     * Returns which way a held message was going, from the last time the record held it.
+     *
+     * @param mailbox The task's mailbox.
+     * @param name The message's file name.
+     * @return {@link MessageRecord#IN}, {@link MessageRecord#OUT}, or "" when the record does not say.
+     * @throws IOException Reading failed.
+     */
+    static String direction(final Mailbox mailbox, final String name) throws IOException {
+        String direction = "";
+        for (final java.util.Map<String, Object> line : new MessageRecord(mailbox).entries()) {
+            if (MessageRecord.HELD.equals(line.get("event")) && name.equals(line.get("message"))) {
+                direction = line.get("direction") instanceof String recorded ? recorded : "";
+            }
+        }
+        return direction;
+    }
+
+    private static String addressee(final Path message) throws IOException {
+        final Object parsed = org.fuin.sokar.wire.Json.parse(
+                Files.readString(message, java.nio.charset.StandardCharsets.UTF_8));
+        if (parsed instanceof java.util.Map<?, ?> document
+                && document.get("metadata") instanceof java.util.Map<?, ?> metadata
+                && metadata.get("to") instanceof String to) {
+            return to.strip();
+        }
+        return "";
+    }
+
+    private @org.jspecify.annotations.Nullable String outside(final Mailbox mailbox, final Path held,
+            final org.fuin.sokar.core.project.Mail mail) throws IOException {
+        if (enrolled == null || MessageRecord.IN.equals(direction(mailbox, held.getFileName().toString()))) {
+            return null;
+        }
+        final String to = addressee(held);
+        final org.fuin.sokar.core.project.Mail.Peer peer = to.isEmpty() ? null : mail.peer(to);
+        if (peer == null || !peer.conversation() || enrolled.contains(peer.transport())) {
+            return null;
+        }
+        return "this task is not in the project's " + peer.transport() + " conversation, so nothing would carry it;"
+                + " start it again to take it in, then release it";
+    }
+
+    private Result held(final Mailbox mailbox, final Path held, final boolean refuse) throws IOException {
+        final String name = held.getFileName().toString();
+        final String messageId = MessageFile.id(held);
+        final Path signature = mailbox.hold().resolve(name + ".sig");
+        if (!refuse && MessageRecord.IN.equals(direction(mailbox, name))) {
+            // Held on its way IN: released, it goes to this task, never out - it was turning outgoing and held
+            // again as "this project may not address" its own task (found by Agent Matrix, 2026-09-30). Back
+            // into inbound, so the next pass delivers it and checks it as it checks every arrival: a message
+            // held for its signature is held again unless its sender's key is trusted.
+            if (Files.isRegularFile(signature)) {
+                Files.move(signature, mailbox.inbound().resolve(name + ".sig"), StandardCopyOption.REPLACE_EXISTING);
+            }
+            Files.move(held, mailbox.inbound().resolve(name), StandardCopyOption.REPLACE_EXISTING);
+            return new Result(Outcome.RELEASED, name, messageId, INWARD);
+        }
+        final Path target = refuse ? mailbox.rejected() : mailbox.accepted();
+        Files.createDirectories(target);
+        if (refuse) {
+            // Written before the message moves: an answer that exists for a message still in
+            // 'hold' is a repeat at worst, and a message gone with no answer is a sender left
+            // waiting.
+            new HostBounce().write(mailbox, held, refusedBy("a person refused to send it"), true);
+        }
+        if (Files.isRegularFile(signature)) {
+            // The signature travels with it. It was made over these exact bytes on the way in, and
+            // re-signing on release would put the host's name on a decision a person made.
+            Files.move(signature, target.resolve(name + ".sig"),
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
+        if (!refuse) {
+            // A person released this message: the next pass sends it whatever the peer's mode or hold says -
+            // asking that mode again held it again, for ever (found by Agent Matrix, 2026-09-30). A peer set to
+            // refuse still refuses: that is a decision about the peer, and it is final.
+            Files.writeString(target.resolve(name + MessageDispatch.RELEASED_SUFFIX), "",
+                    java.nio.charset.StandardCharsets.UTF_8);
+        }
+        Files.move(held, target.resolve(name), StandardCopyOption.REPLACE_EXISTING);
+        if (refuse) {
+            // Recorded, so the refusal stays a person's and final: in 'rejected/' it lies beside what
+            // the filter refused, which a person may still deliver.
+            new MessageRecord(mailbox).append(MessageRecord.REFUSED, name, messageId, "a person refused to send it");
+        }
+        return new Result(refuse ? Outcome.REFUSED : Outcome.RELEASED, name, messageId);
+    }
+
+    /**
+     * Lists what is waiting for a person.
+     *
+     * @param mailbox The task's mailbox.
+     * @return The held messages, by file name.
+     * @throws IOException Reading failed.
+     */
+    public List<Path> waiting(final Mailbox mailbox) throws IOException {
+        if (!Files.isDirectory(mailbox.hold())) {
+            return List.of();
+        }
+        try (Stream<Path> entries = Files.list(mailbox.hold())) {
+            return entries.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".json"))
+                    .sorted(Comparator.comparing(path -> path.getFileName().toString())).toList();
+        }
+    }
+
+    /**
+     * Finds held messages by id or file name - in {@code hold/} and nowhere else.
+     * <p>
+     * Nowhere else on purpose: {@code rejected/} and the filter's {@code error/} keep refused originals
+     * in clear text, secrets included, and a name that resolved there would let a release send a
+     * refused message out, or a read show it through a forwarded socket.
+     *
+     * @param mailbox The task's mailbox.
+     * @param id The message id or file name.
+     * @return Every held message that answers to it.
+     * @throws IOException Reading failed.
+     */
+    List<Path> find(final Mailbox mailbox, final String id) throws IOException {
+        final List<Path> candidates = new ArrayList<>();
+        for (final Path held : waiting(mailbox)) {
+            if (held.getFileName().toString().equals(id) || id.equals(MessageFile.id(held))) {
+                candidates.add(held);
+            }
+        }
+        return candidates;
+    }
+}

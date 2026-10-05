@@ -1,0 +1,157 @@
+{
+  "comment": [
+    "dbus-java uses dynamic proxies and instantiates signal classes reflectively, neither of",
+    "which native-image can see. Derived from spike S3's agent-generated metadata, with the",
+    "probe's interface names replaced by Sokar's own, then verified by running the binary.",
+    "This is the only significant reflection surface in the build."
+  ],
+  "reflection": [
+    {
+      "type": "com.sun.security.auth.module.UnixSystem",
+      "jniAccessible": true,
+      "fields": [
+        {
+          "name": "gid"
+        },
+        {
+          "name": "groups"
+        },
+        {
+          "name": "uid"
+        },
+        {
+          "name": "username"
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Boolean",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "getBoolean",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.freedesktop.dbus.connections.base.GlobalHandler"
+    },
+    {
+      "type": "org.freedesktop.dbus.interfaces.DBus$NameAcquired",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.freedesktop.dbus.interfaces.Introspectable"
+    },
+    {
+      "type": "org.freedesktop.dbus.interfaces.Peer"
+    },
+    {
+      "type": "org.freedesktop.dbus.interfaces.Properties"
+    },
+    {
+      "type": "org.freedesktop.dbus.transport.jre.NativeTransportProvider"
+    },
+    {
+      "type": "sun.security.provider.NativePRNG",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.security.SecureRandomParameters"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.security.provider.NativePRNG$NonBlocking",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.security.SecureRandomParameters"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "sun.text.resources.CollationData"
+    },
+    {
+      "type": {
+        "proxy": [
+          "org.fuin.sokar.clearance.DesktopPrompt$Notifications"
+        ]
+      }
+    },
+    {
+      "type": {
+        "proxy": [
+          "org.freedesktop.dbus.interfaces.DBus"
+        ]
+      }
+    },
+    {
+      "type": "org.fuin.sokar.clearance.DesktopPrompt$Notifications$ActionInvoked",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "org.freedesktop.dbus.types.UInt32",
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "org.fuin.sokar.clearance.DesktopPrompt$Notifications$NotificationClosed",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "org.freedesktop.dbus.types.UInt32",
+            "org.freedesktop.dbus.types.UInt32"
+          ]
+        }
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "glob": "META-INF/services/java.nio.channels.spi.SelectorProvider"
+    },
+    {
+      "glob": "META-INF/services/org.freedesktop.dbus.spi.message.ISocketProvider"
+    },
+    {
+      "glob": "META-INF/services/org.freedesktop.dbus.spi.transport.ITransportProvider"
+    },
+    {
+      "glob": "META-INF/services/org.slf4j.spi.SLF4JServiceProvider"
+    },
+    {
+      "glob": "org/slf4j/impl/StaticLoggerBinder.class"
+    },
+    {
+      "module": "java.base",
+      "glob": "jdk/internal/icu/impl/data/icudt76b/nfc.nrm"
+    },
+    {
+      "module": "java.base",
+      "glob": "jdk/internal/icu/impl/data/icudt76b/nfkc.nrm"
+    }
+  ]
+}

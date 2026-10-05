@@ -1,0 +1,16 @@
+# dnf on a Fedora base image.
+#
+# INCOMPLETE ON PURPOSE, and it cannot be completed. dnf asks mirrors.fedoraproject.org for a
+# mirrorlist and then fetches from whichever mirrors it names - arbitrary hosts that differ by
+# region, by day and by run. No static set can enumerate them, so an install will raise a
+# clearance prompt for each mirror it is sent to.
+#
+# To avoid that, point dnf at a fixed baseurl in the project's image snippet rather than widening
+# this set.
+name: os-packages-fedora
+label: Fedora packages
+domains:
+  - mirrors.fedoraproject.org
+  - download.fedoraproject.org
+  - dl.fedoraproject.org
+  - registry.fedoraproject.org

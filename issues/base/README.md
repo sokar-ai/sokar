@@ -1,0 +1,185 @@
+# Base Requirements
+
+What the product must do below the interface: the CLI, the daemon and the guarantees they make.
+One file per requirement, each carrying its own acceptance criteria so it can be judged done or
+not done.
+
+**Open question** counts the unresolved items in the file's own *To be checked* or *Still open*
+section - something whose answer could change what the requirement says, or whether it survives at
+all. A question that has been answered is not listed, because it is no longer in the file.
+
+The count is what is left, not what was ever asked. Several built requirements still carry
+questions; that is the ordinary state of a requirement here rather than a sign it is unfinished.
+
+## Work, grouped by when
+
+Grouped by when, ordered within each group; the number is only the file's identity. Why a
+requirement exists is in its own file - this table says only what it is, where it stands and when
+it is due. Where the position is not obvious, the last section says why.
+
+**Status** is one of four, and each is taken from the requirement's own status line rather than
+guessed at here:
+
+| | |
+|---|---|
+| `open` | Nothing of it is built. |
+| `decided` | The design question is answered and no code is written - which is a different thing from open, because it is ready to start. |
+| `in progress` | Part of it is built. The file says which part. |
+| `built` | Every acceptance criterion is met, and a question is still open that could change what the requirement says. |
+
+There is deliberately no value for *met*. **A requirement that is finished is deleted**, along with
+its row, in the same change that finishes it - and whatever it measured that outlives it is written
+into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is still to do.
+
+**Blocks** names the issues in other repositories that cannot be worked on until that row lands. The agent repositories and the interface mark the same relation from their side as *blocked by*, so a dependency is visible from both ends and neither side has to remember the other's. A row that blocks something elsewhere costs more to leave waiting than its position here suggests: the waiting happens in another repository's queue.
+
+### Now
+
+| # | Requirement | Status | Blocks | What must be true | Open question | Why here |
+|---|---|---|---|---|---|---|
+| B102 | [A Vault Cleared In One Step](B102-A-Vault-Cleared-In-One-Step.md) | now | - | `sokar vault clear --yes` on a real machine leaves it as a new one: vault, cached passphrase and device shares, and a transport's accounts gone, and `vault init` starts afresh. | - | the operator, 2026-10-03 |
+| B76 | [The Code Checked Against The Skills It Was Written Without](B76-The-Code-Checked-Against-The-Skills-It-Was-Written-Without.md) | open | - | Every Java module has been read against the skills that apply to it, and each finding is fixed with a test watched to fail or declined with its reason. | - | [note](#b76) |
+
+### Soon
+
+| # | Requirement | Status | Blocks | What must be true | Open question | Why here |
+|---|---|---|---|---|---|---|
+| B108 | [The Narrowed Message Schema Enforced](B108-The-Narrowed-Message-Schema-Enforced.md) | open | sokar-message-sluice, if the filter checks it | B14's narrowed A2A schema - fixed kinds and data parts, a Sokar extension URI - enforced, and the agents told so. | which side checks what | the operator, 2026-10-04 |
+| B98 | [The Image A Signature Names](B98-The-Image-A-Signature-Names.md) | open | - | A signed project's image is the image it names: a digest, said when missing, recorded when built. | signature policy or digest alone | Codex's review (PJ19) |
+| B99 | [Packages Signed And Checked](B99-Packages-Signed-And-Checked.md) | open | the agent repositories | Every RPM is signed, and every place that sets up the repository checks it. | - | Codex's review (PJ19), shared with the agents |
+| B100 | [A Task Can Be Looked At](B100-A-Task-Can-Be-Looked-At.md) | open | sokar-frontend | A person sees and drives what a task runs on its virtual screen, through a loopback-only view; nothing of the box runs on their computer. | how it is switched on and authenticated | the operator, 2026-10-03 |
+| B95 | [A Container To Try Waiting Work In](B95-A-Container-To-Try-Waiting-Work-In.md) | open | sokar-frontend | `gate try <task> -- <command>` runs a command against waiting work in a fresh container with the project's egress and no way back, its result beside the review; later an IDE attaches there, never on the host. | two - its limits, and recording the result | |
+| B79 | [A Daemon That Answers Nothing](B79-A-Daemon-That-Answers-Nothing.md) | soon | - | A call on the daemon's socket, or on an agent's, is answered or refused within a bound, and when one is not, the reason is known rather than guessed. | 2 | [note](#b79) |
+| B117 | [What Clearing Leaves For A Person](B117-What-Clearing-Leaves-For-A-Person.md) | soon | - | A person who clears a project or the account learns of every deploy key handed to a forge for it, an unfollowed project's included, and of unreviewed work before it goes. | 2 | |
+| B118 | [An Attached Agent Said At Rest Or Working](B118-An-Attached-Agent-Said-At-Rest-Or-Working.md) | soon | - | `sokar task status` and `list` say `at rest` or `working` for an attached session, read from its screen against the declared `session.at_rest`, as `waiting` is read today. | 2 | the operator, 2026-10-05 |
+| B119 | [A Loop Seen In An Unattended Task's Log](B119-A-Loop-Seen-In-An-Unattended-Tasks-Log.md) | soon | - | A wait in the acceptance kit stops when an unattended task's agent repeats a failing tool call its screen does not show, read from `task.log` against a declared marker. | 1 | the operator, 2026-10-05 |
+| B51 | [The Tests That Run Nowhere](B51-The-Tests-That-Run-Nowhere.md) | open | - | A test that cannot run anywhere in the pipeline says so, rather than reporting itself as skipped on this run. | one | [note](#b51) |
+| B55 | [The Changelog Entry A Change Has To Bring](B55-The-Changelog-Entry-A-Change-Has-To-Bring.md) | open | - | A change to what ships or builds brings a changelog entry, or says on purpose that it does not, and the build checks it. | three, and the first is what logchange's maintainers want | [note](#b55) |
+| B50 | [Whose Business The Files Sokar Leaves Behind Are](B50-Whose-Business-The-Files-Sokar-Leaves-Behind-Are.md) | open | - | Every file Sokar writes is readable by whoever it concerns, and by nobody else - including on machines that already ran tasks. | four, and the first is whether the umask is fought directly | [note](#b50) |
+| B13 | [Unreviewed Work Leaving By The Side Door](B13-Unreviewed-Work-Leaving-By-The-Side-Door.md) | in progress | - | Work that reaches the upstream without passing the gate is prevented or reported, not silently possible. | two, and the guard is built | |
+| B40 | [The Domain That May Bind The Socket](B40-The-Domain-That-May-Bind-The-Socket.md) | open | - | Only Sokar may bind a socket carrying Sokar's label, so a task that connects to one reaches Sokar. | four, and the first decides the shape | [note](#b40) |
+| B10 | [What An Egress Set Can Express](B10-What-An-Egress-Set-Can-Express.md) | decided | - | A destination that cannot be written as a host name is supported or refused, never silently unreachable. | one | |
+| B34 | [What The Resolver Can Actually Do](B34-What-The-Resolver-Can-Actually-Do.md) | open | - | A machine says what its resolver can do and what follows for a task, and a refusal names what was missing. | two, and the first may end it | |
+| B48 | [The Overview That Stays Open](B48-The-Overview-That-Stays-Open.md) | open | - | A person at a terminal watches their tasks change, from the same answer the interface reads, without a loop they wrote themselves. | four, and the first two decide its shape | [note](#b48) |
+| B33 | [A Task's Own Fetches](B33-A-Tasks-Own-Fetches.md) | open | - | A task can fetch from the forges its work depends on, and a failure to do so is never reported as a credential problem. | three, and the first is whether it reproduces | |
+| B26 | [What This Machine Has Been Doing](B26-What-This-Machine-Has-Been-Doing.md) | open | - | A machine can say what it has done, for longer than the tasks themselves existed. | three, and four are decided | [note](#b26) |
+| B49 | [What The Build Trusts To Run Beside Its Secrets](B49-What-The-Build-Trusts-To-Run-Beside-Its-Secrets.md) | implemented here; open elsewhere | - | Nothing runs beside this product's credentials that was fetched by a name its owner may repoint. | decided 2026-09-29; the agent repositories and the interface remain | [note](#b49) |
+| B30 | [Credentials The Broker Has To Fetch](B30-Credentials-The-Broker-Has-To-Fetch.md) | soon; the key-based kinds wait for a service that needs them | - | A task uses a credential authenticated by a key (`private_key_jwt`, mTLS), the broker signing on the host, and a `client_credentials` purchase is seen to succeed end to end. | 3 | |
+| B31 | [An Authorization A Person Grants Once](B31-An-Authorization-A-Person-Grants-Once.md) | device code flow built | sokar-frontend F31 | A person grants an authorization once, out of band, while the work waits. | one | |
+| B46 | [The Conversation A Restart Loses](B46-The-Conversation-A-Restart-Loses.md) | soon | - | After a real reboot, `task start --restarted` continues the conversation the agent was having, attended or unattended, or says plainly that it cannot. | 3 | [note](#b46) |
+
+### Later
+
+| # | Requirement | Status | Blocks | What must be true | Open question | Why here |
+|---|---|---|---|---|---|---|
+| B112 | [A Nickname For Each Agent](B112-A-Nickname-For-Each-Agent.md) | open | sokar-frontend F88 | An agent's nickname is its task's label: named with @, said in its card, and its display name in the conversation. | - | the operator, walk 10, 2026-10-04: Later |
+| B101 | [A Mode A Start Asks For By Name](B101-A-Mode-A-Start-Asks-For-By-Name.md) | open | sokar-omp OM19 | An agent declares named modes, and a start asks for one by name; nothing reaches the agent its definition did not write. | - | a read-only review run, 2026-10-03 |
+| B86 | [Messages Over Matrix, The Sokar Half](B86-Messages-Over-Matrix-The-Sokar-Half.md) | later; blocked by sokar-message-matrix MX12 | - | Several machines run one project on one central homeserver, each admitted by a person, acting only on its own accounts, and revocable alone. | 3 | |
+| B14 | [Talking Between Tasks](B14-Talking-Between-Tasks.md) | later; blocked by sokar B86 (another machine) | - | A person addresses a group of peers as one, and a message reaches a task of the same project on another machine with the guarantees it has on one. | - | [note](#b14) |
+| B38 | [How Far Something That Got Through Can Get](B38-How-Far-Something-That-Got-Through-Can-Get.md) | later; blocked by sokar B37, B39 and B26 | - | Content Sokar delivers into a task carries its origin, and how far a task got has an answer after it is gone, including what it installed. | 1 | [note](#b38) |
+| B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | open | - | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have | |
+| B06 | [Remote Access](B06-Remote-Access.md) | open | - | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | four | |
+| B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | open | - | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 | |
+| B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | open | - | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | three, and one is a one-line fix | |
+| B37 | [The Build That Runs Somewhere Else](B37-The-Build-That-Runs-Somewhere-Else.md) | open | - | A task learns the verdict and the reason for the build its own work triggered, without reaching the forge and without holding a forge credential. | seven, and the first may end it | [note](#b37) |
+| B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | open | - | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | six, and four are decided | [note](#b39) |
+| B41 | [What a Packaged Agent Installs](B41-What-A-Packaged-Agent-Installs.md) | open | - | `--supply-chain` says what a packaged agent's package ships, read from the bill that package installed. | two, and the first is whose job the reading is | |
+| B56 | [Programs Sokar Runs That Could Be Calls](B56-Programs-Sokar-Runs-That-Could-Be-Calls.md) | open | - | Every external program Sokar starts either has a reason to stay a program or is replaced by a call proven on a JVM and in the native image. Nice to have, re-checked with Java and GraalVM releases rather than scheduled. | four, and all are re-checks | |
+| B59 | [A Kernel Of Its Own For A Task](B59-A-Kernel-Of-Its-Own-For-A-Task.md) | open | - | Whether a task can run under a runtime that gives it its own kernel is measured rather than assumed - the ruleset, the resolver, the hooks, the sockets and the terminal each have an answer - and the default does not move until it fails closed. Nice to have, an experiment first. | six to measure, five to check, and the first two decide the rest | |
+| B63 | [A Share That Is Not Stored At All](B63-A-Share-That-Is-Not-Stored-At-All.md) | open | - | On a desktop a keyslot's share sits in a keystore any process running as that user can read, so a device is worth no more than the account it runs under until the share is derived from a token rather than stored. | two | |
+| B116 | [A Log Read Back In Windows](B116-A-Log-Read-Back-In-Windows.md) | later | - | A client reads a task's log back in windows before an offset, and the daemon caps a line's length and says what it cut. | - | |
+
+### Two things that dissolved rather than becoming requirements
+
+Both are recorded where somebody will look rather than dropped.
+
+**Provisioning a machine** is refused and could not have worked anyway - a machine that is not
+ready has no daemon to ask - and it is argued in
+[the decisions](../../doc/decisions.md#doctor-diagnoses-and-never-repairs). **Routing
+credentials to projects** describes a relation that does not exist, and it is argued in
+[B18](B18-Storing-A-Credential-From-Elsewhere.md); restated correctly it is the agent roster, which
+was already refused.
+
+**And instructions for an agent are not Sokar's business at all.** They live in the repository,
+checked in or not, and Sokar does not know what they are called - `CLAUDE.md`, `AGENTS.md`,
+something an agent invents next year. It cannot merge them, because how an agent combines several
+is that agent's rule and not ours. A team running more than one agent has to agree upfront how
+instructions are stored in their repository; that agreement is theirs to make.
+
+A hardcoded list of filenames would have been worse than nothing: for a feature whose only job is
+to show what an agent was told, a name that goes out of date produces a confident *"no
+instructions"* for a task that had them, and a blank that looks like an answer is the failure this
+project keeps writing down. That is the fourth of the same shape, after the agent roster, hardware
+access and key routing - each time the honest answer was *"that is not a thing this system has"*,
+and saying so cost a paragraph and bought a screen that is not lying.
+
+## To be checked
+
+Two open questions are worth knowing before any of this is planned in detail, because each
+changes what gets built rather than only how:
+
+- Whether a person away from the machine can be reached at all ([B06](B06-Remote-Access.md)).
+  The transport itself is settled - the socket survives an ssh forward, measured - so what is left
+  is the half that decides how much of F20 and F23 is real, and how long a clearance prompt should
+  wait for somebody who is not there. Both are in the
+  [interface's own set](https://github.com/sokar-ai/sokar-frontend/blob/main/issues/README.md) and
+  are named by number rather than linked by file: a requirement that is met is deleted there, so a
+  link to one breaks exactly when it is finished.
+- Whether the guarantees can be re-derived at all on a second platform (`sokar-project` PJ25). It decides whether that project offers the same
+  product or a weaker one wearing the same name, and it constrains what may be added to the
+  daemon's contract.
+
+## Why here
+
+Only the placements that are not obvious from the files themselves. Ranking is a property of the
+set, so it lives here and nowhere else.
+
+<a id="b76"></a>**B76 is in Now.** The house skills were never used, and the first module read against them had two defects its tests had not found: a token sent wherever a property pointed, and a crash that answered the question. Every agent opens the same issue in its own repository.
+
+<a id="b26"></a>**B26 is where it is** because it is a new subsystem rather than a small change, and
+above the rest of Soon because the gap is total rather than partial.
+
+<a id="b39"></a>**B39 is in Later although nothing blocks it.** It is unblocked, it is the
+cheapest of the three new ones, and the gap is total - there is no way to hand a file to a running
+task today except pasting into a terminal. B37 is its first consumer rather than its reason.
+
+<a id="b14"></a>**B14 is in Later, and carries B15 with it.** What is left - groups,
+and a message between machines - waits for several machines on one homeserver, which is B86's
+remaining half. B15 reuses B14's policy, so settling B14 settles most of both.
+
+<a id="b37"></a>**B37 is in Later because its first question may end it.** In `guarded` the forge
+does not build a task's push until a person approves it, so what looks like watching a build may
+be waiting on a human - which is a different requirement.
+
+<a id="b38"></a>**B38 is in Later because what is left waits for something else.** Its
+buildable half - the review - and its writing are done. Marking the origin of delivered content is
+decided with the deliveries still to come, and keeping what a removed task installed needs B26's
+record. It is kept because B37, B14 and B15 would otherwise each re-argue it from scratch.
+
+<a id="b40"></a>**B40 is in Soon rather than Now** although it is small and needs nobody's
+decision. What it closes is a second lock on a door whose first lock is the uid: the process it
+guards against is already running as the operator and can already read the vault file. It is worth
+doing and it is not urgent.
+
+<a id="b46"></a>**B46 is in Soon although continuing a session is built.** What is left is proving it across a real reboot on a rented machine, never the shared VM, and three questions that could change what a declaration says.
+
+<a id="b48"></a>**B48 is in Soon because it is what makes the waiting reading (built, B47) worth having on a machine somebody is logged into.** It is the smallest requirement in this list - the daemon already streams changes and the wire client already consumes a stream; what is missing is a caller. The state most worth watching for is the one B47 now produces - Task.screen and lastMessage - so a view built now is built around the right column.
+
+<a id="b49"></a>**B49 is in Soon although nothing is broken by it.** Everything works; what is wrong is what it would take for that to stop being true: third-party actions fetched by a name their owner may repoint, in jobs holding the publishing credentials. It is implemented here; what is left is the agent repositories and the interface.
+
+<a id="b50"></a>**B50 is in Soon, beside B49, because it is the same omission in a different place.** Neither is a mistake in something somebody wrote; both are what happens where nobody wrote anything - an action fetched by a name nobody pinned, a directory left at a mode nobody chose. What it exposes is covered today by the home directory being 0750, which is luck rather than design, and the mirror holds work that has not been reviewed.
+
+<a id="b79"></a>**B79 is at the top of Soon and not in Now because nothing can be done until it is seen
+again.** The likeliest cause is taken away and the daemon can now dump its threads; what is left is
+reading that dump the next time a daemon answers nothing.
+
+<a id="b51"></a>**B51 is at the top of Soon's open work although it breaks nothing today.** What it costs is
+the ability to tell "did not apply" from "could not apply" - and this repository has already paid
+once for not being able to: eleven acceptance scenarios sat green and unexecuted until the day they
+were run and turned up three faults. Every further green build makes the two skipped tests look more
+settled than they are.
+
+<a id="b55"></a>**B55 is in Soon rather than Now because its gap is deliberate.** The
+agent repositories adopted a changelog tool and dropped the old check, so for now nothing forces an
+entry. The first step is a proposal to that tool's maintainers, not code here, and nothing is
+blocked by it.

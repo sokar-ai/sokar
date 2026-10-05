@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.4.0</version>
+    </parent>
+
+    <artifactId>sokar-agents</artifactId>
+    <packaging>pom</packaging>
+    <name>Sokar Agents</name>
+    <description>Sokar - Agents (PARENT)</description>
+
+    <!-- One submodule per agent, plus the agent contract both sides share.
+
+         Each agent builds its own native binary and its own package. Nothing in
+         Sokar names an agent, and since agents are discovered by scanning a
+         directory at run time, there is no longer a file that lists them either.
+         See the README beside this file for what onboarding one costs. -->
+
+    <properties>
+        <!-- The agent CLI version this agent installs. Filtered into the agent's definition so
+             it is written once, and carried in the package DESCRIPTION so that 'dpkg -s' and
+             'rpm -qi' still answer which CLI an image build will install. It is deliberately
+             NOT part of the package version: the package version is the agent module's own
+             version, so an agent released against an unchanged CLI is still an upgrade. -->
+        <agent.cli.version>0</agent.cli.version>
+        <build-helper.version>3.6.1</build-helper.version>
+        <jdeb.version>1.14</jdeb.version>
+        <rpm.version>1.13.0</rpm.version>
+        <agent.install.dir>/usr/libexec/sokar/agents</agent.install.dir>
+        <sbom.install.dir>/usr/share/sokar/sbom</sbom.install.dir>
+        <!-- Signing is off for local and CI builds and on for releases, where the key exists.
+             §12 says the shipped packages are signed; this is the switch, not an exemption. -->
+        <rpm.sign.skip>true</rpm.sign.skip>
+        <!-- Off here: the aggregator and the API jar inherit dist but have no binary to package. -->
+        <agent.package.skip>true</agent.package.skip>
+    </properties>
+
+    <build>
+
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>agent/*.yaml</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>agent/*.yaml</exclude>
+                </excludes>
+            </resource>
+        </resources>
+
+    </build>
+
+    <profiles>
+
+        <!-- Packaging, shared by every agent so that adding one needs no packaging config at all.
+             Requires -Pnative to have produced the binary; run as: mvn -Pnative,dist package -->
+
+        <profile>
+            <id>dist</id>
+            <build>
+                <plugins>
+
+                    <!-- Every agent package carries a bill, the same as Sokar's own. The
+                         stub is the only agent module left here, and it packages itself so the
+                         packaging path still has something to exercise. -->
+
+                    <plugin>
+                        <groupId>org.cyclonedx</groupId>
+                        <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>cyclonedx</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>makeBom</goal>
+                                </goals>
+                                <configuration>
+                                    <projectType>application</projectType>
+                                    <outputName>${project.artifactId}.cdx</outputName>
+                                    <skipNotDeployed>false</skipNotDeployed>
+                                    <skipAttach>true</skipAttach>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>${build-helper.version}</version>
+                        <executions>
+                            <execution>
+                                <id>package-revision</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>regex-property</goal>
+                                </goals>
+                                <configuration>
+                                    <!-- Debian and RPM sort '~' below everything, so 1.0.0~SNAPSHOT
+                                         is older than 1.0.0. Left as '-SNAPSHOT' it sorts ABOVE
+                                         the release, and apt then refuses to upgrade from a
+                                         snapshot to the real thing.
+
+                                         ${project.version} here is the AGENT module's version:
+                                         regex-property is plugin configuration, resolved at
+                                         execution time against the current project. That is the
+                                         mechanism the whole scheme rests on. -->
+                                    <name>agent.package.version</name>
+                                    <value>${project.version}</value>
+                                    <regex>-SNAPSHOT$</regex>
+                                    <replacement>~snapshot.${sokar.snapshot.run}${sokar.snapshot.suffix}</replacement>
+                                    <failIfNoMatch>false</failIfNoMatch>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.vafer</groupId>
+                        <artifactId>jdeb</artifactId>
+                        <version>${jdeb.version}</version>
+                        <executions>
+                            <execution>
+                                <id>deb</id>
+                                <!-- Not 'package': native-image also binds there, and a plugin
+                                     inherited from a parent runs before the module's own, so the
+                                     binary would not exist yet. -->
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>jdeb</goal>
+                                </goals>
+                                <configuration>
+                                    <name>${project.artifactId}</name>
+                                    <deb>${project.build.directory}/${project.artifactId}_${agent.package.version}_amd64.deb</deb>
+                                    <!-- One control file for every agent, in the parent directory.
+                                         jdeb substitutes [[name]] and friends from the POM. -->
+                                    <controlDir>${project.basedir}/../src/deb/control</controlDir>
+                                    <skip>${agent.package.skip}</skip>
+                                    <dataSet>
+                                        <data>
+                                            <src>${project.build.directory}/${project.artifactId}</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${agent.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.build.directory}/${project.artifactId}.cdx.json</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${sbom.install.dir}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <!-- Debian Policy 12.5: every binary package ships one. -->
+                                        <data>
+                                            <src>${project.basedir}/../src/deb/copyright/copyright</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/share/doc/${project.artifactId}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                    </dataSet>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>de.dentrassi.maven</groupId>
+                        <artifactId>rpm</artifactId>
+                        <version>${rpm.version}</version>
+                        <executions>
+                            <execution>
+                                <id>rpm</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>rpm</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <skip>${agent.package.skip}</skip>
+                            <packageName>${project.artifactId}</packageName>
+                            <version>${agent.package.version}</version>
+                            <snapshotVersion>${agent.package.version}</snapshotVersion>
+                            <release>1</release>
+                            <summary>${project.description}</summary>
+                            <description>${project.description} ${agent.cli.version}. Installs into /usr/libexec/sokar/agents, where the sokar binary scans for agents.</description>
+                            <!-- Without this the plugin substitutes a timestamp release for any
+                                 snapshot build, and the rpm and the deb then disagree about what
+                                 version they are - which is worse than either scheme alone. -->
+                            <forceRelease>true</forceRelease>
+                            <architecture>x86_64</architecture>
+                            <group>Applications/System</group>
+                            <license>GPL-3.0-or-later</license>
+                            <packager>fuin.org</packager>
+                            <requires>
+                                <require>sokar</require>
+                            </requires>
+                            <signature>
+                                <skip>${rpm.sign.skip}</skip>
+                            </signature>
+                            <entries>
+                                <entry>
+                                    <name>${agent.install.dir}/${project.artifactId}</name>
+                                    <file>${project.build.directory}/${project.artifactId}</file>
+                                    <mode>0755</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <entry>
+                                    <name>${sbom.install.dir}/${project.artifactId}.cdx.json</name>
+                                    <file>${project.build.directory}/${project.artifactId}.cdx.json</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                </entry>
+                                <!-- 'license' marks it %license, so 'rpm -qL' answers. -->
+                                <entry>
+                                    <name>/usr/share/licenses/${project.artifactId}/LICENSE</name>
+                                    <file>${project.basedir}/../../LICENSE</file>
+                                    <mode>0644</mode>
+                                    <user>root</user>
+                                    <group>root</group>
+                                    <license>true</license>
+                                </entry>
+                            </entries>
+                        </configuration>
+                    </plugin>
+
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
+    <modules>
+        <module>api</module>
+        <module>stub</module>
+    </modules>
+
+</project>

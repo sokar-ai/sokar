@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.4.0</version>
+    </parent>
+
+    <artifactId>sokar-acceptance-parent</artifactId>
+    <packaging>pom</packaging>
+    <name>Sokar Acceptance</name>
+    <description>Sokar - What a person does at a terminal, tested on a real machine (TESTING)</description>
+
+    <!-- No properties here on purpose: a property on an aggregator is inherited, so a skip set
+         here would silently skip the kit's install and deploy too. The root already keeps
+         deploy off by default, and the modules say for themselves what they publish. -->
+
+    <!-- Two modules, the way agents/ has the contract beside the stub: the kit is what any
+         repository drives a machine with, and the suite is this one's own scenarios. -->
+    <modules>
+        <module>kit</module>
+        <module>suite</module>
+    </modules>
+
+</project>
