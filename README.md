@@ -18,6 +18,9 @@ Supervise agents from a Flutter client — wherever they run :construction:
 
 <br clear="left"/>
 
+**Documentation: [sokar-ai.github.io/core](https://sokar-ai.github.io/core/)**, one chapter of
+[all of Sokar's documentation](https://sokar-ai.github.io).
+
 > [!NOTE]  
 > **Sokar runs on Linux only.** The containment is kernel machinery — an nftables
 > ruleset loaded into the container's network namespace, OCI hooks, user namespaces,
@@ -124,8 +127,7 @@ repository: `sokar project follow <project> <git-url> --signed-by "ssh-ed25519 A
 
 ## Documentation
 
-All of Sokar's documentation, this repository's among it, as one site: **[sokar-ai.github.io](https://sokar-ai.github.io)**.
-The pages below read the same here.
+The pages of this repository's chapter on [the site](https://sokar-ai.github.io/core/), readable here as well:
 
 - [How it works](doc/how-it-works.md) — tasks, projects, the gate, the vault and egress, and a glossary
 - [Commands](doc/commands.md) — every command, and what to type for a given job
