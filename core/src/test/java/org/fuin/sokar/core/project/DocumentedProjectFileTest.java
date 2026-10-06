@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
  * This parses the page's own YAML block. A key renamed in the reader, or an example that stopped
  * being valid, fails here rather than in front of somebody following it.
  */
+@Tag("documents")
 class DocumentedProjectFileTest {
 
     @Test

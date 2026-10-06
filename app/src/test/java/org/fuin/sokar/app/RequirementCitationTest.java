@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
  * <p>
  * The index is the one page that may name files, because naming them is what an index is.
  */
+@Tag("documents")
 class RequirementCitationTest {
 
     /**

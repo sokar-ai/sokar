@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
  * The same checks {@code mkdocs build --strict} makes, held here so the reactor fails on them without Python: a
  * page nobody can reach and a link that leaves {@code doc/} by a relative path are what that build refused.
  */
+@Tag("documents")
 class DocumentationSiteTest {
 
     private static final Path DOC = Path.of("..", "doc");
