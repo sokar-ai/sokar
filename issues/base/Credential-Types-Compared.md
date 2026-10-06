@@ -83,8 +83,8 @@ is whether that work belongs in a task at all.
 than one string, a broker that serves more than one route, and keys presented as they are stored.
 Both are built.
 
-**Then B30**, because it is B01's unbuilt half and that requirement
-has been waiting on a credential kind that actually expires. It is the largest of the three and the
+**Then B30**, because it is the unbuilt half of handing a task credentials, which has been
+waiting on a credential kind that actually expires. It is the largest of the three and the
 one that introduces a clock the broker has to keep.
 
 **B31 last**, because it needs B30's refresh to be worth anything, because it is the only one that

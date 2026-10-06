@@ -166,7 +166,7 @@ doing and it is not urgent.
 
 <a id="b46"></a>**B46 is in Soon although continuing a session is built.** What is left is proving it across a real reboot on a rented machine, never the shared VM, and three questions that could change what a declaration says.
 
-<a id="b48"></a>**B48 is in Soon because it is what makes the waiting reading (built, B47) worth having on a machine somebody is logged into.** It is the smallest requirement in this list - the daemon already streams changes and the wire client already consumes a stream; what is missing is a caller. The state most worth watching for is the one B47 now produces - Task.screen and lastMessage - so a view built now is built around the right column.
+<a id="b48"></a>**B48 is in Soon because it is what makes the waiting reading, which is built, worth having on a machine somebody is logged into.** It is the smallest requirement in this list - the daemon already streams changes and the wire client already consumes a stream; what is missing is a caller. The state most worth watching for is the one the daemon now produces - Task.screen and lastMessage - so a view built now is built around the right column.
 
 <a id="b49"></a>**B49 is in Soon although nothing is broken by it.** Everything works; what is wrong is what it would take for that to stop being true: third-party actions fetched by a name their owner may repoint, in jobs holding the publishing credentials. It is implemented here; what is left is the agent repositories and the interface.
 

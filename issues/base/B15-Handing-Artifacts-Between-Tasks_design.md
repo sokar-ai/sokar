@@ -121,8 +121,8 @@ is still on the host.
 extracted, and read-only is the runtime's property rather than a permission Sokar has to keep
 correct. A single blob can be selected by digest where an artifact holds several.
 
-**Mid-run it cannot be.** A mount is decided at `create`/`run`, which is the shape B12 already
-records for the ruleset and the resolver: what a container has is built when it starts. So an
+**Mid-run it cannot be.** A mount is decided at `create`/`run`, which is the shape the ruleset and
+the resolver already have: what a container has is built when it starts. So an
 artifact handed to a task that is already running is **extracted** into that task's own `in/`
 instead. The two paths deliberately land in the same directory, so an agent has one place to look
 and never has to know which way it arrived.

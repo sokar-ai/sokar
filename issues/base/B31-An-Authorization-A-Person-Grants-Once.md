@@ -57,8 +57,8 @@ requirement adds to it is a link to open, and a wait that ends somewhere other t
 **Asking for refresh is not automatic and its absence fails late.** Foundry's own guidance is to add
 `offline_access` to the scopes, and its troubleshooting entry for the omission reads *"your session
 has expired, please reauthenticate"* — mid-run, on a task that started fine. A declaration that
-cannot express the scopes needed to stay alive produces exactly the failure
-B01 was written about, in new clothes.
+cannot express the scopes needed to stay alive produces exactly the failure of a credential that
+expires mid-run, in new clothes.
 
 **A task acting as a person is an audit fact, not only a credential fact.** With shared
 authentication the record says a machine did something; with individual authentication it says a

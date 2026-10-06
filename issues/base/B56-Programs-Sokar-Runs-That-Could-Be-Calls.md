@@ -56,9 +56,9 @@ only candidate inside a hook; whether it works against static musl is unmeasured
 
 **Shell strings the Hetzner driver sends over ssh** (`Leg`, `AgentLeg`). They run on another machine,
 which no call in the driver's process can reach. The way to less shell there is to keep the logic
-in the driver and send plain commands, or to make the step a `sokar` subcommand. B53 did that for
-the two cases it had - the rootless check under the unit's properties (`UnitProperties`) and the
-agent's description (`AgentDescription`) - and is finished; another case would be an
+in the driver and send plain commands, or to make the step a `sokar` subcommand. That is done for
+the two cases there were - the rootless check under the unit's properties (`UnitProperties`) and the
+agent's description (`AgentDescription`); another case would be an
 issue of its own ([index](README.md)).
 
 ## Acceptance

@@ -6,7 +6,7 @@ one rarely need to rank it against another.
 
 | Set | What it covers | Files |
 |---|---|---|
-| [**Base**](base/README.md) | The product below the interface: the CLI, the daemon, and the guarantees they make. | `B01`… |
+| [**Base**](base/README.md) | The product below the interface: the CLI, the daemon, and the guarantees they make. | `B`… |
 | [**Providers**](providers/README.md) | Which providers exist, and how a task reaches one without ever holding its credential. | `P05`… |
 
 An `A` number cited here - an agent that has no repository yet - is `sokar-project`'s, and an `F` number is

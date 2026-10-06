@@ -8,7 +8,7 @@ reads, without a loop they wrote themselves.
 ## Why
 
 It is small, and it is the only way a person at a terminal sees what `task status` (its activity and since) and
-B47 (built: Task.screen and Task.lastMessage) went to the trouble of working out.
+the waiting reading (Task.screen and Task.lastMessage) went to the trouble of working out.
 
 ### What happens today
 
@@ -66,7 +66,7 @@ list every second, and the second is what `Watch`'s design exists to prevent.
    happen instead of drawing over itself, so `| tee` in a session log still produces something
    readable. Where the stream is not available it says so and falls back to the single listing,
    naming what it could not do.
-6. **What needs a person is visible without reading every row.** Once B47 produces `waiting`, a
+6. **What needs a person is visible without reading every row.** Now that the daemon produces `waiting`, a
    task waiting on somebody is the thing this view exists to surface; a person should not have to
    compare columns to find it.
 

@@ -19,7 +19,7 @@ Nothing is blocked by it: the gap it describes is deliberate for now.
   `CHANGELOG.md` is kept without rewriting by moving it to `changelog/archive.md`.
 - **The current changelog check is removed everywhere for now.** That is `check-changelog.py`, 308
   lines, byte-identical in the three agent repositories and run by each one's `build.yml`. No other
-  repository had a check. It also leaves B53: the shared tool no longer carries it.
+  repository had a check. The shared build tools no longer carry it either.
 
 **So, until this requirement is met, nothing forces a change to bring an entry.** That is the price of
 not rebuilding the old check on the old format, and it is paid on purpose.
