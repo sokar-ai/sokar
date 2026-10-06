@@ -1,6 +1,6 @@
 # B39 — Handing A File To A Running Task
 
-**Status:** later.
+**Status:** now.
 
 **What must be true.** A file on this machine can be put in front of a running task, once, without
 going through a repository, without landing in the work, and without the task gaining any way to
@@ -248,6 +248,8 @@ the lie this project keeps refusing.
 
 ## Acceptance
 
+- A hand-in is a copy into the running container, once; nothing is mounted for it. Seen to fail: the
+  container's mounts after a hand-in differ from before it.
 - An operator hands a file to a running task and the work inside it reads that file. Seen to fail:
   a test that hands in a file and reads it from inside the container goes red when it is missing.
 - The file lands in a directory used for nothing else, outside the working copy, and nothing an
@@ -275,11 +277,15 @@ the lie this project keeps refusing.
 - The same command works from a client that does not share this machine's filesystem, or refuses in
   a way that names why - never silently reading a path that means something different there. Seen
   to fail: a remote client's hand-in reads a path on the node.
-- A size limit exists and a file over it is refused before anything is copied, with the limit named.
+- A size limit exists, with a default a project file can raise, and a file over it is refused before
+  anything is copied, with the limit named.
   Seen to fail: an oversized file leaves any bytes in the task, or the refusal does not name the
   limit.
 - The task gains no outbound path from this: nothing added here lets a file leave a container. Seen
   to fail: any command or method added here that returns content from the container.
+- `sokar task status` lists what was handed into the task - each file's name, size, when and by
+  whom - read from the hand-in record. Seen to fail: a task handed a file shows nothing of it in
+  its status.
 - Every hand-in is recorded: who, when, which task, the name, the size and the content hash - and
   a removal or a replacement is recorded the same way. Seen to fail: a hand-in, removal or
   replacement with no record entry, or an entry missing one of those fields.
@@ -298,23 +304,9 @@ the lie this project keeps refusing.
 
 ## To be checked
 
-- **Whether the mechanism is a copy or a mount.** A copy is one-shot and simple; a read-only mount
-  of a per-task directory makes a second delivery free and gives B37's watcher somewhere to write
-  repeatedly. A mount is also a live path from host to container that did not exist before, and the
-  three sockets that exist are all narrow on purpose.
 - **How a running container is written to at all**, measured rather than assumed: `podman cp` into
   a running rootless container, with the file owned by the agent's subordinate uid and readable by
   it. The uid mapping is where the other socket-shaped things here have gone wrong.
-- **What the size limit is, and what it is for.** A build log is megabytes; a data extract can be
-  gigabytes; the container's own filesystem is not free and a task that fills it fails in a way
-  nobody will attribute to this.
-- **Whether an agent watching a directory is good enough for B37's waiting**, or whether that
-  case wants a request with an answer after all. Polling a directory between steps is fine for a
-  log that arrives once; a task that must react promptly is a different requirement and probably
-  not this one.
 - **How the presence of `/sokar` in an image is established cheaply.** Asking a throwaway container
   is certain and costs a container per check; reading the image's layers is cheaper and has to be
   right about whiteouts, where a path deleted in a later layer still exists in an earlier one.
-- **Whether a handed-in file should be visible in what a task says about itself**
-  (`sokar task status`). An operator returning to a task ought to be able to
-  see what was put into it without going in and looking.

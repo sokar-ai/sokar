@@ -39,6 +39,10 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 |---|---|---|---|---|---|---|
 | B102 | [A Vault Cleared In One Step](B102-A-Vault-Cleared-In-One-Step.md) | now | - | `sokar vault clear --yes` on a real machine leaves it as a new one: vault, cached passphrase and device shares, and a transport's accounts gone, and `vault init` starts afresh. | - | the operator, 2026-10-03 |
 | B76 | [The Code Checked Against The Skills It Was Written Without](B76-The-Code-Checked-Against-The-Skills-It-Was-Written-Without.md) | open | - | Every Java module has been read against the skills that apply to it, and each finding is fixed with a test watched to fail or declined with its reason. | - | [note](#b76) |
+| B121 | [A Message Record Without A Chain](B121-A-Message-Record-Without-A-Chain.md) | now | - | A task's message record is the host's plain state - filtered, held, refused, delivered - with no hash chain; what was said, and in which order, is the homeserver's to keep. | - | the operator, 2026-10-06 |
+| B122 | [No Direct Chat Between Tasks](B122-No-Direct-Chat-Between-Tasks.md) | now | - | Two tasks never talk in a direct chat: a direct chat is only between a task and a person who joined the project's conversation, so the operator reads what tasks say to each other. | - | the operator, 2026-10-06 |
+| B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | now | - | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | 2, both measured | the operator, 2026-10-06; [note](#b39) |
+| B37 | [The Build That Runs Somewhere Else](B37-The-Build-That-Runs-Somewhere-Else.md) | now; blocked by sokar B39 | - | A task in an `online` project learns the verdict and the reason for the build its own push triggered, without reaching the forge and without holding a forge credential. | 1, measured rather than decided | the operator, 2026-10-06; [note](#b37) |
 
 ### Soon
 
@@ -80,10 +84,8 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 | B38 | [How Far Something That Got Through Can Get](B38-How-Far-Something-That-Got-Through-Can-Get.md) | later; blocked by sokar B37, B39 and B26 | - | Content Sokar delivers into a task carries its origin, and how far a task got has an answer after it is gone, including what it installed. | 1 | [note](#b38) |
 | B18 | [Storing A Credential From Elsewhere](B18-Storing-A-Credential-From-Elsewhere.md) | open | - | A credential can be stored from an interface, the reply never carries the value back, and no path logs, echoes or records it. | two, plus `Login` held open as nice to have | |
 | B06 | [Remote Access](B06-Remote-Access.md) | open | - | Tasks on another machine are usable over an encrypted tunnel, without the daemon ever binding a network port. | four | |
-| B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | open | - | What a task builds can reach another task through a per-project content-addressed store, with the pointer committed and reviewed at the gate, written through a socket rather than a shared directory, and never mounted into a task. | six, and it turns on B14 | |
+| B15 | [Handing Artifacts Between Tasks](B15-Handing-Artifacts-Between-Tasks.md) | open | - | What a task builds can reach another task of the project wherever it runs, only where the project file switches it on and the task is not started with it off, carried in the project's own conversation beside its messages, never to another project or in a direct chat, recorded on the host and never reachable from a task; intermediate results only, never the work's result. | two, both settled by a transport |  |
 | B23 | [Secrets In This Process's Memory](B23-Secrets-In-This-Process-Memory.md) | open | - | A credential's plaintext exists in as few places and for as short a time as a managed runtime allows, and what cannot be achieved is written down rather than implied. | three, and one is a one-line fix | |
-| B37 | [The Build That Runs Somewhere Else](B37-The-Build-That-Runs-Somewhere-Else.md) | open | - | A task learns the verdict and the reason for the build its own work triggered, without reaching the forge and without holding a forge credential. | seven, and the first may end it | [note](#b37) |
-| B39 | [Handing A File To A Running Task](B39-Handing-A-File-To-A-Running-Task.md) | open | - | A file on this machine can be put in front of a running task, once, without going through a repository, without landing in the work, and without the task gaining any way to send one back. | six, and four are decided | [note](#b39) |
 | B41 | [What a Packaged Agent Installs](B41-What-A-Packaged-Agent-Installs.md) | open | - | `--supply-chain` says what a packaged agent's package ships, read from the bill that package installed. | two, and the first is whose job the reading is | |
 | B56 | [Programs Sokar Runs That Could Be Calls](B56-Programs-Sokar-Runs-That-Could-Be-Calls.md) | open | - | Every external program Sokar starts either has a reason to stay a program or is replaced by a call proven on a JVM and in the native image. Nice to have, re-checked with Java and GraalVM releases rather than scheduled. | four, and all are re-checks | |
 | B59 | [A Kernel Of Its Own For A Task](B59-A-Kernel-Of-Its-Own-For-A-Task.md) | open | - | Whether a task can run under a runtime that gives it its own kernel is measured rather than assumed - the ruleset, the resolver, the hooks, the sockets and the terminal each have an answer - and the default does not move until it fails closed. Nice to have, an experiment first. | six to measure, five to check, and the first two decide the rest | |
@@ -140,17 +142,17 @@ set, so it lives here and nowhere else.
 <a id="b26"></a>**B26 is where it is** because it is a new subsystem rather than a small change, and
 above the rest of Soon because the gap is total rather than partial.
 
-<a id="b39"></a>**B39 is in Later although nothing blocks it.** It is unblocked, it is the
-cheapest of the three new ones, and the gap is total - there is no way to hand a file to a running
-task today except pasting into a terminal. B37 is its first consumer rather than its reason.
+<a id="b39"></a>**B39 is in Now ahead of B37 because it is blocked by nothing.** It is
+the cheaper of the two, and the gap is total - there is no way to hand a file to a running task
+today except pasting into a terminal. B37 is its first consumer rather than its reason.
 
-<a id="b14"></a>**B14 is in Later, and carries B15 with it.** What is left - groups,
-and a message between machines - waits for several machines on one homeserver, which is B86's
-remaining half. B15 reuses B14's policy, so settling B14 settles most of both.
+<a id="b14"></a>**B14 is in Later, and B15 waits beside it.** What is left of B14 - groups, and a
+message between machines - waits for several machines on one homeserver, which is B86's remaining
+half. B15 reuses B14's policy, which is built on one machine.
 
-<a id="b37"></a>**B37 is in Later because its first question may end it.** In `guarded` the forge
-does not build a task's push until a person approves it, so what looks like watching a build may
-be waiting on a human - which is a different requirement.
+<a id="b37"></a>**B37 is in Now after B39 because it needs it.** It is for `online`
+only: in `guarded` the forge does not build a task's push until a person approves it, so watching
+a build there is waiting on a human - which is a different requirement.
 
 <a id="b38"></a>**B38 is in Later because what is left waits for something else.** Its
 buildable half - the review - and its writing are done. Marking the origin of delivered content is

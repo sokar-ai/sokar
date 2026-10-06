@@ -1,9 +1,9 @@
 # B37 — The Build That Runs Somewhere Else
 
-**Status:** later.
+**Status:** now; blocked by sokar B39.
 
-**What must be true.** A task learns the verdict and the reason for the build its own work
-triggered, without reaching the forge, without holding a forge credential, and without gaining any
+**What must be true.** A task in an `online` project learns the verdict and the reason for the
+build its own push triggered, without reaching the forge, without holding a forge credential, and without gaining any
 other access to the forge in the process.
 
 ## Why
@@ -85,7 +85,9 @@ class is bought for.
 
 ## Route, or reduced surface
 
-The central choice, and both are defensible.
+**Decided: a reduced surface.** A host-side helper gives a task a verdict and a log and nothing
+else, delivered as files through [B39](B39-Handing-A-File-To-A-Running-Task.md); no route to the
+forge, and no MCP server in front of it. What follows is why the route lost.
 
 **A route.** The broker has a route table ([more than one credential in a task](../../doc/credentials.md#more-than-one-credential-in-a-task)): the
 container gets a phantom token and a base URL, the broker attaches the real credential and forwards.
@@ -230,19 +232,18 @@ The verdict is the small part. Waiting for it is what costs.
 
 ## Acceptance
 
-- A task names a commit and gets back a verdict - queued, running, success, failure, or cancelled -
-  for the build of that commit, and a task whose work has not yet left the gate is told that,
-  distinctly from a build that has not started. Seen to fail: a test with work still under
-  `refs/sokar/incoming/<task>` goes red when the answer is the same as for a build not yet started.
+- Every commit the task pushes is followed by the helper unasked, and its verdict - queued, running,
+  success, failure, or cancelled - is handed into the task through B39 as it changes. The task sends
+  no request. Seen to fail: a test that pushes a commit finds no verdict for it in the task, or the
+  verdict of another commit.
 - The reason for a failure is available inside the task as text, for the job that failed, and
   arrives decompressed. Seen to fail: what arrives for a failed job is compressed, or is not that
   job's log.
 - No forge credential is in the container: not in a variable, not in a file, not on a command line,
   and not behind a token that could be presented anywhere but here. Seen to fail: a search of the
   container's environment, files and process arguments for the token's value finds it.
-- The container gains no other forge access. A request for anything but a verdict or a log is
-  refused, and the refusal names what was asked for. Seen to fail: any other forge request through
-  the helper succeeds, or is refused without naming it.
+- The container gains no forge access: the helper takes no request from the task, so there is nothing
+  through it to ask. Seen to fail: anything the task can send reaches the helper.
 - No host the helper talks to appears in the task's egress report as something the task can reach -
   the second class of host, which the broker reaches and the task does not
   ([more than one credential in a task](../../doc/credentials.md#more-than-one-credential-in-a-task)). Seen to fail: the
@@ -252,40 +253,19 @@ The verdict is the small part. Waiting for it is what costs.
   answer, or one reads as an authentication failure.
 - A wait ends: at a deadline, on a terminal verdict, or when the task stops. Nothing waits forever.
   Seen to fail: a wait on a build that never finishes is still open after the deadline.
-- The record says which builds a task asked about and what it was told, and it outlives the task.
-  Seen to fail: the record is gone after the task is removed.
-- An offline project refuses this before the container exists rather than waiting on a build that
-  cannot exist. Seen to fail: an `offline` task starts with it and waits.
+- A log is kept only in the task it was handed to and goes with it; Sokar keeps no copy. The record
+  says which builds were delivered - commit, job, verdict, the log's size and hash - never a line of a
+  log, and it outlives the task. Seen to fail: a log's text, or a marker planted in it, is found
+  outside the task, or the record is gone after the task is removed.
+- It is for `online` only: in `offline` there is no build, and in `guarded` the forge builds nothing
+  until a person approves, so watching a build there is waiting on a human, which is not this
+  requirement. An `offline` or `guarded` project refuses it before the container exists. Seen to
+  fail: an `offline` or `guarded` task starts with it and waits.
 - Nothing is asked of an agent that does not use it. Seen to fail: an agent definition has to change
   for a task that never asks about a build.
 
 ## To be checked
 
-- **Whether the build being waited for is the task's own push at all.** In `guarded` it cannot be
-  until a person approves, which makes this a feature about waiting on a human. If the real need is
-  "watch the build of what I just pushed", it is an `online`-class feature; if it is "watch the
-  build of what was approved", it is a gate feature and possibly belongs to the gate rather than to
-  a task. Everything below depends on this answer.
-- **Route or reduced surface**, argued above. The tie-break is likely whether any forge's status and
-  log can be expressed as data with no per-forge code, on two forges rather than one - if the second
-  one needs code, so will the fifth.
-- **Whether a leaked secret in a log ends up in Sokar's own record.** The scrubbing belongs to
-  the build server, which is where the values are known; what is this file's is that a log passing
-  through a helper of ours must not be written somewhere more durable than the task that asked for
-  it, and must not be delivered where the gate would carry it out again.
-- **Whether lowering what an injection is worth is a requirement of its own.** It is not this
-  file's - a task reads text nobody here wrote whatever this feature does - and the answer that
-  exists is spread across the firewall, the phantom token, the gate and the clearance prompt
-  without ever being stated as one property with named limits. If it becomes one, this file
-  delivers its log through it rather than arguing about it, and an agent's fencing convention
-  belongs in that agent's definition.
-- **Whether an agent asked to watch a build should block or return.** Blocking is simpler for the
-  agent and holds a turn open for as long as a build takes; returning makes the agent poll, which is
-  the cost this file just argued against.
 - **Whether this is one credential or two.** Reading Actions and reading a private repository's log
   artifacts may need different scopes on some forges, and a credential that turns out to be two is
   the problem of more than one credential in a task arriving inside its own first consumer.
-- **Whether it is worth building before an interface exists.** A verdict and a failing log are
-  something a person wants on a screen at least as much as an agent wants them in a container, and
-  [B14](B14-Talking-Between-Tasks.md) argues that being early to a client's need is a reason to be
-  slower rather than faster.

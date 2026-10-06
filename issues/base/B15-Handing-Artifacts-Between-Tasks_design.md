@@ -11,6 +11,14 @@ is the failure `TaskInventory` and `TaskControl` exist to prevent.
 
 ## Scope of the first version
 
+**This design predates [B15](B15-Handing-Artifacts-Between-Tasks.md)'s decision that artifacts travel
+through the project's message transport.** It treats podman's store as the storage, which B15 no
+longer has. What below is Sokar's - the drop directory, ingest, the record, the policy, delivery, the
+daemon's interface - stays Sokar's; storing and fetching bytes move to the message transport's
+artifact verbs, the record below is plain rather than chained, the quota per project gives way to a
+limit per artifact, retention is the messaging system's, the gate shows no artifacts, nothing crosses projects, and the design
+is redone along those lines before anything is built.
+
 One machine. A task produces artifacts; a person sees them; another task in a declared peer project
 receives the ones its own project asked for. Out of scope: anything crossing machines, publishing to
 a repository manager, expiry, and any inspection of what an artifact contains.
@@ -141,7 +149,8 @@ and never has to know which way it arrived.
    journal that cannot be written means the artifact is not published — the same ordering B14 uses,
    and for the same reason.
 6. **Receipt.** A line is written into `out/.receipts/<name>.json` giving the digest, so the agent
-   can commit a pointer. Whether it does is a convention; the store's record does not depend on it.
+   knows what was stored. Nothing about it is committed into the work; the gate shows it from the
+   journal.
 
 Failure at any step leaves the file in staging and says so, rather than deleting the only copy of
 something a run spent an hour producing.
@@ -395,10 +404,6 @@ requirement, and no store answers them.
 
 ## Open questions this design leaves
 
-- **Who writes the committed pointer.** The receipt makes it possible for the agent to; nothing
-  makes it certain. If Sokar were to write and commit it, Sokar would be writing into a workspace it
-  deliberately never touches. Until that is settled, the store's journal is the record and the
-  pointer is a convenience.
 - **How the helper learns the commit.** Provenance needs the revision the workspace was at, and
   nothing may run git inside the container or read `/workspace` from the host. Reading it from the
   gate's mirror gives the last *pushed* commit, which is not the same thing and may be
