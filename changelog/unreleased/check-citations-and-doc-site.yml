@@ -1,0 +1,2 @@
+title: "The build checks every page and file for a citation of an issue that goes stale, and the documentation chapter for a page off its navigation or a link the site cannot follow, with the shared build tools 0.4.1"
+type: changed

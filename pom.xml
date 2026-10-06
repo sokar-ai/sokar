@@ -80,7 +80,7 @@
              comparison in both and not a lexical one. -->
         <sokar.snapshot.run>0</sokar.snapshot.run>
         <!-- The build and test tooling, from sokar-ai/sokar-buildtools on Central: sokar-machines, sokar-release and the three checks. -->
-        <sokar.buildtools.version>0.4.0</sokar.buildtools.version>
+        <sokar.buildtools.version>0.4.1</sokar.buildtools.version>
         <!-- The command line 'exec:exec@machines' gives sokar-machines, such as 'jdk' or 'sweep'. -->
         <machines.args></machines.args>
         <!-- Options for exec:java@deploy, such as the one that skips the build. -->
@@ -762,6 +762,42 @@
                                 <artifactId>sokar-release</artifactId>
                             </executableDependency>
                             <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-shared ${maven.multiModuleProjectDirectory}/AGENTS.md</commandlineArgs>
+                        </configuration>
+                    </execution>
+                    <!-- No page or file cites an issue in a way that goes stale once the issue is finished and deleted. -->
+                    <execution>
+                        <id>check-citations</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <includeProjectDependencies>false</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-release</artifactId>
+                            </executableDependency>
+                            <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-citations ${maven.multiModuleProjectDirectory}</commandlineArgs>
+                        </configuration>
+                    </execution>
+                    <!-- Every page of doc/ is in mkdocs.yml's navigation once, and every link on it can be followed on the site. -->
+                    <execution>
+                        <id>check-doc-site</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <includeProjectDependencies>false</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-release</artifactId>
+                            </executableDependency>
+                            <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-doc-site ${maven.multiModuleProjectDirectory}/doc ${maven.multiModuleProjectDirectory}/mkdocs.yml</commandlineArgs>
                         </configuration>
                     </execution>
                     <!-- After -Pdist verify: the two packages against each other, then installed in clean containers. -->

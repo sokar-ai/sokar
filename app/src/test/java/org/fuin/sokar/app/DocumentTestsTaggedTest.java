@@ -52,7 +52,7 @@ class DocumentTestsTaggedTest {
         // A guard that finds nothing passes forever: assert what it found, then what it checks.
         assertThat(found).extracting(path -> path.getFileName().toString())
                 .as("tests found reading documents")
-                .contains("RequirementCitationTest.java", "DocumentationSiteTest.java", "ReachDocumentTest.java",
+                .contains("ReachDocumentTest.java",
                         "CommandsDocumentedTest.java", "MailboxGuideTest.java", "DocumentedProjectFileTest.java");
         assertThat(found).filteredOn(path -> !read(path).contains(TAG))
                 .as("tests that read a document without %s", TAG)
