@@ -1,16 +1,16 @@
 # What a change proves, and where.
 name: Build
 
-# A push that only touches documentation builds nothing.
+# A push that only touches documentation builds nothing; the Shared rules workflow checks it.
 on:
   push:
     branches: ['**']
     # A release: v<version>, built and published to the 'releases' channel. Paths are not filtered for a tag.
     tags: ['v*']
-    paths-ignore: ['**/*.md', 'mkdocs.yml']
+    paths-ignore: ['**/*.md', 'mkdocs.yml', 'doc/**', 'issues/**']
   pull_request:
     branches: ['**']
-    paths-ignore: ['**/*.md', 'mkdocs.yml']
+    paths-ignore: ['**/*.md', 'mkdocs.yml', 'doc/**', 'issues/**']
   workflow_dispatch:
 
 # One run per branch.
