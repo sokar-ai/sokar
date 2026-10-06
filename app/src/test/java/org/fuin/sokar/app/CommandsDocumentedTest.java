@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
@@ -19,6 +20,7 @@ import picocli.CommandLine;
  * subcommands had passed over them. Walked from the CLI's own model, so a command added later is
  * missing from the page the day it is added.
  */
+@Tag("documents")
 class CommandsDocumentedTest {
 
     private static final Path PAGE = Path.of("..", "doc", "commands.md");

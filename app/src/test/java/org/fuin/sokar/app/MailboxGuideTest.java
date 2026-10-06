@@ -9,6 +9,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.Map;
 import org.fuin.sokar.core.project.Mail;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -70,6 +71,7 @@ class MailboxGuideTest {
     }
 
     @Test
+    @Tag("documents")
     void theUserDocumentationShowsTheTextAgentsAreGivenWordForWord() throws IOException {
 
         // What a person reads about it is what the agent is told, so the two cannot drift apart.

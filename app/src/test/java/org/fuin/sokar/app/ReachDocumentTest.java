@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.stream.Collectors;
 import org.fuin.sokar.shield.NftRuleset;
 import org.fuin.sokar.supervisor.VaultProxy;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
  * support. So each number the page states is read off the code here, and a change to either fails the
  * build until both say the same.
  */
+@Tag("documents")
 class ReachDocumentTest {
 
     private static String page() throws IOException {
