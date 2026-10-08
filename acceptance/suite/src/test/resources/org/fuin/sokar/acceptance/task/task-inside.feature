@@ -50,6 +50,8 @@ Feature: Being inside a task, the way a person is
     Then the terminal shows "refs/sokar/incoming"
     When I run "exit"
     Then the terminal shows "ready$"
+    # Rejected, not left behind: a new task called shell is refused while work of an earlier one waits at the gate.
+    And a script runs "sokar gate reject shell --project accept --repository accept"
     And a script runs "sokar task remove sokar-accept-shell --force"
 
   # --rm, because that is what the scenario is about. Keeping became the DEFAULT at the lifecycle

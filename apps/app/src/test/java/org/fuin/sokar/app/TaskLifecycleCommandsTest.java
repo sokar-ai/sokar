@@ -153,6 +153,23 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void outsideACheckoutAStoppedTaskIsStartedByEitherOfItsNamesWithoutItsProject(@TempDir Path dir) {
+
+        // 'sokar task start t1' in the home directory said no project was named and the directory was in no checkout,
+        // while 'sokar tasks' listed t1: only '-p' brought it back.
+        final SokarContext context = context(dir);
+        runner.answering("ps", "sokar-uc-work\tExited (143)\t1700000000\t1700000100\tuc\tguarded\tuc\t\n");
+
+        for (final String name : java.util.List.of("work", "sokar-uc-work")) {
+            out.getBuffer().setLength(0);
+            err.getBuffer().setLength(0);
+            execute(context, "task", "start", name, "--detach");
+            assertThat(out.toString()).as(name).contains("project        uc - that of the task sokar-uc-work");
+            assertThat(err.toString()).as(name).doesNotContain("no git checkout");
+        }
+    }
+
+    @Test
     void bringingThemBackWithNoneDownSaysSoAndATaskNameIsRefused(@TempDir Path dir) {
 
         final SokarContext context = context(dir);

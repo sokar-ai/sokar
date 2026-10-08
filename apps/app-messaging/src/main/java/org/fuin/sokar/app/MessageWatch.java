@@ -239,6 +239,15 @@ public final class MessageWatch implements AutoCloseable {
         }
     }
 
+    /**
+     * Returns the journal's line for a conversation's long-poll that answered: one line, so a search for the lines that
+     * begin with {@code messages} finds each - the key holds a line break between its scheme and its name.
+     */
+    static String answered(final String key, final long millis, final int messages) {
+        return "messages  " + key.replace('\n', ' ') + " answered after " + millis + " ms with " + messages
+                + " message(s)";
+    }
+
     private static long millis(final long from, final long to) {
         return (to - from) / 1_000_000L;
     }
@@ -631,8 +640,7 @@ public final class MessageWatch implements AutoCloseable {
                         final TransportConversations.Outcome got = conversations.waitOnce(now);
                         say(got.failures());
                         if (!got.handed().isEmpty() && running) {
-                            System.out.println("messages  " + key + " answered after " + millis(asked, System.nanoTime())
-                                    + " ms with " + got.handed().size() + " message(s)");
+                            System.out.println(answered(key, millis(asked, System.nanoTime()), got.handed().size()));
                             moveOnce("a conversation's answer");
                             say(conversations.confirm(now));
                         }

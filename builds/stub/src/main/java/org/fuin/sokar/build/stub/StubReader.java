@@ -23,13 +23,14 @@ import org.jspecify.annotations.Nullable;
  *
  * <pre>
  * {"token": "the one the vault holds",
- *  "heads": {"fix-login": "4f2a…"},
+ *  "heads": {"sokar/fix-login": "4f2a…"},
  *  "builds": {"4f2a…": {"verdict": "failure", "jobs": [{"name": "Build / test", "result": "failure", "log": "…"}],
  *                       "detail": ""}},
  *  "refuse": {"reason": "RATE_LIMITED", "detail": "…", "retryAfter": 30}}
  * </pre>
  *
- * A {@code token} there is the only one accepted; any other is refused as the forge would refuse it, so a test sees
+ * {@code heads} maps a branch at the forge to its head commit: the branch the task's work reaches there, which for an
+ * online task is {@code sokar/<task>}, not the task's name. A {@code token} there is the only one accepted; any other is refused as the forge would refuse it, so a test sees
  * that the token Sokar sends is the vault's. A {@code refuse} refuses every call. Its jobs are listed once the
  * verdict is failure or final, each with its log when it failed, or every one's when every log is asked for and the
  * verdict is final - as a forge's reader does.

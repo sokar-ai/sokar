@@ -1,5 +1,6 @@
 package org.fuin.sokar.app;
 
+import org.fuin.sokar.runtime.ContainerSummary;
 import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.List;
@@ -176,6 +177,19 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 : org.fuin.sokar.wire.TaskMode.AGENT;
     }
 
+    /**
+     * Returns the one existing task the given name means, when the directory is in no checkout; else {@code null}. In a
+     * checkout the checkout says the project, and a name there may be a new task's.
+     */
+    private @Nullable ContainerSummary existingOutsideACheckout() {
+        if (TaskTarget.fromCheckout(context, Path.of(".")) != null) {
+            return null;
+        }
+        final String container = TaskTarget.spelled(context, task);
+        return context.podman().sokarTasks().stream().filter(summary -> summary.name().equals(container))
+                .findFirst().orElse(null);
+    }
+
     @Override
     public Integer call() {
 
@@ -200,12 +214,23 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             if (projectName == null) {
                 // No project named: the checkout stood in says which. A followed project naming its origin comes first;
                 // otherwise it is 'default', which every machine has. A named project never depends on the directory.
-                final WorkOrigin.Choice choice = WorkOrigin.fromCheckout(context, Path.of("."));
-                projectName = choice.project();
-                if (repository == null) {
-                    repository = choice.repository();
+                final ContainerSummary existing = spec.commandLine().getParseResult().hasMatchedPositional(0)
+                        ? existingOutsideACheckout() : null;
+                if (existing != null && existing.project() != null) {
+                    // Outside a checkout, a name an existing task has is that task, by either of its names, as for
+                    // every other task command: a stopped one is brought back without its project named.
+                    projectName = existing.project();
+                    task = existing.name().substring(("sokar-" + projectName + "-").length());
+                    spec.commandLine().getOut().println("project        " + projectName + " - that of the task "
+                            + existing.name());
+                } else {
+                    final WorkOrigin.Choice choice = WorkOrigin.fromCheckout(context, Path.of("."));
+                    projectName = choice.project();
+                    if (repository == null) {
+                        repository = choice.repository();
+                    }
+                    spec.commandLine().getOut().println("project        " + choice.said());
                 }
-                spec.commandLine().getOut().println("project        " + choice.said());
             }
             // A name, not a path: which project a task belongs to must not depend on which
             // directory somebody was standing in. Where the file comes from is ProjectSource's

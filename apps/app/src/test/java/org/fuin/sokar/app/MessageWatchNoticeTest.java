@@ -126,6 +126,13 @@ class MessageWatchNoticeTest {
     }
 
     @Test
+    void a_conversations_answer_is_one_line_in_the_journal() {
+        // The key holds a line break, so the timing landed on a line of its own that no search for 'messages' found.
+        assertThat(MessageWatch.answered(TransportConversations.key("matrix", "sluicetest"), 35, 1))
+                .isEqualTo("messages  matrix sluicetest answered after 35 ms with 1 message(s)");
+    }
+
+    @Test
     void a_persons_message_written_on_the_host_is_noticed(@TempDir final Path dir) throws IOException {
         // 'sokar talk say' writes into person/, which was not watched: such a message went with the next pass of any
         // other cause, up to the timed one a minute on.
