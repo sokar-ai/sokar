@@ -152,7 +152,8 @@ public final class ProjectReader {
                 packageSources(image, origin),
                 mail(root, origin),
                 repositories(root, origin),
-                credentials(root, origin));
+                credentials(root, origin),
+                builds(root, origin, SecurityClass.parse(required(project, "security_class", origin, "project"))));
     }
 
     /**
@@ -215,6 +216,35 @@ public final class ProjectReader {
      * @param origin Where it came from, for messages.
      * @return The credentials, in the order written; empty when the section is absent.
      */
+    /**
+     * Reads the optional {@code builds} section, refusing it outside an {@code online} project.
+     *
+     * @param root The whole document.
+     * @param origin Name used in error messages.
+     * @param securityClass The project's class.
+     * @return What it declared, or {@code null} when it declared nothing.
+     */
+    private static @Nullable Builds builds(Map<?, ?> root,
+            String origin, SecurityClass securityClass) {
+        final Object value = root.get("builds");
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof Map<?, ?> builds)) {
+            throw new ProjectException(origin + ": 'builds' must be a mapping");
+        }
+        if (securityClass != SecurityClass.ONLINE) {
+            throw new ProjectException(origin + ": 'builds' is for online projects only - in guarded the forge"
+                    + " builds nothing until a person approves the work at the gate, and offline has no build");
+        }
+        try {
+            return new Builds(text(builds.get("forge")), text(builds.get("credential")), text(builds.get("api")),
+                    text(builds.get("logs")).isEmpty() ? Builds.FAILURE : text(builds.get("logs")));
+        } catch (ProjectException ex) {
+            throw new ProjectException(origin + ": " + ex.getMessage());
+        }
+    }
+
     private static Map<String, String> credentials(Map<?, ?> root, String origin) {
         final Object value = root.get("credentials");
         if (value == null) {
@@ -534,7 +564,10 @@ public final class ProjectReader {
         return new Limits.Declared(
                 limits.get("memory") == null ? null : text(limits.get("memory")),
                 limits.get("cpus") == null ? null : text(limits.get("cpus")),
-                pids == null ? null : ((Number) pids).intValue());
+                pids == null ? null : ((Number) pids).intValue(),
+                limits.get("hand_in") == null ? null
+                        : Limits.bytes(text(limits.get("hand_in")), origin + ": 'repositories." + name
+                                + ".limits.hand_in'"));
     }
 
     /**
@@ -592,13 +625,16 @@ public final class ProjectReader {
         final String memory = text(limits.get("memory"));
         final String cpus = text(limits.get("cpus"));
         final Object pids = limits.get("pids");
+        final long handIn = limits.get("hand_in") == null ? Limits.DEFAULT_HAND_IN
+                : Limits.bytes(text(limits.get("hand_in")), origin + ": 'limits.hand_in'");
         try {
             return new Limits(
                     // 'none' is how a project opts out on purpose, which reads differently from
                     // having forgotten to set one.
                     memory.isEmpty() ? Limits.DEFAULT_MEMORY : "none".equals(memory) ? null : memory,
                     cpus.isEmpty() || "none".equals(cpus) ? null : cpus,
-                    pids == null ? Limits.DEFAULT_PIDS : Integer.parseInt(String.valueOf(pids)));
+                    pids == null ? Limits.DEFAULT_PIDS : Integer.parseInt(String.valueOf(pids)),
+                    handIn);
         } catch (NumberFormatException ex) {
             throw new ProjectException(origin + ": 'limits.pids' must be a number, not '"
                     + pids + "'");

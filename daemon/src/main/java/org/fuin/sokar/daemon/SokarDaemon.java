@@ -316,20 +316,11 @@ public final class SokarDaemon {
         final int code = state.startsWith("Exited (") ? state.indexOf(')') : -1;
         final String settled = code > 0 ? state.substring(0, code + 1)
                 : state.split(" ")[0];
-        return String.join("\u0000", task.name(), String.valueOf(task.project()),
-                String.valueOf(task.securityClass()), settled, String.valueOf(task.running()),
-                String.valueOf(task.helpers()),
-                // What the work is doing changes without the container changing at all - a task
-                // that starts waiting for an answer looks identical to the runtime - so a watcher
-                // that did not compare this would never redraw the one transition that matters.
-                String.valueOf(task.activity()), String.valueOf(task.waitingFor()),
-                String.valueOf(task.agent()), String.valueOf(task.mode()),
-                String.valueOf(task.branch()), String.valueOf(task.clearance()),
-                // Derived from the agent's own output, and just as invisible to the runtime: an agent that
-                // puts a question to the person changes nothing but its screen.
-                String.valueOf(task.derived().screen()), task.derived().waitingFor(),
-                String.valueOf(task.derived().unproven()), task.derived().lastMessage(),
-                String.valueOf(task.derived().asked()), task.derived().session());
+        // Everything a client is sent, but the state's age: a list of chosen fields here left out every field added
+        // later - a handed-in file, a build's verdict - and an open Watch never sent them.
+        final java.util.Map<String, Object> sent = new java.util.LinkedHashMap<>(task.asMap());
+        sent.put("state", settled);
+        return org.fuin.sokar.wire.Json.write(sent);
     }
 
     /**

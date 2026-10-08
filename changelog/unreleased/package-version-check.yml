@@ -1,0 +1,2 @@
+title: "The packaging build reads the .deb and .rpm it wrote, Sokar's and the stub agent's, and fails when one carries another version than the project's as the packaging maps it"
+type: added

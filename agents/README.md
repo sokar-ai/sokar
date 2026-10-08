@@ -11,6 +11,9 @@ agents/
 └── stub/         sokar-agent-stub      → the agent the acceptance suite drives
 ```
 
+The two modules here: [api](api/README.md), the contract, and [stub](stub/README.md), the agent the acceptance
+suite drives.
+
 **Every shipped agent lives in its own repository**, building against the published
 contract, releasing on its own cadence, with this repository containing no reference
 to either:
@@ -198,16 +201,19 @@ Prove it in the agent's own repository, at the version it pins, with the kit's *
 agent in task … waiting for a person"* after driving the agent to a question - and *"… not waiting
 for a person"* while it works.
 
-**`at_rest` is when a message may wake the agent.** When a message names a task whose agent rests at its prompt,
-Sokar types one fixed line into its terminal saying so - only while the screen matches `at_rest`, and never while a
-`waiting` rule says a question to a person is open, since the line would interrupt its work or answer the question.
-An agent that declares nothing is never typed into; `shows` and `lacks` may not both be empty. The values above are
+**`at_rest` is when a message or a file may wake the agent.** When a message names a task whose agent rests at its
+prompt, or a file arrives in its `/sokar/files`, Sokar types one line of its own into its terminal saying so - only
+while the screen matches `at_rest`, and never while a `waiting` rule says a question to a person is open, since the
+line would interrupt its work or answer the question. **An agent is typed into only when it declares both**: one
+with `at_rest` and no `waiting` rule cannot say when a question is open, so it is never woken and finds what arrived
+when it looks, as its guide tells it. `shows` and `lacks` may not both be empty. The values above are
 Claude Code's own: each agent declares what its screen shows, measured at the version it pins.
 
-**`instructions` is how a task's agent is told how its mailbox works.** Sokar writes the guide to
-`/run/sokar/mail/README.md` in every task that has a mailbox, and adds these arguments, with the guide's path for
-`{file}`, on every way of starting the agent - attended, unattended, continued - behind whatever turns its prompts
-off. A task without a mailbox gets none of it, and an agent that declares nothing is not told. The flag is the
+**`instructions` is how a task's agent is told what Sokar gives it there.** Sokar writes one guide - `/sokar/files`
+and what arrives there, the builds of its pushes, and its mailbox where it has one - to `/run/sokar/guide/README.md`,
+read-only in the task, and adds these arguments, with the guide's path for `{file}`, on every way of starting the
+agent - attended, unattended, continued - behind whatever turns its prompts off. A task made before this version
+has its mailbox's guide, `/run/sokar/mail/README.md`, instead, and an agent that declares nothing is not told. The flag is the
 agent's own, so it is declared, never guessed. The guide is the same for every task of one Sokar version, so a
 provider that caches a prompt by its beginning keeps caching it.
 

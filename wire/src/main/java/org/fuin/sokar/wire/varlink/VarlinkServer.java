@@ -205,11 +205,11 @@ public class VarlinkServer implements AutoCloseable, Runnable {
         while (running) {
             try {
                 final SocketChannel client = channel.accept();
-                // A platform thread per connection, not a virtual one: in the native binary a virtual thread blocked
+                // A platform thread per connection unless told otherwise: in the native binary a virtual thread blocked
                 // reading a call now and then never woke, and the caller waited until its own limit - an agent that
                 // answered in a tenth of a second, and once a daemon for four minutes. Connections are few: a
-                // lookup's one, an interface's streams.
-                Thread.ofPlatform().daemon().name("varlink-connection").start(() -> serve(client));
+                // lookup's one, an interface's streams. Switchable, so one binary is measured both ways.
+                ServingThreads.start("varlink-connection", () -> serve(client));
             } catch (IOException ex) {
                 if (running) {
                     throw new VarlinkException("The varlink socket failed", ex);

@@ -1,0 +1,2 @@
+title: Stopping or removing a task whose record is gone answers that it is no task, rather than failing with a stack trace in failures.log
+type: fixed

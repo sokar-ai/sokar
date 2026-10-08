@@ -89,6 +89,72 @@ class StubAgentTest {
     }
 
     @Test
+    void aWorkspaceHoldingTheWorkMarkerIsWorkedOnUntilStopped(@org.junit.jupiter.api.io.TempDir
+            final java.nio.file.Path dir) throws Exception {
+
+        // Measuring a machine under many tasks needs agents that work: a screen that changes, commits, pushes.
+        final java.nio.file.Path workspace = java.nio.file.Files.createDirectories(dir.resolve("workspace"));
+        final java.nio.file.Path script = dir.resolve("sokar-stub-cli");
+        java.nio.file.Files.writeString(script, renderedScript());
+        for (final String[] git : new String[][] {{"init", "-q", "."}, {"config", "user.email", "s@example.com"},
+                {"config", "user.name", "S"}}) {
+            final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of("git"));
+            command.addAll(java.util.List.of(git));
+            new ProcessBuilder(command).directory(workspace.toFile()).start().waitFor();
+        }
+        java.nio.file.Files.writeString(workspace.resolve(".sokar-stub-works"), "1\n");
+        // A terminal, as tmux gives it in a task: the work loop runs only for an attached session.
+        final java.nio.file.Path screen = dir.resolve("screen.txt");
+        final ProcessBuilder attached = new ProcessBuilder("script", "-qec", "sh " + script, "/dev/null")
+                .redirectErrorStream(true).redirectOutput(screen.toFile());
+        attached.environment().put("SOKAR_STUB_WORKSPACE", workspace.toString());
+        final Process process = attached.start();
+        Thread.sleep(3_500);
+        process.destroy();
+        process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+        process.destroyForcibly();
+        final String said = java.nio.file.Files.readString(screen);
+
+        final Process log = new ProcessBuilder("git", "log", "--format=%s").directory(workspace.toFile()).start();
+        final String commits = new String(log.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(said).contains("stub: at work, nothing asked").contains("stub: step 2");
+        assertThat(commits.lines().filter(line -> line.startsWith("stub: step")).count()).as(commits)
+                .isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void aWorkspaceMarkedForLoadAlsoAsksTheProviderAndWritesToTheDiskAtEveryStep(@org.junit.jupiter.api.io.TempDir
+            final java.nio.file.Path dir) throws Exception {
+
+        // The second round of measuring: agents that talk to their provider and write, not only commit.
+        final java.nio.file.Path workspace = java.nio.file.Files.createDirectories(dir.resolve("workspace"));
+        final java.nio.file.Path script = dir.resolve("sokar-stub-cli");
+        java.nio.file.Files.writeString(script, renderedScript());
+        new ProcessBuilder("git", "init", "-q", ".").directory(workspace.toFile()).start().waitFor();
+        java.nio.file.Files.writeString(workspace.resolve(".sokar-stub-works"), "1 load\n");
+        final java.nio.file.Path asked = dir.resolve("asked.txt");
+        final java.nio.file.Path bin = java.nio.file.Files.createDirectories(dir.resolve("bin"));
+        // A curl that writes down what it was asked, standing in for the provider's socket.
+        java.nio.file.Files.writeString(bin.resolve("curl"), "#!/bin/sh\necho \"$*\" >> " + asked + "\n");
+        bin.resolve("curl").toFile().setExecutable(true);
+        final java.nio.file.Path screen = dir.resolve("screen.txt");
+        final ProcessBuilder attached = new ProcessBuilder("script", "-qec", "sh " + script, "/dev/null")
+                .redirectErrorStream(true).redirectOutput(screen.toFile());
+        attached.environment().put("SOKAR_STUB_WORKSPACE", workspace.toString());
+        attached.environment().put("SOKAR_STUB_SOCKET", dir.resolve("provider.sock").toString());
+        attached.environment().put("PATH", bin + ":" + System.getenv("PATH"));
+        final Process process = attached.start();
+        Thread.sleep(3_500);
+        process.destroy();
+        process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+        process.destroyForcibly();
+
+        assertThat(java.nio.file.Files.readString(asked)).as("a request at every step")
+                .contains("--unix-socket " + dir.resolve("provider.sock")).contains("\"stream\":true");
+        assertThat(java.nio.file.Files.size(workspace.resolve(".sokar-stub-disk"))).isEqualTo(8L * 1024 * 1024);
+    }
+
+    @Test
     void reportsTheVersionItsDefinitionPins() throws Exception {
         final String version = agent.definition().version();
 

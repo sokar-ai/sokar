@@ -52,6 +52,9 @@ public class NftRuleset {
 
     private final Set<Integer> ports = new LinkedHashSet<>(DEFAULT_PORTS);
 
+    /** The port an online task's upstream is pushed to over ssh, or {@code null} when it is not reached over ssh. */
+    private @org.jspecify.annotations.Nullable Integer upstreamPort;
+
     /**
      * Constructor with the project's security class.
      *
@@ -121,6 +124,23 @@ public class NftRuleset {
     }
 
     /**
+     * Opens the upstream's own addresses on the port an ssh address names, for an online task.
+     * <p>
+     * An online task's remote is the upstream itself, and over ssh it fetches and pushes on 22 (or the port the
+     * address names). The allow sets cannot carry that port: the resolver and the clearance path add hosts there,
+     * and every one of them would gain it. So the upstream's addresses go into sets of their own, filled by the
+     * resolver for the upstream's name alone, and only those get the port. Ignored for any other class: in guarded
+     * the work leaves through the gate, and a route to the upstream over ssh would go around it.
+     *
+     * @param port TCP port of the upstream's ssh.
+     * @return This instance.
+     */
+    public NftRuleset upstreamOverSsh(int port) {
+        this.upstreamPort = port;
+        return this;
+    }
+
+    /**
      * Allows the container to reach Sokar's own git gate.
      * <p>
      * Separate from {@link #allowV4(String)} so it survives the security class: an offline project
@@ -167,6 +187,19 @@ public class NftRuleset {
         lines.add("        type inet_service");
         lines.add("        elements = { " + join(ports) + " }");
         lines.add("    }");
+        final boolean upstream = securityClass == SecurityClass.ONLINE && upstreamPort != null;
+        if (upstream) {
+            lines.add("");
+            lines.add("    set upstream_v4 {");
+            lines.add("        type ipv4_addr");
+            lines.add("        flags interval");
+            lines.add("    }");
+            lines.add("");
+            lines.add("    set upstream_v6 {");
+            lines.add("        type ipv6_addr");
+            lines.add("        flags interval");
+            lines.add("    }");
+        }
         lines.add("");
         lines.add("    chain output {");
         lines.add("        type filter hook output priority filter; policy drop;");
@@ -217,6 +250,13 @@ public class NftRuleset {
             lines.add("        # reach HTTP/3 falls back to TCP.");
             lines.add("        ip daddr @allowed_v4 tcp dport @allowed_ports accept");
             lines.add("        ip6 daddr @allowed_v6 tcp dport @allowed_ports accept");
+            if (upstream) {
+                lines.add("");
+                lines.add("        # Online: the remote is the upstream, over ssh. Its addresses alone, as the");
+                lines.add("        # resolver answers its name, get the port its address names.");
+                lines.add("        ip daddr @upstream_v4 tcp dport " + upstreamPort + " accept");
+                lines.add("        ip6 daddr @upstream_v6 tcp dport " + upstreamPort + " accept");
+            }
         } else {
             lines.add("");
             lines.add("        # Security class 'offline': no egress set is consulted at all.");

@@ -65,6 +65,21 @@ public final class HelperPid {
     }
 
     /**
+     * Stops a helper and every process it started, those first.
+     * <p>
+     * A helper's own processes are not ended with it: a signal goes to one process, and a build watch stopped through
+     * its pid file left the build reader it had started running for hours after its task was removed.
+     *
+     * @param helper The helper, as {@link #verified} found it.
+     */
+    public static void stop(final ProcessHandle helper) {
+        // Taken before anything is signalled: a child whose parent is gone is no longer its descendant.
+        final java.util.List<ProcessHandle> started = helper.descendants().toList();
+        started.forEach(ProcessHandle::destroy);
+        helper.destroy();
+    }
+
+    /**
      * Returns the process a record names, when it is still that process.
      *
      * @param file The record.

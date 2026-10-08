@@ -1,0 +1,2 @@
+title: A release tag refuses every snapshot in the effective pom - a dependency, the imported BOM, a plugin or a plugin's dependency such as sokar-release - before it builds, with the build tools at 0.4.2, which bring the check
+type: changed

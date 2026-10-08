@@ -1,0 +1,35 @@
+# What a build reader answers: the forge it reads, where a branch points, and what a commit's build did.
+# The token comes with each call over the owner-only socket; a reader keeps no secret of its own.
+interface org.fuin.sokar.Build1
+
+# Which forge, and which version of this contract the reader speaks.
+method Describe() -> (protocolVersion: int, forge: string)
+
+# The commit a branch points at; "" when the forge has no such branch.
+method Head(upstream: string, api: string, token: string, branch: string) -> (commit: string)
+
+# One job of a build: the smallest unit the forge reports its own result and its own log for - on GitHub and
+# GitLab a job, on Bitbucket a step, on Jenkins a stage with a log of its own or else the whole build. Its name as
+# the forge spells it, "<workflow or pipeline> / <job>"; what became of it in lower case, or its state while it is
+# not finished; and the last 64 KiB of its log in base64, absent when none is handed over. A log is always the
+# job's plain text: a reader whose forge sends an archive or splits a job into step files unpacks it and joins the
+# steps in their order, one header line each, before it takes the end.
+type Job (name: string, result: string, log: ?string)
+
+# What the build of one commit did. jobs is every job the forge reports for the commit, in its order, once the
+# verdict is "failure" or final - empty while queued or running, and for "unknown" - at most 50. logs says which of
+# them carry their log: "failure" each failed job's, "all" every job's once the verdict is final; absent, "failure".
+method Look(upstream: string, api: string, token: string, commit: string, logs: ?string)
+    -> (verdict: string, jobs: []Job, detail: string)
+
+# The forge limits how often it is asked; retryAfter is in seconds, 0 when it did not say.
+error RateLimited(detail: string, retryAfter: int)
+
+# The forge refused the credential: expired, revoked, wrong, or without the scope it needs.
+error CredentialRefused(detail: string, retryAfter: int)
+
+# The forge knows no such repository, or the credential may not see it.
+error NoSuchRepository(detail: string, retryAfter: int)
+
+# The forge did not answer, or answered something that is not an answer.
+error Unreachable(detail: string, retryAfter: int)

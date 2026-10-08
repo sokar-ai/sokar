@@ -323,6 +323,12 @@ type DefaultRepository (
   upstream: string,
   # The checkout it was added from on this machine, or "" when it was added by address.
   checkout: string,
+  # Where its history comes from and its approved work goes, one place both ways: CHECKOUT (the checkout it was
+  # started in, whose remote the person pulls and pushes themselves; upstream is then that checkout's path) or REMOTE
+  # (an address; no checkout is part of it).
+  source: string,
+  # The checkout's origin when it was added from one, shown only and never reached; else the address.
+  remote: string,
   # The followed project that names the same repository, or "". Its tasks then start there, and an
   # interface offers to take the repository out of 'default'.
   claimedBy: string
@@ -434,6 +440,12 @@ type ResolvedLimits (
 # Per account and not per machine: two people here follow different projects, reconcile at different
 # moments, and each reaches their own vault for the credential a private repository needs.
 method Following() -> (projects: []Followed)
+
+# Fetches a followed project's repository now, or every one's when no project is named, rather than at the next
+# round: right after a push to it, or after what kept it from being fetched was fixed. Answers the records of the
+# projects it fetched as they are afterwards; a fetch that failed is a record with its outcome and detail, never an
+# error. A named project this account does not follow is NoSuchProject.
+method RefreshProjects(project: ?string) -> (projects: []Followed)
 
 type Followed (
   name: string,

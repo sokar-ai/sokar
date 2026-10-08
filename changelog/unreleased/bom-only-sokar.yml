@@ -1,0 +1,2 @@
+title: sokar-bom manages only what sokar publishes - sokar-wire, sokar-agent-api, sokar-build-api, sokar-acceptance-kit; JUnit, the build tools, Cucumber and sshj are managed by sokar-parent
+type: changed

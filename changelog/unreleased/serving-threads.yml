@@ -1,0 +1,2 @@
+title: "sokard serves its connections and runs its passes on virtual threads when SOKAR_THREADS=virtual, for measuring; platform threads stay the default"
+type: added

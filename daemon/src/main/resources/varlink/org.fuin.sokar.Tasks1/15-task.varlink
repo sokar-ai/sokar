@@ -235,7 +235,83 @@ type Task (
   credentials: [string]string,
   # For each of those credentials a person granted: who and when, as it stood when the task started - the
   # person this task acts as. Empty when none is a grant.
-  grants: [string]Authorization
+  grants: [string]Authorization,
+  # The container this task is: the id Sokar recorded when it was created. A task's name is the next free one
+  # in its project, so after a remove a later task can carry the same name; HandIns tells their records apart
+  # by this. "" for a task with none recorded.
+  run: string,
+  # The bytes one file handed to this task may have: the project's limits.hand_in when it started (64 MiB
+  # unless the project file says otherwise), fixed for the task's life like its other limits. A client
+  # refuses a larger file before reading it; HandIn refuses it too, as FileTooLarge.
+  handInLimit: int,
+  # What is in /sokar/files now, as this run was handed it, oldest first. Empty when nothing was.
+  files: []HandedFile,
+  # What the builds of this run's pushes did, the newest push first, each with its newest verdict. Empty outside
+  # an online project that names a forge under builds, and before the first push. A helper on the host follows
+  # every commit the task pushes; the task asks for nothing and holds no forge credential.
+  builds: []Build,
+  # The forge whose builds of this task's pushes are followed, as the project names it under builds.forge
+  # ("github"); "" when the project names none, or the task is not online. With builds empty and buildProblem
+  # empty, it means no push yet.
+  buildReader: string,
+  # Why the named reader does not follow them: not installed, would not start, speaks another version of the
+  # build protocol, the task's launch stopped before the helper that follows them, or that helper ended while the
+  # task runs. "" while it follows them, and when buildReader is "". What goes wrong while it follows - a
+  # rate limit, a refused credential, the vault shut - is each Build's detail instead.
+  buildProblem: string
+)
+
+# The build of one commit the task pushed, as Sokar handed it into the task: build-<first 12 of commit>.txt in
+# /sokar/files, and each delivered log beside it. A log's text is in the task only.
+type Build (
+  commit: string,
+  # "queued" | "running" | "success" | "failure" | "cancelled" | "unknown"
+  verdict: string,
+  # Every job the forge reports for the commit, in its order, once the verdict is "failure" or final: with the
+  # project's builds.logs "failure" (the default) a log for each failed job, with "all" a log for every job once
+  # the verdict is final. Empty while queued or running, and for "unknown". At most 50.
+  jobs: []BuildJob,
+  # UTC, when the verdict last changed.
+  since: string,
+  # Why "unknown" - a rate limit, a credential the forge refused, the vault shut, no build for that commit, no
+  # verdict within the deadline - or what more the forge said; empty otherwise.
+  detail: string
+)
+
+# One job of a build.
+type BuildJob (
+  # As the forge spells it, workflow and job: "Build / unit tests".
+  name: string,
+  # What became of it, as the forge says it, lower case: "success" | "failure" | "cancelled" | "skipped" | ...;
+  # while it is not finished, its state: "queued" | "in_progress" | ... A client shows one it does not know as it
+  # comes.
+  result: string,
+  # Its log's name in /sokar/files, the log's last 64 KiB: build-<first 12 of commit>-<n>.log, n counting from 1 in
+  # this list; empty when no log of it was delivered.
+  log: string
+)
+
+# One file handed to a running task, as the record holds it.
+type HandedFile (
+  # As it appears in /sokar/files.
+  name: string,
+  bytes: int,
+  # Of the content, lower-case hex.
+  sha256: string,
+  # UTC, when it was complete in the task.
+  at: string,
+  # Who handed it in: the account the call came from, or "sokar" for what Sokar hands in itself (a build's
+  # verdict and log). A client compares against "sokar", never guesses from the file's name.
+  by: string,
+  # The task's run it went to: Task.run then.
+  run: string
+)
+
+# One line of a task's hand-in record.
+type HandIn (
+  # "given", "replaced" (a file of that name was there and is replaced) or "taken back".
+  event: string,
+  file: HandedFile
 )
 
 # What became of a Stop or a Remove.
@@ -415,6 +491,13 @@ method Start(
   # Set when the image the container was built from has changed since it was created.
   imageDrift: ?string
 )
+
+# Brings a task's repository at the gate up to its source - the checkout it was started in, or its remote - and,
+# when a branch moved, tells its agent through its mailbox, so 'git fetch sokar' in the task brings it. Starting a
+# stopped task does the same on its own. outcome: MOVED (moved names each branch that moved and the commit it names
+# now; told says whether the agent heard), UNCHANGED, NOT_GATED (an online task, which fetches its upstream itself),
+# FAILED (detail says why). A name that is no task here is NoSuchTask.
+method RefreshTask(task: string) -> (outcome: string, moved: [string]string, detail: string, told: bool)
 
 # Stops a task and the helpers Sokar started beside it.
 #
@@ -779,6 +862,73 @@ method Screen(
   # and then lines is empty.
   live: bool
 )
+
+# ---------------------------------------------------------------------------- files handed to a task
+
+# Hands a file to a running task. It appears in the container as /sokar/files/<name>, owned by root and
+# readable by the agent, which cannot change or remove it, and it appears whole or not at all: nothing reaches
+# the task until the last part has arrived and the content's sha256 is what the caller said.
+#
+# In parts, because a reply is one message: a whole request, the JSON around 'part' included, may be at most
+# 4 MiB (4 194 304 bytes), so a part's base64 stays below about 4 000 000 characters. Any part from 1 byte up
+# is accepted; parts of at most 2 MiB decoded are recommended, and a client on a slow link sends smaller ones.
+# Every part repeats name, bytes and sha256, and 'offset' is where it starts. A client on another machine
+# carries bytes over this, never a path, so the same call works from anywhere the socket reaches.
+#
+# A part whose offset is not what the daemon holds for that name, bytes and sha256 is refused as
+# PartOutOfOrder, which says where to go on: a client resumes there after a lost connection. A hand-in nobody
+# continues for 10 minutes is dropped, and the record says nothing of it - it never reached the task. A second
+# hand-in of the same name with other bytes or sha256 while one is in flight is refused as HandInInProgress.
+#
+# A name already in /sokar/files is replaced, and the record says so. The task must be running. Nothing comes
+# back out of a task through this or any other method here.
+method HandIn(
+  task: string,
+  # A plain file name: not empty, at most 255 bytes, no '/', not starting with '.', no control characters.
+  name: string,
+  # The whole file's size.
+  bytes: int,
+  # The whole file's sha256, lower-case hex.
+  sha256: string,
+  # Where this part starts.
+  offset: int,
+  # The part, base64.
+  part: string
+) -> (
+  # Bytes the daemon holds for this file.
+  received: int,
+  # Set once the last part made it complete and it is in the task.
+  file: ?HandedFile
+)
+
+# Takes a handed-in file out of /sokar/files again. The task must be running.
+method TakeBack(task: string, name: string) -> (file: HandedFile)
+
+# Every hand-in, replacement and removal under a task's name, oldest first: of every run that carried the
+# name, told apart by 'run' - and also after the task is gone, since the record is kept in the state
+# directory. It names the files and never holds their content. It records what these methods did; a file
+# copied into a container by other means is not in it.
+method HandIns(task: string) -> (record: []HandIn)
+
+# A file goes only to a running task, and only a running task gives one back.
+error NotRunning(task: string)
+
+# The file has more bytes than the task's handInLimit. Refused before any byte is kept.
+error FileTooLarge(bytes: int, limit: int)
+
+error FileNameRefused(name: string, reason: string)
+
+# The parts did not add up to the sha256 that was said, or ran past 'bytes'. Nothing was placed.
+error FileDiffers(expected: string, actual: string)
+
+# The part does not start where the daemon is: go on at 'received'.
+error PartOutOfOrder(name: string, received: int)
+
+# Another file of that name is being handed in: 'received' of its 'bytes' are here.
+error HandInInProgress(name: string, received: int, bytes: int)
+
+# The task holds no handed-in file of that name.
+error NoSuchFile(task: string, name: string)
 
 # Start refuses a repository reached over ssh at a host this machine never met, before anything is
 # made: CanStart answers the same as UNKNOWN_HOST_KEY. detail says what to do.

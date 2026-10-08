@@ -1,0 +1,2 @@
+title: "A screen read costs a file, not a process in the task: the task's root writes the agent's screen when it changes into a directory the agent cannot write, and a listing reads it there"
+type: changed

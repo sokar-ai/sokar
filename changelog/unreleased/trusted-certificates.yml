@@ -1,0 +1,2 @@
+title: "Sokar trusts the certificate authorities in ~/.config/sokar/ca-certificates.pem beside the built-in ones, for an organisation that inspects TLS or a provider of your own"
+type: added

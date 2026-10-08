@@ -74,7 +74,7 @@ class ContainerSpecTest {
 
         // The negative case: an empty value would be passed to podman as a limit of nothing.
         final List<String> arguments = new ContainerSpec("box", "ubuntu:24.04")
-                .limits(new Limits(null, null, 4096)).toArguments();
+                .limits(new Limits(null, null, 4096, Limits.DEFAULT_HAND_IN)).toArguments();
 
         assertThat(arguments).doesNotContain("--memory");
         assertThat(arguments).containsSequence("--pids-limit", "4096");
@@ -83,7 +83,7 @@ class ContainerSpecTest {
     @Test
     void carriesTheProjectsOwnLimits() {
         assertThat(new ContainerSpec("box", "ubuntu:24.04")
-                .limits(new Limits("2g", "1.5", 512)).toArguments())
+                .limits(new Limits("2g", "1.5", 512, Limits.DEFAULT_HAND_IN)).toArguments())
                 .containsSequence("--memory", "2g")
                 .containsSequence("--cpus", "1.5")
                 .containsSequence("--pids-limit", "512");

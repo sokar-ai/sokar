@@ -170,6 +170,118 @@ If the daemon is not running, `ssh HOST systemctl --user start sokard` starts it
 and restarted on failure, instead of leaving an unsupervised process behind an ssh command. For it to keep
 running after you disconnect, the account needs lingering.
 
+## Handing a file to a running task
+
+A task's work comes from its repository, but some things a task needs never belong in git: a build log, a
+screenshot, a specification, a data extract. `sokar task give TASK FILE` hands such a file to a running task, and
+the agent finds it in `/sokar/files`.
+
+- **`/sokar/files` holds nothing else**, in every task, whatever the agent and the image, from the moment the task
+  starts. So a prompt can say "read what arrives in `/sokar/files`" before anything has arrived, and an agent can be
+  told to read all of it.
+- **A file appears whole or not at all**, owned by root and readable by the agent, which cannot change or remove
+  it. It is never in `/workspace`, so nothing the agent commits takes it out through the gate.
+- **The same name replaces the file**, and `sokar task take-back TASK NAME` removes it.
+- **It lives as long as the container**: a stop and a start keep it, since the container keeps its files, and
+  removing the task removes it. A task created again under the same name starts with an empty `/sokar/files`.
+- **The largest file a task takes** is `limits.hand_in` in the [project file](project-file.md), 64 MiB unless it
+  says otherwise, fixed when the task starts like its other limits.
+- **Only into a task, never out.** Nothing here takes a file out of a task; work leaves through the gate.
+- **Every hand-in is written down**: who, when, which task, the name, the size and the sha256, never the content.
+  `sokar task files TASK` shows it, also after the task is gone, and `sokar task status TASK` lists what the task
+  holds now. It records what Sokar did: a file copied into a container with `podman cp` is not in it.
+- **A base image that already has `/sokar` is refused** when the task's image is built, naming the image: Sokar
+  keeps that directory for itself, so that everything in it arrived the same way.
+
+An interface on another computer hands a file over the daemon's socket in parts, so the same works from wherever
+the socket reaches.
+
+## Being told what the build of a push did
+
+A task in an `online` project pushes its branch to the upstream, and the forge builds it somewhere the task cannot
+see. When the project file names the forge, Sokar follows every commit the task pushes and hands the build's verdict
+into the task as it changes - the task asks for nothing and holds no forge credential:
+
+```yaml
+builds:
+  forge: github               # the build reader to ask, as its package installs it
+  credential: github-actions  # the vault entry it reads the forge with; it never enters a task
+  # api: https://ghe.example/api/v3   # a forge of your own; unset is the forge's public API
+  # logs: all                 # every job's log once the build is finished; default: each failed job's
+```
+
+- **Only in `online`**: in `guarded` the forge builds nothing until a person approves the work at the gate, and in
+  `offline` there is no build. A project of either class with a `builds` section is refused when it is read.
+- **What arrives in `/sokar/files`**, with `by` "sokar": `build-<first 12 of commit>.txt`, the verdict - one of
+  `queued`, `running`, `success`, `failure`, `cancelled`, `unknown` - and, once it is `failure` or final, one line per
+  job with its result and its log's file; and `build-<first 12 of commit>-<n>.log`, the last 64 KiB of a job's log
+  as text, for each failed job, or for every job with `logs: all`. `<n>` is the job's place in that list, so the
+  failed job's log is the file its `job:` line names, not `-1.log`. The file is replaced as the verdict changes.
+- **A wait ends**: at a verdict that will not change, after two hours of a commit's build, or when the task stops.
+  A rate limit, a credential the forge refused, a repository it does not show and a shut vault are each said in the
+  verdict's detail, never as a failed build.
+- **Sokar keeps no copy of a log.** What it writes down is which builds it delivered - commit, verdict, each job's
+  result and its log's name, size and sha256 - and that outlives the task. `sokar task status TASK` shows the builds.
+- **The forge is read from the host**, by a build reader Sokar starts beside the task; its API host is not something
+  the task can reach. Readers are packages of their own; writing one is in
+  [writing a build reader](build-readers.md).
+
+## What a task's agent is told
+
+An agent learns what Sokar gives it in its task from one guide, which it takes into its standing instructions at
+every start when its definition declares how (`instructions`): Sokar writes it to `/run/sokar/guide/README.md`,
+mounted into the task and read only there. Where the task has a mailbox, the mailbox's text from
+[messages between tasks](messages.md#what-the-agent-is-told) follows it in the same file. A task made before
+this version keeps its mailbox's guide until it is made again.
+
+When a file arrives in `/sokar/files` - handed in by a person, or a build's verdict and its logs - and the agent waits
+at its prompt, Sokar types one line naming it, as it does for a message: never while a question to a person is
+open, and never for an agent whose definition says nothing about what its screen shows at rest. A file that arrived
+while the agent worked is announced once it rests; a verdict that changes is announced again.
+
+The text is the same for every task of one Sokar version, word for word:
+
+## Sokar in this task
+
+This task runs in Sokar. What follows is what Sokar gives you here besides your workspace:
+files handed to you, the builds of what you push, and a mailbox where the task has one.
+
+**When your work is done, commit it and push it with `git push sokar`, and name no branch.** The push
+goes to this task's own place, `$SOKAR_TASK_REF`: at the gate, where a person reviews it, or for a
+task that works on its remote directly, its own branch there - never onto a branch you name. A person
+takes back only what you pushed; what is only in your workspace stays in this task.
+
+**When you are told the repository you work from moved on, `git fetch sokar` brings it.**
+Rebase or merge your work onto it before you push again.
+
+## Files handed to you
+
+- **`/sokar/files` holds the files handed to this task**, by a person or by Sokar, and nothing
+  else. A file appears there whole, never half written.
+- You can read them but not change or remove them. Copy one into your workspace to change it.
+- A file handed in again under the same name replaces the one before.
+- **Look there when you start, and whenever you come to rest.** When a file arrives while you
+  wait at your prompt, a line may appear there naming it; not every agent is given one.
+
+### The builds of what you push
+
+Where the project follows its builds, Sokar watches what the forge builds for each commit you
+push to the task's branch, and hands in what it did:
+
+- `build-<commit>.txt`, `<commit>` the first 12 characters of the commit: lines of
+  `key: value` - `commit`, `verdict`, one `job` line per job, `since`, and `detail` when
+  there is more to say.
+- `verdict` is `queued` or `running` while the build goes on, then `success`, `failure` or
+  `cancelled`. It is `unknown` when there is no build or Sokar cannot read it, and `detail`
+  says why.
+- A `job` line names the job and what became of it, and the file holding the end of its log
+  when one was handed in: `build-<commit>-<n>.log`. A failed job's log always is, when the
+  forge has one.
+- The file is replaced each time the verdict changes.
+
+**After you push, read `build-<commit>.txt` until its verdict is final, before you call the work
+done.** On `failure`, read the log each failed `job` line names, fix the cause, and push again.
+
 ## Adding your own tooling to a task
 
 Two things are called "the agent", and they live in different places:

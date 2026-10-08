@@ -207,7 +207,9 @@ Four of these lines are the security model:
   nothing there.
 - **`gate`**: where the agent pushes, on your own machine.
 
-**Commit before you start.** The gate is a bare clone, so uncommitted changes stay behind.
+**Commit before you start.** The task takes your checkout's committed history, local commits
+included; uncommitted changes stay behind. Your remote is yours: Sokar neither pulls from it nor
+pushes to it.
 
 - When the agent exits you get a shell in the workspace. `--attach shell` skips the agent;
   `-P "your prompt"` runs it without a terminal.

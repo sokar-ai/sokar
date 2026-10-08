@@ -34,7 +34,12 @@ session:
   # What the stub shows once it is at work, attached, having asked nothing - the text a check
   # waits for. A workspace holding '.sokar-stub-asks' makes it ask one question first, and one
   # holding '.sokar-stub-covers' makes it draw this text and then a setup question over it, as a
-  # real agent was measured to - which is how a check proves it notices either.
+  # real agent was measured to - which is how a check proves it notices either. One holding
+  # '.sokar-stub-works' makes it work until stopped, for measuring a machine under many tasks: a line
+  # on the screen, a commit, and every tenth step a push, once per the seconds the file holds (2 when
+  # it is empty). 'load' after the seconds adds, at every step, a streamed request through the provider's
+  # socket and 8 MiB written to the disk, for measuring a machine whose agents talk and write.
+  # SOKAR_STUB_WORKSPACE names another workspace, for a test outside a container.
   ready_marker: "stub: at work, nothing asked"
   ready_within_seconds: 30
   # What waiting for a person looks like in the stub's own output: its question on the screen, and
@@ -105,6 +110,7 @@ install:
     - "      'id=\"$resumed\"; [ -n \"$id\" ] || id=\"s-$$-$(date +%s)\"' \\"
     - "      '[ -z \"$1\" ] && [ -t 0 ] && { mkdir -p \"$HOME/.sokar-stub-sessions\"; touch \"$HOME/.sokar-stub-sessions/$id.session\"; [ -n \"$resumed\" ] && echo \"stub: continuing $resumed\"; }' \\"
     - "      '[ -z \"$1\" ] && [ -t 0 ] && [ -e /workspace/.sokar-stub-covers ] && { echo \"stub: at work, nothing asked\"; sleep 1; printf \"\\033[2J\\033[HSetup step 1 of 5 \"; read answer; }' \\"
+    - "      '[ -z \"$1\" ] && [ -t 0 ] && w=/workspace; [ -n \"$SOKAR_STUB_WORKSPACE\" ] && w=$SOKAR_STUB_WORKSPACE; [ -e \"$w/.sokar-stub-works\" ] && { echo \"stub: at work, nothing asked\"; cd \"$w\"; read p load < .sokar-stub-works; [ -n \"$p\" ] || p=2; n=0; while :; do n=$((n+1)); date > .sokar-stub-step; echo \"stub: step $n\"; [ \"$load\" = load ] && { curl -s -o /dev/null --max-time 60 --unix-socket \"$SOKAR_STUB_SOCKET\" -H \"x-api-key: $ANTHROPIC_API_KEY\" -H \"anthropic-version: 2023-06-01\" -H \"content-type: application/json\" -X POST http://api.anthropic.com/v1/messages -d \"{\\\"stream\\\":true}\"; dd if=/dev/zero of=.sokar-stub-disk bs=1M count=8 conv=fsync 2>/dev/null; }; git add .sokar-stub-step >/dev/null 2>&1; git commit -q -m \"stub: step $n\" >/dev/null 2>&1; [ $((n % 10)) -eq 0 ] && git push -q >/dev/null 2>&1; sleep $p; done; }' \\"
     - "      '[ -z \"$1\" ] && [ -t 0 ] && { [ -e /workspace/.sokar-stub-asks ] && { printf \"Trust this folder? [y/N] \"; read answer; }; echo \"stub: at work, nothing asked\"; exec cat; }' \\"
     - "      'getent hosts example.com >/dev/null 2>&1 && echo \"stub: example.com resolved\" || echo \"stub: example.com did not resolve\"' \\"
     - "      'getent hosts example.net >/dev/null 2>&1 && echo \"stub: example.net resolved\" || echo \"stub: example.net refused\"' \\"

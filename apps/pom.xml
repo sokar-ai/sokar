@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.4.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-apps</artifactId>
+    <packaging>pom</packaging>
+    <name>Sokar Apps</name>
+    <description>Sokar - The command line and its areas (PARENT)</description>
+
+    <!-- The command line's layers: the shared ground, one module per area, and app, which assembles them into the
+         sokar executable. Grouped only; each keeps its own coordinates. -->
+
+    <modules>
+        <module>app-base</module>
+        <module>app-model</module>
+        <module>app-agents</module>
+        <module>app-vault</module>
+        <module>app-messaging</module>
+        <module>app-egress</module>
+        <module>app-task</module>
+        <module>app-project</module>
+        <module>app-gate</module>
+        <module>app</module>
+    </modules>
+
+</project>

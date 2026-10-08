@@ -11,7 +11,7 @@ From Codex's review (PJ19): `sokar-buildtools`' "Fedora package installation dis
 agent repositories' "Release RPMs are built with signing disabled", shared with Sokar. Placed Soon, with the agents'
 side in their repositories.
 
-Sokar's RPMs are built with signing off (`dist-rpm/pom.xml`, `rpm.sign.skip`), so the Fedora repository is set up
+Sokar's RPMs are built with signing off (`dist/dist-rpm/pom.xml`, `rpm.sign.skip`), so the Fedora repository is set up
 with `gpgcheck=0` - in `sokar-setup.sh`, in the documentation (`doc/getting-started.md`, "deliberate, and
 temporary"), and on every rented machine a leg installs on (`AgentLeg` in `sokar-buildtools`). Integrity rests on
 TLS to the project's own repository; `repo_gpgcheck` is not set either.

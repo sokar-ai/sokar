@@ -172,6 +172,15 @@ public final class Containerfile {
      * @param layers What the agent and the project contribute.
      * @return The recipe without its labels, ending in a line separator.
      */
+    /** Sokar's own root in a task's container, for content handed to the task. */
+    public static final String HAND_IN_ROOT = "/sokar";
+
+    /** Where a handed-in file appears, complete, and nothing else is. */
+    public static final String HAND_IN_FILES = HAND_IN_ROOT + "/files";
+
+    /** Where a handed-in file is while it arrives, out of the agent's sight, on the same filesystem. */
+    public static final String HAND_IN_INCOMING = HAND_IN_ROOT + "/.incoming";
+
     private static String body(Project project, ImageLayers layers) {
 
         // One URIs line, space separated, which is what deb822 takes and what apt walks in order.
@@ -271,7 +280,20 @@ public final class Containerfile {
                 "# No uid is pinned: 1000 is already taken on several common base images.",
                 "RUN id -u agent >/dev/null 2>&1 || useradd --create-home --shell /bin/bash agent",
                 "",
-                "RUN mkdir -p /workspace && chown agent:agent /workspace"));
+                "RUN mkdir -p /workspace && chown agent:agent /workspace",
+                "",
+                "# Files handed to a running task land in /sokar/files, which holds nothing else, so an",
+                "# agent can be told to read all of it. /sokar is Sokar's: a base image that already has",
+                "# it is refused rather than shared with. A file arrives in /sokar/.incoming, where the",
+                "# agent cannot look, and is renamed into place whole. Both belong to root, so the agent",
+                "# reads what it was given and cannot change or remove it.",
+                "RUN if [ -e " + HAND_IN_ROOT + " ]; then \\",
+                "        echo 'sokar: the base image " + project.baseImage() + " already has " + HAND_IN_ROOT
+                        + ", which Sokar keeps for files handed to a task - use a base image without it' >&2; \\",
+                "        exit 1; \\",
+                "    fi \\",
+                "    && mkdir -p " + HAND_IN_FILES + " " + HAND_IN_INCOMING + " \\",
+                "    && chmod 0755 " + HAND_IN_ROOT + " " + HAND_IN_FILES + " && chmod 0700 " + HAND_IN_INCOMING));
 
         // Everything above is the base image and the packages every task needs. Everything below
         // is the agent's. This ARG is the seam between them: podman invalidates its cache from the

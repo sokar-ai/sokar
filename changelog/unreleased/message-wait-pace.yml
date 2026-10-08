@@ -1,0 +1,2 @@
+title: "The daemon's waits on a transport rest five seconds when the transport came back at once with nothing, so a task with no account, or a shut vault, no longer keeps a core busy"
+type: fixed

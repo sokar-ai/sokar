@@ -1,0 +1,2 @@
+title: "A task started in a checkout takes the checkout's committed history, local commits included, and its approved work comes back into it; Sokar never reaches the checkout's remote, and two checkouts of one remote are two repositories"
+type: changed

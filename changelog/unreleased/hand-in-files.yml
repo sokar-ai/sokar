@@ -1,0 +1,2 @@
+title: "Hand a file to a running task: sokar task give puts it, whole and read-only, in /sokar/files, the daemon takes it in parts from a client on another machine, every hand-in is written down, and limits.hand_in sets the largest file"
+type: added

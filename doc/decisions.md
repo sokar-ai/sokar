@@ -12,6 +12,10 @@ would change the answer.
 | Only the last session is recorded, and a failed continuation is forgotten | a failed continuation is forgotten and the next start is fresh | [entry](#only-the-last-session-is-recorded-and-a-failed-continuation-is-forgotten) |
 | A session id is an identifier, not a credential | it may go on a command line; it authorizes nothing | [entry](#a-session-id-is-an-identifier-not-a-credential) |
 | An image's readiness is judged against the project file alone | `READY` ignores which agent the image was built for; a task with another agent rebuilds only those layers | [entry](#an-images-readiness-is-judged-against-the-project-file-alone) |
+| A file handed to a task goes to /sokar/files, and only in | a root-owned directory of its own in every task; a base image with `/sokar` is refused; nothing comes out | [entry](#a-file-handed-to-a-task-goes-to-sokarfiles-and-only-in) |
+| A task learns of handed-in files from Sokar, not from its prompt | one guide to all of Sokar in the task, and a line at the prompt when a file arrives | [entry](#a-task-learns-of-handed-in-files-from-sokar-not-from-its-prompt) |
+| A build is read from the host, never by the task | an online task is handed its builds' verdicts and logs; no forge token, route or verb in it | [entry](#a-build-is-read-from-the-host-never-by-the-task) |
+| Build readers are packages behind a versioned API | `sokar-build-api` and `org.fuin.sokar.Build1`; each forge in a repository of its own; nothing in `sokar` names one | [entry](#build-readers-are-packages-behind-a-versioned-api) |
 | **The machine and the daemon** | | |
 | A weaker machine is reported, not refused | `DEGRADED` exits zero and starts tasks; only `MISSING` fails | [entry](#a-weaker-machine-is-reported-not-refused) |
 | Doctor diagnoses and never repairs | each check names the next action; nothing runs a fix as root | [entry](#doctor-diagnoses-and-never-repairs) |
@@ -80,6 +84,65 @@ otherwise have tokens restored, the vault relay and the gate started in its name
 task's helpers reaped. A container with no record is not a task, and nothing is adopted by name, since an adoption by
 name is exactly the hole the record closes.
 
+## A file handed to a task goes to /sokar/files, and only in
+
+A file handed to a running task appears whole in `/sokar/files`, a directory that holds nothing else in every task
+from its start, owned by root and readable by the agent, which cannot change or remove it. Not `/workspace`, where
+the agent would commit it and the gate carry it out; not `/run/sokar/`, which is Sokar's machinery and holds the
+credential socket. `/sokar` is Sokar's root: a base image that already has it is refused when the task's image is
+built - which every preparation and every start of a changed image does - because a mixed directory would make
+"everything in it was handed in" quietly false. The same holds in every security class, since it carries nothing
+across a boundary that keeps tasks apart. Nothing takes a file out of a task: content leaving is what the gate is
+for. Every hand-in is written down - who, when, which run, the name, the size and the sha256 - in the state
+directory, so it outlives the task, and never the content, which is often the thing kept out of git on purpose.
+The record says what Sokar did: a file copied in with `podman cp` is not in it.
+
+## A task learns of handed-in files from Sokar, not from its prompt
+
+Left to the person's prompt, an agent pushed and never looked at its red build unless somebody remembered to say so
+(2026-10-07). Agent definitions have since come to declare both ways a running agent is told
+something - `instructions`, the file it takes into its standing instructions, and `at_rest`, the screen at which a
+line may be typed - and the mailbox used them first. Files and builds now use the same two:
+
+- **One guide to all of Sokar in the task**, `/run/sokar/guide/README.md`: `/sokar/files` and what arrives there,
+  the builds of a push among it, and the mailbox's text where the task has one - one file, since a definition has
+  one `{file}`. The same for every task of one Sokar version, as the mailbox's guide is, so a provider's cache of
+  the prompt holds. It is mounted from a directory of its own made with the task: a task made before has no such
+  mount, and keeps its mailbox's guide.
+- **A line at the prompt** when a file arrives, a verdict among them, and the agent rests there: Sokar's own,
+  naming the files, typed under the same lock, the same quiet and the same `waiting` rule as a message's, and tried
+  at every pass until it lands.
+
+`/sokar/files` is still the same path in every task, so a prompt may still name it. **What would change the
+answer:** an agent that takes its instructions some other way than a file, or tells a person's question from its
+rest by nothing on its screen.
+
+
+## A build is read from the host, never by the task
+
+An `online` task learns what the build of its own push did without reaching the forge: a helper on the host follows
+every commit it pushes, asks the forge with a token from the vault, and hands the verdict and the jobs' logs into
+`/sokar/files`. The task asks for nothing and holds nothing it could ask with. A route through the broker with a
+phantom token would have let the agent use the forge's own tools, but **a forge token cannot be scoped to the
+question**: one that reads a repository's builds reads its code and issues too, and an agent that holds a verb uses
+it - opening an issue, closing a pull request - with none of it passing the gate. So the surface is a verdict and
+logs, and nothing else. It is `online` only: in `guarded` the forge builds nothing before a person approves at the
+gate, and waiting for that is waiting for a person, not a build. A log is text an outsider can influence, as is
+everything a task reads; delivering it adds no new kind of input, and Sokar keeps no copy of it - only which builds it
+delivered, with each log's size and hash. **The exposure:** one token's rate limit is shared by every task that reads
+with it; the helper waits a limit out and says so in the verdict rather than reading as a failed build.
+
+## Build readers are packages behind a versioned API
+
+What a forge does differently in kind - GitHub sends a job's log behind a redirect to storage, another forge as an
+archive or a trace per step - is code, and that code is not Sokar's. A forge is read by a **build reader**: an
+executable built on the published `sokar-build-api`, speaking `org.fuin.sokar.Build1` over a socket with a protocol
+version Sokar checks, installed under `/usr/libexec/sokar/builds/<forge>` and found at run time, as an agent is. Each
+lives in a repository of its own - `sokar-build-github` first - and nothing in `sokar` names a forge; the stub reader
+the tests use is the only one in this tree. The contract fixes what every reader hands over, whatever its forge:
+the verdict across a commit's runs, every job once it is final, and a job's log as plain text, its last 64 KiB.
+**The exposure:** a reader runs on the host with the forge token in each call; it is a package the operator installs,
+and trusted as one.
 ## Waiting for a person is never inferred from silence
 
 A task's activity is observed from outside where it can be, and declared where it cannot. Working and idle are read

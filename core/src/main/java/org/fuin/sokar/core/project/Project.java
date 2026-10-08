@@ -26,7 +26,32 @@ public record Project(String name, String description, SecurityClass securityCla
         @org.jspecify.annotations.Nullable String imageSnippet,
         @org.jspecify.annotations.Nullable String upstream, Limits limits, Egress egress,
         java.util.@org.jspecify.annotations.Nullable List<String> packageSources, Mail mail,
-        java.util.List<Repository> repositories, java.util.Map<String, String> credentials) {
+        java.util.List<Repository> repositories, java.util.Map<String, String> credentials,
+        @org.jspecify.annotations.Nullable Builds builds) {
+
+    /**
+     * Constructor for a project whose tasks learn nothing of a build elsewhere - every project before they could.
+     *
+     * @param name Project name.
+     * @param description What it is for.
+     * @param securityClass How contained its tasks are.
+     * @param baseImage Image its task image is built from.
+     * @param imageSnippet Extra build fragment, or {@code null}.
+     * @param upstream Where approved work goes, or {@code null}.
+     * @param limits What a task may consume.
+     * @param egress What a task may reach.
+     * @param packageSources Where apt fetches from, or {@code null}.
+     * @param mail The peers its tasks may address.
+     * @param repositories The work repositories it names.
+     * @param credentials Vault entries every task holds, by the destination each is for.
+     */
+    public Project(String name, String description, SecurityClass securityClass, String baseImage,
+            @org.jspecify.annotations.Nullable String imageSnippet, @org.jspecify.annotations.Nullable String upstream,
+            Limits limits, Egress egress, java.util.@org.jspecify.annotations.Nullable List<String> packageSources,
+            Mail mail, java.util.List<Repository> repositories, java.util.Map<String, String> credentials) {
+        this(name, description, securityClass, baseImage, imageSnippet, upstream, limits, egress, packageSources,
+                mail, repositories, credentials, null);
+    }
 
     /**
      * Constructor for a project that declares no credentials beyond its agent's own - every project before

@@ -102,3 +102,34 @@ started inside the container is not checked.
 
 See [why you should use Sokar](corporate-security.md) for the other questions a security officer
 asks.
+
+## How do I work on several repositories at once in one task?
+
+**A task works on exactly one repository.** For one agent to work across several, make them one:
+`git subtree` brings another repository's files and history into yours as an ordinary directory.
+
+```
+git subtree add --prefix=lib https://github.com/you/lib.git main
+```
+
+The agent then works on all of it, and its work comes back through the gate as one branch. Taking a
+change back to the repository it came from is your step, on the host:
+
+```
+git subtree push --prefix=lib https://github.com/you/lib.git the-agents-change
+```
+
+That pushes only what is under `lib/`, with its history, and a commit that changed both `lib/` and the
+rest arrives there with its `lib/` part alone.
+
+**Git submodules do not work for this.**
+
+- **A task's workspace is filled from the gate without them.** The submodule's directory is empty, and
+  `git submodule status` shows it uninitialised. Filling it means fetching from wherever the submodule
+  lives, which a task reaches only if the project's `egress` allows that host.
+- **A change inside a submodule is a commit of another repository.** What reaches the gate is only the
+  new pointer to it, never the commit or its files, so nobody can review or approve the change itself.
+
+**For repositories that stay separate:** a project of your own that names them all in its
+`project.yml`, one task per repository, and the agents agree through their mailboxes - see
+[messages between tasks](messages.md).

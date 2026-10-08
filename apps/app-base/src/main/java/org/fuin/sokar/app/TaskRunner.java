@@ -1,0 +1,682 @@
+package org.fuin.sokar.app;
+
+import org.jspecify.annotations.Nullable;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import org.fuin.sokar.core.process.CommandRunner;
+import org.fuin.sokar.core.project.Project;
+import org.fuin.sokar.core.project.SecurityClass;
+import org.fuin.sokar.runtime.ContainerName;
+import org.fuin.sokar.runtime.ContainerSpec;
+import org.fuin.sokar.runtime.Podman;
+import org.fuin.sokar.shield.NftRuleset;
+import org.fuin.sokar.wire.Sidecar;
+
+/**
+ * Runs one task: generate the policy, build the image, create the container, start it.
+ * <p>
+ * The order matters and is not an implementation detail. The ruleset and the sidecar are written
+ * <em>before</em> the container is created, because the nft hook reads them while the container is
+ * being created. Writing them afterwards would leave a window in which a container exists without
+ * its firewall, and the hook would fail closed rather than wait.
+ */
+public class TaskRunner {
+
+    /** The file in a task's state holding the bytes one handed-in file may have, fixed when the task starts. */
+    public static final String HAND_IN_LIMIT_FILE = "hand-in.limit";
+
+    private final Podman podman;
+
+    private final SokarPaths paths;
+
+    /**
+     * Constructor.
+     *
+     * @param runner Runs external programs.
+     * @param paths Where files go.
+     */
+    public TaskRunner(CommandRunner runner, SokarPaths paths) {
+        this(runner, paths, name -> null);
+    }
+
+    /**
+     * Constructor with the environment the operator's terminal is read from.
+     *
+     * @param runner Runs commands.
+     * @param paths Where files go.
+     * @param environment Reads an environment variable.
+     */
+    public TaskRunner(CommandRunner runner, SokarPaths paths,
+            java.util.function.UnaryOperator<String> environment) {
+        this.podman = new Podman(runner, "podman", paths.egress().networkConfiguration(), environment);
+        this.paths = paths;
+    }
+
+    /**
+     * Returns the container name for one task run.
+     *
+     * @param project The project.
+     * @param task Task name.
+     * @return Container name.
+     */
+    public String containerName(Project project, String task) {
+        return ContainerName.of(project, task);
+    }
+
+    /**
+     * Prepares and starts a container for one task.
+     * <p>
+     * The name is passed in rather than returned, so that a caller can clean up a container that
+     * was created but failed to start. Returning it would leave that container behind, because the
+     * failure happens before the return.
+     *
+     * @param project The project.
+     * @param container Container name.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, String container, PrintWriter out) throws IOException {
+        start(project, container, org.fuin.sokar.runtime.ImageLayers.none(), out);
+    }
+
+    /**
+     * Prepares and starts a container for one task, with layers contributed by an agent and by
+     * the project itself.
+     *
+     * @param project The project.
+     * @param container Container name.
+     * @param layers What the agent and the project add to the image.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, String container,
+            org.fuin.sokar.runtime.ImageLayers layers, PrintWriter out) throws IOException {
+        start(project, container, layers, java.util.Map.of(), out);
+    }
+
+    /**
+     * Prepares and starts a container for one task.
+     *
+     * @param project The project.
+     * @param container Container name.
+     * @param layers What the agent and the project add to the image.
+     * @param environment Variables to set inside the container. Phantom tokens only.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, String container,
+            org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment, PrintWriter out) throws IOException {
+        start(project, container, layers, environment, java.util.List.of(), out);
+    }
+
+    /**
+     * Prepares and starts a container for one task.
+     *
+     * @param project The project.
+     * @param container Container name.
+     * @param layers What the agent and the project add to the image.
+     * @param environment Variables to set inside the container. Phantom tokens only.
+     * @param allowedDomains Domains the container's resolver will answer for.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, String container,
+            org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment,
+            java.util.List<String> allowedDomains, PrintWriter out) throws IOException {
+        start(project, container, layers, environment, allowedDomains, TaskWiring.none(), out);
+    }
+
+    /**
+     * Prepares and starts a container for one task.
+     *
+     * @param project The project.
+     * @param container Container name.
+     * @param layers What the agent and the project add to the image.
+     * @param environment Variables to set inside the container.
+     * @param allowedDomains Domains the container's resolver will answer for.
+     * @param wiring Host-side endpoints this container is attached to.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, String container,
+            org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment,
+            java.util.List<String> allowedDomains,
+            TaskWiring wiring, PrintWriter out) throws IOException {
+        start(project, project.ownRepository(), container, layers, environment, allowedDomains,
+                wiring, out);
+    }
+
+    /**
+     * Starts a task, naming the repository it works on.
+     *
+     * @param project The project.
+     * @param repository Which of its repositories this task works on.
+     * @param container Container name.
+     * @param layers What the image is built from.
+     * @param environment What the container is given.
+     * @param allowedDomains What its resolver may answer.
+     * @param wiring Host-side endpoints this container is attached to.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, org.fuin.sokar.core.project.Repository repository,
+            String container, org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment,
+            java.util.List<String> allowedDomains,
+            TaskWiring wiring, PrintWriter out) throws IOException {
+        start(project, repository, "", container, layers, environment, allowedDomains, wiring, out);
+    }
+
+    /**
+     * Starts a task, naming the repository it works on.
+     *
+     * @param project The project.
+     * @param repository Which of its repositories this task works on.
+     * @param container Container name.
+     * @param layers What the image is built from.
+     * @param environment What the container is given.
+     * @param allowedDomains What its resolver may answer.
+     * @param wiring Host-side endpoints this container is attached to.
+     * @param out Where progress is reported.
+     * @throws IOException If a file cannot be written.
+     */
+    public void start(Project project, org.fuin.sokar.core.project.Repository repository,
+            String commit, String container,
+            org.fuin.sokar.runtime.ImageLayers layers,
+            java.util.Map<String, String> environment,
+            java.util.List<String> allowedDomains,
+            TaskWiring wiring, PrintWriter out) throws IOException {
+
+        final Path state = paths.tasks().containerState(container);
+        Files.createDirectories(state);
+
+        // An online task's remote is the upstream; over ssh it needs that host on the port its address names.
+        final String upstream = repository.upstream() != null ? repository.upstream() : project.upstream();
+        final Integer sshPort = project.securityClass() == SecurityClass.ONLINE ? sshPort(upstream) : null;
+        final String sshHost = sshPort == null ? null : upstreamHost(upstream);
+        final Path ruleset = state.resolve("ruleset.nft");
+        Files.writeString(ruleset,
+                rulesetFor(project, hostResolvers(), wiring.gateAddress(), wiring.gatePort(),
+                        sshHost == null ? null : sshPort),
+                StandardCharsets.UTF_8);
+        out.println("policy    " + ruleset);
+
+        // Written before the container is created, like the ruleset: the supervisor hook reads
+        // it while the container is coming up.
+        final Path dnsConfig = state.resolve("dns.conf");
+        final org.fuin.sokar.shield.DnsPolicy dns = dnsPolicyFor(project, allowedDomains);
+        if (sshHost != null) {
+            dns.upstreamOverSsh(sshHost);
+        }
+        dns.writeTo(dnsConfig);
+        out.println("resolver  " + dnsConfig
+                + (allowedDomains.isEmpty() ? " (no domains allowed)"
+                        : " (" + allowedDomains.size() + " domains)"));
+
+        final Path sidecarFile = state.resolve("sidecar.json");
+        new Sidecar(Sidecar.VERSION, project.name(),
+                project.securityClass().name().toLowerCase(),
+                ruleset.toString(), dnsConfig.toString(), sokarBinary(), state.toString())
+                .writeTo(sidecarFile);
+        out.println("sidecar   " + sidecarFile);
+
+        // One build of a project at a time: the daemon and a terminal starting it at once wrote one Containerfile
+        // over the other and tagged one image with either's.
+        final Path context = paths.tasks().buildContext(project.name());
+        final String image;
+        try {
+            image = FileLocks.holding(context.resolveSibling(context.getFileName() + ".build.lock"),
+                    () -> podman.buildImage(project, context, layers));
+        } catch (final java.io.IOException ex) {
+            throw new java.io.UncheckedIOException(ex);
+        }
+        out.println("image     " + image);
+
+        final ContainerSpec specification = new ContainerSpec(container, image)
+                .command("sleep", "infinity")
+                // The repository's, over the project's, key by key. A repository that says nothing
+                // gets the project's unchanged.
+                .limits(project.limitsFor(repository))
+                .resolver(org.fuin.sokar.shield.DnsPolicy.LISTEN_ADDRESS)
+                .annotation(Sidecar.ANNOTATION, sidecarFile.toString())
+                // The same two facts as in the sidecar, on the container itself. The sidecar is
+                // in the runtime directory and goes when the session does; these outlive a
+                // reboot, which is exactly as long as the thing they describe.
+                .label(Sidecar.PROJECT_LABEL, project.name())
+                .label(Sidecar.CLASS_LABEL, project.securityClass().name().toLowerCase())
+                // Which repository the agent has open. A task works on exactly one, fixed when the
+                // task is created, so it belongs on the container rather than being worked out
+                // again later from something that may have changed underneath it.
+                .label(Sidecar.REPOSITORY_LABEL, repository.name())
+                // What this task's configuration was verified at, so the question survives the
+                // project moving on. "" for a project nothing verified.
+                .label(Sidecar.COMMIT_LABEL, commit);
+        final org.fuin.sokar.core.project.Limits limits = project.limitsFor(repository);
+        // Fixed when the task starts, like the others: what the daemon refuses above and what a client is told.
+        Files.writeString(state.resolve(HAND_IN_LIMIT_FILE), String.valueOf(limits.handIn()), StandardCharsets.UTF_8);
+        out.println("limits    " + (limits.memory() == null ? "no memory cap"
+                : limits.memory() + " memory")
+                + (limits.cpus() == null ? "" : ", " + limits.cpus() + " cpus")
+                + ", " + limits.pids() + " processes"
+                + ", files handed in up to " + limits.handIn() / (1024 * 1024) + " MiB"
+                // Said, because a task running under different limits from the ones in the
+                // project's own block is a thing somebody reading the file would not expect.
+                + (repository.limits().isEmpty() ? ""
+                        : " (from repository " + repository.name() + ")"));
+        environment.forEach(specification::environment);
+        if (wiring.vaultSocket() != null) {
+            // The credential proxy. Mounted rather than reached over the network on purpose: it
+            // needs no firewall rule, and the provider's own host is withheld from the ruleset
+            // so this is the only route to a working credential.
+            specification.volume(wiring.vaultSocket(), TaskWiring.VAULT_MOUNT);
+        }
+        if (wiring.sshSocket() != null) {
+            // The ssh-agent. The private key never crosses this: only signatures do.
+            specification.volume(wiring.sshSocket(), TaskWiring.SSH_MOUNT);
+        }
+        if (wiring.mailbox() != null) {
+            // The agent's own inbox and outbox, and nothing else of the mailbox: what the host
+            // keeps on the other side of this mount includes the originals of refused messages,
+            // which hold in clear text exactly what the filter refused to let out.
+            specification.volume(wiring.mailbox(), Mailbox.MOUNT);
+        }
+        // The agent's screen, written by the task's root where the agent cannot write, so reading it costs a file.
+        specification.volume(ScreenFile.prepare(state), ScreenFile.MOUNT);
+        final TaskGuide guide = new TaskGuide(paths, container);
+        if (guide.exists()) {
+            // What Sokar gives the agent here, which it takes in when it starts: written by the launch before this.
+            specification.volume(guide.directory(), TaskGuide.MOUNT);
+        }
+        // The id podman gives back is what makes it Sokar's task, never its name: recorded before it first starts, so
+        // every act on it after this, and its hooks, go to this container and no other of the same name.
+        Sidecar.recordId(state, podman.create(specification));
+        out.println("container " + container);
+
+        // If the nft hook fails, this is where it stops: the container never reaches running.
+        podman.start(container);
+        out.println("started   yes");
+        startScreenWriter(container);
+    }
+
+    /**
+     * Starts the task's screen writer, which lives as long as the container: after every start, since a stop ends it.
+     * A task made before the screen's directory was mounted ends it at once, and is read as before.
+     *
+     * @param container The task's container.
+     */
+    public void startScreenWriter(final String container) {
+        try {
+            runOrFail(podman.asUserDetachedArguments(container, "agent", ScreenFile.drawer()), null,
+                    "the screen drawer did not start");
+            runOrFail(podman.asRootDetachedArguments(container, ScreenFile.writer()), null,
+                    "the screen writer did not start");
+        } catch (IOException ex) {
+            // Its screen is then asked of the task, as it always was.
+        }
+    }
+
+    /**
+     * Returns the path of the running sokar binary, for the hooks to start helpers with.
+     *
+     * @return Absolute path, or the bare name if this process cannot see its own path - which
+     *         happens under a JVM and is why the hooks check the file before using it.
+     */
+    private String sokarBinary() {
+        return SokarBinary.path();
+    }
+
+    /** Names this task's resolver refuses whatever allows them. */
+    private java.util.List<String> refused = java.util.List.of();
+
+    /**
+     * Sets the names this task's resolver refuses, whatever allows them - the agent's, the
+     * project's and the repository's, as the start report printed them.
+     *
+     * @param names Host names.
+     */
+    void refusing(java.util.List<String> names) {
+        refused = java.util.List.copyOf(names);
+    }
+
+    private org.fuin.sokar.shield.DnsPolicy dnsPolicyFor(Project project,
+            java.util.List<String> allowedDomains) {
+        final org.fuin.sokar.shield.DnsPolicy policy =
+                new org.fuin.sokar.shield.DnsPolicy(project.securityClass());
+        // Refused first in the reading, though the order does not decide it: dnsmasq takes the longest
+        // match, so a refused name wins over any allowance of it or of its parent.
+        refused.forEach(policy::refuse);
+        // Every allowed domain, not just the upstream. Resolving a name and being allowed to
+        // reach it are the same decision: a domain that resolves but is then dropped produces a
+        // clearance prompt for a host the definition already declared, which is a prompt about
+        // nothing. The prompt is for what an agent reached for that nobody declared.
+        allowedDomains.forEach(policy::autoAllow);
+        // The upstream resolvers the host itself uses. Anything the policy does not allow is
+        // NXDOMAIN before it ever reaches them.
+        hostResolvers().forEach(policy::upstream);
+        return policy;
+    }
+
+    /**
+     * Returns the resolvers the host uses, so allowed queries go somewhere real.
+     *
+     * @return Resolver addresses, falling back to a public one when /etc/resolv.conf says nothing
+     *         usable. The fallback matters: the container's own resolv.conf points at loopback, so
+     *         inheriting it would make the resolver forward to itself.
+     */
+    static java.util.List<String> hostResolvers() {
+        final java.util.List<String> found = new java.util.ArrayList<>();
+        try {
+            for (final String line : Files.readAllLines(Path.of("/etc/resolv.conf"))) {
+                if (line.startsWith("nameserver ")) {
+                    final String address = line.substring("nameserver ".length()).strip();
+                    if (!address.startsWith("127.") && !address.contains(":")) {
+                        found.add(address);
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            // Fall through to the default below.
+        }
+        return found.isEmpty() ? java.util.List.of("8.8.8.8") : found;
+    }
+
+    /**
+     * Resolves the upstream's addresses, so the firewall can name them.
+     * <p>
+     * Pinned at task start rather than followed: a large host rotates addresses, and a task that
+     * runs long enough for that to matter will see a clearance prompt for the new one, which is
+     * the safe way to be wrong.
+     *
+     * @param upstream Remote as written in the project file.
+     * @return Addresses, empty when the host cannot be resolved.
+     */
+    private static java.util.List<String> upstreamAddresses(String upstream) {
+        final String host = upstreamHost(upstream);
+        if (host == null) {
+            return java.util.List.of();
+        }
+        try {
+            return java.util.Arrays.stream(java.net.InetAddress.getAllByName(host))
+                    .filter(address -> address instanceof java.net.Inet4Address)
+                    .map(java.net.InetAddress::getHostAddress)
+                    .distinct()
+                    .toList();
+        } catch (java.net.UnknownHostException ex) {
+            // Reported by the resolver line instead; a task that cannot resolve its upstream is
+            // a task whose push will fail loudly rather than silently.
+            return java.util.List.of();
+        }
+    }
+
+    private String rulesetFor(Project project, java.util.List<String> upstreamResolvers,
+            @Nullable String gateAddress, int gatePort, @Nullable Integer upstreamSshPort) {
+        final NftRuleset ruleset = new NftRuleset(project.securityClass());
+        if (upstreamSshPort != null) {
+            ruleset.upstreamOverSsh(upstreamSshPort);
+        }
+        if (gateAddress != null) {
+            // Before the security-class check on purpose: the gate is on this machine, and an
+            // offline project still has to be able to commit.
+            ruleset.gate(gateAddress, gatePort);
+        }
+        if (project.securityClass() != SecurityClass.OFFLINE) {
+            ruleset.localV4("127.0.0.0/8");
+            // The resolver runs INSIDE this namespace, so its own upstream queries are subject to
+            // this ruleset. Without these rules dnsmasq answers every query with REFUSED and the
+            // container looks like it has no network at all - which is what happened the first
+            // time this was wired up.
+            upstreamResolvers.forEach(ruleset::resolver);
+        }
+        return ruleset.render();
+    }
+
+    /**
+     * Runs an agent inside a running container.
+     * <p>
+     * The command is built by the agent itself, over varlink, from its own declared flags -
+     * Sokar does not know how to invoke it and should not learn. The output is written to a file
+     * so the same agent can be asked to render it afterwards.
+     *
+     * @param agent The installed agent.
+     * @param container Container to run in.
+     * @param request What to ask the agent to do.
+     * @param environment Variables for the run; phantom tokens only.
+     * @param logFile Where the agent's raw output goes.
+     * @param timeout How long the agent may run.
+     * @return Exit code of the agent.
+     */
+    public int runAgent(org.fuin.sokar.agent.api.InstalledAgent agent, String container,
+            org.fuin.sokar.agent.api.RunRequest request,
+            java.util.Map<String, String> environment,
+            Path logFile, java.time.Duration timeout) {
+        // Told what Sokar gives it as an attended start is: the agent builds its command, and Sokar adds the guide.
+        return podman.execute(container, environment, new TaskGuide(paths, container)
+                .instructing(agent.definition(), agent.buildCommand(request)), logFile, timeout);
+    }
+
+    /**
+     * Writes a file inside the container, with its content on standard input.
+     *
+     * @param container Container name.
+     * @param file What to write.
+     * @throws IOException If the content cannot be handed over.
+     */
+    public void place(String container, org.fuin.sokar.agent.api.ContainerFile file)
+            throws IOException {
+
+        final Path temporary = Files.createTempFile("sokar-place", "",
+                java.nio.file.attribute.PosixFilePermissions.asFileAttribute(
+                        java.nio.file.attribute.PosixFilePermissions.fromString("rw-------")));
+        try {
+            Files.writeString(temporary, file.content(), StandardCharsets.UTF_8);
+            // Three calls rather than one shell script. The script concatenated the path into
+            // quoted text three times, so a path containing a quote became commands; these pass
+            // it as an argument, where it can only ever be a path.
+            runOrFail(podman.makeParentArguments(container, file.path()), null,
+                    "Could not create the directory for " + file.path() + " in " + container);
+            runOrFail(podman.writeFileArguments(container, file.path()), temporary,
+                    "Could not write " + file.path() + " in " + container);
+            runOrFail(podman.setModeArguments(container, file.path(),
+                            file.ownerOnly() ? "600" : "644"), null,
+                    "Could not set the permissions of " + file.path() + " in " + container);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    /**
+     * Runs one step of placing a file, failing with what it was trying to do.
+     *
+     * @param arguments The command.
+     * @param stdin A file to feed it, or {@code null}.
+     * @param failure What to say when it does not succeed.
+     * @throws IOException If it fails.
+     */
+    private void runOrFail(List<String> arguments, @Nullable Path stdin, String failure)
+            throws IOException {
+        final ProcessBuilder builder = new ProcessBuilder(arguments);
+        if (stdin != null) {
+            builder.redirectInput(stdin.toFile());
+        }
+        builder.redirectErrorStream(true);
+        builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        try {
+            if (builder.start().waitFor() != 0) {
+                throw new IOException(failure);
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException(failure, ex);
+        }
+    }
+
+    /**
+     * Runs a command inside a running container.
+     *
+     * @param container Container name.
+     * @param environment Variables for this command.
+     * @param command Program and arguments.
+     * @param log File the output goes to.
+     * @param timeout How long it may run.
+     * @return Exit code.
+     */
+    public int execute(String container, java.util.Map<String, String> environment,
+            java.util.List<String> command, Path log, java.time.Duration timeout) {
+        return podman.execute(container, environment, command, log, timeout);
+    }
+
+    /**
+     * Returns the host process id of a running container's init process.
+     *
+     * @param container Container name.
+     * @return Process id, or empty if it is not running.
+     */
+    public java.util.Optional<Long> containerPid(String container) {
+        return podman.pidOf(container);
+    }
+
+    /**
+     * Returns the command that attaches a shell to a running container.
+     *
+     * @param container Container name.
+     * @param shell Shell to run.
+     * @return Argument list.
+     */
+    public List<String> attachCommand(String container, String shell) {
+        return podman.attachArguments(container, java.util.List.of(shell),
+                podman.terminalFor(container));
+    }
+
+    /**
+     * Returns the command that runs something and then leaves a shell.
+     *
+     * @param container Container name.
+     * @param shell Shell to leave behind.
+     * @param command What to run first.
+     * @return Command and arguments.
+     */
+    public List<String> attachCommand(String container, String shell, String command) {
+        return attachCommand(container, shell, command, null);
+    }
+
+    /**
+     * Says whether the session's own shell reported that it ended.
+     *
+     * @param container Container name.
+     * @return Whether the work finished, as opposed to somebody detaching.
+     */
+    public boolean sessionEnded(String container) {
+        return podman.sessionEnded(container);
+    }
+
+    /**
+     * Returns the command that runs something, then leaves a shell whose prompt names the task.
+     *
+     * @param container Container name.
+     * @param shell Shell to leave behind.
+     * @param command What to run first, or {@code null} for the shell alone.
+     * @param label Text for the prompt.
+     * @return Command and arguments.
+     */
+    public List<String> attachCommand(String container, String shell,
+            @org.jspecify.annotations.Nullable String command, @org.jspecify.annotations.Nullable String label) {
+        // Inside the task's one session rather than beside it. A plain exec ran the agent as a
+        // child of this terminal: closing the window took the agent with it, and attaching from
+        // anywhere else created a second, empty session and showed a bare shell in the workspace.
+        return podman.sessionArguments(container,
+                podman.attachScript(shell, command, label), podman.terminalFor(container));
+    }
+
+    /**
+     * Stops and removes a container.
+     *
+     * @param container Container name.
+     */
+    public void remove(String container) {
+        podman.remove(container);
+    }
+
+    /**
+     * Stops the helpers of a task whose container is not running.
+     * <p>
+     * A container that ran is reaped by the poststop hook, which stops everything the state
+     * directory records a pid for. A container that never <em>started</em> - a refused ruleset,
+     * a failed image build - fires no hook at all, and the vault proxy, gate and watcher started
+     * before it then outlive the run with nobody to stop them. Measured: they hold their sockets,
+     * and the next run fails for a reason that has nothing to do with what changed.
+     *
+     * @param container Container name.
+     */
+    public void reapOrphans(String container) {
+
+        if (podman.pidOf(container).orElse(0L) > 0) {
+            // Still running, with or without an attached shell. Its helpers belong to it.
+            return;
+        }
+        TaskLifecycle.stopHelpers(paths.tasks().containerState(container));
+    }
+
+    /**
+     * Returns the port a git remote is reached on over ssh, for an online task's firewall.
+     *
+     * @param upstream Remote as written in the project file.
+     * @return 22 for {@code git@host:path}, the port an {@code ssh://} address names or 22; {@code null} for a
+     *         remote not reached over ssh.
+     */
+    static @Nullable Integer sshPort(@Nullable String upstream) {
+        if (upstream == null || upstream.isBlank()) {
+            return null;
+        }
+        final String value = upstream.strip();
+        if (value.startsWith("ssh://")) {
+            final String authority = value.substring("ssh://".length()).split("/", 2)[0];
+            final String hostPort = authority.contains("@") ? authority.substring(authority.indexOf('@') + 1) : authority;
+            final String[] parts = hostPort.split(":", 2);
+            try {
+                return parts.length == 2 && !parts[1].isEmpty() ? Integer.valueOf(parts[1]) : Integer.valueOf(22);
+            } catch (NumberFormatException ex) {
+                return null;
+            }
+        }
+        // git@host:path, the scp form, is ssh on its default port.
+        return !value.contains("://") && value.contains("@") && value.contains(":") ? Integer.valueOf(22) : null;
+    }
+
+    /**
+     * Returns the host part of a git remote, for the firewall and the resolver.
+     * <p>
+     * Handles the two shapes a git remote actually takes: an SSH one like
+     * {@code git@github.com:you/repo.git}, which is not a URL, and an ordinary
+     * {@code https://} URL.
+     *
+     * @param upstream Remote as written in the project file.
+     * @return Host, or {@code null} if none can be read.
+     */
+    static @Nullable String upstreamHost(@Nullable String upstream) {
+        if (upstream == null || upstream.isBlank()) {
+            return null;
+        }
+        final String value = upstream.strip();
+        if (value.contains("://")) {
+            final String rest = value.substring(value.indexOf("://") + 3);
+            final String authority = rest.split("/", 2)[0];
+            final String hostPort = authority.contains("@")
+                    ? authority.substring(authority.indexOf('@') + 1) : authority;
+            final String host = hostPort.split(":", 2)[0];
+            return host.isBlank() ? null : host;
+        }
+        if (value.contains("@") && value.contains(":")) {
+            final String afterUser = value.substring(value.indexOf('@') + 1);
+            final String host = afterUser.split(":", 2)[0];
+            return host.isBlank() ? null : host;
+        }
+        return null;
+    }
+}

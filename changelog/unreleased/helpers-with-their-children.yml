@@ -1,0 +1,2 @@
+title: "Stopping a task stops its helpers with every process they started, so a build reader no longer outlives its task"
+type: fixed

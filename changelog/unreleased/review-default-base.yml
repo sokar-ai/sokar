@@ -1,0 +1,2 @@
+title: "Review over the daemon without a base compares with the mirror's default branch, as its contract says, instead of showing only the push's last commit"
+type: fixed

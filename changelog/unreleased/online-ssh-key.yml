@@ -1,0 +1,2 @@
+title: "An online task's ssh-agent signs with the key Sokar finds for its upstream, such as the project's deploy key, not only ssh.default; with none, the start names what it looked for and that a push from inside the task is refused"
+type: fixed

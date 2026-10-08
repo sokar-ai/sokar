@@ -151,6 +151,23 @@ final class ProjectMethods {
                             .toList()));
         });
 
+        server.method("RefreshProjects", (parameters, replies) -> {
+            final String name = empty(parameters, "project");
+            final Map<String, org.fuin.sokar.app.Reconcile.Result> done =
+                    new org.fuin.sokar.app.ConfigurationWatch(context, java.time.Duration.ZERO).refresh(name);
+            if (done == null) {
+                throw new VarlinkException(INTERFACE + ".NoSuchProject", Map.of("project", String.valueOf(name)));
+            }
+            final Map<String, java.util.List<String>> signers =
+                    org.fuin.sokar.app.PinnedSigners.of(context.paths().projects().configurationSigners());
+            replies.last(Map.of("projects",
+                    new org.fuin.sokar.app.FollowedProjects(context.paths().projects().followed()).all().stream()
+                            .filter(each -> done.containsKey(each.name()))
+                            .map(each -> org.fuin.sokar.app.ProjectInventory.followAsMap(each,
+                                    signers.getOrDefault(each.name(), java.util.List.of())))
+                            .toList()));
+        });
+
         server.method("Follow", (parameters, replies) -> {
             final String name = text(parameters, "name");
             final String url = address(parameters, "url");

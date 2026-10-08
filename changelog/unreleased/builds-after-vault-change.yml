@@ -1,0 +1,2 @@
+title: "The build helper asks the forge again within seconds of the vault changing after it refused a credential, instead of after ten minutes"
+type: fixed

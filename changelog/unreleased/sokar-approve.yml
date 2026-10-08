@@ -1,0 +1,2 @@
+title: "sokar approve, typed in the checkout a task was started from, shows the work waiting at the gate and after yes puts it on the branch sokar/<task> there, never on the checked-out branch and never to a remote; the guide in a task tells its agent to commit and push when done"
+type: added

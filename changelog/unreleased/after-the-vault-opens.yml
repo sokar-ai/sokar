@@ -1,0 +1,2 @@
+title: Opening the vault fetches at once every followed project that waited for it, and sends the messages that waited, rather than at the next round
+type: fixed

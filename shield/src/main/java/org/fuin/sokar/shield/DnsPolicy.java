@@ -57,6 +57,9 @@ public class DnsPolicy {
     /** Domains whose answers are added to the firewall set, see {@link #autoAllow(String)}. */
     private final Set<String> autoAllowed = new java.util.LinkedHashSet<>();
 
+    /** The online upstream's name, whose answers also fill the upstream sets; {@code null} for none. */
+    private @org.jspecify.annotations.Nullable String upstreamHost;
+
     /**
      * Constructor.
      *
@@ -98,6 +101,21 @@ public class DnsPolicy {
     public DnsPolicy autoAllow(String domain) {
         autoAllowed.add(domain);
         return allow(domain);
+    }
+
+    /**
+     * Names an online task's upstream, reached over ssh: its answers also fill the upstream sets, which alone the
+     * firewall opens on the ssh port. Nothing for any other class.
+     *
+     * @param host The upstream's host name.
+     * @return This instance.
+     */
+    public DnsPolicy upstreamOverSsh(String host) {
+        if (securityClass == SecurityClass.ONLINE) {
+            upstreamHost = host;
+            autoAllow(host);
+        }
+        return this;
     }
 
     /**
@@ -222,8 +240,9 @@ public class DnsPolicy {
                     lines.add("# name and blocked by address, which reached the operator as a");
                     lines.add("# clearance prompt for a bare IPv6 address they could not place.");
                     for (final String domain : autoAllowed) {
-                        lines.add("nftset=/" + domain
-                                + "/inet#sokar#allowed_v4,inet#sokar#allowed_v6");
+                        // The online upstream's answers fill its own sets too, which alone get the ssh port.
+                        lines.add("nftset=/" + domain + "/inet#sokar#allowed_v4,inet#sokar#allowed_v6"
+                                + (domain.equals(upstreamHost) ? ",inet#sokar#upstream_v4,inet#sokar#upstream_v6" : ""));
                     }
                 }
             }

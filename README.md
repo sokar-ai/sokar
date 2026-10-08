@@ -145,6 +145,20 @@ The pages of this repository's chapter on [the site](https://sokar-ai.github.io/
 - [Adding an agent](agents/README.md#onboarding-a-new-agent), [requirements](issues/README.md),
   [building from source](doc/build.md)
 
+## Modules
+
+What each Maven module is, in a few sentences of its own:
+
+- [bom](bom/README.md), [wire](wire/README.md), [core](core/README.md), [testing](testing/README.md) - the versions,
+  the records that cross a boundary, the domain model, the tests' fixtures
+- [runtime](runtime/README.md), [shield](shield/README.md), [clearance](clearance/README.md),
+  [vault](vault/README.md), [gate](gate/README.md), [supervisor](supervisor/README.md) - what runs around a task
+- [agents](agents/README.md), [builds](builds/README.md) - the contracts agents and build readers are written against
+- [apps](apps/README.md) - the `sokar` command line, area by area
+- [daemon](daemon/README.md), [hooks](hooks/README.md) - `sokard` and the OCI hooks
+- [acceptance](acceptance/README.md) - scenarios at a real terminal
+- [dist](dist/README.md) - the packages
+
 ## Licence
 GNU General Public License v3.0 or later — see [LICENSE](LICENSE).
 

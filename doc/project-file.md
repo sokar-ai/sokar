@@ -111,6 +111,7 @@ limits:
   memory: "8g"     # "none" opts out
   pids: 2048       # process count; stops a fork bomb
   cpus: "2.0"      # unset means no CPU limit
+  hand_in: "64m"   # the largest file 'sokar task give' may hand to a running task
 
 # Optional. Whom the project's tasks may write to. Tasks of one project reach each other by task
 # name without being listed, and a project with a conversation has 'people', the people in it,
@@ -150,6 +151,15 @@ mail:
 # remove these. An offline project declares none.
 credentials:
   search: brave-search
+
+# Optional, and for an ONLINE project only - this example is guarded, which refuses it. The forge
+# that builds what a task pushes, and the vault entry it is read with; each build's verdict, and
+# the log of each failed job, arrive in the task's /sokar/files.
+# builds:
+#   forge: github
+#   credential: github-actions
+#   api: https://ghe.example/api/v3   # optional; unset is the forge's own public API
+#   logs: failure                     # optional: failure (default) or all
 ```
 
 ## How the file reaches a machine: following

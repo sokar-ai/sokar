@@ -1,6 +1,6 @@
 # B38 — How Far Something That Got Through Can Get
 
-**Status:** later; blocked by sokar B37 and B39 (origin marking) and sokar B26 (the install count).
+**Status:** later; blocked by sokar B26 (the install count).
 
 **What must be true.** Content Sokar itself delivers into a task carries its origin, so the agent reads it as
 data from a known source and a reviewer sees where it came from; and "how far did it get" has an answer after the
@@ -8,8 +8,9 @@ task is gone, including what it installed.
 
 Content that arrives by `git clone` is never seen by Sokar and stays unmarkable; that is the difference worth
 stating. B14's messages already arrive as A2A messages from a named peer, in the inbox and never through the
-channel that carries the operator's instruction. What B37 (a build log) and B39 (a handed file) deliver is
-decided with them, against this file. How the origin is labeled is not Sokar's to decide: fencing conventions
+channel that carries the operator's instruction. A handed file arrives only in `/sokar/files`, root's and
+apart from anything the task wrote, and its record names who handed it in - a build's verdict and logs among
+them, handed in by Sokar itself ([being told what the build did](../../doc/running.md#being-told-what-the-build-of-a-push-did)). How the origin is labeled is not Sokar's to decide: fencing conventions
 differ per agent, so it is a field in the agent's definition, not a branch here.
 
 ## Acceptance

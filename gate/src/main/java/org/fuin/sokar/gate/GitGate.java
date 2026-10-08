@@ -145,6 +145,7 @@ public class GitGate {
                 throw new GateException(ex.getMessage() == null ? "git failed" : ex.getMessage(), ex);
             }
         }
+        dropApprovedBranches();
         // The agent pushes over HTTP, and git refuses that on a bare repository unless told the
         // repository is meant to be served.
         gitIn("config", "http.receivepack", "true");
@@ -171,7 +172,9 @@ public class GitGate {
             return "";
         }
         try (GitCredentials.Lease lease = lending.forUrl(upstreamUrl)) {
-            gitWith(lease, "fetch", "--quiet", "--prune", "--end-of-options", upstreamUrl, "+refs/heads/*:refs/heads/*");
+            gitWith(lease, "fetch", "--quiet", "--prune", "--end-of-options", upstreamUrl, "+refs/heads/*:refs/heads/*",
+                    "^" + APPROVED + "*");
+            dropApprovedBranches();
             return "";
         } catch (GateException ex) {
             return "the mirror could not be brought up to the upstream's branches, so this task starts from what it"
@@ -187,6 +190,40 @@ public class GitGate {
      *
      * @return The seed URL, or {@code null} for a mirror that was created empty.
      */
+    /**
+     * Returns the mirror's branches and the commit each names, to tell what a refresh moved.
+     *
+     * @return Branch name to commit; empty for a mirror with no branch yet.
+     */
+    public java.util.Map<String, String> branches() {
+        final java.util.Map<String, String> branches = new java.util.LinkedHashMap<>();
+        if (!Files.isDirectory(mirror.resolve("objects"))) {
+            return branches;
+        }
+        for (final String line : gitIn("for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads")
+                .standardOutput().lines().toList()) {
+            final int space = line.indexOf(' ');
+            if (space > 0) {
+                branches.put(line.substring(0, space), line.substring(space + 1).strip());
+            }
+        }
+        return branches;
+    }
+
+    /** Where approved work lands in a checkout that is its own source: never brought back as a branch of the gate. */
+    static final String APPROVED = "refs/heads/sokar/";
+
+    /**
+     * Removes the branches a source holds only because work was approved into it: brought back, a task saw its own
+     * approved work again as {@code sokar/sokar/<task>}.
+     */
+    private void dropApprovedBranches() {
+        for (final String ref : gitIn("for-each-ref", "--format=%(refname)", APPROVED).standardOutput().lines()
+                .map(String::strip).filter(line -> !line.isEmpty()).toList()) {
+            gitIn("update-ref", "-d", ref);
+        }
+    }
+
     @Nullable
     public String seededFrom() {
         final CommandResult result = runner.run(Command.of(List.of("git", "--git-dir",
@@ -353,7 +390,18 @@ public class GitGate {
         if (against == null || against.isBlank() || !resolves(against)) {
             return gitIn("show", "--patch", INCOMING + name).standardOutput();
         }
-        return gitIn("diff", against, INCOMING + name).standardOutput();
+        return gitIn(join(List.of("diff"), List.of(), compared(against, name))).standardOutput();
+    }
+
+    /**
+     * Returns what a review compares: from where the task's work and the branch last met, so what the branch gained
+     * since - a later task's start brings the mirror up to the upstream - is not shown as the task removing it. Two
+     * histories that never met are compared as they stand.
+     */
+    private List<String> compared(final String against, final String name) {
+        return runner.run(Command.of(List.of("git", "--git-dir", mirror.toString(), "merge-base", against,
+                INCOMING + name))).successful() ? List.of(against + "..." + INCOMING + name)
+                        : List.of(against, INCOMING + name);
     }
 
     /**
@@ -371,7 +419,7 @@ public class GitGate {
         requirePending(name);
         final boolean compare = against != null && !against.isBlank() && resolves(against);
         final List<String> verb = compare ? List.of("diff", "--no-renames") : List.of("show", "--format=", "--no-renames");
-        final List<String> refs = compare ? List.of(against, INCOMING + name) : List.of(INCOMING + name);
+        final List<String> refs = compare && against != null ? compared(against, name) : List.of(INCOMING + name);
         // Read with -z: without it git quotes a path holding a byte beyond ASCII, a '"' or a tab, and the quoted name
         // matched no dangerous place - a workflow ranked ordinary.
         final Map<String, int[]> counts = numstat(gitIn(join(verb, List.of("--numstat", "-z"), refs)).standardOutput());

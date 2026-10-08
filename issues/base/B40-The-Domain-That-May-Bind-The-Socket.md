@@ -64,7 +64,7 @@ what this buys.
 
 - **Whether a domain transition is achievable for a binary an operator may also run from a build
   tree.** A transition keyed to `/usr/bin/sokar` covers the packaged binary; a developer running
-  `app/target/sokar` is unlabelled and would be refused, which is a worse outcome than today if it
+  `apps/app/target/sokar` is unlabelled and would be refused, which is a worse outcome than today if it
   is not handled deliberately.
 - **What the daemon and the helpers transition to.** `gate serve`, `vault serve` and `vault relay`
   are the processes that actually bind, and whether they are the same domain as the CLI or one of

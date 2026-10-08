@@ -63,12 +63,14 @@ final class GateMethods {
         server.method("Review", (parameters, replies) -> {
             final GitGate gate = gate(parameters, context);
             final String name = text(parameters, "name");
-            final String against = text(parameters, "against");
-            final org.fuin.sokar.gate.ReviewRanking.Review review =
-                    gate.rankedReview(name, against.isEmpty() ? null : against);
+            // As the contract says and 'sokar gate review' does: without a base, the mirror's HEAD - its source's
+            // default branch. Passing nothing showed the push's last commit alone, and a review of several commits
+            // looked like one.
+            final String against = text(parameters, "against").isEmpty() ? "HEAD" : text(parameters, "against");
+            final org.fuin.sokar.gate.ReviewRanking.Review review = gate.rankedReview(name, against);
             final Map<String, Object> reply = new LinkedHashMap<>();
             reply.put("diff", review.patch());
-            reply.put("log", gate.log(name, against.isEmpty() ? null : against));
+            reply.put("log", gate.log(name, against));
             reply.put("files", review.files().stream().map(file -> {
                 final Map<String, Object> row = new LinkedHashMap<>();
                 row.put("path", file.path());

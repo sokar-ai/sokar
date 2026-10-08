@@ -1,0 +1,2 @@
+title: An online task is told what the build of its push did - each verdict and the jobs' logs arrive in /sokar/files, read from the host by a build reader found at run time, so the task holds no forge token - and a project names the forge, the vault entry and which logs under builds
+type: added

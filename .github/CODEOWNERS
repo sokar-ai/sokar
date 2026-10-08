@@ -9,7 +9,5 @@
 /.mvn/                                           @michael-schnell
 /settings.xml                                    @michael-schnell
 /mkdocs.yml                                      @michael-schnell
-/dist-deb/                                       @michael-schnell
-/dist-rpm/                                       @michael-schnell
-/dist-setup/                                     @michael-schnell
+/dist/                                           @michael-schnell
 /selinux/                                        @michael-schnell

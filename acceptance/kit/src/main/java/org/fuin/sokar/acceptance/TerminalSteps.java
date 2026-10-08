@@ -357,6 +357,28 @@ public class TerminalSteps {
      */
     @Given("a project called {string} of class {string} whose project file also says:")
     public void aProjectSaying(String name, String securityClass, String more) throws IOException {
+        aProjectSaying(name, securityClass, null, more);
+    }
+
+    /**
+     * Creates a small git project on the machine of class {@code online}, whose upstream is a bare repository of its
+     * own: an online project names one, and a rented machine has no forge to push to. It lives inside the project's
+     * {@code .git}, so it is never committed and goes with the project.
+     *
+     * @param name The project's name and directory.
+     * @param more YAML appended to the project file, as for the other project steps.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @Given("an online project called {string} pushing to a repository of its own, whose project file also says:")
+    public void anOnlineProjectSaying(String name, String more) throws IOException {
+        final String upstream = projectName(name) + "/.git/upstream.git";
+        aProjectSaying(name, "online", "file://$HOME/" + upstream, more);
+        final Ssh.Output made = world.run("git init -q --bare -b main ~/" + upstream);
+        assertThat(made.status()).as("no upstream for %s:%n%s", name, made.all()).isZero();
+    }
+
+    private void aProjectSaying(String name, String securityClass, @org.jspecify.annotations.Nullable String upstream,
+            String more) throws IOException {
         // Built by running the commands rather than by writing files from here: a fixture the
         // suite creates is a fixture that can be right while the product is wrong.
         // Built by running the commands rather than by writing files from here: a fixture the
@@ -381,6 +403,8 @@ public class TerminalSteps {
         world.run("cd ~/" + name + " && printf '%s\\n' "
                 + "'project:' '  name: \"" + name + "\"' "
                 + Shell.quote("  security_class: \"" + securityClass + "\"") + " "
+                // Double quotes, so the shell puts this account's home into it.
+                + (upstream == null ? "" : "\"  upstream: \\\"" + upstream + "\\\"\" ")
                 + "'image:' '  base_image: \"ubuntu:24.04\"' > project.yml");
         if (!more.isBlank()) {
             world.run("cd ~/" + name + " && printf '%s\\n' " + more.lines().map(Shell::quote)
@@ -464,6 +488,21 @@ public class TerminalSteps {
     @Then("within {int} seconds this script exits zero:")
     public void withinSecondsThisScriptExitsZero(int seconds, String script) throws IOException {
         final String command = "bash -c " + Shell.quote(World.expand(script));
+        world.output(Repeated.untilZero(script.lines().findFirst().orElse(""), () -> world.run(command),
+                new TaskHistories(world), java.time.Duration.ofSeconds(seconds), Repeated.EVERY, world::redact));
+    }
+
+    /**
+     * Runs a script about the task again until it exits zero, or fails the scenario at the limit with what it said
+     * last: for what arrives in a task by itself, on a helper's clock.
+     *
+     * @param seconds How long to wait.
+     * @param script Lines naming the task as {@code {task}}, with {@code ${NAME}} expanded from the runner's environment.
+     * @throws IOException If the machine cannot be reached.
+     */
+    @Then("within {int} seconds this script about the task exits zero:")
+    public void withinSecondsThisScriptAboutTheTaskExitsZero(int seconds, String script) throws IOException {
+        final String command = "bash -c " + Shell.quote(World.aboutTask(World.expand(script), world.task()));
         world.output(Repeated.untilZero(script.lines().findFirst().orElse(""), () -> world.run(command),
                 new TaskHistories(world), java.time.Duration.ofSeconds(seconds), Repeated.EVERY, world::redact));
     }

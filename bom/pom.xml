@@ -16,36 +16,22 @@
     <name>Sokar BOM</name>
     <description>Sokar - The versions a repository that builds against Sokar needs, named once (BOM)</description>
 
-    <properties>
-        <!-- Deployed to Central beside the agent API: a repository that is not this one imports
-             it first and never names a Sokar version, or a JUnit one, again. -->
-        <maven.deploy.skip>false</maven.deploy.skip>
-        <skipPublishing>false</skipPublishing>
-    </properties>
-
     <!-- Only what crosses the repository boundary. Anything an agent or a suite in another
          repository has to agree with this one about is here; nothing this build uses only for
          itself is. -->
     <dependencyManagement>
         <dependencies>
 
-            <!-- JUnit as one set, before anything else a consumer imports, so that Jupiter, the
-                 platform and the suite engine agree with each other. An importer whose own BOM
-                 pins Jupiter beside a suite from a different platform - as org.fuin:bom does -
-                 gets a mixed set the moment the acceptance kit sits between them, and the suite
-                 engine dies on a missing method. The version is what Cucumber is built against. -->
-            <dependency>
-                <groupId>org.junit</groupId>
-                <artifactId>junit-bom</artifactId>
-                <version>${junit.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
-            <!-- What this repository publishes for others to build against. -->
+            <!-- What this repository publishes for others to build against, released together with it - and
+                 nothing else: JUnit, the build tools and third-party versions are sokar-parent's. -->
             <dependency>
                 <groupId>org.fuin.sokar</groupId>
                 <artifactId>sokar-agent-api</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-build-api</artifactId>
                 <version>${sokar.version}</version>
             </dependency>
             <dependency>
@@ -58,45 +44,35 @@
                 <artifactId>sokar-acceptance-kit</artifactId>
                 <version>${sokar.version}</version>
             </dependency>
-            <!-- The build tooling, published from sokar-buildtools on its own version line. -->
-            <dependency>
-                <groupId>org.fuin.sokar</groupId>
-                <artifactId>sokar-machines</artifactId>
-                <version>${sokar.buildtools.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.fuin.sokar</groupId>
-                <artifactId>sokar-release</artifactId>
-                <version>${sokar.buildtools.version}</version>
-            </dependency>
-
-            <!-- What the acceptance kit is built with, so a consumer adding a step of its own
-                 compiles against the same Cucumber and reaches the same machine the same way. -->
-            <dependency>
-                <groupId>io.cucumber</groupId>
-                <artifactId>cucumber-java</artifactId>
-                <version>${cucumber.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.cucumber</groupId>
-                <artifactId>cucumber-picocontainer</artifactId>
-                <version>${cucumber.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.cucumber</groupId>
-                <artifactId>cucumber-junit-platform-engine</artifactId>
-                <version>${cucumber.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.hierynomus</groupId>
-                <artifactId>sshj</artifactId>
-                <version>${sshj.version}</version>
-            </dependency>
-
         </dependencies>
     </dependencyManagement>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <!-- Deployed to Central beside the agent API: a repository that is not this one imports
+                     it first and never names a Sokar version, or a JUnit one, again. Opted in on the two
+                     plugins rather than by the properties every other published module sets: this pom's
+                     properties are published with it, and a repository that took it as its parent then
+                     inherited 'publish me'. -->
+                <plugin>
+                    <groupId>org.sonatype.central</groupId>
+                    <artifactId>central-publishing-maven-plugin</artifactId>
+                    <!-- The one org.fuin:pom's release profile runs; without it here, a build without that
+                         profile cannot resolve the plugin it manages. -->
+                    <version>0.10.0</version>
+                    <configuration>
+                        <skipPublishing>false</skipPublishing>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-deploy-plugin</artifactId>
+                    <configuration>
+                        <skip>false</skip>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <!-- The root flattens in 'oss' mode, which drops dependencyManagement - and a BOM
                  with no dependencyManagement is an empty promise. 'bom' mode keeps it, with the

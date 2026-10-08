@@ -1,0 +1,2 @@
+title: An online task whose upstream is an ssh address reaches that host on the port the address names, 22 for git@host, so it fetches and pushes - and no other host gets that port
+type: fixed

@@ -19,6 +19,7 @@ The numbers here are checked against the code by a test.
 |---|---|---|
 | A name the project did not declare | Does not resolve through the task's resolver | control |
 | A declared host | Reachable on ports 80 and 443 only | control |
+| An online task's ssh upstream | Its host also on the port its address names (22 for `git@host:…`), and no other host on it; a guarded task reaches no upstream over ssh at all | control |
 | An empty `egress` section | Deny, never a default that widens with a release | control |
 | A reach for something undeclared | Blocked, and raises a clearance prompt: the closest thing on the machine to a hijack alarm | control |
 | The git gate | One address and one port on this machine, never "the machine" | control |

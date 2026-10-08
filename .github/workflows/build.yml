@@ -160,6 +160,15 @@ jobs:
       - name: The pinned GraalVM
         uses: ./.github/actions/pinned-jdk
 
+      # A release depends only on releases: every snapshot in the effective pom - dependency, imported BOM, plugin, a
+      # plugin's dependency such as sokar-release - refused and named, read from what Maven resolved.
+      - name: No snapshot in a release
+        if: steps.channel.outputs.channel == 'releases'
+        run: |
+          set -eu
+          ./mvnw -B -q -s settings.xml help:effective-pom -Doutput="$PWD/target/effective-pom.xml"
+          ./mvnw -B -s settings.xml -N exec:exec@check-releases
+
       # Our own few lines rather than an action: the private key reaches only this repository's code and
       # the runner. The passphrase is not needed here - Maven's signing passes it with loopback pinentry,
       # from settings.xml.
@@ -204,7 +213,7 @@ jobs:
 
       # Packaging only, on modules whose binary arrived.
       - name: Build the packages
-        run: ./mvnw -B -s settings.xml -Pdist verify -DskipTests -pl agents/stub,dist-deb,dist-rpm
+        run: ./mvnw -B -s settings.xml -Pdist verify -DskipTests -pl agents/stub,dist/dist-deb,dist/dist-rpm,dist/dist-check
              -Dsokar.snapshot.run=${{ github.run_number }}
 
       # Checks the two packages against each other and installs both in a clean Debian and a clean Fedora.
@@ -243,14 +252,14 @@ jobs:
         run: |
           set -eux
           if [ "$CHANNEL" = releases ] && curl -sfL "${JF_URL}/artifactory/sokar-dist-deb/dists/releases/main/binary-amd64/Packages" \
-                  | grep -qF "Filename: pool/main/s/sokar/$(basename dist-deb/target/sokar_*.deb)"; then
+                  | grep -qF "Filename: pool/main/s/sokar/$(basename dist/dist-deb/target/sokar_*.deb)"; then
               echo "::error::this release is published already"; exit 1
           fi
           # --flat, or the source directory travels and the package lands away from its siblings.
-          jf rt upload "dist-deb/target/*.deb" "sokar-dist-deb/pool/main/s/sokar/" \
+          jf rt upload "dist/dist-deb/target/*.deb" "sokar-dist-deb/pool/main/s/sokar/" \
               --flat=true \
               --target-props="deb.distribution=${CHANNEL};deb.component=main;deb.architecture=amd64"
-          jf rt upload "dist-rpm/target/*.rpm" "sokar-dist-rpm/${CHANNEL}/" --flat=true
+          jf rt upload "dist/dist-rpm/target/*.rpm" "sokar-dist-rpm/${CHANNEL}/" --flat=true
           # Sokar's own test agent, for a machine a leg leases ('lease --package sokar-agent-stub'): snapshots only,
           # and never offered as an agent to install - it declares no 'Provides: sokar-agent', so it is taken by its
           # name alone. A scenario that needs it fails where it is missing rather than skipping.
@@ -274,12 +283,12 @@ jobs:
           # Out of the package that was just built, with the tool that made it: the control
           # directory jdeb works from is not left on disk, and a glob over target/ matches every
           # .deb a machine has ever built there.
-          DEB="$(ls -t dist-deb/target/sokar_*.deb | head -1)"
+          DEB="$(ls -t dist/dist-deb/target/sokar_*.deb | head -1)"
           VERSION="$(dpkg-deb -f "$DEB" Version)"
           [ -n "$VERSION" ] || { echo "::error::no version in $DEB"; exit 1; }
-          jf rt upload "dist-setup/sokar-setup.sh" "sokar-dist-deb/setup/sokar-setup-${VERSION}.sh" --flat=true
+          jf rt upload "dist/dist-setup/sokar-setup.sh" "sokar-dist-deb/setup/sokar-setup-${VERSION}.sh" --flat=true
           if [ "$CHANNEL" = releases ] || ! curl -sfI "${JF_URL}/artifactory/sokar-dist-deb/dists/releases/Release" >/dev/null; then
-              jf rt upload "dist-setup/sokar-setup.sh" "sokar-dist-deb/setup/sokar-setup-latest.sh" --flat=true
+              jf rt upload "dist/dist-setup/sokar-setup.sh" "sokar-dist-deb/setup/sokar-setup-latest.sh" --flat=true
           fi
 
       # Uploaded is not the same as installable.
@@ -307,7 +316,7 @@ jobs:
           FAILED=0
           # The file just uploaded, not any version of the package: an index that still lists an
           # older one would otherwise pass.
-          DEB="$(basename dist-deb/target/*.deb)"
+          DEB="$(basename dist/dist-deb/target/*.deb)"
           await "the Debian index" \
               "/sokar-dist-deb/dists/${CHANNEL}/main/binary-amd64/Packages" \
               "Filename: pool/main/s/sokar/$DEB" || FAILED=1

@@ -30,9 +30,6 @@
              NOT part of the package version: the package version is the agent module's own
              version, so an agent released against an unchanged CLI is still an upgrade. -->
         <agent.cli.version>0</agent.cli.version>
-        <build-helper.version>3.6.1</build-helper.version>
-        <jdeb.version>1.14</jdeb.version>
-        <rpm.version>1.13.0</rpm.version>
         <agent.install.dir>/usr/libexec/sokar/agents</agent.install.dir>
         <sbom.install.dir>/usr/share/sokar/sbom</sbom.install.dir>
         <!-- Signing is off for local and CI builds and on for releases, where the key exists.
@@ -193,7 +190,6 @@
                     <plugin>
                         <groupId>de.dentrassi.maven</groupId>
                         <artifactId>rpm</artifactId>
-                        <version>${rpm.version}</version>
                         <executions>
                             <execution>
                                 <id>rpm</id>

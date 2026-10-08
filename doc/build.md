@@ -39,7 +39,7 @@ export JAVA_HOME=/path/to/graalvm-25
 ./mvnw -Pnative clean package
 ```
 
-Produces `app/target/sokar`, `daemon/target/sokard` and the three hook binaries
+Produces `apps/app/target/sokar`, `daemon/target/sokard` and the three hook binaries
 in `hooks/target/`.
 
 The hooks are linked statically against musl, which needs a cross-toolchain:
@@ -90,8 +90,8 @@ export JAVA_HOME=/path/to/graalvm-25
 ./mvnw -Pnative,dist clean verify
 ```
 
-Produces a `.deb` and an `.rpm` for Sokar itself, in `dist-deb/target` and
-`dist-rpm/target`, plus one of each per agent under `agents/*/target`.
+Produces a `.deb` and an `.rpm` for Sokar itself, in `dist/dist-deb/target` and
+`dist/dist-rpm/target`, plus one of each per agent under `agents/*/target`.
 
 **`verify`, not `package`.** Both packagers are bound to `verify`, because
 native-image binds to `package` and a plugin inherited from a parent runs before

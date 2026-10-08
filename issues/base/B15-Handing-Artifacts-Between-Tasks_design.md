@@ -74,7 +74,7 @@ of mount `/run/sokar/vault.sock` already is.
 |---|---|
 | `store/` (new) | `Artifact`, `ArtifactIndex`, `ArtifactJournal`, `StorePolicy`, `StoreService`, `PutOutcome`, `StoreException`. There is no `ArtifactStore` and no `Digest`: podman holds the bytes and computes the digest. |
 | `core/project` | `Store` record on `Project`; `ProjectReader` learns one key. |
-| `app/` | `StoreCommand` and subcommands, `StoreServeCommand`, `StoreWiring`, `StoreEdit`, one entry in `TaskHelpers`, one method on `SokarPaths`, and one more `Probe` in `DoctorCommand` for the podman floor. |
+| `apps/app/` | `StoreCommand` and subcommands, `StoreServeCommand`, `StoreWiring`, `StoreEdit`, one entry in `TaskHelpers`, one method on `SokarPaths`, and one more `Probe` in `DoctorCommand` for the podman floor. |
 | `runtime/` | `Podman` learns the `artifact` subcommands; `ContainerSpec` learns `--mount type=artifact`. |
 | `daemon/` | New types and methods on `org.fuin.sokar.Tasks1`. |
 | `agents/api` | Nothing. This needs no agent capability at all — see below. |

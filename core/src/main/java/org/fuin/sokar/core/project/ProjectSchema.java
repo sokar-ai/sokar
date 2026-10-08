@@ -23,12 +23,14 @@ final class ProjectSchema {
     private static final Map<String, Set<String>> SECTIONS = new LinkedHashMap<>();
 
     static {
-        SECTIONS.put("", Set.of("project", "image", "egress", "limits", "mail", "repositories", "credentials"));
+        SECTIONS.put("", Set.of("project", "image", "egress", "limits", "mail", "repositories", "credentials",
+                "builds"));
+        SECTIONS.put("builds", Set.of("forge", "credential", "api", "logs"));
         SECTIONS.put("project", Set.of("name", "description", "security_class", "upstream",
                 "signers"));
         SECTIONS.put("image", Set.of("base_image", "snippet", "snippet_file", "package_sources"));
         SECTIONS.put("egress", Set.of("sets", "domains", "refused"));
-        SECTIONS.put("limits", Set.of("memory", "pids", "cpus"));
+        SECTIONS.put("limits", Set.of("memory", "pids", "cpus", "hand_in"));
         SECTIONS.put("mail", Set.of("peers", "transports", "outgoing_filter", Mail.RULES));
         SECTIONS.put("mail.rules", Set.of("project", "room", "others"));
         SECTIONS.put("mail.peers.<peer>", Set.of("address", "trust", "per_day", "mode"));
@@ -56,6 +58,17 @@ final class ProjectSchema {
                     + " takes; the project's own is always there.", "map", "", false),
             key("", "credentials", "Vault entries every task holds, each named with the destination it is for;"
                     + " only names, never values.", "map", "", false),
+            key("", "builds", "An online project's tasks learn what the build of their own push did.", "map", "",
+                    false),
+            key("builds", "forge", "Which forge runs the build, by the name its installed build reader declares.",
+                    "string", "", true),
+            key("builds", "credential", "The vault entry holding the forge token; it never enters a task.",
+                    "string", "", false),
+            key("builds", "api", "The forge API's https:// address; unset is the forge's own public one.", "string",
+                    "", false),
+            new ProjectKey("builds", "logs", "Which jobs' logs reach the task: 'failure', each failed one, or 'all',"
+                    + " every one once the build is finished.", "string", List.of(Builds.FAILURE, Builds.ALL),
+                    Builds.FAILURE, false),
             key("project", "name", "The project's name: lower-case letters, digits and hyphens, at most 63"
                     + " characters, and not 'default'.", "string", "", true),
             key("project", "description", "For people: shown wherever the project is listed.", "string", "", false),
@@ -85,6 +98,8 @@ final class ProjectSchema {
                     "2048", false),
             key("limits", "cpus", "The most CPUs a task may use, as podman takes it; unset is no limit.", "string",
                     "", false),
+            key("limits", "hand_in", "The largest file 'sokar task give' may hand to a running task, such as 64m;"
+                    + " fixed when the task starts.", "string", "64m", false),
             key("mail", "peers", "The names tasks may write to, each with where it is reached.", "map", "", false),
             new ProjectKey("mail", "outgoing_filter", "Whether the filter refuses what it finds in a task's outgoing"
                     + " message, the default, or only reports it; a person can still read a refused message and deliver"
@@ -159,7 +174,7 @@ final class ProjectSchema {
     static List<String> check(Map<?, ?> root, String origin) {
         final List<String> unknown = new java.util.ArrayList<>();
         keys(root, "", "", origin, unknown);
-        for (final String section : List.of("project", "image", "egress", "limits", "mail")) {
+        for (final String section : List.of("project", "image", "egress", "limits", "mail", "builds")) {
             if (root.get(section) instanceof Map<?, ?> map) {
                 keys(map, section, section, origin, unknown);
             }

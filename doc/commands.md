@@ -40,7 +40,10 @@ is no default limit), `sokar vault lock` drops it, `sokar vault passphrase` chan
 over, `sokar vault clear --yes` removes it, and `sokar vault init` makes a new one.
 
 **Start work.** In a checkout, `sokar task start` works in the project that names its repository,
-else in `default`, and names the task after the repository. Elsewhere, name both:
+else in `default`, and names the task after the repository. In `default` the checkout is the source,
+both ways: its committed history goes into the task, local commits included, and the approved work
+comes back into it; its remote is yours to pull from and push to, and Sokar never reaches it. A project
+that names the repository takes it from its remote and sends approved work there instead. Elsewhere, name both:
 `sokar task start -p PROJECT -r REPOSITORY`. The same verb creates a task, brings back a stopped one
 with its workspace, and refuses a running one. Leaving the session keeps the container; `--rm` does
 not. For another project's settings, `sokar project follow NAME URL --signed-by KEY`.
@@ -48,9 +51,18 @@ not. For another project's settings, `sokar project follow NAME URL --signed-by 
 **Find and re-enter a task.** `sokar task list`, `sokar task status TASK`, `sokar task attach TASK`,
 `sokar task logs TASK gate.log -f` to follow one log.
 
+**When the source moves on.** `sokar task refresh TASK` brings what the checkout (or the remote) gained
+into the task's gate and tells its agent, which brings it into its workspace with `git fetch sokar`.
+Starting a stopped task does the same on its own.
+
 **End a task.** `sokar task stop TASK` keeps everything. `sokar task remove TASK` destroys the
 workspace, which lives in the container; `--rescue` first pushes unpushed work to the gate.
 `sokar panic` stops everything and removes nothing.
+
+**Bring a task's work back into your checkout.** In the checkout the task was started from,
+`sokar approve` shows what waits at the gate and, after yes, puts it on the branch `sokar/TASK` there -
+never on the branch you have checked out, and never to a remote. With several tasks it asks which, or
+takes `sokar approve TASK`; `--yes` answers for a script.
 
 **Review what an agent pushed.** Inside a task, `git push` goes to the gate. Outside:
 `sokar gate pending`, then `sokar gate review`, `sokar gate checkout`, `sokar gate approve` or
@@ -82,6 +94,10 @@ workspace, which lives in the container; `--rescue` first pushes unpushed work t
 | `sokar task stop TASK` | Stops a task and its helpers. Container and workspace stay. |
 | `sokar task remove TASK` | Removes a stopped task: container, state and workspace. |
 | `sokar task label TASK [CAPTION]` | Gives a task a caption. Not a rename. |
+| `sokar task give TASK FILE [--as NAME]` | Hands a file on this machine to a running task, read-only in its `/sokar/files`. |
+| `sokar task take-back TASK NAME` | Takes a handed-in file out of a running task's `/sokar/files` again. |
+| `sokar task files TASK` | Every file handed to a task, also after it is gone: who, when, size and sha256. |
+| `sokar task watch-builds TASK ...` | Run by an online task's launch, not by hand: follows what the task pushes and hands each build's verdict into `/sokar/files`. |
 | `sokar task prepare -p PROJECT` | Builds the project's task image without starting a task. |
 | `sokar task clearance TASK MODE` | Sets what happens to a blocked connection: `prompt`, `allow`, `deny` or `off`. |
 
@@ -204,6 +220,25 @@ refuses, removing nothing of the vault:
 
 Afterwards `sokar vault init` starts as on a new machine.
 
+## approve
+
+`sokar approve [TASK] [--yes]`, typed in the checkout a task was started from, brings that task's work
+back into it. Everything else is known there: the checkout is the repository's source, the work goes
+into it, and the branch is `sokar/TASK`.
+
+- **It shows what comes** - the commits at the gate and the start of the diff - and asks. After yes the
+  branch holds the work; the checked-out branch and the working copy are left as they are. After no,
+  nothing changes and the work still waits.
+- **It brings back what is at the gate**, never what is only in the container: the agent commits and
+  pushes when its work is done.
+- **A `sokar/TASK` that exists moves only when the work fast-forwards it**; otherwise it says so before
+  asking, and nothing moves. The branch checked out is never the target.
+- **Nothing reaches a forge through it.** A repository whose source is a remote - a followed project,
+  or one added to `default` by its address - sends its work there with `sokar gate approve`, and
+  `approve` in a checkout of it says so and moves nothing.
+- Nothing waiting, or no task started from this checkout: it says so and exits non-zero. When a task
+  holds commits or changes it never pushed, it names them, so they are not mistaken for nothing.
+
 ## gate
 
 Nothing an agent pushes reaches a real upstream without passing here.
@@ -274,6 +309,7 @@ recorded as such, and the receiving peer may refuse it again.
 ```
 sokar project follow NAME URL [--signed-by=<key> | --unverified] [--dry-run] [--accept-rewrite]
 sokar project following
+sokar project refresh [NAME]
 sokar project list
 sokar project unfollow NAME [--dry-run] [--force]
 sokar project clear NAME [--yes] [--dry-run] [--force]
@@ -284,6 +320,8 @@ sokar project enroll PROJECT [--remove] [--as=PRINCIPAL]
 - **`follow`** takes the project's configuration from its repository, checked against the
   `--signed-by` key. `--unverified` skips the check, and Sokar says so wherever the project is shown.
 - **`following`** lists the follows; **`list`** (also `sokar projects`) lists the projects.
+- **`refresh`** fetches a followed project's repository now, or every one's without a name, instead of
+  waiting for the next round. It prints what each fetch found and exits non-zero when one failed.
 - **`unfollow`** removes the mirror, image, build directory and tasks. The repository and upstream
   are untouched. It refuses while work waits at the gate or tasks run. `--force` removes it all the
   same and destroys that work; with `--force` a project this account does not follow is not an error,

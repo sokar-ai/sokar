@@ -1,0 +1,2 @@
+title: "A task listing reads the attached agents' screens several at once, so List no longer takes about 100 ms for every running task"
+type: fixed

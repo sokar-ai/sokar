@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar-dist</artifactId>
+        <version>0.4.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-dist-deb</artifactId>
+    <packaging>pom</packaging>
+    <name>Sokar Debian Package</name>
+    <description>Sandboxes AI agent tasks in hardened rootless containers</description>
+
+    <properties>
+        <!-- The package name, which is not the module name: the module builds the package, the
+             package is what an operator installs and what an agent package depends on. -->
+        <package.name>sokar</package.name>
+        <hook.install.dir>/usr/libexec/sokar/hooks</hook.install.dir>
+        <!-- Data files an operator can add to, not executables, so share rather than libexec. -->
+        <provider.install.dir>/usr/share/sokar/providers</provider.install.dir>
+        <egress.install.dir>/usr/share/sokar/egress</egress.install.dir>
+        <selinux.install.dir>/usr/share/sokar/selinux</selinux.install.dir>
+        <sbom.install.dir>/usr/share/sokar/sbom</sbom.install.dir>
+    </properties>
+
+    <!-- Not used for a classpath - this module produces no code. It is here so the reactor builds
+         the binaries before this module packages them; without it the ordering is undefined and
+         the packaging silently picks up whatever an earlier build left in target. -->
+    <dependencies>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-app</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokard</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-hooks</artifactId>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+
+        <!-- Requires -Pnative to have produced the binaries; run as: mvn -Pnative,dist package -->
+        <profile>
+            <id>dist</id>
+            <build>
+                <plugins>
+
+                    <!-- The bill the package installs, from this module's own dependencies: the
+                         three that ship and what they pull in, compile and runtime. It was an
+                         aggregate over the whole reactor, which put the acceptance kit's cucumber,
+                         junit and sshj and the build tools' libraries into what an operator reads
+                         as the contents of the package. Written where the rpm and the publishing
+                         step have always read it. -->
+                    <plugin>
+                        <groupId>org.cyclonedx</groupId>
+                        <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>cyclonedx-package</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>makeBom</goal>
+                                </goals>
+                                <configuration>
+                                    <projectType>application</projectType>
+                                    <outputDirectory>${project.basedir}/../../target</outputDirectory>
+                                    <outputName>sokar.cdx</outputName>
+                                    <!-- Nothing here is deployed to Maven: the package is what ships. -->
+                                    <skipNotDeployed>false</skipNotDeployed>
+                                    <skipAttach>true</skipAttach>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.vafer</groupId>
+                        <artifactId>jdeb</artifactId>
+                        <version>${jdeb.version}</version>
+                        <executions>
+                            <execution>
+                                <id>deb</id>
+                                <!-- 'verify' for the same reason as the agents: native-image binds
+                                     to 'package' and inherited plugins run first. -->
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>jdeb</goal>
+                                </goals>
+                                <configuration>
+                                    <name>${package.name}</name>
+                                    <deb>${project.build.directory}/${package.name}_${sokar.package.version}_amd64.deb</deb>
+                                    <controlDir>${project.basedir}/src/deb/control</controlDir>
+                                    <skipPOMs>false</skipPOMs>
+                                    <dataSet>
+                                        <data>
+                                            <src>${project.basedir}/../../providers</src>
+                                            <type>directory</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${provider.install.dir}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../../egress</src>
+                                            <type>directory</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${egress.install.dir}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../../apps/app/target/sokar</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/bin</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../../daemon/target/sokard</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/bin</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../../hooks/target/sokar-hook-nft</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${hook.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../../hooks/target/sokar-hook-supervisor</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${hook.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../../hooks/target/sokar-hook-reader</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${hook.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <!-- Source, not a compiled module: a .pp is tied to the policy version of the machine that built it. -->
+                                        <data>
+                                            <src>${project.basedir}/../../selinux/sokar_socket.te</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${selinux.install.dir}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../../selinux/install-selinux-policy.sh</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${selinux.install.dir}</prefix>
+                                                <filemode>755</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <!-- The bill of what this package carries. Payload, not
+                                             documentation: under /usr/share/doc it would be
+                                             excluded from the deb side of the parity check and
+                                             not from the rpm side. -->
+                                        <data>
+                                            <src>${project.basedir}/../../target/sokar.cdx.json</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>${sbom.install.dir}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <!-- A user unit, installed and not enabled: starting a
+                                             daemon is the operator's decision, and a package that
+                                             started one would start it for every account. -->
+                                        <data>
+                                            <src>${project.basedir}/../../systemd/sokard.service</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/lib/systemd/user</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <!-- TAB completion. The file name IS the command name
+                                             for bash, and '_<command>' for zsh, which is why the
+                                             two resources are named the way they are rather than
+                                             by shell. Debian puts vendor completions under
+                                             vendor-completions; Fedora has no such directory and
+                                             uses site-functions, which is the second place where
+                                             the two ecosystems differ on purpose. Both are
+                                             checked in sokar-package-check. -->
+                                        <data>
+                                            <src>${project.basedir}/../../apps/app/src/main/resources/completion/sokar</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/share/bash-completion/completions</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <data>
+                                            <src>${project.basedir}/../../apps/app/src/main/resources/completion/_sokar</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/share/zsh/vendor-completions</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                        <!-- Debian Policy 12.5: every binary package ships one. -->
+                                        <data>
+                                            <src>${project.basedir}/src/deb/copyright/copyright</src>
+                                            <type>file</type>
+                                            <mapper>
+                                                <type>perm</type>
+                                                <prefix>/usr/share/doc/${package.name}</prefix>
+                                                <filemode>644</filemode>
+                                                <user>root</user>
+                                                <group>root</group>
+                                            </mapper>
+                                        </data>
+                                    </dataSet>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
+
+</project>

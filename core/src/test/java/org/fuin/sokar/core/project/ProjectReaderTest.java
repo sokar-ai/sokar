@@ -176,6 +176,37 @@ class ProjectReaderTest {
     }
 
     @Test
+    void readsTheLargestFileATaskTakesAsASize() {
+        final Project project = ProjectReader.read(new java.io.StringReader("""
+                project:
+                  name: "demo"
+                  security_class: "guarded"
+                limits:
+                  hand_in: "1g"
+                image:
+                  base_image: "ubuntu:24.04"
+                """), "test");
+
+        assertThat(project.limits().handIn()).isEqualTo(1024L * 1024 * 1024);
+        assertThat(project.limits().memory()).as("the other keys keep their defaults").isEqualTo("8g");
+    }
+
+    @Test
+    void refusesAHandInLimitThatIsNoSize() {
+        assertThatThrownBy(() -> ProjectReader.read(new java.io.StringReader("""
+                project:
+                  name: "demo"
+                  security_class: "guarded"
+                limits:
+                  hand_in: "lots"
+                image:
+                  base_image: "ubuntu:24.04"
+                """), "test"))
+                .isInstanceOf(ProjectException.class)
+                .hasMessageContaining("limits.hand_in").hasMessageContaining("lots");
+    }
+
+    @Test
     void fallsBackToTheDefaultLimits() {
 
         // The case that matters: a project file written before limits existed must still be

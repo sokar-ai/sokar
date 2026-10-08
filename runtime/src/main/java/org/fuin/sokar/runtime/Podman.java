@@ -115,7 +115,7 @@ public class Podman {
      *
      * @param container A container name.
      * @return The id recorded for a task; the name itself for anything else, or where nothing is recorded at all.
-     * @throws ContainerException For a task name Sokar has no record of.
+     * @throws NotATaskException For a task name Sokar has no record of.
      */
     String target(String container) {
         if (recorded == null || !ContainerName.isTask(container)) {
@@ -123,8 +123,7 @@ public class Podman {
         }
         final String id = recorded.apply(container);
         if (id == null || id.isBlank()) {
-            throw new ContainerException(container + " is no task Sokar made: it has no record of it, so nothing is"
-                    + " done to it");
+            throw new NotATaskException(container);
         }
         return id;
     }
@@ -891,6 +890,65 @@ public class Podman {
         // which is the whole of what the removed script did apart from mkdir and chmod - and those
         // are their own calls now, for the same reason.
         return List.of(executable, "exec", "--interactive", target(container), "tee", path);
+    }
+
+    /**
+     * Returns the arguments that run a command as root in a task's container: what Sokar does with the files it
+     * hands to a task, which the agent may read but not change.
+     * <p>
+     * The command and its arguments stay separate, never one string for a shell: a file name a person chose must
+     * only ever be a path.
+     *
+     * @param container Container name.
+     * @param command The command and its arguments.
+     * @return Arguments.
+     */
+    public List<String> asRootArguments(String container, List<String> command) {
+        final List<String> arguments = new java.util.ArrayList<>(
+                List.of(executable, "exec", "--user", "root", target(container)));
+        arguments.addAll(command);
+        return arguments;
+    }
+
+    /**
+     * Returns the arguments that start a command as root in a task's container and return at once, the command going
+     * on in the container: a writer that lives as long as the container does.
+     *
+     * @param container Container name.
+     * @param command The command and its arguments.
+     * @return Arguments.
+     */
+    public List<String> asRootDetachedArguments(String container, List<String> command) {
+        return asUserDetachedArguments(container, "root", command);
+    }
+
+    /**
+     * Returns the arguments that start a command as a given user in a task's container and return at once.
+     *
+     * @param container Container name.
+     * @param user The user in the container.
+     * @param command The command and its arguments.
+     * @return Arguments.
+     */
+    public List<String> asUserDetachedArguments(String container, String user, List<String> command) {
+        final List<String> arguments = new java.util.ArrayList<>(
+                List.of(executable, "exec", "--detach", "--user", user, target(container)));
+        arguments.addAll(command);
+        return arguments;
+    }
+
+    /**
+     * Returns the arguments that run a command as root in a task's container, reading standard input.
+     *
+     * @param container Container name.
+     * @param command The command and its arguments.
+     * @return Arguments.
+     */
+    public List<String> asRootWithInputArguments(String container, List<String> command) {
+        final List<String> arguments = new java.util.ArrayList<>(
+                List.of(executable, "exec", "--interactive", "--user", "root", target(container)));
+        arguments.addAll(command);
+        return arguments;
     }
 
     /**

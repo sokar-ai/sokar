@@ -256,7 +256,8 @@ public class VaultProxy implements AutoCloseable, Runnable {
         this.exchange = exchange;
         this.authHeader = authHeader;
         this.authPrefix = authPrefix;
-        this.http = HttpClient.newBuilder()
+        // The authorities the account adds to the built-in ones, as every other client here.
+        this.http = org.fuin.sokar.core.net.TrustedCertificates.builder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();

@@ -1,0 +1,2 @@
+title: The published sokar-bom opts in to Central on its publishing plugins rather than by properties, so a repository that took it as its parent no longer inherits being published
+type: fixed

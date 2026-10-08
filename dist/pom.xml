@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.4.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-dist</artifactId>
+    <packaging>pom</packaging>
+    <name>Sokar Dist</name>
+    <description>Sokar - The packages (PARENT)</description>
+
+    <!-- The packages the executables are shipped in. dist-setup beside them is a script, not a module. -->
+
+    <modules>
+        <module>dist-deb</module>
+        <module>dist-rpm</module>
+        <module>dist-check</module>
+    </modules>
+
+</project>

@@ -1,0 +1,2 @@
+title: The build takes org.fuin.sokar:sokar-parent as its parent instead of org.fuin:pom, with every version it builds with and every published pom's licence unchanged
+type: changed

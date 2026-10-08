@@ -36,8 +36,10 @@ Feature: An agent's login is stored, through the same chain a real login takes
     When a script runs "touch ~/.sokar-login-began"
     And I run "sokar vault login stub"
     Then within 600 seconds the terminal shows "stub: logged in"
-    # Ended by Sokar the moment it was stored, and said once: no "Press Enter" of the agent's beside it.
-    And within 30 seconds the terminal shows "Signed in - the credential is stored as 'anthropic'"
+    # Ended by Sokar the moment it was stored, and said once: no "Press Enter" of the agent's beside it. Within two
+    # minutes, not thirty seconds: copying the agent's directory out, stopping and removing its container took 31 s
+    # with four accounts at once on a leg (both legs), where alone it takes about 16.
+    And within 120 seconds the terminal shows "Signed in - the credential is stored as 'anthropic'"
     And the terminal shows "Nothing more to do here."
     And the terminal does not show "the agent exited with"
     And the terminal does not show "sokar-stub-fixture-token"

@@ -22,7 +22,8 @@ jobs:
       - name: The pinned GraalVM
         uses: ./.github/actions/pinned-jdk
 
-      # The root's validate runs check-actions, check-shared, check-citations and check-doc-site, with sokar-release
-      # from Central; the tests tagged documents follow it, so a change to a page runs every test that reads one.
+      # The root's validate runs check-actions, check-shared, check-citations, check-readmes and check-doc-site,
+      # with sokar-release from Central; the tests tagged documents follow it, so a change to a page runs every test
+      # that reads one.
       - name: The documents
         run: ./mvnw -B -U -s settings.xml -Pdocuments test

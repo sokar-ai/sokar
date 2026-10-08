@@ -61,6 +61,38 @@ class UpstreamDistanceTest {
     }
 
     @Test
+    void measuresWithWhatTheCredentialsLendAnUpstreamOnlyTheyReach(@TempDir Path root) throws Exception {
+
+        // The upstream was a private repository over ssh. The follow's fetch and the gate's refresh
+        // lent the deploy key; the measurement fetched without it and answered "Permission denied (publickey)" with
+        // the vault open. Here origin is an address only the lent configuration turns into the real repository.
+        final Path upstream = upstreamWithOneCommit(root);
+        final Path mirror = root.resolve("mirror.git");
+        git(root, "clone", "--quiet", "--bare", upstream.toString(), mirror.toString());
+        git(root, "--git-dir", mirror.toString(), "remote", "set-url", "origin", "lent://upstream");
+        final GitCredentials lending = url -> new GitCredentials.Lease() {
+            @Override
+            public Map<String, String> environment() {
+                return Map.of();
+            }
+
+            @Override
+            public List<String> arguments() {
+                return List.of("-c", "url." + upstream + ".insteadOf=" + url);
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+
+        assertThat(UpstreamDistance.measure(runner, mirror, GateMode.GATEKEEPING, GitCredentials.NONE).reason())
+                .as("without the lent credential").isEqualTo(UpstreamDistance.Reason.FAILED);
+        assertThat(UpstreamDistance.measure(runner, mirror, GateMode.GATEKEEPING, lending).reason())
+                .isEqualTo(UpstreamDistance.Reason.MEASURED);
+    }
+
+    @Test
     void measuresAnUpstreamWhoseDefaultBranchIsNotMain(@TempDir Path root) throws Exception {
 
         // The mirror's HEAD and the upstream's HEAD are what get compared, so a project whose

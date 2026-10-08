@@ -5,7 +5,8 @@ project's conversation, through a mailbox in the task. Every agent reads everyth
 conversation; a person names the one meant with `@` and its task's name, or writes to it in a direct
 chat. What a person writes is not filtered; what an agent sends is. Every task that has a mailbox starts with its
 agent told how it works: Sokar writes the text below to `/run/sokar/mail/README.md`, and an agent that
-declares how it takes standing instructions gets it at every start. Whom the task can reach right now is
+declares how it takes standing instructions gets it at every start, after the part on `/sokar/files` in the guide
+to all of Sokar in the task ([what a task's agent is told](running.md#what-a-tasks-agent-is-told)). Whom the task can reach right now is
 in `/run/sokar/mail/agent-card.json`, kept current by Sokar.
 
 How closely messages are watched is set once, in the project file: see `mail.rules` in
@@ -16,8 +17,10 @@ What a person writes in the conversation is taken only from somebody who joined 
 project here, a task's own message never back to it; a direct chat reaches only the one task. A person is a peer by
 the name they joined with, watched as the room is (`mail.rules.room`). An agent resting at its prompt is woken when
 a message names it, is said to it directly, or is a person's word to the room that names nobody: one fixed line is
-typed into its terminal, never while it asks a person something. Only an agent that declares what its screen shows
-at rest is typed into. Unattended work that has ended has no terminal to wake; its messages wait for its next run.
+typed into its terminal, never while it asks a person something. Only an agent that declares both what its screen
+shows at rest and what it shows while it asks a person something is typed into: one whose screen cannot tell the two
+apart is never woken, since the line could answer a question nobody sees is open, and finds its messages when it
+looks, as its guide tells it. Unattended work that has ended has no terminal to wake; its messages wait for its next run.
 
 ## Where the conversation lives
 
@@ -103,7 +106,8 @@ reach them.
   into the room and mentions them. A direct message is answered to them by name with
   `"via": "direct"`: it goes into your direct chat with them. A task's message is answered to
   that task.
-- When a message for you arrives while you wait at your prompt, a line appears there saying so.
+- When a message for you arrives while you wait at your prompt, a line may appear there saying
+  so; not every agent is given one.
 
 ### Whom you can write to
 
@@ -118,7 +122,8 @@ while you work, as other tasks start and stop.
 ### Receiving
 
 - A message appears in `/run/sokar/mail/inbox/new/`, one JSON file each.
-- Look there when you start, between steps of your work, and before you finish.
+- Look there when you start, between steps of your work, before you finish, and whenever you
+  come to rest.
 - Once you have read a message, move it to `/run/sokar/mail/inbox/cur/` (`mv`), so you do not read it
   twice.
 - A message of yours that was refused or could not be delivered comes back into

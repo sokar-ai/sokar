@@ -270,6 +270,20 @@ sokar credentials check git@github.com:acme/x.git    # what would be used, witho
   a config and no value is on a command line.
 - **An `oauth` record is not renewed.** An expired one is refused by name, with what to run.
 
+## An authority of your own
+
+Sokar checks every TLS connection it makes against the certificate authorities it was built with: to a model
+provider, to a service a credential buys its token from, to a forge. An organisation that inspects TLS on its way out
+signs with an authority of its own, and a provider on your own machine may carry a certificate no public authority
+signed. Put that authority's certificate, in PEM, in
+
+```
+~/.config/sokar/ca-certificates.pem
+```
+
+and Sokar trusts it beside the built-in ones; several certificates may follow one another in the file. Tasks
+started afterwards use it. A file that holds no certificate is an error that names it, never ignored.
+
 ## Working from another machine
 
 **No secret crosses the daemon's socket**, in either direction: no credential value, no vault

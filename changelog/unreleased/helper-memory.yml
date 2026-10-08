@@ -1,0 +1,2 @@
+title: "A task's credential proxy holds about 44 MB instead of 186 MB: a collection after the vault opens, and a young generation of 16 MiB for every sokar helper"
+type: fixed

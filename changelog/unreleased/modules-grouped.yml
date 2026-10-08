@@ -1,0 +1,2 @@
+title: The command line's modules are submodules of apps/ and the packages' of dist/, every module has a README.md that sokar-release check-readmes holds, and no artifact's coordinates change
+type: changed

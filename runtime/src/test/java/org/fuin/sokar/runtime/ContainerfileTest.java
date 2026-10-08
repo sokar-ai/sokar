@@ -127,6 +127,24 @@ class ContainerfileTest {
     }
 
     @Test
+    void refusesABaseImageWithSokarsRootAndMakesTheHandInDirectoriesBeforeAnythingElseCan() {
+
+        // Checked before the project's own image lines run, which could create /sokar themselves: what is
+        // refused is the base image, and what comes after is Sokar's.
+        final Project project = new Project("uc", "Ultimate Container", SecurityClass.GUARDED,
+                "ubuntu:24.04", null);
+        final String rendered = Containerfile.render(project);
+
+        assertThat(rendered)
+                .contains("if [ -e /sokar ]; then")
+                .contains("the base image ubuntu:24.04 already has /sokar")
+                .contains("mkdir -p /sokar/files /sokar/.incoming")
+                .contains("chmod 0700 /sokar/.incoming");
+        assertThat(rendered.indexOf("if [ -e /sokar ]")).as("the check before the agent's layers")
+                .isLessThan(rendered.indexOf("ARG SOKAR_LAYER_EPOCH"));
+    }
+
+    @Test
     void pinsHowMuchASessionRemembers() {
 
         // The figure 'sokar task attach' claims on returning. Inherited rather than pinned, it

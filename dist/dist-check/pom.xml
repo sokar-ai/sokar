@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar-dist</artifactId>
+        <version>0.4.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-dist-check</artifactId>
+    <name>Sokar Package Checks</name>
+    <description>Reads the packages this build wrote and holds them to the version they must carry</description>
+
+    <!-- After both packages and the stub agent's, in the reactor: what it reads must be written first. -->
+    <dependencies>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-dist-deb</artifactId>
+            <version>${project.version}</version>
+            <type>pom</type>
+        </dependency>
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-dist-rpm</artifactId>
+            <version>${project.version}</version>
+            <type>pom</type>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Only where packages are built: -Pdist turns it on below. -->
+                    <skipTests>true</skipTests>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>dist</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <skipTests>false</skipTests>
+                            <systemPropertyVariables>
+                                <!-- The raw parts, not sokar.package.version: the check maps them itself, so a
+                                     mistake in the mapping is not the answer it is held to. -->
+                                <sokar.check.projectVersion>${project.version}</sokar.check.projectVersion>
+                                <sokar.check.run>${sokar.snapshot.run}</sokar.check.run>
+                                <sokar.check.suffix>${sokar.snapshot.suffix}</sokar.check.suffix>
+                                <sokar.check.deb>${project.basedir}/../dist-deb/target</sokar.check.deb>
+                                <sokar.check.rpm>${project.basedir}/../dist-rpm/target</sokar.check.rpm>
+                                <sokar.check.stub>${project.basedir}/../../agents/stub/target</sokar.check.stub>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

@@ -1,0 +1,2 @@
+title: "The stub agent's working mode takes 'load': at every step a streamed request through its provider's socket and 8 MiB written to its disk"
+type: added

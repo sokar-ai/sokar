@@ -58,6 +58,15 @@ final class TaskMethods {
             replies.last(Map.of("tasks", tasks));
         });
 
+        server.method("RefreshTask", (parameters, replies) -> {
+            final org.fuin.sokar.app.TaskRefresh.Result result =
+                    new org.fuin.sokar.app.TaskRefresh(context).refresh(text(parameters, "task"));
+            if (result.outcome() == org.fuin.sokar.app.TaskRefresh.Outcome.NO_SUCH_TASK) {
+                throw new VarlinkException(INTERFACE + ".NoSuchTask", Map.of("task", text(parameters, "task")));
+            }
+            replies.last(result.asMap());
+        });
+
         server.method("Stop", (parameters, replies) -> {
             // Stops and keeps. What used to be Stop(purge:) is Remove, because one verb that
             // destroys depending on a flag is one people press without reading.
@@ -255,6 +264,63 @@ final class TaskMethods {
             }
         });
 
+        server.method("HandIn", (parameters, replies) -> {
+            // A file for a running task, in parts: a reply is one message, so a large file is several calls, and a
+            // client on another machine carries bytes, never a path. It reaches the task only whole.
+            final String task = runningTask(context, text(parameters, "task"));
+            final byte[] part;
+            try {
+                part = java.util.Base64.getDecoder().decode(text(parameters, "part"));
+            } catch (IllegalArgumentException ex) {
+                throw new VarlinkException("org.varlink.service.InvalidParameter", Map.of("parameter", "part"));
+            }
+            try {
+                final org.fuin.sokar.app.HandIns.Progress progress = org.fuin.sokar.app.HandIns.of(context).part(task,
+                        text(parameters, "name"), number(parameters, "bytes"), text(parameters, "sha256"),
+                        number(parameters, "offset"), part, account());
+                final Map<String, Object> reply = new java.util.LinkedHashMap<>();
+                reply.put("received", progress.received());
+                if (progress.file() != null) {
+                    reply.put("file", progress.file().asMap());
+                }
+                replies.last(reply);
+                if (progress.file() != null) {
+                    // Its agent, when it waits at its prompt; otherwise the next message pass tells it.
+                    new org.fuin.sokar.app.AgentWake(context).announceFiles(task);
+                }
+            } catch (org.fuin.sokar.app.HandIns.Refused refused) {
+                throw new VarlinkException(INTERFACE + "." + refused.error(), refused.parameters());
+            } catch (java.io.IOException ex) {
+                throw new VarlinkException(INTERFACE + ".Failed", Map.of("message", String.valueOf(ex.getMessage())));
+            }
+        });
+
+        server.method("TakeBack", (parameters, replies) -> {
+            final String task = runningTask(context, text(parameters, "task"));
+            try {
+                replies.last(Map.of("file", org.fuin.sokar.app.HandIns.of(context)
+                        .takeBack(task, text(parameters, "name"), account()).asMap()));
+            } catch (org.fuin.sokar.app.HandIns.Refused refused) {
+                throw new VarlinkException(INTERFACE + "." + refused.error(), refused.parameters());
+            } catch (java.io.IOException ex) {
+                throw new VarlinkException(INTERFACE + ".Failed", Map.of("message", String.valueOf(ex.getMessage())));
+            }
+        });
+
+        server.method("HandIns", (parameters, replies) -> {
+            // Answered for a task that is gone too: the record outlives it, which is what it is for.
+            final String task = text(parameters, "task");
+            if (!ContainerName.isTask(task)) {
+                throw new VarlinkException(INTERFACE + ".NoSuchTask", Map.of("task", task));
+            }
+            try {
+                replies.last(Map.of("record", org.fuin.sokar.app.HandIns.of(context).record(task).stream()
+                        .map(org.fuin.sokar.app.HandIns.Entry::asMap).toList()));
+            } catch (java.io.IOException ex) {
+                throw new VarlinkException(INTERFACE + ".Failed", Map.of("message", String.valueOf(ex.getMessage())));
+            }
+        });
+
         server.method("Screen", (parameters, replies) -> {
             // A tile's console for work in a terminal, which has no log to follow: what its session shows, read by tmux
             // in the task without attaching. A snapshot; a client asks again.
@@ -405,5 +471,38 @@ final class TaskMethods {
             }
         }
         return shown;
+    }
+
+    /**
+     * Returns a task's name when it is one of Sokar's and running.
+     *
+     * @param context The machine.
+     * @param task The name a caller gave.
+     * @return The same name.
+     * @throws VarlinkException NoSuchTask, or NotRunning.
+     */
+    private static String runningTask(final SokarContext context, final String task) {
+        final java.util.Optional<org.fuin.sokar.runtime.ContainerSummary> found = ContainerName.isTask(task)
+                ? context.podman().sokarTasks().stream().filter(each -> each.name().equals(task)).findFirst()
+                : java.util.Optional.empty();
+        if (found.isEmpty()) {
+            throw new VarlinkException(INTERFACE + ".NoSuchTask", Map.of("task", task));
+        }
+        if (!found.get().running()) {
+            throw new VarlinkException(INTERFACE + ".NotRunning", Map.of("task", task));
+        }
+        return task;
+    }
+
+    private static long number(final Map<String, Object> parameters, final String name) {
+        if (parameters.get(name) instanceof Number number) {
+            return number.longValue();
+        }
+        throw new VarlinkException("org.varlink.service.InvalidParameter", Map.of("parameter", name));
+    }
+
+    /** Who calls: the account the daemon runs as, which is the only one its socket lets in. */
+    private static String account() {
+        return System.getProperty("user.name", "");
     }
 }

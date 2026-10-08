@@ -1,0 +1,2 @@
+title: "An online task whose builds cannot be read before its first push - the vault shut, its entry missing, the forge refusing - says why in the task's builds and the helper's log, rather than nothing"
+type: fixed

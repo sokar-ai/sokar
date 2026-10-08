@@ -102,6 +102,22 @@ public final class UpstreamDistance {
      *         project that cannot be reached must not stop the others being measured.
      */
     public static Distance measure(CommandRunner runner, Path mirror, GateMode mode) {
+        return measure(runner, mirror, mode, GitCredentials.NONE);
+    }
+
+    /**
+     * Measures one project's mirror against its upstream, reaching it with what the credentials lend.
+     * <p>
+     * The same lease the gate's own refresh takes: a private upstream over ssh answers only to its deploy key, and
+     * measured without it every answer was "Permission denied".
+     *
+     * @param runner Runs git.
+     * @param mirror The project's bare mirror.
+     * @param mode What the project's security class allows.
+     * @param credentials What reaches the upstream.
+     * @return The distance, always an answer and never an exception.
+     */
+    public static Distance measure(CommandRunner runner, Path mirror, GateMode mode, GitCredentials credentials) {
 
         if (!mode.canForward()) {
             // An offline project's whole promise is that nothing leaves. Contacting the upstream
@@ -112,13 +128,22 @@ public final class UpstreamDistance {
         if (!Files.isDirectory(mirror.resolve("objects"))) {
             return Distance.neverChecked();
         }
-        if (remoteUrl(runner, mirror) == null) {
+        final String origin = remoteUrl(runner, mirror);
+        if (origin == null) {
             // Created by 'git init --bare' rather than cloned. There is no upstream, so "behind"
             // has no meaning - as opposed to having a meaning nobody has measured yet.
             return new Distance(0, null, Reason.NO_UPSTREAM, null);
         }
 
-        final CommandResult fetched = git(runner, mirror, "fetch", "--quiet", "origin");
+        final CommandResult fetched;
+        try (GitCredentials.Lease lease = credentials.forUrl(origin)) {
+            final List<String> command = new java.util.ArrayList<>(List.of("git"));
+            command.addAll(lease.arguments());
+            command.addAll(List.of("--git-dir", mirror.toString(), "fetch", "--quiet", "origin"));
+            fetched = runner.run(Command.of(command).withEnvironment(lease.environment()));
+        } catch (RuntimeException ex) {
+            return new Distance(0, null, Reason.FAILED, String.valueOf(ex.getMessage()));
+        }
         if (!fetched.successful()) {
             return new Distance(0, null, Reason.FAILED, firstLine(fetched));
         }

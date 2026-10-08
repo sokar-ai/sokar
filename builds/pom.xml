@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar</artifactId>
+        <version>0.4.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-builds</artifactId>
+    <packaging>pom</packaging>
+    <name>Sokar Builds</name>
+    <description>Sokar - Build readers (PARENT)</description>
+
+    <!-- The contract a build reader and Sokar share, and the stub the tests read builds from. Every real reader
+         lives in a repository of its own and is found at run time; nothing in Sokar names a forge. -->
+
+    <modules>
+        <module>api</module>
+        <module>stub</module>
+    </modules>
+
+</project>

@@ -88,6 +88,18 @@ RUN id -u agent >/dev/null 2>&1 || useradd --create-home --shell /bin/bash agent
 
 RUN mkdir -p /workspace && chown agent:agent /workspace
 
+# Files handed to a running task land in /sokar/files, which holds nothing else, so an
+# agent can be told to read all of it. /sokar is Sokar's: a base image that already has
+# it is refused rather than shared with. A file arrives in /sokar/.incoming, where the
+# agent cannot look, and is renamed into place whole. Both belong to root, so the agent
+# reads what it was given and cannot change or remove it.
+RUN if [ -e /sokar ]; then \
+        echo 'sokar: the base image ubuntu:24.04 already has /sokar, which Sokar keeps for files handed to a task - use a base image without it' >&2; \
+        exit 1; \
+    fi \
+    && mkdir -p /sokar/files /sokar/.incoming \
+    && chmod 0755 /sokar /sokar/files && chmod 0700 /sokar/.incoming
+
 ARG SOKAR_LAYER_EPOCH=0
 
 USER agent
@@ -102,5 +114,5 @@ ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin
 ENV LANG=C.UTF-8
 
 LABEL org.fuin.sokar.project="uc"
-LABEL org.fuin.sokar.recipe="c5f3f1e65deebfd5"
+LABEL org.fuin.sokar.recipe="e6f5cd4bd01a72ff"
 LABEL org.fuin.sokar.security-class="guarded"

@@ -31,6 +31,12 @@ class DocumentedProjectFileTest {
         final String yaml = exampleFrom(Path.of("..", "doc", "project-file.md"));
         final Project project = ProjectReader.read(new StringReader(yaml), "project-file.md");
 
+        // Every key the page shows is one the reader knows: a key read but not declared is reported as "not a
+        // setting" when a project file is checked, and missing from the schema an editor offers.
+        assertThat(ProjectReader.unknownKeys(new StringReader(yaml), "project-file.md"))
+                .as("keys the documented example holds that the schema does not declare").isEmpty();
+        assertThat(project.limits().handIn()).as("the documented hand-in limit").isEqualTo(64L * 1024 * 1024);
+
         // Every optional key, because the point of the page is the ones a wizard does not write.
         assertThat(project.name()).isEqualTo("myproject");
         assertThat(project.description()).isNotEmpty();

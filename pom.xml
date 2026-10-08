@@ -7,9 +7,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.fuin</groupId>
-        <artifactId>pom</artifactId>
-        <version>2.0.2</version>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar-parent</artifactId>
+        <version>0.1.1</version>
         <relativePath/>
     </parent>
 
@@ -19,17 +19,6 @@
     <packaging>pom</packaging>
     <name>Sokar</name>
     <description>Sandboxing AI agents in YOLO mode using Podman and Java/GraalVM (PARENT)</description>
-
-    <!-- Overrides the LGPL block inherited from org.fuin:pom, which flatten copies into the
-         published poms of sokar-agent-api and sokar-wire. -->
-    <licenses>
-        <license>
-            <name>GPL-3.0-or-later</name>
-            <url>https://www.gnu.org/licenses/gpl-3.0.html</url>
-            <distribution>repo</distribution>
-            <comments>GNU General Public License v3.0 or later</comments>
-        </license>
-    </licenses>
 
     <!-- Without the inherit.append.path attributes Maven appends each child's artifactId,
          so a module would advertise .../sokar-agents/sokar-agent-api/ in its published pom -
@@ -53,16 +42,11 @@
 
     <properties>
 
-        <!-- Nothing is published unless a module opts in. Sokar ships as binaries and packages;
-             the only artifacts anyone resolves from Maven are the agent API and what it drags
-             in, so every other module would be publishing an internal for people to depend on. -->
-        <!-- Read by maven-deploy-plugin, which -Pcentral-sonatype-release never runs. -->
-        <maven.deploy.skip>true</maven.deploy.skip>
-        <!-- Read by central-publishing-maven-plugin, which is what that profile does run. -->
-        <skipPublishing>true</skipPublishing>
+        <!-- Nothing is published unless a module opts in, as sokar-parent sets it. Sokar ships as binaries and
+             packages; the only artifacts anyone resolves from Maven are the agent API and what it drags in, so
+             every other module would be publishing an internal for people to depend on. The Java release, the build
+             tools' version and the plugin and library versions every Sokar repository shares come from there too. -->
 
-        <!-- Panama FFM is only stable from 22 on, and native-image is built with GraalVM 25. -->
-        <java.release.version>25</java.release.version>
         <!-- Sokar's own release line. Every internal module except an agent is on it.
              A literal, deliberately: writing ${project.version} here would reintroduce
              the very bug this exists to avoid. Maven assembles inheritance BEFORE it
@@ -79,8 +63,6 @@
              Verified against dpkg and rpm themselves, including 9 < 10, which is a numeric
              comparison in both and not a lexical one. -->
         <sokar.snapshot.run>0</sokar.snapshot.run>
-        <!-- The build and test tooling, from sokar-ai/sokar-buildtools on Central: sokar-machines, sokar-release and the three checks. -->
-        <sokar.buildtools.version>0.4.1</sokar.buildtools.version>
         <!-- The command line 'exec:exec@machines' gives sokar-machines, such as 'jdk' or 'sweep'. -->
         <machines.args></machines.args>
         <!-- Options for exec:java@deploy, such as the one that skips the build. -->
@@ -100,44 +82,18 @@
              package replaces the published build it was made from and the next CI build takes the
              machine back. Verified against dpkg itself, in sokar-package-check. -->
         <sokar.snapshot.suffix></sokar.snapshot.suffix>
-        <maven.build.timestamp.format>yyyyMMdd'T'HHmmss</maven.build.timestamp.format>
-        <build-helper.version>3.6.1</build-helper.version>
-        <fuin-bom.version>1.0.2</fuin-bom.version>
-        <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
-        <!-- The library the plugin above builds bills with, so a bill is read by the code that wrote it. -->
-        <cyclonedx-core-java.version>9.0.5</cyclonedx-core-java.version>
-        <exec-maven-plugin.version>3.5.1</exec-maven-plugin.version>
-        <error-prone.version>2.50.0</error-prone.version>
-        <nullaway.version>0.14.2</nullaway.version>
         <!-- The FFM check runs only in a module whose ffm-check profile turns it on. -->
         <sokar.ffm.skip>true</sokar.ffm.skip>
         <!-- The CPU check runs only in a native profile, which names its images here and turns it on. -->
         <sokar.cpu.skip>true</sokar.cpu.skip>
         <sokar.cpu.images></sokar.cpu.images>
-        <logchange-maven-plugin.version>1.19.16</logchange-maven-plugin.version>
-        <native-maven-plugin.version>1.1.11</native-maven-plugin.version>
         <picocli.version>4.7.7</picocli.version>
+        <!-- picocli injects these fields, so NullAway takes them as initialised; added to sokar-parent's NullAway. -->
+        <nullaway.args>-XepOpt:NullAway:ExcludedFieldAnnotations=picocli.CommandLine.Option,picocli.CommandLine.Parameters,picocli.CommandLine.Spec,picocli.CommandLine.ParentCommand,picocli.CommandLine.Mixin</nullaway.args>
         <!-- A pure-Java zstd decoder, so the broker can read a compressed request it must check for a token grant;
              an agent compresses its requests with zstd, and the JDK has no codec for it. -->
         <aircompressor.version>3.10</aircompressor.version>
-        <snakeyaml.version>2.7</snakeyaml.version>
         <dbus-java.version>5.2.0</dbus-java.version>
-        <bouncycastle.version>1.85.2</bouncycastle.version>
-        <cucumber.version>7.34.8</cucumber.version>
-        <sshj.version>0.40.0</sshj.version>
-        <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
-        <!-- The JUnit BOM, imported below so that Jupiter, the platform and the suite engine are
-             one set rather than three guesses. Matches the Jupiter the fuin BOM pins: picking a
-             suite version by "what is newest on Central" put platform 1.14 beside Jupiter 5.12,
-             which worked only because declaration order happened to favour it - and stopped the
-             moment the artifact moved one level deeper.
-
-             5.14.2 rather than the 5.12.2 the fuin BOM pins, because that is the set Cucumber
-             7.34 is built against and the acceptance suite will not discover a test without it.
-             Raising the whole build rather than overriding one module: two coherent sets in one
-             reactor is still two, and the next person to move an artifact between modules meets
-             the same failure this comment is about. -->
-        <junit.version>5.14.2</junit.version>
         <!-- musl cross-toolchain used for the statically linked hook binaries.
              Install with the build tools' 'musl' command (doc/build.md), or override on the command line. -->
         <musl.home>${user.home}/.local/opt/x86_64-linux-musl-native</musl.home>
@@ -159,21 +115,12 @@
         <module>gate</module>
         <module>supervisor</module>
         <module>agents</module>
-        <module>app-base</module>
-        <module>app-model</module>
-        <module>app-agents</module>
-        <module>app-vault</module>
-        <module>app-messaging</module>
-        <module>app-egress</module>
-        <module>app-task</module>
-        <module>app-project</module>
-        <module>app-gate</module>
-        <module>app</module>
+        <module>builds</module>
+        <module>apps</module>
         <module>daemon</module>
         <module>hooks</module>
         <module>acceptance</module>
-        <module>dist-deb</module>
-        <module>dist-rpm</module>
+        <module>dist</module>
     </modules>
 
     <dependencyManagement>
@@ -308,6 +255,11 @@
                 <artifactId>sokar-agent-api</artifactId>
                 <version>${sokar.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.fuin.sokar</groupId>
+                <artifactId>sokar-build-api</artifactId>
+                <version>${sokar.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.fuin.sokar</groupId>
@@ -405,6 +357,11 @@
 
                 <!-- The FFM check, where a module's ffm-check profile sets sokar.ffm.skip to false, and the
                      CPU check, where a native profile sets sokar.cpu.skip to false. -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-help-plugin</artifactId>
+                    <version>${maven-help-plugin.version}</version>
+                </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>exec-maven-plugin</artifactId>
@@ -648,35 +605,6 @@
             </plugin>
 
             <!-- NullAway makes a broken @NullMarked contract a compile error; main code only, tests pass null on purpose. -->
-            <!-- The lists append: app's picocli processor writes the native image's metadata, and replacing it loses that silently. -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>default-compile</id>
-                        <configuration>
-                            <compilerArgs combine.children="append">
-                                <arg>-XDcompilePolicy=simple</arg>
-                                <arg>--should-stop=ifError=FLOW</arg>
-                                <arg>-Xplugin:ErrorProne -XepDisableAllChecks -Xep:NullAway:ERROR -XepOpt:NullAway:OnlyNullMarked=true -XepOpt:NullAway:ExcludedFieldAnnotations=picocli.CommandLine.Option,picocli.CommandLine.Parameters,picocli.CommandLine.Spec,picocli.CommandLine.ParentCommand,picocli.CommandLine.Mixin</arg>
-                            </compilerArgs>
-                            <annotationProcessorPaths combine.children="append">
-                                <path>
-                                    <groupId>com.google.errorprone</groupId>
-                                    <artifactId>error_prone_core</artifactId>
-                                    <version>${error-prone.version}</version>
-                                </path>
-                                <path>
-                                    <groupId>com.uber.nullaway</groupId>
-                                    <artifactId>nullaway</artifactId>
-                                    <version>${nullaway.version}</version>
-                                </path>
-                            </annotationProcessorPaths>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
 
             <!-- The tooling run by hand or by a workflow, from the root with -N and bound to no phase. Only here: the checks
                  above are inherited, and these must not put an SSH stack on every module's plugin classpath. -->
@@ -764,6 +692,24 @@
                             <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-shared ${maven.multiModuleProjectDirectory}/AGENTS.md</commandlineArgs>
                         </configuration>
                     </execution>
+                    <!-- A release builds and packages with no snapshot: run on a tag, on the effective pom
+                         'help:effective-pom -Doutput=target/effective-pom.xml' wrote for the whole reactor. -->
+                    <execution>
+                        <id>check-releases</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <includeProjectDependencies>false</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-release</artifactId>
+                            </executableDependency>
+                            <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-releases ${maven.multiModuleProjectDirectory}/target/effective-pom.xml --requires org.fuin.sokar:sokar-release --requires org.fuin.sokar:sokar-machines</commandlineArgs>
+                        </configuration>
+                    </execution>
                     <!-- No page or file cites an issue in a way that goes stale once the issue is finished and deleted. -->
                     <execution>
                         <id>check-citations</id>
@@ -780,6 +726,24 @@
                                 <artifactId>sokar-release</artifactId>
                             </executableDependency>
                             <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-citations ${maven.multiModuleProjectDirectory}</commandlineArgs>
+                        </configuration>
+                    </execution>
+                    <!-- Every module has a README.md beside its pom.xml, linking its submodules. -->
+                    <execution>
+                        <id>check-readmes</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <includeProjectDependencies>false</includeProjectDependencies>
+                            <includePluginDependencies>true</includePluginDependencies>
+                            <executableDependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-release</artifactId>
+                            </executableDependency>
+                            <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-readmes ${maven.multiModuleProjectDirectory}</commandlineArgs>
                         </configuration>
                     </execution>
                     <!-- Every page of doc/ is in mkdocs.yml's navigation once, and every link on it can be followed on the site. -->
@@ -839,30 +803,10 @@
                 </dependencies>
             </plugin>
 
+            <!-- Every module flattened as sokar-parent manages it, so a published pom names no parent. -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
-                <version>1.8.0</version>
-                <configuration>
-                    <flattenMode>oss</flattenMode>
-                    <updatePomFile>true</updatePomFile>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>flatten</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>flatten</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>flatten.clean</id>
-                        <phase>clean</phase>
-                        <goals>
-                            <goal>clean</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
 
         </plugins>

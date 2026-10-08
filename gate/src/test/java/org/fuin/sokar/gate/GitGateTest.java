@@ -210,6 +210,57 @@ class GitGateTest {
     }
 
     @Test
+    void aReviewShowsWhatTheTaskChangedNotWhatTheUpstreamDidSinceItStarted() throws IOException {
+
+        // Two tasks share a mirror. A later task's start refreshed it to the upstream's newer main, and the earlier
+        // task's review showed that newer work as its own, removed.
+        final Path upstream = upstreamWithMain();
+        final GitGate gate = gate(GateMode.GATEKEEPING, upstream.toString());
+        git(root, "clone", "--quiet", mirror.toString(), work.toString());
+        makeCommit("agent.txt", "written by the agent");
+        git(work, "push", "--quiet", mirror.toString(), "HEAD:" + GitGate.INCOMING + "older");
+        final Path seed = root.resolve("seed");
+        Files.writeString(seed.resolve("origin.txt"), "pushed upstream meanwhile");
+        git(seed, "add", "origin.txt");
+        git(seed, "commit", "-m", "upstream moves on");
+        git(seed, "push", upstream.toString(), "HEAD:refs/heads/main");
+        assertThat(gate.refresh()).as("the mirror follows the upstream").isEmpty();
+
+        assertThat(gate.review("older", "main")).contains("written by the agent").doesNotContain("origin.txt");
+        assertThat(gate.rankedReview("older", "main").files()).extracting(ReviewRanking.File::path)
+                .containsExactly("agent.txt");
+    }
+
+    @Test
+    void theWorkApprovedIntoTheSourceDoesNotComeBackAsABranchOfItsOwn() throws IOException {
+
+        // An approval puts sokar/<task> into the checkout; the next refresh brought it back into the gate, and the
+        // task saw it as sokar/sokar/<task>.
+        final Path upstream = upstreamWithMain();
+        final Path seed = root.resolve("seed");
+        git(seed, "push", "--quiet", upstream.toString(), "HEAD:refs/heads/sokar/earlier");
+        final GitGate gate = gate(GateMode.GATEKEEPING, upstream.toString());
+        assertThat(gate.branches()).as("not from the first clone").containsOnlyKeys("main");
+
+        git(seed, "push", "--quiet", upstream.toString(), "HEAD:refs/heads/sokar/approved");
+        assertThat(gate.refresh()).isEmpty();
+
+        assertThat(gate.branches()).as("not from a refresh").containsOnlyKeys("main");
+    }
+
+    @Test
+    void workThatNeverMetTheBranchIsComparedAsItStands() throws IOException {
+        final GitGate gate = gate(GateMode.GATEKEEPING, upstreamWithMain().toString());
+        git(root, "init", "--quiet", "--initial-branch=other", work.toString());
+        makeCommit("agent.txt", "a history of its own");
+        git(work, "push", "--quiet", mirror.toString(), "HEAD:" + GitGate.INCOMING + "apart");
+
+        assertThat(gate.review("apart", "main")).contains("a history of its own").contains("project.yml");
+        assertThat(gate.rankedReview("apart", "main").files()).extracting(ReviewRanking.File::path)
+                .contains("agent.txt");
+    }
+
+    @Test
     void theFirstReviewOfANewProjectWorks() throws IOException {
 
         // An empty mirror has no branch to compare against. Every project's first review hits

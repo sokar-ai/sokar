@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
@@ -196,6 +197,63 @@ class SokarDaemonTest {
             }
         });
         assertThat(context.paths().tasks().containerState("sokar-uc-sokar-uc-shell")).doesNotExist();
+    }
+
+    @Test
+    void handInGoesOnlyToARunningTask(@TempDir Path dir) throws Exception {
+        runner.answering("ps", "sokar-uc-shell\tExited (0) 2 minutes ago\t1700000000\t0\tuc\tguarded\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".HandIn", Map.of("task", "sokar-uc-shell",
+                        "name", "a.txt", "bytes", 1, "sha256", "0".repeat(64), "offset", 0, "part", "eA==")))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("NotRunning");
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".TakeBack",
+                        Map.of("task", "sokar-uc-gone", "name", "a.txt")))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("NoSuchTask");
+            }
+        });
+    }
+
+    @Test
+    void handInHoldsAPartAndSaysWhereItIsUntilTheFileIsWhole(@TempDir Path dir) throws Exception {
+        runner.answering("ps", "sokar-uc-shell\tUp 4 minutes\t1700000000\t0\tuc\tguarded\n");
+        final String part = java.util.Base64.getEncoder().encodeToString("half".getBytes(StandardCharsets.UTF_8));
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".HandIn", Map.of("task",
+                        "sokar-uc-shell", "name", "a.txt", "bytes", 8, "sha256", "0".repeat(64), "offset", 0,
+                        "part", part));
+
+                assertThat(((Number) reply.get("received")).longValue()).isEqualTo(4L);
+                assertThat(reply).doesNotContainKey("file");
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".HandIn", Map.of("task",
+                        "sokar-uc-shell", "name", "a.txt", "bytes", 8, "sha256", "0".repeat(64), "offset", 6,
+                        "part", part)))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("PartOutOfOrder");
+                assertThat(client.call(SokarDaemon.INTERFACE + ".HandIns", Map.of("task", "sokar-uc-shell")))
+                        .as("nothing reached the task, so nothing is written down")
+                        .containsEntry("record", List.of());
+            }
+        });
+    }
+
+    @Test
+    void handInRefusesWhatTheContractNamesUnderItsName(@TempDir Path dir) throws Exception {
+        runner.answering("ps", "sokar-uc-shell\tUp 4 minutes\t1700000000\t0\tuc\tguarded\n");
+
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".HandIn", Map.of("task", "sokar-uc-shell",
+                        "name", "big.bin", "bytes", 65L * 1024 * 1024, "sha256", "0".repeat(64), "offset", 0,
+                        "part", "eA==")))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("FileTooLarge");
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".HandIn", Map.of("task", "sokar-uc-shell",
+                        "name", "../x", "bytes", 1, "sha256", "0".repeat(64), "offset", 0, "part", "eA==")))
+                        .isInstanceOf(VarlinkException.class).hasMessageContaining("FileNameRefused");
+            }
+        });
     }
 
     @Test
@@ -942,6 +1000,45 @@ class SokarDaemonTest {
                 Files.writeString(log, "y".repeat(70_000) + "\nnext\n", java.nio.file.StandardOpenOption.APPEND);
                 waitFor(() -> replies.stream().anyMatch(reply -> String.valueOf(reply.get("lines")).contains("next")));
                 reader.interrupt();
+            }
+        });
+    }
+
+    @Test
+    void refreshTaskForATaskThatIsNotHereIsNoSuchTask(@TempDir Path dir) throws Exception {
+        serving(dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".RefreshTask",
+                        Map.of("task", "sokar-default-nobody"))).isInstanceOf(VarlinkException.class)
+                        .hasMessageContaining("NoSuchTask");
+            }
+        });
+    }
+
+    @Test
+    void refreshProjectsAnswersTheRecordsOfWhatItFetchedAndANameNotFollowedIsNoSuchProject(@TempDir Path dir)
+            throws Exception {
+
+        // An interface had no way to re-check a follow at once; the person waited for a round.
+        final SokarContext context = context(dir);
+        final org.fuin.sokar.app.FollowedProjects follows =
+                new org.fuin.sokar.app.FollowedProjects(context.paths().projects().followed());
+        follows.write(new org.fuin.sokar.app.FollowedProjects.Followed("p", dir.resolve("p.git").toString(), "", "",
+                "", ""));
+        follows.write(new org.fuin.sokar.app.FollowedProjects.Followed("q", dir.resolve("q.git").toString(), "", "",
+                "", ""));
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> one = client.call(SokarDaemon.INTERFACE + ".RefreshProjects",
+                        Map.of("project", "p"));
+                assertThat((java.util.List<?>) one.get("projects")).as("the one named, whatever its fetch found")
+                        .singleElement().satisfies(record -> assertThat(((Map<?, ?>) record).get("name"))
+                                .isEqualTo("p"));
+                assertThat((java.util.List<?>) client.call(SokarDaemon.INTERFACE + ".RefreshProjects", Map.of())
+                        .get("projects")).as("every one").hasSize(2);
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".RefreshProjects",
+                        Map.of("project", "nope"))).isInstanceOf(VarlinkException.class)
+                        .hasMessageContaining("NoSuchProject");
             }
         });
     }
@@ -2004,6 +2101,51 @@ class SokarDaemonTest {
 
                 assertThat(reply).containsEntry("outcome", "NOT_A_TASK")
                         .containsEntry("label", "");
+            }
+        });
+    }
+
+    @Test
+    void aReviewWithNoBaseNamedShowsTheWholePushAgainstTheDefaultBranch(@TempDir Path dir) throws Exception {
+
+        // The contract says "Default: the upstream's default branch"; the daemon showed the push's last commit alone,
+        // and a client saw half of the work.
+        final SokarContext context = context(dir);
+        final org.fuin.sokar.core.process.ProcessCommandRunner git = new org.fuin.sokar.core.process.ProcessCommandRunner();
+        final java.util.function.BiConsumer<Path, String[]> in = (where, arguments) -> {
+            final java.util.List<String> all = new java.util.ArrayList<>(java.util.List.of("git", "-C", where.toString(),
+                    "-c", "user.email=t@example.com", "-c", "user.name=T"));
+            all.addAll(java.util.List.of(arguments));
+            git.runOrFail(org.fuin.sokar.core.process.Command.of(all));
+        };
+        final Path checkout = Files.createDirectories(dir.resolve("app"));
+        in.accept(checkout, new String[] {"init", "-q", "-b", "main"});
+        Files.writeString(checkout.resolve("README.md"), "app\n");
+        in.accept(checkout, new String[] {"add", "."});
+        in.accept(checkout, new String[] {"commit", "-q", "-m", "start"});
+        new org.fuin.sokar.app.DefaultProject(context).add(checkout.toString(), "app", checkout.toString(), "");
+        final org.fuin.sokar.core.project.Project project = org.fuin.sokar.app.GateSupport.byName(context, "default");
+        final org.fuin.sokar.gate.GitGate gate = org.fuin.sokar.app.GateSupport.gate(context, project,
+                project.repository("app"), null, null);
+        gate.initialize();
+        final Path work = dir.resolve("work");
+        git.runOrFail(org.fuin.sokar.core.process.Command.of("git", "clone", "-q", gate.mirror().toString(),
+                work.toString()));
+        for (final String file : java.util.List.of("first.txt", "second.txt")) {
+            Files.writeString(work.resolve(file), file + "\n");
+            in.accept(work, new String[] {"add", "."});
+            in.accept(work, new String[] {"commit", "-q", "-m", file});
+        }
+        in.accept(work, new String[] {"push", "-q", gate.mirror().toString(), "HEAD:refs/sokar/incoming/t"});
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> review = client.call(SokarDaemon.INTERFACE + ".Review",
+                        Map.of("project", "default", "repository", "app", "name", "t"));
+                assertThat(((java.util.List<?>) review.get("files")).stream()
+                        .map(file -> String.valueOf(((Map<?, ?>) file).get("path"))).toList())
+                        .containsExactlyInAnyOrder("first.txt", "second.txt");
+                assertThat(String.valueOf(review.get("log"))).contains("first.txt").contains("second.txt");
             }
         });
     }
