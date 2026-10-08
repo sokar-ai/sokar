@@ -51,6 +51,14 @@ public class GitHttpServer implements AutoCloseable {
 
     private long refreshedAt = Long.MIN_VALUE;
 
+    /**
+     * The most requests one gate serves at once. An agent that holds its gate's token can send as many as it likes, and
+     * each starts a git on the host; beyond these it is answered at once with 503, never queued without end.
+     */
+    public static final int AT_ONCE = 4;
+
+    private final java.util.concurrent.Semaphore serving = new java.util.concurrent.Semaphore(AT_ONCE);
+
     /** The least time between two fetches from the upstream, however often the agent fetches. */
     public static final java.time.Duration PACE = java.time.Duration.ofSeconds(5);
 
@@ -91,6 +99,21 @@ public class GitHttpServer implements AutoCloseable {
          * @throws IOException If the process fails.
          */
         byte[] run(List<String> arguments, byte[] input) throws IOException;
+
+        /**
+         * Runs git with a request read from a file, writing what it says to a stream as it says it.
+         * <p>
+         * What a push or a fetch carries can be large, so neither is held in memory whole. The default reads the
+         * file and buffers the answer, for a test's git.
+         *
+         * @param arguments Arguments after {@code git}.
+         * @param input The request body.
+         * @param output Where git's standard output goes.
+         * @throws IOException If the process fails.
+         */
+        default void stream(List<String> arguments, Path input, OutputStream output) throws IOException {
+            output.write(run(arguments, java.nio.file.Files.readAllBytes(input)));
+        }
     }
 
     /**
@@ -180,6 +203,21 @@ public class GitHttpServer implements AutoCloseable {
     }
 
     void handle(HttpExchange exchange) throws IOException {
+        if (!serving.tryAcquire()) {
+            System.err.println("refused: more than " + AT_ONCE + " requests at once");
+            exchange.getResponseHeaders().add("Retry-After", "1");
+            exchange.sendResponseHeaders(503, -1);
+            exchange.close();
+            return;
+        }
+        try {
+            served(exchange);
+        } finally {
+            serving.release();
+        }
+    }
+
+    private void served(HttpExchange exchange) throws IOException {
         try {
             if (!authorized(exchange)) {
                 // The realm makes git prompt for credentials rather than simply failing, which is
@@ -254,11 +292,24 @@ public class GitHttpServer implements AutoCloseable {
             return;
         }
 
-        final byte[] request;
-        try (InputStream in = exchange.getRequestBody()) {
-            request = decoded(bounded(in, BODY_LIMIT), exchange.getRequestHeaders().getFirst("Content-Encoding"));
-        }
-        if ("git-receive-pack".equals(service)) {
+        // Spooled to a file beside the mirror rather than held: a push can be as large as the limit, and a few at once
+        // took the host's memory. Not /tmp, which is memory on some machines.
+        final Path body = java.nio.file.Files.createTempFile(spool(), "request-", ".git");
+        try {
+            try (InputStream in = exchange.getRequestBody()) {
+                spool(in, exchange.getRequestHeaders().getFirst("Content-Encoding"), body);
+            }
+            if ("git-upload-pack".equals(service)) {
+                // A fetch's answer is the pack, as large as the repository: written as git writes it.
+                exchange.getResponseHeaders().add("Content-Type", "application/x-" + service + "-result");
+                exchange.getResponseHeaders().add("Cache-Control", "no-cache");
+                exchange.sendResponseHeaders(200, 0);
+                try (OutputStream out = exchange.getResponseBody()) {
+                    git.stream(hidingOthers("upload-pack", "--stateless-rpc", mirror.toString()), body, out);
+                }
+                return;
+            }
+            final byte[] request = head(body);
             final List<String> updated = updatedRefs(request);
             final String refused = updated.stream().filter(each -> !mayUpdate(each)).findFirst().orElse(null);
             if (refused != null) {
@@ -284,24 +335,121 @@ public class GitHttpServer implements AutoCloseable {
                     return;
                 }
             }
+
+            // What receive-pack answers is its status and progress, kilobytes: held, so a refusal can replace it.
+            final ByteArrayOutputStream response = new ByteArrayOutputStream();
+            git.stream(hidingOthers("receive-pack", "--stateless-rpc", mirror.toString()), body, response);
+
+            if (upstream != null) {
+                final String passed = passOn(commands(request));
+                if (passed != null) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/x-" + service + "-result");
+                    exchange.getResponseHeaders().add("Cache-Control", "no-cache");
+                    send(exchange, refusal(updated, passed, capabilities(request)));
+                    return;
+                }
+            }
+
+            exchange.getResponseHeaders().add("Content-Type", "application/x-" + service + "-result");
+            exchange.getResponseHeaders().add("Cache-Control", "no-cache");
+            send(exchange, response.toByteArray());
+        } finally {
+            java.nio.file.Files.deleteIfExists(body);
+        }
+    }
+
+    /** The most of a push's start read into memory to find its commands: they are a line per ref. */
+    static final int HEAD_LIMIT = 1024 * 1024;
+
+    /**
+     * Returns where a request is spooled while git reads it: beside the mirror, on the disk it lives on.
+     *
+     * @return The directory.
+     */
+    private Path spool() {
+        final Path parent = mirror.toAbsolutePath().getParent();
+        return parent == null ? mirror : parent;
+    }
+
+    /**
+     * Copies a request body to a file as it arrives, inflating gzip, within the limits; never holding it whole.
+     *
+     * @param in The body.
+     * @param encoding Its {@code Content-Encoding}, or {@code null}.
+     * @param into The file.
+     * @throws IOException If it cannot be written, or is larger than the limit.
+     * @throws GateException If the coding is not one this reads.
+     */
+    static void spool(final InputStream in, final @org.jspecify.annotations.Nullable String encoding, final Path into)
+            throws IOException {
+        final String coding = encoding == null ? "" : encoding.strip();
+        final boolean plain = coding.isEmpty() || "identity".equalsIgnoreCase(coding);
+        if (!plain && !"gzip".equalsIgnoreCase(coding) && !"x-gzip".equalsIgnoreCase(coding)) {
+            throw new GateException("a request with a " + encoding + " body is refused: it cannot be read here");
+        }
+        final InputStream bounded = new LimitedInputStream(in, BODY_LIMIT, "a request larger than " + BODY_LIMIT
+                + " bytes is refused");
+        try (InputStream body = plain ? bounded : new LimitedInputStream(new java.util.zip.GZIPInputStream(bounded),
+                INFLATED_LIMIT, "a compressed request inflating beyond " + INFLATED_LIMIT + " bytes is refused");
+                OutputStream out = java.nio.file.Files.newOutputStream(into)) {
+            body.transferTo(out);
+        } catch (java.util.zip.ZipException ex) {
+            throw new GateException("a gzip request body that does not inflate is refused: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Returns the start of a spooled request, where a push names its refs.
+     *
+     * @param body The spooled request.
+     * @return Up to {@link #HEAD_LIMIT} bytes of it.
+     * @throws IOException If it cannot be read.
+     */
+    private static byte[] head(final Path body) throws IOException {
+        try (InputStream in = java.nio.file.Files.newInputStream(body)) {
+            return in.readNBytes(HEAD_LIMIT);
+        }
+    }
+
+    /** Counts what passes and stops at a limit, so nothing beyond it is ever written down. */
+    private static final class LimitedInputStream extends java.io.FilterInputStream {
+
+        private final long limit;
+
+        private final String refusal;
+
+        private long read;
+
+        LimitedInputStream(final InputStream in, final long limit, final String refusal) {
+            super(in);
+            this.limit = limit;
+            this.refusal = refusal;
         }
 
-        final byte[] response = git.run(hidingOthers(service.substring("git-".length()),
-                "--stateless-rpc", mirror.toString()), request);
+        @Override
+        public int read() throws IOException {
+            final int one = super.read();
+            if (one >= 0) {
+                count(1);
+            }
+            return one;
+        }
 
-        if (upstream != null && "git-receive-pack".equals(service)) {
-            final String refused = passOn(commands(request));
-            if (refused != null) {
-                exchange.getResponseHeaders().add("Content-Type", "application/x-" + service + "-result");
-                exchange.getResponseHeaders().add("Cache-Control", "no-cache");
-                send(exchange, refusal(updatedRefs(request), refused, capabilities(request)));
-                return;
+        @Override
+        public int read(final byte[] buffer, final int offset, final int length) throws IOException {
+            final int many = super.read(buffer, offset, length);
+            if (many > 0) {
+                count(many);
+            }
+            return many;
+        }
+
+        private void count(final long more) throws IOException {
+            read += more;
+            if (read > limit) {
+                throw new IOException(refusal);
             }
         }
-
-        exchange.getResponseHeaders().add("Content-Type", "application/x-" + service + "-result");
-        exchange.getResponseHeaders().add("Cache-Control", "no-cache");
-        send(exchange, response);
     }
 
     /** The object id git names "no object" with: a ref created, or deleted. */

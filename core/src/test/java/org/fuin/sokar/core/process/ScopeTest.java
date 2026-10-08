@@ -15,7 +15,7 @@ class ScopeTest {
     @Test
     void runsATasksProcessesInAScopeOfTheirOwnWhenThereIsAUserManager() {
         final List<String> wrapped = Scope.around("sokar sokar-p-t gate", List.of("sokar", "gate", "serve"),
-                SESSION::get, path -> path.equals(Path.of("/run/user/1008/systemd/private")),
+                List.of(), SESSION::get, path -> path.equals(Path.of("/run/user/1008/systemd/private")),
                 path -> path.equals(Path.of("/usr/bin/systemd-run")));
 
         assertThat(wrapped).containsExactly("/usr/bin/systemd-run", "--user", "--scope", "--quiet", "--collect",
@@ -23,21 +23,32 @@ class ScopeTest {
     }
 
     @Test
+    void aScopeCarriesTheLimitsItIsGivenSoWhatItStartsIsHeldByThemToo() {
+        // A task's gate and every git it starts ran with no limit of their own, taking from sokard and every task.
+        final List<String> wrapped = Scope.around("sokar sokar-p-t gate", List.of("sokar", "gate", "serve"),
+                List.of("MemoryMax=1G", "TasksMax=256"), SESSION::get,
+                path -> path.equals(Path.of("/run/user/1008/systemd/private")),
+                path -> path.equals(Path.of("/usr/bin/systemd-run")));
+
+        assertThat(wrapped).containsSequence("--property=MemoryMax=1G", "--property=TasksMax=256", "--", "sokar");
+    }
+
+    @Test
     void leavesTheCommandAsItIsWithoutAUserManager() {
         // A container, or a machine without systemd: what it did before, rather than a start that fails.
-        assertThat(Scope.around("x", List.of("sokar"), SESSION::get, path -> false, path -> true))
+        assertThat(Scope.around("x", List.of("sokar"), List.of(), SESSION::get, path -> false, path -> true))
                 .containsExactly("sokar");
     }
 
     @Test
     void leavesTheCommandAsItIsWithoutSystemdRun() {
-        assertThat(Scope.around("x", List.of("sokar"), SESSION::get, path -> true, path -> false))
+        assertThat(Scope.around("x", List.of("sokar"), List.of(), SESSION::get, path -> true, path -> false))
                 .containsExactly("sokar");
     }
 
     @Test
     void leavesTheCommandAsItIsWithoutARuntimeDirectory() {
-        assertThat(Scope.around("x", List.of("sokar"), Map.of("PATH", "/usr/bin")::get, path -> true, path -> true))
+        assertThat(Scope.around("x", List.of("sokar"), List.of(), Map.of("PATH", "/usr/bin")::get, path -> true, path -> true))
                 .containsExactly("sokar");
     }
 
@@ -46,6 +57,6 @@ class ScopeTest {
         final java.util.Map<String, String> off = new java.util.HashMap<>(SESSION);
         off.put(Scope.SWITCH, Scope.OFF);
 
-        assertThat(Scope.around("x", List.of("sokar"), off::get, path -> true, path -> true)).containsExactly("sokar");
+        assertThat(Scope.around("x", List.of("sokar"), List.of(), off::get, path -> true, path -> true)).containsExactly("sokar");
     }
 }

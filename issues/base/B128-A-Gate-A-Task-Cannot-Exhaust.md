@@ -1,6 +1,6 @@
 # B128 — A Gate A Task Cannot Exhaust
 
-**Status:** now.
+**Status:** implemented here; the acceptance run on the Ubuntu VM is open.
 
 **What must be true.** What a task's agent can make its gate do on the host is bounded: how many requests it serves
 at once, how much of a push it holds in memory, and how much memory, how many processes and how much CPU the gate and

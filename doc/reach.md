@@ -53,6 +53,10 @@ See [the firewall](security.md) and [DNS](security.md) for how this is enforced.
 whatever the real credential can at the provider: use tokens, spend money. The only bound is the
 account's own limit at the provider, which Sokar does not set.
 
+| | Bound | What it is |
+|---|---|---|
+| Its gate on the host | Four requests at once, `503` beyond; a push spooled to disk, never held; the gate and its `git` in a scope of 1 GiB memory, 256 tasks and half the default CPU weight | control |
+
 ## Produce: what a task can leave behind
 
 | | Bound | What it is |

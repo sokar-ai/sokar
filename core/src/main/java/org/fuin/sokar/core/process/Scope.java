@@ -56,7 +56,20 @@ public final class Scope {
      * @return The command, prefixed to run in a scope of its own, or unchanged.
      */
     public static List<String> around(String description, List<String> command) {
-        return around(description, command, System::getenv, Files::exists, Files::isExecutable);
+        return around(description, command, List.of(), System::getenv, Files::exists, Files::isExecutable);
+    }
+
+    /**
+     * Wraps a command in a scope with limits of its own, such as {@code MemoryMax=1G}: what it starts in turn is
+     * held by the same limits, since it stays in the scope.
+     *
+     * @param description What the scope holds, as {@code systemctl} shows it.
+     * @param command The command.
+     * @param limits Unit properties, each {@code Name=value}.
+     * @return The command, prefixed to run in a scope of its own, or unchanged.
+     */
+    public static List<String> around(String description, List<String> command, List<String> limits) {
+        return around(description, command, limits, System::getenv, Files::exists, Files::isExecutable);
     }
 
     /**
@@ -64,12 +77,13 @@ public final class Scope {
      *
      * @param description What the scope holds.
      * @param command The command.
+     * @param limits Unit properties, each {@code Name=value}.
      * @param environment The environment to read {@code XDG_RUNTIME_DIR} and {@code PATH} from.
      * @param present Whether a path exists - asked of the user manager's socket.
      * @param executable Whether a path is an executable file - asked of {@code systemd-run}.
      * @return The command, prefixed or unchanged.
      */
-    static List<String> around(String description, List<String> command,
+    static List<String> around(String description, List<String> command, List<String> limits,
             Function<String, @Nullable String> environment, Predicate<Path> present, Predicate<Path> executable) {
         if (OFF.equals(environment.apply(SWITCH))) {
             return command;
@@ -79,7 +93,11 @@ public final class Scope {
             return command;
         }
         final List<String> wrapped = new ArrayList<>(List.of(systemdRun, "--user", "--scope", "--quiet", "--collect",
-                "--slice=" + SLICE, "--description=" + description, "--"));
+                "--slice=" + SLICE, "--description=" + description));
+        for (final String limit : limits) {
+            wrapped.add("--property=" + limit);
+        }
+        wrapped.add("--");
         wrapped.addAll(command);
         return List.copyOf(wrapped);
     }

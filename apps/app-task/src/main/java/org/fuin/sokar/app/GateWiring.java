@@ -57,6 +57,13 @@ final class GateWiring {
         this.repository = repository;
     }
 
+    /**
+     * What a task's gate and every git it starts may take together on the host. The agent holds the gate's token and
+     * can send it as much as it likes; beyond these the scope ends what exceeded them, never {@code sokard} or another
+     * task. Half the default CPU weight, so the daemon and the rest of the machine come first.
+     */
+    static final java.util.List<String> LIMITS = java.util.List.of("MemoryMax=1G", "TasksMax=256", "CPUWeight=50");
+
     void startGate(TaskRunner runner, TaskWorkspace workspace,
             @org.jspecify.annotations.Nullable String gateAddress, String container, String taskName,
             org.fuin.sokar.core.project.Project project, PrintWriter out,
@@ -89,7 +96,8 @@ final class GateWiring {
         }
 
         try {
-            final ProcessBuilder builder = new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + container + " gate", command))
+            final ProcessBuilder builder = new ProcessBuilder(org.fuin.sokar.core.process.Scope.around(
+                    "sokar " + container + " gate", command, LIMITS))
                     .redirectErrorStream(true)
                     .redirectOutput(state.resolve("gate.log").toFile());
             builder.environment().put("SOKAR_GATE_TOKEN", java.util.Objects.requireNonNull(workspace.token(),

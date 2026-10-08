@@ -1,0 +1,2 @@
+title: A task's gate serves four requests at once and answers the next at once with 503, spools a push to disk instead of holding it, and runs with its git in a scope of 1 GiB memory, 256 tasks and half the default CPU weight
+type: added

@@ -111,6 +111,23 @@ Every arrow above runs through the same firewall: declared names resolve, everyt
 NXDOMAIN, and only ports 80 and 443 are open to the addresses those names answer with. The gate's
 own endpoint is the exception, and it binds loopback. The rest of this page is those two layers.
 
+### What a task can make its gate take
+
+Every task has a gate of its own on the host, which only its container reaches and only with its
+token - and the agent holds that token. What it can make the gate do is bounded:
+
+- **A few requests at once.** A gate serves four at a time; the next is answered at once with
+  `503` and `Retry-After`, never queued without end.
+- **A push is spooled, not held.** A request goes to a file beside the mirror as it arrives, within
+  the size limit, and `git` reads it from there; a fetch's pack is written to the agent as `git`
+  writes it. Neither is ever in memory whole.
+- **A scope of its own.** The gate and every `git` it starts run in a systemd scope with
+  `MemoryMax=1G`, `TasksMax=256` and half the default CPU weight. Exceeding one ends what exceeded
+  it, never `sokard` or another task.
+
+An agent that sends requests in a loop or pushes as much as it can slows down its own gate and
+nothing else.
+
 ## The firewall
 
 Every task container has its own packet filter. Nothing Sokar does touches the host's own firewall,

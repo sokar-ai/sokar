@@ -39,6 +39,41 @@ public class GitSubprocess implements GitHttpServer.GitProcess {
     }
 
     @Override
+    public void stream(List<String> arguments, java.nio.file.Path input, OutputStream output) throws IOException {
+
+        final List<String> command = new ArrayList<>(List.of(executable));
+        command.addAll(arguments);
+
+        // Read from the file and written as it comes: a push or a fetch is held by neither side in memory whole.
+        final Process process = new ProcessBuilder(command)
+                .redirectInput(input.toFile())
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start();
+        // The limit runs from the start, on a thread of its own: a git that hangs is ended, and the copy below with it.
+        final Thread watch = Thread.ofVirtual().start(() -> {
+            try {
+                if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+                    process.destroyForcibly();
+                }
+            } catch (InterruptedException ex) {
+                process.destroyForcibly();
+            }
+        });
+        try (java.io.InputStream in = process.getInputStream()) {
+            in.transferTo(output);
+            if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+                throw new IOException("git " + arguments.getFirst() + " timed out after " + timeoutSeconds + " s");
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while running git", ex);
+        } finally {
+            process.destroyForcibly();
+            watch.interrupt();
+        }
+    }
+
+    @Override
     public byte[] run(List<String> arguments, byte[] input) throws IOException {
 
         final List<String> command = new ArrayList<>(List.of(executable));
