@@ -38,6 +38,11 @@ repository, and since an online task whose fetch fails is refused at its start, 
 - **Fetched through:** a fetch of the agent from the gate first brings the gate up to the upstream, so what the agent
   fetches is the upstream as it is now. Seen to fail: a commit pushed to the upstream after the task started, which a
   fetch of the agent must bring.
+- **Fetched through at a measured pace:** at most one fetch from the upstream runs at a time for a task, and at most
+  one starts within a few seconds of the last; a fetch of the agent in between gets what the last one brought. An
+  agent that fetches in a loop must not make the host flood the forge with the person's key, which ends in the
+  forge's rate limit or a blocked key. Seen to fail: a hundred fetches of the agent in a second reach the upstream a
+  hundred times.
 - **Passed on while the push runs:** a push to the task's own branch is passed on to the same branch at the upstream
   before the agent's push returns. A refusal by the forge - a conflict, a protected branch, a key it does not take -
   fails the agent's push, with what the forge said. Seen to fail: a push the forge refuses that the agent sees as
