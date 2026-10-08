@@ -84,4 +84,3 @@
 - In a task's workspace the branch tracks the task's own place, so git status says up to date right after a push and ahead by N before one 
 
 
-
