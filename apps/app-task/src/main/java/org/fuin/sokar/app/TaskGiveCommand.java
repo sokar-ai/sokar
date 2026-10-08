@@ -56,6 +56,8 @@ public class TaskGiveCommand implements Callable<Integer>, SokarFactory.ContextA
 
     @Override
     public Integer call() {
+        // By the container's name or the task's own, as every task command takes it.
+        container = TaskTarget.spelled(context, container);
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
         if (!TaskCandidates.running(context).contains(container)) {

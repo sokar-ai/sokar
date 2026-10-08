@@ -33,6 +33,8 @@ public class TalkVerifyCommand implements Callable<Integer>, SokarFactory.Contex
 
     @Override
     public Integer call() throws Exception {
+        // By the container's name or the task's own, as every task command takes it.
+        container = TaskTarget.spelled(context, container);
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
         final Mailbox mailbox = new Mailbox(context.paths().messaging().mailbox(container));

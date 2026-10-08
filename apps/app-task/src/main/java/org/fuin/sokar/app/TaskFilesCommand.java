@@ -45,6 +45,8 @@ public class TaskFilesCommand implements Callable<Integer>, SokarFactory.Context
 
     @Override
     public Integer call() {
+        // By the container's name or the task's own, as every task command takes it.
+        container = TaskTarget.spelled(context, container);
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
         final List<HandIns.Entry> record;
