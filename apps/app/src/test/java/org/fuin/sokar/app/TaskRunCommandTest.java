@@ -412,8 +412,7 @@ class TaskRunCommandTest {
         assertThat(runner.only("create").describe()).as("the start said:%n%s%n%s", out, err)
                 .doesNotContain("ssh-agent.sock").doesNotContain("SSH_AUTH_SOCK").doesNotContain("GIT_SSH_COMMAND")
                 .contains("--env SOKAR_TASK_REF");
-        assertThat(Files.readString(state.resolve(TaskHelpers.FILE))).as("its gate").contains("\"--pass-on\"")
-                .doesNotContain("ssh-agent");
+        // That its gate passes the push on is GateServingTest's: the record of it exists only where a 'sokar' started.
     }
 
     @Test

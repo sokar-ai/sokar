@@ -64,12 +64,21 @@ final class GateWiring {
      */
     static final java.util.List<String> LIMITS = java.util.List.of("MemoryMax=1G", "TasksMax=256", "CPUWeight=50");
 
-    void startGate(TaskRunner runner, TaskWorkspace workspace,
-            @org.jspecify.annotations.Nullable String gateAddress, String container, String taskName,
-            org.fuin.sokar.core.project.Project project, PrintWriter out,
-            PrintWriter err) {
-
-        final java.nio.file.Path state = context.paths().tasks().containerState(container);
+    /**
+     * Returns the command that serves a task's gate: apart from starting it, so what it is told is checked without a
+     * {@code sokar} on the machine to start.
+     *
+     * @param project The task's project.
+     * @param bind Where the gate listens.
+     * @param port Its port.
+     * @param state The task's runtime state.
+     * @param taskName The task's own name.
+     * @param repository Which repository of the project, or {@code null} for its own.
+     * @return The command.
+     */
+    static java.util.List<String> serving(final org.fuin.sokar.core.project.Project project, final String bind,
+            final int port, final java.nio.file.Path state, final String taskName,
+            final @Nullable String repository) {
         final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
                 SokarBinary.path(),
                 "gate", "serve",
@@ -77,8 +86,8 @@ final class GateWiring {
                 // side, and by the time this runs the launch has recorded where the file is - so
                 // the gate and the task cannot end up reading two different files.
                 "--project", project.name(),
-                "--address", gateBind(gateAddress, err),
-                "--port", String.valueOf(workspace.port()),
+                "--address", bind,
+                "--port", String.valueOf(port),
                 "--pid-file", state.resolve("gate.pid").toString(),
                 // The one ref this task may push to: nothing else in the mirror is the task's to move.
                 "--ref", org.fuin.sokar.gate.GitGate.INCOMING + taskName));
@@ -94,6 +103,17 @@ final class GateWiring {
             command.add("--repository");
             command.add(repository);
         }
+        return command;
+    }
+
+    void startGate(TaskRunner runner, TaskWorkspace workspace,
+            @org.jspecify.annotations.Nullable String gateAddress, String container, String taskName,
+            org.fuin.sokar.core.project.Project project, PrintWriter out,
+            PrintWriter err) {
+
+        final java.nio.file.Path state = context.paths().tasks().containerState(container);
+        final java.util.List<String> command = serving(project, gateBind(gateAddress, err), workspace.port(), state,
+                taskName, repository);
 
         try {
             final ProcessBuilder builder = new ProcessBuilder(org.fuin.sokar.core.process.Scope.around(
