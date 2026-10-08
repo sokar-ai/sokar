@@ -84,7 +84,7 @@
 
              '+local.<stamp>' sorts ABOVE the run it names and BELOW the next one, so a local
              package replaces the published build it was made from and the next CI build takes the
-             machine back. Verified against dpkg itself, in sokar-package-check. -->
+             machine back. Verified against dpkg itself, in dist/package-check. -->
         <sokar.snapshot.suffix></sokar.snapshot.suffix>
         <!-- The FFM check runs only in a module whose ffm-check profile turns it on. -->
         <sokar.ffm.skip>true</sokar.ffm.skip>
@@ -786,35 +786,11 @@
                             <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-doc-site ${maven.multiModuleProjectDirectory}/doc ${maven.multiModuleProjectDirectory}/mkdocs.yml</commandlineArgs>
                         </configuration>
                     </execution>
-                    <!-- After -Pdist verify: the two packages against each other, then installed in clean containers. -->
-                    <execution>
-                        <id>package-check</id>
-                        <goals>
-                            <goal>java</goal>
-                        </goals>
-                        <configuration>
-                            <mainClass>org.fuin.sokar.packagecheck.Main</mainClass>
-                            <includeProjectDependencies>false</includeProjectDependencies>
-                            <includePluginDependencies>true</includePluginDependencies>
-                            <executableDependency>
-                                <groupId>org.fuin.sokar</groupId>
-                                <artifactId>sokar-package-check</artifactId>
-                            </executableDependency>
-                            <arguments>
-                                <argument>${maven.multiModuleProjectDirectory}</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
                 </executions>
                 <dependencies>
                     <dependency>
                         <groupId>org.fuin.sokar</groupId>
                         <artifactId>sokar-machines</artifactId>
-                        <version>${sokar.buildtools.version}</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>org.fuin.sokar</groupId>
-                        <artifactId>sokar-package-check</artifactId>
                         <version>${sokar.buildtools.version}</version>
                     </dependency>
                     <dependency>

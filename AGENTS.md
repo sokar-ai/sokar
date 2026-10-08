@@ -103,7 +103,7 @@ The command line and the daemon's logic are modules by area, `app-<area>`, submo
 
 - **A test that needs podman belongs in the acceptance suite**; unit tests run without a container runtime.
 - **A scenario about a packaged file cannot pass on a CI leg**, which builds on the machine and has no package
-  installed; what a package holds is checked by `sokar-package-check`.
+  installed; what a package holds is checked by `dist/package-check`.
 - **A suite opens one ssh connection per run and a channel per scenario**; a connection per scenario is refused by CI.
 - **JUnit is one set**: `org.junit:junit-bom` is imported before the fuin BOM, at the version Cucumber is built
   against.
@@ -120,7 +120,7 @@ The command line and the daemon's logic are modules by area, `app-<area>`, submo
     ./mvnw -s settings.xml -Pnative,dist clean verify    # + .deb and .rpm
 
 - **Packaging binds to `verify`**, after native-image binds to `package`: `-Pnative,dist package` produces no package,
-  or an older one beside a newer binary, which `./mvnw -N exec:java@package-check` catches.
+  or an older one beside a newer binary, which `./mvnw -pl dist/package-check compile exec:java@package-check` catches.
 - **`agent.package.skip` is on by default and each agent turns it off**, since `dist` lives in `agents/pom.xml` and
   the aggregator and `sokar-agent-api` inherit it.
 - **The root POM names its version as a literal `<sokar.version>`**, because `${project.version}` in a parent's

@@ -230,9 +230,9 @@ jobs:
              -Dsokar.snapshot.run=${{ github.run_number }}
 
       # Checks the two packages against each other and installs both in a clean Debian and a clean Fedora.
-      # sokar-package-check from Central, at the root pom's sokar.buildtools.version.
+      # The check is a module of this tree, so the places it reads move with the modules that write them.
       - name: Check the packages
-        run: ./mvnw -B -q -U -s settings.xml -N exec:java@package-check
+        run: ./mvnw -B -q -U -s settings.xml -pl dist/package-check compile exec:java@package-check
 
       # Both halves, after the checks and as close together as the job can put them. They still
       # cannot be made atomic: measured on 2026-09-11, the deb followed the jars by 15m42s, and a

@@ -237,7 +237,7 @@
                                              vendor-completions; Fedora has no such directory and
                                              uses site-functions, which is the second place where
                                              the two ecosystems differ on purpose. Both are
-                                             checked in sokar-package-check. -->
+                                             checked in dist/package-check. -->
                                         <data>
                                             <src>${project.basedir}/../../apps/app/src/main/resources/completion/sokar</src>
                                             <type>file</type>

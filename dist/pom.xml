@@ -22,6 +22,7 @@
         <module>dist-deb</module>
         <module>dist-rpm</module>
         <module>dist-check</module>
+        <module>package-check</module>
     </modules>
 
 </project>
