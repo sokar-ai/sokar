@@ -9,7 +9,7 @@
     <parent>
         <groupId>org.fuin.sokar</groupId>
         <artifactId>sokar-parent</artifactId>
-        <version>0.1.1</version>
+        <version>0.1.2</version>
         <relativePath/>
     </parent>
 
@@ -46,10 +46,6 @@
              packages; the only artifacts anyone resolves from Maven are the agent API and what it drags in, so
              every other module would be publishing an internal for people to depend on. The Java release, the build
              tools' version and the plugin and library versions every Sokar repository shares come from there too. -->
-
-        <!-- Ahead of sokar-parent's: acceptance/legs takes from sokar-machines what became public in 0.4.3. Goes
-             once a sokar-parent names 0.4.3 or later. -->
-        <sokar.buildtools.version>0.4.3-SNAPSHOT</sokar.buildtools.version>
 
         <!-- Sokar's own release line. Every internal module except an agent is on it.
              A literal, deliberately: writing ${project.version} here would reintroduce

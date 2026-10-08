@@ -19,7 +19,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * Checks the built {@code .deb} and {@code .rpm} against each other and against a real install.
  * <p>
- * Run after {@code -Pdist verify}, from a sokar checkout, with {@code ./mvnw -N exec:java@package-check}.
+ * Run after {@code -Pdist verify}, from the tree's root, with
+ * {@code ./mvnw -pl dist/package-check compile exec:java@package-check}.
  * Needs {@code dpkg-deb}, {@code dpkg} and podman, and pulls the ubuntu and fedora images the pom pins.
  */
 public final class Main {
