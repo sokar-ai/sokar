@@ -43,8 +43,8 @@ Feature: Work starts without a project, in the project every machine has
     # The developer's key is a throwaway one in an ssh agent, allowed into this account only while the scenario
     # runs; the origin is this machine itself over ssh. Its host key is vouched for from the machine's own key
     # file, the way a person compares a fingerprint, never accepted on first use. The repository's source is the
-    # origin, named with --upstream outside any checkout: a task started from a checkout takes the checkout as
-    # its source, and its approved work lands there, never at the origin.
+    # origin, added to 'default' by its address: a task started from a checkout takes the checkout as its source,
+    # and its approved work lands there, never at the origin.
     Given the environment variable "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" is set
     And a vault of this scenario's own, unlocked with the passphrase "acceptance"
     And the vault holds the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" as "anthropic" of kind "api-key"
@@ -62,9 +62,10 @@ Feature: Work starts without a project, in the project every machine has
       cat "$base/key.pub" >> ~/.ssh/authorized_keys
       eval "$(ssh-agent -s)" > /dev/null && ssh-add -q "$base/key"
       origin="ssh://$USER@127.0.0.1$base/$repo.git"
+      sokar project default add "$origin" --name "$repo"
       # Before anybody vouched for the host: an agent's task has no gate, so it is not started at all.
       sed -i '/^127\.0\.0\.1 /d' "${XDG_STATE_HOME:-$HOME/.local/state}/sokar/known_hosts" 2>/dev/null
-      (cd "$base" && timeout 300 sokar task start early --upstream "$origin" --agent stub --detach --clearance deny > "$base/early" 2>&1; echo "unvouched start exit $?")
+      (cd "$base" && timeout 300 sokar task start early -p default -r "$repo" --agent stub --detach --clearance deny > "$base/early" 2>&1; echo "unvouched start exit $?")
       grep -o "nothing was created" "$base/early"
       grep -o "this machine has never met 127.0.0.1" "$base/early"
       grep -o "sokar credentials trust-host 127.0.0.1" "$base/early"
@@ -72,9 +73,8 @@ Feature: Work starts without a project, in the project every machine has
       sokar credentials trust-host 127.0.0.1 \
           --fingerprint "$(ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | awk '{ print $2 }')" > /dev/null
       cd "$base"
-      timeout 300 sokar task start sshwork --upstream "$origin" --agent stub --detach --clearance deny > "$base/start" 2>&1
+      timeout 300 sokar task start sshwork -p default -r "$repo" --agent stub --detach --clearance deny > "$base/start" 2>&1
       echo "start exit $?"
-      grep -o "in 'default' as '$repo'" "$base/start"
       # Detached, so the start returns before the workspace is cloned from the gate.
       for i in $(seq 1 120); do podman exec sokar-default-sshwork git -C /workspace rev-parse HEAD > /dev/null 2>&1 && break; sleep 1; done
       podman exec sokar-default-sshwork sh -c 'cd /workspace && echo "done by the agent" >> README.md && git add -A && git -c user.email=agent@localhost -c user.name=agent commit -qm "acceptance: work for an ssh origin" && timeout 30 git push -q sokar HEAD:"$SOKAR_TASK_REF"'
@@ -99,7 +99,7 @@ Feature: Work starts without a project, in the project every machine has
     And its output contains "this machine has never met 127.0.0.1"
     And its output contains "sokar credentials trust-host 127.0.0.1"
     And its output contains "start exit 0"
-    And its output contains "in 'default' as 'dssh"
+    And its output contains "in 'default' as dssh"
     And its output contains "pushed to the gate 0"
     And its output contains "in the task (agent socket, key): 0 0"
     And its output contains "listed as pending: 1"
