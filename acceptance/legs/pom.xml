@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.fuin.sokar</groupId>
+        <artifactId>sokar-acceptance-parent</artifactId>
+        <version>0.4.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>sokar-acceptance-legs</artifactId>
+    <name>Sokar Acceptance Legs</name>
+    <description>Sokar - Builds this repository on a rented machine and runs its acceptance suite there, and installs a handover on a machine somebody keeps (ACCEPTANCE-LEGS)</description>
+
+    <!-- What only this repository does with a machine, kept beside the tree it builds: a regrouping of the modules
+         changes ci/leg-build.sh and this module in the same commit, and no released tool knows the layout.
+         Renting, ssh and the sweep stay in sokar-machines, which every repository shares. Not published. -->
+
+    <dependencies>
+
+        <dependency>
+            <groupId>org.fuin.sokar</groupId>
+            <artifactId>sokar-machines</artifactId>
+            <version>${sokar.buildtools.version}</version>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- A command of this module, in a JVM of its own, which exits with the command's code:
+                 '-pl acceptance/legs compile exec:exec@legs -Dlegs.args="leg ..."' or '... "deploy ..."'. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>legs</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/java</executable>
+                            <!-- From the tree's root, so a relative repository or fetch directory means what it says there. -->
+                            <workingDirectory>${maven.multiModuleProjectDirectory}</workingDirectory>
+                            <commandlineArgs>-classpath %classpath org.fuin.sokar.legs.Main ${legs.args}</commandlineArgs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

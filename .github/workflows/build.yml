@@ -46,6 +46,18 @@ jobs:
       - name: Build and unit tests
         run: ./mvnw -B verify -s settings.xml
 
+      # The jar deploy Publish runs, on every push, with both upload URLs at a port on this runner where nothing
+      # listens: every module must go through the publishing plugin and nothing may leave the machine. Its upload
+      # failing against the dead port is expected; sokar-release check-deploy reads the log.
+      - name: Deploy dry run
+        run: |
+          set -u
+          mkdir -p target
+          ./mvnw -B -s settings.xml deploy -Pcentral-sonatype-release -Dgpg.skip -DskipTests \
+              -DcentralBaseUrl=http://127.0.0.1:9 -DcentralSnapshotsUrl=http://127.0.0.1:9/ \
+              > target/deploy-dry-run.log 2>&1 || true
+          ./mvnw -B -q -s settings.xml -N exec:exec@check-deploy
+
       # FFM downcalls are not found by native-image's analysis: an unregistered one fails only in the shipped binary.
       # The check is sokar-ffm-check, resolved from Central at the root pom's sokar.buildtools.version.
       - name: Every FFM downcall the tests made is registered
@@ -87,8 +99,9 @@ jobs:
       - name: The pinned GraalVM
         uses: ./.github/actions/pinned-jdk
 
-      # sokar-machines from Central at the root pom's sokar.buildtools.version, resolved before anything
-      # is created, so the cleanup below finds it in the local repository.
+      # The leg is this tree's own (acceptance/legs), built here on sokar-machines from Central at the root pom's
+      # sokar.buildtools.version, which is resolved before anything is created, so the cleanup below finds it.
+      # What it builds on the machine is ci/leg-build.sh.
       # HETZNER_API and HETZNER_SSH come from the environment; the key goes to an agent, never a file.
       # Four accounts run the features beside each other, and a restart runs alone afterwards: the
       # scenarios mostly wait, so a faster machine did not shorten them and doing four at once does.
@@ -100,8 +113,8 @@ jobs:
           # Both legs share GITHUB_RUN_ID, so the leg is what makes a server's label unique.
           SOKAR_CI_LEG: ${{ matrix.os }}
         run: |
-          ./mvnw -B -q -U -s settings.xml -N exec:exec@machines \
-              -Dmachines.args="leg --os ${{ matrix.os }} --repo . --acceptance --accounts 4 ${{ matrix.os == 'ubuntu' && '--fetch binaries' || '' }}"
+          ./mvnw -B -q -U -s settings.xml -pl acceptance/legs compile exec:exec@legs \
+              -Dlegs.args="leg --os ${{ matrix.os }} --repo . --acceptance --accounts 4 ${{ matrix.os == 'ubuntu' && '--fetch binaries' || '' }}"
 
       # Only the ubuntu leg: a native image links glibc, so one built on Fedora will not start here.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -1,0 +1,2 @@
+title: The build runs the jar deploy on every push with both upload URLs at a dead local port, and sokar-release check-deploy reads it, so a tag's deploy repeats what main already did
+type: added

@@ -20,11 +20,12 @@
          here would silently skip the kit's install and deploy too. The root already keeps
          deploy off by default, and the modules say for themselves what they publish. -->
 
-    <!-- Two modules, the way agents/ has the contract beside the stub: the kit is what any
-         repository drives a machine with, and the suite is this one's own scenarios. -->
+    <!-- The way agents/ has the contract beside the stub: the kit is what any repository drives a machine
+         with, the suite is this one's own scenarios, and the legs build this repository on a machine to run them. -->
     <modules>
         <module>kit</module>
         <module>suite</module>
+        <module>legs</module>
     </modules>
 
 </project>

@@ -1,0 +1,2 @@
+title: ci/leg-build.sh is what a rented machine builds of this tree, for the legs and for the machine images' proof, and the build checks every module it names against the reactor
+type: added
