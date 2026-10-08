@@ -89,18 +89,24 @@ public final class Leg {
     }
 
     /**
-     * What a leg sends home, and what the publish job installs.
+     * What a leg sends home, and what the publish job installs: one path from the tree's root per line.
      * <p>
      * The stub agent is packaged so that the package checks still have an agent package to
      * install and can prove {@code Depends: sokar} resolves. It is never published.
      */
-    private static final List<String> BINARIES = List.of(
-            "app/target/sokar",
-            "daemon/target/sokard",
-            "hooks/target/sokar-hook-nft",
-            "hooks/target/sokar-hook-supervisor",
-            "hooks/target/sokar-hook-reader",
-            "agents/stub/target/sokar-agent-stub");
+    static final String BINARIES = "ci/leg-binaries";
+
+    /** Installs the build into the account, as a package would; from the tree's root. */
+    static final String INSTALL_SCRIPT = "ci/leg-install.sh";
+
+    /**
+     * Installs what the build made, then sets the account up.
+     *
+     * @return The command to run on the machine.
+     */
+    static String install() {
+        return "cd " + REPO + " && sh " + INSTALL_SCRIPT + " && ~/.local/bin/sokar setup";
+    }
 
     /** Names what came back, so the publish job can refuse a leg that sent nothing. */
     private static final String MANIFEST = "fetched.txt";
@@ -197,21 +203,9 @@ public final class Leg {
             // like a broken machine and was a broken transcription. The agent is the one this build
             // made, found rather than named; the daemon is started by the scenarios that ask it.
             step("installing as a package would");
-            final List<String> agents = agentBinaries(build.run("ls -1 " + REPO + "/agents/*/target/sokar-agent-*"
-                    + " 2>/dev/null").out().lines().toList());
-            if (agents.isEmpty()) {
-                throw new IOException("the build made no agent, so no scenario that starts a task can run");
-            }
-            run(build, "mkdir -p ~/.local/bin ~/.local/share/sokar/agents "
-                    + "~/.local/share/sokar/providers ~/.local/share/sokar/egress"
-                    + " && cp " + REPO + "/hooks/target/sokar-hook-* ~/.local/bin/"
-                    + " && cp " + REPO + "/app/target/sokar " + REPO + "/daemon/target/sokard ~/.local/bin/"
-                    + " && cp " + REPO + "/providers/*.yaml ~/.local/share/sokar/providers/"
-                    + " && cp " + REPO + "/egress/*.yaml ~/.local/share/sokar/egress/"
-                    + " && cp " + String.join(" ", agents.stream().map(AgentLeg::quote).toList())
-                    + " ~/.local/share/sokar/agents/"
-                    + " && " + installBuildStub(REPO + "/builds/stub/target/sokar-build-stub")
-                    + " && ~/.local/bin/sokar setup");
+            // Where the build put each binary is the tree's to say: ci/leg-install.sh and ci/leg-binaries, which
+            // the tree's own build checks against its modules.
+            run(build, install());
 
             step("what sokar thinks of this machine");
             // The podman version too: it decides whether this leg is really covering podman 4 or
@@ -412,8 +406,13 @@ public final class Leg {
      */
     private static void fetch(Ssh ssh, Path into) throws IOException {
         Files.createDirectories(into);
+        final Ssh.Output listed = ssh.run("cat " + REPO + "/" + BINARIES);
+        final List<String> binaries = listed.out().lines().map(String::strip).filter(line -> !line.isEmpty()).toList();
+        if (listed.status() != 0 || binaries.isEmpty()) {
+            throw new IOException("the tree names no binaries in " + BINARIES + ": " + listed.all());
+        }
         final Ssh.Output made = ssh.run("cd " + REPO + " && tar -czf /tmp/binaries.tar.gz "
-                + String.join(" ", BINARIES));
+                + String.join(" ", binaries.stream().map(AgentLeg::quote).toList()));
         if (made.status() != 0) {
             throw new IOException("could not pack the binaries: " + made.all());
         }
@@ -431,7 +430,7 @@ public final class Leg {
         }
         Files.delete(archive);
         final StringBuilder manifest = new StringBuilder();
-        for (final String name : BINARIES) {
+        for (final String name : binaries) {
             final Path came = into.resolve(name);
             if (!Files.isRegularFile(came)) {
                 throw new IOException(name + " did not come back from the server");
@@ -527,24 +526,6 @@ public final class Leg {
             command.append(" -p ").append(AgentLeg.quote(property));
         }
         return command.append(" podman unshare true").toString();
-    }
-
-    /**
-     * Keeps the agent binaries out of what a module's {@code target} holds.
-     * <p>
-     * A binary is named after its module, {@code agents/<name>/target/sokar-agent-<name>}, with no
-     * extension; the agent API's module holds {@code sokar-agent-api-0.1.0-SNAPSHOT.jar} and its bill
-     * under the same prefix, and the first version of this counted six of them.
-     *
-     * @param paths What {@code ls} found.
-     * @return The binaries.
-     */
-    static List<String> agentBinaries(List<String> paths) {
-        return paths.stream().map(String::strip).filter(path -> {
-            final String[] parts = path.split("/");
-            return parts.length >= 3 && "target".equals(parts[parts.length - 2])
-                    && parts[parts.length - 1].equals("sokar-agent-" + parts[parts.length - 3]);
-        }).toList();
     }
 
     /**

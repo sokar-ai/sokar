@@ -1,0 +1,2 @@
+title: What a leg installs and fetches is the tree's own, ci/leg-install.sh and ci/leg-binaries, and the build checks every path in them against the modules and their image names
+type: fixed
