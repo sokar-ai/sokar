@@ -146,14 +146,14 @@ public final class Leg {
                     + " /home/" + USER + "/.ssh && install -m 0600 -o " + USER + " -g " + USER
                     + " /root/.ssh/authorized_keys /home/" + USER + "/.ssh/authorized_keys");
 
-            // Restarting is part of what the suite tests, and until 2026-09-12 it could not:
+            // Restarting is part of what the suite tests, and without this it cannot:
             // the acceptance user is created with 'useradd' and nothing else, so it had no sudo
             // at all. 'sudo systemd-run --on-active=1s /sbin/reboot' answered "I'm sorry build.
             // I'm afraid I can't do that", the restart step swallowed that, and sixty seconds
             // later the run failed with "The machine never went down" - on both legs, taking 24
             // unrelated scenarios with it because the connection was already closed.
             //
-            // Measured on a rented ubuntu machine the same day: with this file in place the
+            // Measured on a rented ubuntu machine: with this file in place the
             // command returns 0, the machine is unreachable within six seconds and answers again
             // after about forty.
             //
@@ -312,7 +312,7 @@ public final class Leg {
                 // hide ran NOWHERE, in CI or anywhere else, and every green build reported them as
                 // "skipped" rather than as never run.
                 //
-                // What that cost, found on 2026-09-12 when they were run for the first time: one
+                // What that cost, found when they were run for the first time: one
                 // scenario had been describing pre-cut behaviour since the lifecycle cut (keeping
                 // became the default, so the removal it asserted had nothing to refuse), one file
                 // could not run twice on the same machine, and all eleven silently depended on
@@ -320,7 +320,7 @@ public final class Leg {
                 // Three faults that no amount of unit testing could see, in scenarios that were
                 // written to catch exactly this and were never allowed to.
                 //
-                // Decided by the operator on 2026-09-12: they run every time. Measured against the
+                // So they run every time. Measured against the
                 // libvirt VM with images already built, the eleven add 56s; a leg builds its
                 // images from nothing, so expect minutes rather than seconds here.
                 //

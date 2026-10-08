@@ -32,7 +32,7 @@ class DeployTest {
 
     @Test
     void outranksTheHighestRunTheMachineHasOrIsOffered() throws IOException {
-        // Measured on 2026-09-19: installed 157, offered 162 - beating only what was installed lost within the hour.
+        // Installed 157, offered 162: beating only what was installed lost within the hour.
         machine.answer("dpkg-query -W", "0.1.0~snapshot.157\n");
         machine.answer("LC_ALL=C apt-cache policy", """
                 sokar:
@@ -277,11 +277,11 @@ class DeployTest {
     void asksForLingerOnlyWhereTheAccountDoesNotHaveIt() {
 
         // It ran 'sudo loginctl enable-linger' every time: an account without sudo, lingering already, stopped there.
-        final String command = Deploy.lingerCommand("walk9");
+        final String command = Deploy.lingerCommand("tester");
 
         org.assertj.core.api.Assertions.assertThat(command)
-                .startsWith("[ \"$(loginctl show-user 'walk9' -p Linger --value 2>/dev/null)\" = yes ] ||")
-                .endsWith("sudo loginctl enable-linger 'walk9'");
+                .startsWith("[ \"$(loginctl show-user 'tester' -p Linger --value 2>/dev/null)\" = yes ] ||")
+                .endsWith("sudo loginctl enable-linger 'tester'");
     }
 
     @org.junit.jupiter.api.Test

@@ -240,9 +240,9 @@ final class Deploy {
      * <p>
      * The {@code +local.<stamp>} marker alone does not: {@code 0.1.0~snapshot.0+local...} sorts
      * below {@code 0.1.0~snapshot.162}, and {@code unattended-upgrades} replaced such a build within
-     * the hour, twice on 2026-09-19. So the number beaten is the highest the machine has <em>or is
-     * offered</em>, with the index refreshed first - on 2026-09-19 the VM offered 157 while 162 was
-     * published - and raised by a fraction, which stays below the next CI build.
+     * the hour. So the number beaten is the highest the machine has <em>or is offered</em>, with the
+     * index refreshed first - a machine can be offered an older run than is published - and raised by
+     * a fraction, which stays below the next CI build.
      *
      * @param remote The machine.
      * @return The run number.
@@ -474,7 +474,7 @@ final class Deploy {
             return false;
         }
         // The suite runs '--agent stub', so it goes in for this user only: as a package it was an
-        // agent every account could pick, and turned the operator's own Start into a choice.
+        // agent every account could pick, and turned a person's own Start into a choice.
         if (remote.run("dpkg -s sokar-agent-stub").status() == 0 && !must(remote, "sudo dpkg -r sokar-agent-stub", out)) {
             return false;
         }
@@ -489,8 +489,8 @@ final class Deploy {
     /**
      * Checks that {@code sokar} on the login PATH is the package.
      * <p>
-     * A stale copy in {@code ~/.local/bin} comes first and silently wins: on 2026-09-11 a whole suite
-     * ran a CLI from before a rename and failed on the new verbs, while the package sat unused.
+     * A stale copy in {@code ~/.local/bin} comes first and silently wins: a whole suite ran a CLI from
+     * before a rename and failed on the new verbs, while the package sat unused.
      */
     private static boolean unshadowed(Remote remote, PrintStream out) throws IOException {
         final String found = remote.run("bash -lc 'command -v sokar'").out().strip();
