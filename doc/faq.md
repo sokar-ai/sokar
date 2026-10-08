@@ -18,7 +18,6 @@ A task may reach only what comes from these four places, printed when the task s
 |---|---|
 | the agent's own `allowed_domains` | `platform.claude.com` |
 | the provider it uses | `api.anthropic.com` |
-| the project's `upstream`, for an `online` project | your git host |
 | the project's own `egress` | `repo.maven.apache.org` |
 
 - **No `egress` section means nothing extra.** There is no default.
@@ -87,10 +86,10 @@ can make an agent do:
    host adds the real key. Requests that would mint a new token are refused, and answers carrying a
    credential are withheld. The refusal reads a request body as text, so a compressed body is not
    looked into.
-2. **Deny by default.** A task reaches only its agent, its provider, an `online` project's upstream
-   and the project's `egress`. In `default`, blocked connections are refused without asking.
+2. **Deny by default.** A task reaches only its agent, its provider and the project's `egress`; no
+   class reaches the upstream from the container. In `default`, blocked connections are refused without asking.
 3. **Work leaves a `guarded` project only through the gate**, after a person reviews it. An
-   `offline` project's work stays on the machine. An `online` project pushes by itself.
+   `offline` project's work stays on the machine. An `online` project's gate passes the task's own branch on at once.
 4. **Messages between agents pass a filter.** A person can still deliver a refused one, and the
    record says so.
 5. **The agent cannot change what a project may reach.** A followed project's configuration applies

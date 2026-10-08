@@ -31,7 +31,7 @@ project:
   # Required: offline, guarded or online. See security.md.
   #   offline  no network at all; declaring egress is refused.
   #   guarded  reaches what egress names, pushes to a gate, holds no upstream credential.
-  #   online   the agent's remote IS the upstream; needs 'upstream'.
+  #   online   pushes to a gate that passes its own branch on at once; needs 'upstream'.
   security_class: "guarded"
 
   # Where approved work for the project's OWN repository goes. Required for online.

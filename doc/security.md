@@ -14,9 +14,9 @@ work takes.
 
 | | offline | guarded (default) | online |
 |---|---|---|---|
-| **In** | seeded from the mirror | cloned from the mirror | cloned from the upstream |
-| **Out** | into the mirror; off the machine only by hand | `sokar gate approve` | the agent pushes |
-| **Credential in the container** | none | none | ssh-agent socket |
+| **In** | seeded from the mirror | cloned from the mirror | cloned from the mirror, which fetches from the upstream first |
+| **Out** | into the mirror; off the machine only by hand | `sokar gate approve` | the gate passes the task's own branch on at once |
+| **Credential in the container** | none | none | none |
 | **Review** | by hand, out of the mirror | at the gate, before the upstream | none, unless somebody does it on the forge afterwards |
 
 ### offline
@@ -89,11 +89,21 @@ gate and in which no hook runs. Two things to know about the shortcut:
 
 ### online
 
-The gate is out of the path. The agent clones from the upstream and pushes to it directly, through
-an ssh-agent socket whose key never enters the container. Nothing is reviewed before it lands. That
-is what the class is for, and why a project has to choose it; a task cannot ask for it.
+The agent works against the gate on this machine, as in `guarded`: it clones from it and pushes to
+it, and its container holds no key, no socket of one, and no route to the upstream. What differs is
+what the gate does with a push. It passes the task's own branch on to the upstream at once, as
+`sokar/<task>`, with the key the host lends for it, and the agent's push succeeds only when the
+upstream took it; a refusal by the forge fails the agent's push with the forge's words. The gate
+refuses a push to any other branch, a tag, a deletion and any other repository; a push with force
+to the task's own branch goes through, since an agent that rebases needs it. Before the agent
+fetches, the gate fetches from the upstream - at most once every few seconds, so an agent fetching
+in a loop cannot make the host flood the forge with your key.
 
-![online: the gate is not in the path, the agent clones from and pushes to the upstream itself, and any review happens afterwards on the forge](images/security-classes-online.svg)
+Nothing is reviewed before it lands. That is what the class is for, and why a project has to
+choose it; a task cannot ask for it. The forge builds the branch at once, and the task is told
+what its builds did ([Running](running.md)).
+
+![online: the agent clones from and pushes to the gate on this machine; the gate fetches from the upstream and passes the task's own branch on at once, with the host's key; any review happens afterwards on the forge](images/security-classes-online.svg)
 
 ### What the pictures do not show
 

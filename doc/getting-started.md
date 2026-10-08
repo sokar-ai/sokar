@@ -290,7 +290,7 @@ The security class decides where work may go. A task cannot raise it.
 |---|---|---|
 | `offline` | the gate on your machine | never |
 | `guarded` | the gate on your machine | you review, then `sokar gate approve` |
-| `online` | **your real remote** | the agent pushes there itself, unreviewed |
+| `online` | the gate on your machine | the gate passes the task's own branch on to your remote at once, unreviewed |
 
 See [security](security.md) for what each class keeps out, and [running Sokar](running.md)
 for the gate's mirror and its seeding.

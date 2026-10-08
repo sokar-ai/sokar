@@ -1,0 +1,2 @@
+title: An online task's gate fetches from the upstream before the agent fetches, at most once every five seconds, and refuses any branch but the task's own, a tag or a deletion
+type: added

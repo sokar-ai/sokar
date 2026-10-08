@@ -568,6 +568,9 @@ public final class TaskControl {
             }
             try {
                 saved.restore(container);
+                // A mount whose source is gone fails the container's start: the screen's directory was in the
+                // runtime directory the restart emptied.
+                ScreenFile.prepare(state);
                 if (tokens.provider() != null) {
                     final Path file = state.resolve(TaskSecrets.PROVIDER_FILE);
                     Files.writeString(file, tokens.provider(), java.nio.charset.StandardCharsets.UTF_8);

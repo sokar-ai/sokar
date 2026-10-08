@@ -38,9 +38,9 @@ Supervise agents from a Flutter client — wherever they run :construction:
   agent runs; if it cannot be loaded, the container does not start. A project names what its build may reach,
   e.g. `egress: {sets: [maven]}`, and nothing else resolves.
 - **The key stays on the host** — the container holds a task-scoped stand-in token; a proxy swaps in the real
-  credential on the way out, and a subscription sign-in is renewed on the host.
-- **Work leaves only through review** — a task pushes to a mirror on the host, and nothing reaches your
-  repository until you approve it.
+  credential on the way out, and a subscription sign-in is renewed on the host. No task holds a key for git.
+- **Work leaves only through the gate** — a task pushes to a gate on the host; in a `guarded` project nothing
+  reaches your repository until you approve it, and an `online` one passes only the task's own branch on.
 - **Nothing to escalate to** — a rootless container, every capability dropped, `no-new-privileges`.
 - **An agent is a package** — its own `.deb`/`.rpm` with its CLI pinned by checksum; Sokar names no agent in its
   code.

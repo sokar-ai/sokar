@@ -30,11 +30,12 @@ recognized as this task's rather than refused.
   Sending one as the other fails like a wrong key. Each provider declares this once in
   `providers/*.yaml` (`auth_header`, `auth_prefix`, with an `oauth:` entry beside `_default:`).
 
-The git signing key works the same way. `sokar vault agent` runs an ssh-agent that signs with the
-key from the vault and mounts its socket into the container as `SSH_AUTH_SOCK`. A container can ask
-for a signature and cannot get the key. There is no `vault keygen`: `vault agent --ephemeral` makes
-a throwaway key for one run, and a durable key is made elsewhere and stored with
-`sokar vault put ssh.default`.
+A key for git is never in a container either, nor a socket that answers with it, in any security
+class. The host lends it to the gate, which fetches from the upstream and, for an `online` task,
+passes the task's own branch on; a `guarded` task's work goes on only when a person approves it.
+`sokar vault agent` runs an ssh-agent that signs with a key from the vault, for a command on the
+host. There is no `vault keygen`: `vault agent --ephemeral` makes a throwaway key for one run, and a
+durable key is made elsewhere and stored with `sokar vault put ssh.default`.
 
 ### What the proxy withholds
 

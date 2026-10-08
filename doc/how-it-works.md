@@ -130,7 +130,7 @@ remote, named in the project file.
 Each project has a **security class**, and the class decides, never a flag on a task. `offline`:
 nothing resolves and nothing leaves; the mirror is the end of the line, and `approve` refuses.
 `guarded`: only what the project declares resolves, and work leaves only through the gate.
-`online`: the agent pushes to the upstream directly, and nothing is reviewed. A class is a promise
+`online`: the gate passes the task's own branch on to the upstream at once, and nothing is reviewed. A class is a promise
 about what cannot happen, so it is never widened: adding a destination to an `offline` project does
 not open it. See [security](security.md).
 
@@ -154,8 +154,9 @@ Sokar does it differently:
 
 So the provider's website *is* reachable from inside: what is kept in is the credential, not the
 traffic. An agent that leaks everything it holds has leaked something that stops working when the
-task ends. Signing commits works the same way: the key stays on your machine, and the container can
-only ask for a signature. See [credentials](credentials.md).
+task ends. A key for git stays on your machine the same way, in every class: the gate on the host
+uses it, and the container holds neither the key nor a socket that answers with it. See
+[credentials](credentials.md).
 
 ## Egress: nothing is reachable unless named
 

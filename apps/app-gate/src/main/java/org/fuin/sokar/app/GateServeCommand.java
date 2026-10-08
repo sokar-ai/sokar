@@ -57,6 +57,10 @@ public class GateServeCommand implements Callable<Integer>, SokarFactory.Context
             description = "The one ref a push may update, the task's own. Default: any ref under refs/sokar/incoming/.")
     private @Nullable String ref;
 
+    @Option(names = "--pass-on",
+            description = "Passes a push to the task's own ref on to the upstream at once, as sokar/<task>, and fetches"
+                    + " from the upstream before the agent fetches: an online task's gate. Needs --ref.")
+    private boolean passOn;
     @Option(names = "--seconds", paramLabel = "<n>",
             description = "Stop after this long. Zero means run until killed.")
     private int seconds;
@@ -104,14 +108,36 @@ public class GateServeCommand implements Callable<Integer>, SokarFactory.Context
             final String supplied = System.getenv("SOKAR_GATE_TOKEN");
             final TaskToken token = supplied == null || supplied.isBlank()
                     ? TaskToken.mint() : new TaskToken(supplied);
+            if (passOn && (ref == null || !ref.startsWith(GitGate.INCOMING))) {
+                err.println("sokar: --pass-on needs --ref " + GitGate.INCOMING + "<task>, the one ref passed on");
+                err.flush();
+                return 2;
+            }
+            final String branch = passOn ? "sokar/" + java.util.Objects.requireNonNull(ref)
+                    .substring(GitGate.INCOMING.length()) : null;
+            final GitHttpServer.Upstream through = branch == null ? null : new GitHttpServer.Upstream() {
+                @Override
+                public void refresh() {
+                    final String behind = gate.refresh();
+                    if (!behind.isEmpty()) {
+                        System.err.println(behind);
+                    }
+                }
+
+                @Override
+                public @Nullable String passOn(String taken, String commit) {
+                    return gate.passOn(branch, commit);
+                }
+            };
             try (GitHttpServer server = new GitHttpServer(
                     new InetSocketAddress(InetAddress.getByName(address), port),
-                    gate.mirror(), token, new GitSubprocess(), ref)) {
+                    gate.mirror(), token, new GitSubprocess(), ref, through, GitHttpServer.PACE)) {
 
                 server.start();
                 writePidFile(err);
                 out.println("mirror    " + gate.mirror());
-                out.println("mode      " + gate.mode().name().toLowerCase());
+                out.println("mode      " + gate.mode().name().toLowerCase()
+                        + (branch == null ? "" : ", passing " + ref + " on as " + branch));
                 out.println("url       http://" + address + ":" + server.port() + "/"
                         + project.name() + ".git");
                 // Abbreviated: this line goes to gate.log, which the daemon streams to whatever

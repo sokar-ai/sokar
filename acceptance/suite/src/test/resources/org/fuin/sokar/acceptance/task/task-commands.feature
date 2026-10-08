@@ -25,18 +25,20 @@ Feature: The task commands
     Then it exits zero
 
   Scenario Outline: a command that needs a task name says which it would have taken
+    # Outside a checkout no task was started from where the person stands, so a command that takes the task
+    # started from a checkout asks for a name; label always needs one.
     Given a terminal on the machine
     When I run "sokar task <command>"
-    Then the terminal shows "missing required parameter"
+    Then the terminal shows "<says>"
 
     Examples:
-      | command |
-      | remove  |
-      | attach  |
-      | status  |
-      | logs    |
-      | stop    |
-      | label   |
+      | command | says                        |
+      | remove  | name a task                 |
+      | attach  | name a task                 |
+      | status  | name a task                 |
+      | logs    | name a task                 |
+      | stop    | name a task                 |
+      | label   | missing required parameter  |
 
   Scenario Outline: a name that is not a task is refused rather than guessed at
     When a script runs "sokar task <command> somebody-elses-container"

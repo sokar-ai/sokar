@@ -90,42 +90,6 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void anEmptyWorkspaceAfterAFailedFetchIsSaidWithGitsOwnWords(@TempDir Path root) throws Exception {
-
-        // An online task's fetch was refused for want of a key, the task started on an empty
-        // repository, and one line easy to miss said only 'exit 128'.
-        final String said = refusedFetch(Files.createDirectories(root.resolve("workspace")));
-
-        assertThat(TaskWorkspace.nothingToWorkOn(said)).as(said).isNotNull()
-                .contains("Permission denied (publickey)").contains("exit");
-    }
-
-    @Test
-    void aWorkspaceThatHoldsWorkIsNotEmptyWhateverTheFetchDid(@TempDir Path root) throws Exception {
-
-        // A task resumed with its remote out of reach still has its work, and starts.
-        final Path workspace = Files.createDirectories(root.resolve("workspace"));
-        runCloneScript(workspace, seededMirror(root, "main"), "refs/sokar/incoming/shell");
-
-        assertThat(TaskWorkspace.nothingToWorkOn(refusedFetch(workspace))).isNull();
-    }
-
-    @Test
-    void aRemoteThatIsEmptyGivesAnEmptyWorkspaceAndThatIsNoFailure(@TempDir Path root) throws Exception {
-
-        // A new repository with no commit yet is where a project starts.
-        final Path empty = root.resolve("empty.git");
-        git(root, "init", "-q", "--bare", empty.toString());
-        final Path workspace = Files.createDirectories(root.resolve("workspace"));
-        final String script = TaskWorkspace.cloneScript()
-                .replace("cd " + TaskWorkspace.MOUNT + ";", "cd " + workspace + ";");
-        final String said = runner.runOrFail(new Command(List.of("sh", "-c", script), workspace,
-                Map.of("SOKAR_REMOTE_URL", empty.toString(), "GIT_TERMINAL_PROMPT", "0"), null)).standardOutput();
-
-        assertThat(TaskWorkspace.nothingToWorkOn(said)).isNull();
-    }
-
-    @Test
     void theBranchTracksTheTasksOwnPlaceSoStatusSaysWhatWasHandedIn(@TempDir Path root) throws IOException {
 
         // After 'git push' landed on the task's ref, 'git status' still said "ahead of
@@ -151,22 +115,6 @@ class TaskWorkspaceTest {
         assertThat(git(workspace, "config", "--get-all", "remote.sokar.fetch").lines()
                 .filter(line -> line.contains("incoming")).count()).isEqualTo(1);
         assertThat(git(workspace, "status", "-sb").lines().findFirst().orElseThrow()).doesNotContain("ahead");
-    }
-
-    @Test
-    void aTaskOnItsRemoteTracksItsOwnBranchThere(@TempDir Path root) throws IOException {
-        final Path remote = seededMirror(root, "main");
-        final Path workspace = Files.createDirectories(root.resolve("workspace"));
-        runCloneScript(workspace, remote, "refs/heads/red");
-
-        assertThat(git(workspace, "status", "-sb").lines().findFirst().orElseThrow()).contains("sokar/red")
-                .doesNotContain("ahead");
-        Files.writeString(workspace.resolve("NEW.md"), "the agent's work\n");
-        git(workspace, "add", "-A");
-        git(workspace, "commit", "-q", "-m", "agent work");
-        git(workspace, "push", "-q", "sokar");
-        assertThat(git(workspace, "status", "-sb").lines().findFirst().orElseThrow()).doesNotContain("ahead");
-        assertThat(git(remote, "rev-parse", "refs/heads/red")).isEqualTo(git(workspace, "rev-parse", "HEAD"));
     }
 
     @Test
@@ -353,16 +301,6 @@ class TaskWorkspaceTest {
     }
 
     @Test
-    void readsTheSshPortAnOnlineTaskReachesItsUpstreamOn() {
-        assertThat(TaskRunner.sshPort("git@github.com:you/repo.git")).as("the scp form").isEqualTo(22);
-        assertThat(TaskRunner.sshPort("ssh://git@forge.example/you/repo.git")).isEqualTo(22);
-        assertThat(TaskRunner.sshPort("ssh://git@forge.example:2222/you/repo.git")).isEqualTo(2222);
-        assertThat(TaskRunner.sshPort("https://github.com/you/repo.git")).as("https needs no ssh port").isNull();
-        assertThat(TaskRunner.sshPort("file:///home/u/repo.git")).isNull();
-        assertThat(TaskRunner.sshPort(null)).isNull();
-    }
-
-    @Test
     void readsTheHostFromAnSshRemote() {
 
         // Not a URL, and the common shape for a git remote. The firewall and the resolver both
@@ -387,26 +325,6 @@ class TaskWorkspaceTest {
         assertThat(TaskRunCommand.upstreamHost(null)).isNull();
         assertThat(TaskRunCommand.upstreamHost("   ")).isNull();
         assertThat(TaskRunCommand.upstreamHost("/srv/git/repo.git")).isNull();
-    }
-
-    @Test
-    void aGatedWorkspacePushesToAReviewRefAndADirectOneToABranch() {
-
-        // The whole difference between guarded and online, in one place: a gated push lands
-        // where no branch points, so nothing an operator is reading moves underneath them; a
-        // direct push has no review step and so goes to a real branch.
-        final org.fuin.sokar.core.project.Project online = new org.fuin.sokar.core.project.Project(
-                "uc", "", org.fuin.sokar.core.project.SecurityClass.ONLINE, "ubuntu:24.04", null,
-                "git@github.com:you/repo.git");
-        final TaskWorkspace direct = TaskWorkspace.direct(online.upstream());
-
-        assertThat(direct.gated()).isFalse();
-        assertThat(direct.url(online)).isEqualTo("git@github.com:you/repo.git");
-        assertThat(direct.environment(online, "shell"))
-                .containsEntry("SOKAR_TASK_REF", "refs/heads/shell")
-                .containsEntry("SOKAR_REMOTE_URL", "git@github.com:you/repo.git")
-                // No gate means no gate token, so no credential header is invented for one.
-                .doesNotContainKey("GIT_CONFIG_VALUE_0");
     }
 
     @Test

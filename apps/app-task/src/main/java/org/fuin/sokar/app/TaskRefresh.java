@@ -7,7 +7,6 @@ import java.util.Map;
 import org.fuin.sokar.core.project.Project;
 import org.fuin.sokar.core.project.ProjectException;
 import org.fuin.sokar.core.project.Repository;
-import org.fuin.sokar.core.project.SecurityClass;
 import org.fuin.sokar.gate.GitGate;
 import org.fuin.sokar.runtime.ContainerSummary;
 
@@ -29,7 +28,7 @@ public final class TaskRefresh {
         /** The gate already held what the source holds. */
         UNCHANGED,
 
-        /** The task has no gate to refresh: an online task fetches its upstream itself. */
+        /** The task has no gate to refresh: one started without a workspace, or whose project is gone. */
         NOT_GATED,
 
         /** No task of that name. */
@@ -112,10 +111,6 @@ public final class TaskRefresh {
         final GitGate gate;
         try {
             final Project project = GateSupport.byName(context, summary.project());
-            if (project.securityClass() == SecurityClass.ONLINE) {
-                return new Result(Outcome.NOT_GATED, Map.of(), "an online task has no gate; its agent fetches its"
-                        + " upstream itself", false);
-            }
             final Repository repository = summary.repository() == null || summary.repository().isBlank()
                     ? project.ownRepository() : project.repository(summary.repository());
             if (repository == null) {

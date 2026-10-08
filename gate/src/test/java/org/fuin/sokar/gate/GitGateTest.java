@@ -192,6 +192,117 @@ class GitGateTest {
         assertThat(gate.log("task-1", null)).contains("add agent.txt");
     }
 
+    /** An online task's gate: passes its incoming ref on to the upstream as {@code sokar/<task>}, as the task's gate does. */
+    private GitHttpServer passingOn(final GitGate gate, final TaskToken token, final String task,
+            final java.util.concurrent.atomic.AtomicInteger refreshes, final Duration pace) {
+        final GitHttpServer server = new GitHttpServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0),
+                mirror, token, new GitSubprocess(), GitGate.INCOMING + task, new GitHttpServer.Upstream() {
+                    @Override
+                    public void refresh() {
+                        refreshes.incrementAndGet();
+                        gate.refresh();
+                    }
+
+                    @Override
+                    public @org.jspecify.annotations.Nullable String passOn(String ref, String commit) {
+                        return gate.passOn("sokar/" + task, commit);
+                    }
+                }, pace);
+        server.start();
+        return server;
+    }
+
+    @Test
+    void anOnlineTasksPushArrivesAtTheUpstreamBeforeItReturnsWithForceOnItsOwnBranch() throws IOException {
+        // An online task held the real key through an ssh-agent socket and could push anywhere it reached; now its
+        // gate passes its own branch on, and the container holds nothing.
+        final Path upstream = upstreamWithMain();
+        final GitGate gate = gate(GateMode.ONLINE, upstream.toString());
+        final TaskToken token = TaskToken.mint();
+        try (GitHttpServer server = passingOn(gate, token, "task-1", new java.util.concurrent.atomic.AtomicInteger(),
+                Duration.ZERO)) {
+            git(root, "clone", "--quiet", "-c", "http.extraHeader=Authorization: " + token.basicAuthorization(),
+                    url(server), work.toString());
+            makeCommit("agent.txt", "written by the agent");
+            git(work, "push", url(server), "HEAD:" + GitGate.INCOMING + "task-1");
+            assertThat(git(upstream, "log", "--format=%s", "-1", "sokar/task-1").standardOutput())
+                    .contains("add agent.txt");
+
+            git(work, "commit", "--amend", "-m", "rewritten by the agent");
+            git(work, "push", "--force", url(server), "HEAD:" + GitGate.INCOMING + "task-1");
+            assertThat(git(upstream, "log", "--format=%s", "-1", "sokar/task-1").standardOutput())
+                    .as("a rebase of its own branch").contains("rewritten by the agent");
+            assertThat(git(upstream, "log", "--format=%s", "-1", "main").standardOutput()).contains("the project");
+        }
+    }
+
+    @Test
+    void aPushTheUpstreamRefusesFailsTheAgentsPushAndLeavesNothingInTheMirror() throws IOException {
+        final Path upstream = upstreamWithMain();
+        Files.writeString(upstream.resolve("hooks/pre-receive"), "#!/bin/sh\necho 'protected: no sokar branches here'"
+                + " >&2\nexit 1\n");
+        upstream.resolve("hooks/pre-receive").toFile().setExecutable(true);
+        final GitGate gate = gate(GateMode.ONLINE, upstream.toString());
+        final TaskToken token = TaskToken.mint();
+        try (GitHttpServer server = passingOn(gate, token, "task-1", new java.util.concurrent.atomic.AtomicInteger(),
+                Duration.ZERO)) {
+            git(root, "clone", "--quiet", "-c", "http.extraHeader=Authorization: " + token.basicAuthorization(),
+                    url(server), work.toString());
+            makeCommit("agent.txt", "written by the agent");
+
+            assertThatThrownBy(() -> git(work, "push", url(server), "HEAD:" + GitGate.INCOMING + "task-1"))
+                    .hasMessageContaining("remote rejected").hasMessageContaining("the upstream refused it");
+        }
+        assertThat(gate.resolves(GitGate.INCOMING + "task-1")).as("what the forge did not take").isFalse();
+    }
+
+    @Test
+    void anOnlineTasksGateRefusesDeletingItsBranch() throws IOException {
+        final Path upstream = upstreamWithMain();
+        final GitGate gate = gate(GateMode.ONLINE, upstream.toString());
+        final TaskToken token = TaskToken.mint();
+        try (GitHttpServer server = passingOn(gate, token, "task-1", new java.util.concurrent.atomic.AtomicInteger(),
+                Duration.ZERO)) {
+            git(root, "clone", "--quiet", "-c", "http.extraHeader=Authorization: " + token.basicAuthorization(),
+                    url(server), work.toString());
+            makeCommit("agent.txt", "written by the agent");
+            git(work, "push", url(server), "HEAD:" + GitGate.INCOMING + "task-1");
+
+            assertThatThrownBy(() -> git(work, "push", url(server), ":" + GitGate.INCOMING + "task-1"))
+                    .hasMessageContaining("remote rejected").hasMessageContaining("not deleted");
+        }
+        assertThat(git(upstream, "rev-parse", "--verify", "sokar/task-1").standardOutput()).isNotBlank();
+    }
+
+    @Test
+    void aFetchOfTheAgentBringsWhatTheUpstreamGainedAtAMeasuredPace() throws IOException {
+        final Path upstream = upstreamWithMain();
+        final GitGate gate = gate(GateMode.ONLINE, upstream.toString());
+        final TaskToken token = TaskToken.mint();
+        final java.util.concurrent.atomic.AtomicInteger refreshes = new java.util.concurrent.atomic.AtomicInteger();
+        try (GitHttpServer server = passingOn(gate, token, "task-1", refreshes, Duration.ofMinutes(10))) {
+            git(root, "clone", "--quiet", "-c", "http.extraHeader=Authorization: " + token.basicAuthorization(),
+                    url(server), work.toString());
+            final Path person = root.resolve("person");
+            git(root, "clone", "--quiet", upstream.toString(), person.toString());
+            Files.writeString(person.resolve("later.txt"), "pushed after the task started\n");
+            git(person, "add", "later.txt");
+            git(person, "commit", "-m", "a later commit");
+            git(person, "push", "--quiet", "origin", "HEAD:main");
+
+            // The clone above already fetched through once; within the pace a fetch gets what that one brought.
+            git(work, "fetch", "--quiet", "origin");
+            for (int i = 0; i < 20; i++) {
+                git(work, "fetch", "--quiet", "origin");
+            }
+            assertThat(refreshes.get()).as("fetches from the upstream for 22 of the agent's").isEqualTo(1);
+        }
+        try (GitHttpServer server = passingOn(gate, token, "task-1", refreshes, Duration.ZERO)) {
+            git(work, "fetch", "--quiet", url(server), "main");
+            assertThat(git(work, "log", "--format=%s", "-1", "FETCH_HEAD").standardOutput()).contains("a later commit");
+        }
+    }
+
     @Test
     void readsTheRefsAPushWouldUpdateAndRefusesWhatItCannotRead() {
         final String commands = pkt("0".repeat(40) + " " + "a".repeat(40) + " refs/sokar/incoming/t\0report-status\n")

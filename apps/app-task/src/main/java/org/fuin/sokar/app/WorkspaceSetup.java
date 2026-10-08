@@ -65,18 +65,14 @@ final class WorkspaceSetup {
         }
         try {
             final Repository chosen = GateSupport.repository(project, repository);
-            if (project.securityClass() == org.fuin.sokar.core.project.SecurityClass.ONLINE) {
-                // Online takes the gate out of the path entirely: the agent's remote IS the
-                // upstream. Nothing is reviewed, which is what the class is for and why a project
-                // has to opt into it rather than a task asking for it.
-                final String upstream = chosen.upstream();
-                if (upstream == null) {
-                    err.println("sokar: an online project needs an upstream for '" + chosen.name()
-                            + "': its agent pushes there itself");
-                    err.flush();
-                    return null;
-                }
-                return TaskWorkspace.direct(upstream);
+            if (project.securityClass() == org.fuin.sokar.core.project.SecurityClass.ONLINE
+                    && chosen.upstream() == null && upstream == null) {
+                // Online passes every push on at once, which needs somewhere to pass it to. Its gate is the same as a
+                // guarded task's: the agent's remote is the gate, and only the host reaches the upstream.
+                err.println("sokar: an online project needs an upstream for '" + chosen.name()
+                        + "': its gate passes every push on to it");
+                err.flush();
+                return null;
             }
             final TaskWorkspace opened = TaskWorkspace.gated(chosen,
                     GateSupport.gate(context, project, chosen, upstream, seed(project, chosen, out)),
@@ -191,7 +187,7 @@ final class WorkspaceSetup {
      * @param out Where progress is reported.
      * @param err Where a failure is reported.
      */
-    @org.jspecify.annotations.Nullable String prepareWorkspace(TaskRunner runner, TaskWorkspace workspace,
+    void prepareWorkspace(TaskRunner runner, TaskWorkspace workspace,
             String container, java.util.Map<String, String> environment, PrintWriter out, PrintWriter err) {
 
         final java.nio.file.Path log =
@@ -206,18 +202,6 @@ final class WorkspaceSetup {
         } catch (java.io.IOException ex) {
             // Unread, nothing is said about the fetch; the outcome below still is.
         }
-        final String empty = workspace.gated() ? null : TaskWorkspace.nothingToWorkOn(said);
-        if (empty != null) {
-            // An online task on an empty repository has nothing to work on, and its agent would not know why: the start
-            // fails instead. A gated task's remote is the gate on this machine.
-            final String upstream = String.valueOf(workspace.upstream());
-            final String key = FollowCredential.sshKeyFor(context, upstream);
-            out.flush();
-            return "the workspace could not fetch " + upstream + " and holds nothing to work on: " + empty
-                    + (GitCredentialNames.kindOf(upstream) != GitCredentialNames.Kind.KEY ? ""
-                            : key == null ? "; no ssh key was lent for it" : "; the ssh key lent was '" + key + "'")
-                    + ". See " + log;
-        }
         if (problem != null) {
             err.println("sokar: the workspace starts without its remote: " + problem);
             err.flush();
@@ -229,6 +213,5 @@ final class WorkspaceSetup {
             err.flush();
         }
         out.flush();
-        return null;
     }
 }

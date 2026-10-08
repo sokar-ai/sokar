@@ -28,8 +28,8 @@ hold the developer too, use device policy, as for any other software.
 ### Does it use only the approved AI services?
 
 - **Outgoing network is denied by default.** A task resolves only the names its agent and provider
-  need, the `upstream` of an `online` project, and what the project's `egress` names. Any other
-  provider is unreachable, whatever the agent is configured to use.
+  need and what the project's `egress` names; the upstream is reached by the gate on the host, never
+  from a container. Any other provider is unreachable, whatever the agent is configured to use.
 - **The person starting a task chooses the provider.** Sokar has no list of providers an organisation
   approved; that is device policy today.
 - **The agent never holds a provider credential.** A broker on the host adds the real key. The
@@ -65,7 +65,8 @@ Sokar is built for agents running without per-command approval; the box replaces
 control at three points the agent cannot switch off:
 
 1. **The gate.** In a `guarded` project, work leaves only after a person reviews it, riskiest changes
-   first. `offline` work never leaves; an `online` project pushes itself, by choice. See
+   first. `offline` work never leaves; an `online` project's gate passes the task's own branch on at once, by
+   choice. See
    [security classes](security.md).
 2. **Clearance prompts.** A connection to an address not yet allowed waits for a person, unless the
    task refuses such connections (as every task in `default` does).

@@ -182,7 +182,7 @@ Credentials, and the broker that lets a task use one without holding it. See
 | `sokar vault clear [--yes] [--dry-run] [--force]` | Removes the vault, its backup and lock, and what the keyring caches of it, with what the transports keep in it. Lists it first; `--yes` clears it. |
 | `sokar vault serve` | The credential proxy a task's requests go through. Started per task. |
 | `sokar vault relay` | Forwards a port in a task's namespace to the proxy's socket. Started per task. |
-| `sokar vault agent` | An ssh-agent that signs with a key from the vault. Started per task. |
+| `sokar vault agent` | An ssh-agent that signs with a key from the vault, for a command on the host. No task is given one. |
 | `sokar vault credential` | git's credential helper. Run by git. |
 
 **`vault authorize`** entry kinds:

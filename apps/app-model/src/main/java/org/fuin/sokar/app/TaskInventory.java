@@ -566,9 +566,8 @@ public final class TaskInventory {
                 waitingFor,
                 profile == null ? null : profile.clearance(),
                 profile == null ? null : profile.label(),
-                // Only for a gated ref. An online project pushes to refs/heads and is never
-                // reviewed, so "waiting" is not a smaller number there - it is a question the
-                // class does not have.
+                // Only what waits at the gate. An online task's push is passed on as it arrives and is never
+                // reviewed, so its gate lists nothing waiting.
                 profile == null || profile.branch() == null
                         || !profile.branch().startsWith(org.fuin.sokar.gate.GitGate.INCOMING)
                         ? 0

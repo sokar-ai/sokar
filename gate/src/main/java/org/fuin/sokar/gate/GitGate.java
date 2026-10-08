@@ -241,6 +241,10 @@ public class GitGate {
      * @return Incoming refs, without the namespace prefix.
      */
     public List<String> pending() {
+        if (mode == GateMode.ONLINE) {
+            // An online task's ref was passed on as it was pushed; nothing of it waits for anybody.
+            return List.of();
+        }
         final CommandResult result = gitIn("for-each-ref", "--format=%(refname)", INCOMING);
         final List<String> refs = new ArrayList<>();
         // As git names them: a name ending in a Unicode space is not the name without it.
@@ -259,6 +263,9 @@ public class GitGate {
      * @return Pending pushes.
      */
     public List<PendingPush> pendingDetail() {
+        if (mode == GateMode.ONLINE) {
+            return List.of();
+        }
         final CommandResult result = gitIn("for-each-ref",
                 "--format=%(refname)\t%(objectname)\t%(committerdate:unix)\t%(objecttype)\t%(contents:subject)",
                 "--sort=committerdate", INCOMING);
@@ -614,6 +621,32 @@ public class GitGate {
             gitWith(lease, "push", "--end-of-options", upstreamUrl, commit + ":refs/heads/" + branch);
         }
         removeIfStill(name, commit);
+    }
+
+    /**
+     * Gives the upstream a task's work at once, as an {@code online} task's gate does while the agent's push runs.
+     * <p>
+     * With force, onto the task's own branch, which only the task writes: an agent that rebases pushes over its own
+     * earlier work, and nothing of anybody else's is under that name. With the key the host lends for the upstream; the
+     * container never holds it.
+     *
+     * @param branch The branch at the upstream, without {@code refs/heads/}.
+     * @param commit What it is to point at.
+     * @return {@code null} when the upstream took it, else what it said.
+     */
+    public @org.jspecify.annotations.Nullable String passOn(String branch, String commit) {
+        if (mode != GateMode.ONLINE) {
+            return "this project's security class does not pass a push on; it waits for approval";
+        }
+        if (upstreamUrl == null) {
+            return "no upstream is configured for this project";
+        }
+        try (GitCredentials.Lease lease = lending.forUrl(upstreamUrl)) {
+            gitWith(lease, "push", "--force", "--end-of-options", upstreamUrl, commit + ":refs/heads/" + branch);
+            return null;
+        } catch (GateException ex) {
+            return ex.getMessage();
+        }
     }
 
     /**

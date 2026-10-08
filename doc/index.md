@@ -23,7 +23,8 @@ anything reaches your repository.
 - **Your build can still fetch what it needs.** `egress: {sets: [maven]}` opens Maven Central and nothing else
   resolves; `sokar shield sets` lists the rest.
 - **The security class belongs to the project.** `offline` sends nothing upstream, `guarded` only what you
-  approve, `online` gives the agent the upstream directly.
+  approve, `online` passes the task's own branch on at once - through the gate on your machine, so no class
+  puts a key in the container.
 - **Three image layers, the middle one pinned**: your base, the agent's CLI checked against a SHA-256, your own
   lines.
 - **An agent is a package**, found by a directory scan; adding one needs no change to Sokar.

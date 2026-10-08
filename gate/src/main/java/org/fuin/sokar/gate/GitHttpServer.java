@@ -43,6 +43,39 @@ public class GitHttpServer implements AutoCloseable {
 
     private final GitProcess git;
 
+    private final @org.jspecify.annotations.Nullable Upstream upstream;
+
+    private final java.time.Duration pace;
+
+    private final Object refreshing = new Object();
+
+    private long refreshedAt = Long.MIN_VALUE;
+
+    /** The least time between two fetches from the upstream, however often the agent fetches. */
+    public static final java.time.Duration PACE = java.time.Duration.ofSeconds(5);
+
+    /**
+     * The upstream an {@code online} task's gate passes through to: fetched from before the agent fetches, and given
+     * the task's branch while the agent's push runs. Its key stays on the host; the container never holds it.
+     */
+    public interface Upstream {
+
+        /**
+         * Brings the mirror up to the upstream.
+         */
+        void refresh();
+
+        /**
+         * Gives the upstream one ref, with force: the task's own branch, which only it writes.
+         *
+         * @param ref The ref, the same at the upstream.
+         * @param commit What it points at now.
+         * @return {@code null} when the upstream took it, else what it said.
+         */
+        @org.jspecify.annotations.Nullable
+        String passOn(String ref, String commit);
+    }
+
     /**
      * Runs a git subprocess for one request.
      */
@@ -93,6 +126,30 @@ public class GitHttpServer implements AutoCloseable {
      */
     public GitHttpServer(InetSocketAddress address, Path mirror, TaskToken token, GitProcess git,
             @org.jspecify.annotations.Nullable String ref) {
+        this(address, mirror, token, git, ref, null, PACE);
+    }
+
+    /**
+     * Constructor for an {@code online} task's gate, which passes its one ref on to the upstream.
+     * <p>
+     * A fetch first brings the mirror up to the upstream, at most once per {@code pace}, so an agent that fetches in a
+     * loop cannot make the host flood the forge with the person's key. A push to the task's ref is given to the
+     * upstream before the agent's push is answered; when the upstream refuses it, the mirror's ref goes back to where
+     * it was and the push is refused with what the upstream said. A push that deletes the ref is refused.
+     *
+     * @param address Where to listen.
+     * @param mirror The bare mirror.
+     * @param token What a push must present.
+     * @param git How git is run.
+     * @param ref The one ref a push may update, which is passed on.
+     * @param upstream Where it is passed on to, or {@code null} for a gate that keeps what it takes.
+     * @param pace The least time between two fetches from the upstream.
+     */
+    public GitHttpServer(InetSocketAddress address, Path mirror, TaskToken token, GitProcess git,
+            @org.jspecify.annotations.Nullable String ref, @org.jspecify.annotations.Nullable Upstream upstream,
+            java.time.Duration pace) {
+        this.upstream = upstream;
+        this.pace = pace;
         this.ref = ref;
         this.mirror = mirror;
         this.token = token;
@@ -173,6 +230,9 @@ public class GitHttpServer implements AutoCloseable {
             return;
         }
 
+        if (upstream != null && "git-upload-pack".equals(service)) {
+            fetchThrough();
+        }
         final byte[] refs = git.run(hidingOthers(service.substring("git-".length()),
                 "--stateless-rpc", "--advertise-refs", mirror.toString()), new byte[0]);
 
@@ -212,14 +272,85 @@ public class GitHttpServer implements AutoCloseable {
                 send(exchange, rejection(updated, where, capabilities(request)));
                 return;
             }
+            if (upstream != null) {
+                final String deleted = commands(request).stream().filter(each -> ZERO.equals(each[1]))
+                        .map(each -> each[2]).findFirst().orElse(null);
+                if (deleted != null) {
+                    System.err.println("refused: a push that deletes " + printable(deleted));
+                    exchange.getResponseHeaders().add("Content-Type", "application/x-" + service + "-result");
+                    exchange.getResponseHeaders().add("Cache-Control", "no-cache");
+                    send(exchange, refusal(updated, "this task's branch is not deleted through its gate",
+                            capabilities(request)));
+                    return;
+                }
+            }
         }
 
         final byte[] response = git.run(hidingOthers(service.substring("git-".length()),
                 "--stateless-rpc", mirror.toString()), request);
 
+        if (upstream != null && "git-receive-pack".equals(service)) {
+            final String refused = passOn(commands(request));
+            if (refused != null) {
+                exchange.getResponseHeaders().add("Content-Type", "application/x-" + service + "-result");
+                exchange.getResponseHeaders().add("Cache-Control", "no-cache");
+                send(exchange, refusal(updatedRefs(request), refused, capabilities(request)));
+                return;
+            }
+        }
+
         exchange.getResponseHeaders().add("Content-Type", "application/x-" + service + "-result");
         exchange.getResponseHeaders().add("Cache-Control", "no-cache");
         send(exchange, response);
+    }
+
+    /** The object id git names "no object" with: a ref created, or deleted. */
+    static final String ZERO = "0000000000000000000000000000000000000000";
+
+    /**
+     * Brings the mirror up to the upstream, unless that was done less than {@link #pace} ago or is being done now:
+     * a fetch in between gets what the last one brought.
+     */
+    private void fetchThrough() {
+        synchronized (refreshing) {
+            final long now = System.nanoTime();
+            if (refreshedAt != Long.MIN_VALUE && now - refreshedAt < pace.toNanos()) {
+                return;
+            }
+            try {
+                java.util.Objects.requireNonNull(upstream).refresh();
+            } catch (GateException ex) {
+                // The agent still gets what the mirror holds; the operator reads why it is behind.
+                System.err.println("could not fetch from the upstream: " + ex.getMessage());
+            }
+            refreshedAt = System.nanoTime();
+        }
+    }
+
+    /**
+     * Gives the upstream what a push wrote to the task's ref, and puts the mirror's ref back when it is refused.
+     *
+     * @param commands The push's {@code <old> <new> <ref>} commands.
+     * @return {@code null} when the upstream took it, else why not, for the agent.
+     */
+    private @org.jspecify.annotations.Nullable String passOn(final List<String[]> commands) throws IOException {
+        for (final String[] command : commands) {
+            if (!command[2].equals(ref)) {
+                // The rescue beside the task's ref stays on the host.
+                continue;
+            }
+            final String said = java.util.Objects.requireNonNull(upstream).passOn(command[2], command[1]);
+            if (said == null) {
+                continue;
+            }
+            System.err.println("the upstream refused " + printable(command[2]) + ": " + said);
+            final List<String> back = ZERO.equals(command[0])
+                    ? List.of("--git-dir", mirror.toString(), "update-ref", "-d", command[2])
+                    : List.of("--git-dir", mirror.toString(), "update-ref", command[2], command[0]);
+            git.run(back, new byte[0]);
+            return "the upstream refused it: " + said.strip().replace('\n', ' ');
+        }
+        return null;
     }
 
     /**
@@ -343,7 +474,18 @@ public class GitHttpServer implements AutoCloseable {
      * @throws GateException If the commands cannot be read.
      */
     static List<String> updatedRefs(byte[] request) {
-        final List<String> refs = new java.util.ArrayList<>();
+        return commands(request).stream().map(each -> each[2]).toList();
+    }
+
+    /**
+     * Reads the commands at a {@code receive-pack} request's start, each as {@code {old, new, ref}}.
+     *
+     * @param request The request body.
+     * @return The commands, in the order named.
+     * @throws GateException If they cannot be read.
+     */
+    static List<String[]> commands(byte[] request) {
+        final List<String[]> refs = new java.util.ArrayList<>();
         int at = 0;
         while (true) {
             if (at + 4 > request.length) {
@@ -379,7 +521,7 @@ public class GitHttpServer implements AutoCloseable {
             if (fields.length != 3) {
                 throw new GateException("a push command that is not '<old> <new> <ref>' is refused: " + line);
             }
-            refs.add(fields[2]);
+            refs.add(fields);
         }
     }
 
@@ -395,16 +537,32 @@ public class GitHttpServer implements AutoCloseable {
      * @return The response body.
      */
     static byte[] rejection(List<String> refs, String where, List<String> capabilities) {
+        return answer(refs, "this task's work goes to " + where + " only", "this task's work goes to " + where
+                + ": push with 'git push sokar', naming no branch, or 'git push sokar HEAD:" + where + "'", capabilities);
+    }
+
+    /**
+     * Answers a push this gate refused for a reason of its own, with that reason beside each ref.
+     *
+     * @param refs What the push named.
+     * @param reason Why, as git shows it.
+     * @param capabilities What the client asked for.
+     * @return The response body.
+     */
+    static byte[] refusal(List<String> refs, String reason, List<String> capabilities) {
+        return answer(refs, reason, reason, capabilities);
+    }
+
+    private static byte[] answer(List<String> refs, String reason, String remark, List<String> capabilities) {
         final ByteArrayOutputStream status = new ByteArrayOutputStream();
         status.writeBytes(packetLine("unpack ok\n"));
         for (final String each : refs) {
-            status.writeBytes(packetLine("ng " + each + " this task's work goes to " + where + " only\n"));
+            status.writeBytes(packetLine("ng " + each + " " + reason + "\n"));
         }
         status.writeBytes("0000".getBytes(StandardCharsets.US_ASCII));
         final ByteArrayOutputStream body = new ByteArrayOutputStream();
         if (capabilities.contains("side-band-64k") || capabilities.contains("side-band")) {
-            body.writeBytes(packetLine("\u0002this task's work goes to " + where + ": push with 'git push sokar',"
-                    + " naming no branch, or 'git push sokar HEAD:" + where + "'\n"));
+            body.writeBytes(packetLine("\u0002" + remark + "\n"));
             body.writeBytes(packetLine("\u0001" + status.toString(StandardCharsets.ISO_8859_1)));
             body.writeBytes("0000".getBytes(StandardCharsets.US_ASCII));
         } else {

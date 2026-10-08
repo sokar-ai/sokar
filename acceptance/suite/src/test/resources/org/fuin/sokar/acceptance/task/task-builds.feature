@@ -1,11 +1,12 @@
 @slow
 Feature: The build of what an online task pushed
 
-  An online task pushes its branch, and the forge builds it somewhere the task cannot see. When the project names
-  the forge, a helper on the host follows every commit the task pushes and hands each verdict into /sokar/files as
-  it changes, with the failed job's log beside it. The task asks for nothing and holds no forge credential. The
-  forge here is the stub build reader, which answers from a file the scenario writes: its first answer is where the
-  branch was before the task pushed, and every head after it is a push.
+  An online task pushes to its gate, which passes its branch on to the forge as sokar/<task>, and the forge builds it
+  somewhere the task cannot see. The upstream here is a repository on the machine, which the gate reads from the
+  host. When the project names the forge, a helper on the host follows every commit the task pushes and hands each
+  verdict into /sokar/files as it changes, with the failed job's log beside it. The task asks for nothing and holds
+  no forge credential. The forge here is the stub build reader, which answers from a file the scenario writes: its
+  first answer is where the branch was before the task pushed, and every head after it is a push.
 
   Scenario: a pushed commit's verdicts and its failed job's log arrive in the task, and the forge token does not
     Given the suite runs as an unprivileged user
@@ -34,7 +35,7 @@ Feature: The build of what an online task pushed
     # The push: the branch now points at a commit, whose build runs.
     When a script runs about the task:
       """
-      branch=$(sokar task status {task} | awk '$1 == "branch" { sub("refs/heads/", "", $2); print $2 }')
+      branch=$(sokar task status {task} | awk '$1 == "branch" { sub("refs/sokar/incoming/", "sokar/", $2); print $2 }')
       printf '{"heads": {"%s": "%s"}, "builds": {"%s": {"verdict": "running"}}}' "$branch" "$(printf 'c%.0s' $(seq 40))" \
           "$(printf 'c%.0s' $(seq 40))" > ~/.local/share/sokar/builds/answers.json
       """
@@ -44,7 +45,7 @@ Feature: The build of what an online task pushed
       """
     When a script runs about the task:
       """
-      branch=$(sokar task status {task} | awk '$1 == "branch" { sub("refs/heads/", "", $2); print $2 }')
+      branch=$(sokar task status {task} | awk '$1 == "branch" { sub("refs/sokar/incoming/", "sokar/", $2); print $2 }')
       sha=$(printf 'c%.0s' $(seq 40))
       cat > ~/.local/share/sokar/builds/answers.json <<EOF
       {"heads": {"$branch": "$sha"}, "builds": {"$sha": {"verdict": "failure", "jobs": [

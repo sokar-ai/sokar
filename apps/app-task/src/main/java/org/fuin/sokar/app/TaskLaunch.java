@@ -758,8 +758,8 @@ public final class TaskLaunch {
             informed(project, container, true);
 
             TaskWiring wiring = new TaskWiring(
-                    workspace == null || !workspace.gated() ? null : gate().gateAddress(project, err),
-                    workspace == null ? 0 : workspace.port(), null, null, mailbox.box());
+                    workspace == null ? null : gate().gateAddress(project, err),
+                    workspace == null ? 0 : workspace.port(), null, mailbox.box());
 
             java.util.Map<String, String> environmentCache = new java.util.LinkedHashMap<>();
 
@@ -816,31 +816,6 @@ public final class TaskLaunch {
             environmentCache.put(ISSUE_PREFIXES, String.join(",", repository.issues()));
             if (workspace != null) {
                 environmentCache.putAll(workspace.environment(project, request.task()));
-                if (!workspace.gated()) {
-                    // Pushing to a real upstream needs a credential for it. The key stays in the
-                    // vault and the container gets an agent socket, so a task can sign without
-                    // ever holding anything it could leak.
-                    final java.nio.file.Path sshSocket = wiring().startSshAgent(container,
-                            repository.upstream() != null ? repository.upstream() : project.upstream(), out, err);
-                    if (sshSocket != null) {
-                        wiring = wiring.withSshSocket(sshSocket);
-                        environmentCache.put("SSH_AUTH_SOCK", TaskWiring.SSH_MOUNT);
-                        // Host keys cannot be known in advance for an arbitrary upstream, and a
-                        // prompt in a container nobody is watching hangs the push. Trust on first
-                        // use, recorded, and only reachable through the egress rules above.
-                        environmentCache.put("GIT_SSH_COMMAND",
-                                "ssh -o StrictHostKeyChecking=accept-new"
-                                + " -o UserKnownHostsFile=/home/agent/.ssh/known_hosts");
-                    }
-                    // The upstream is on the internet, so an online task needs it resolvable and
-                    // reachable. A gated task never does: its remote is on this machine.
-                    final String host = TaskRunCommand.upstreamHost(project.upstream());
-                    if (host != null && !domains.contains(host)) {
-                        domains.add(host);
-                        origins.putIfAbsent(host, "upstream");
-                        out.println("upstream  " + host + " (the agent pushes there directly)");
-                    }
-                }
             }
 
             final java.util.Map<String, String> refusals = EgressReport.refusals(selected, project, repository);
@@ -858,17 +833,8 @@ public final class TaskLaunch {
             }
 
             if (workspace != null) {
-                if (workspace.gated()) {
-                    gate().startGate(runner, workspace, wiring.gateAddress(),
-                            container, request.task(), project, out, err);
-                }
-                final String nothing = workspace().prepareWorkspace(runner, workspace, container, environmentCache,
-                        out, err);
-                if (nothing != null) {
-                    err.println("sokar: " + nothing);
-                    err.flush();
-                    return cleanUp(runner, container, 70, out);
-                }
+                gate().startGate(runner, workspace, wiring.gateAddress(), container, request.task(), project, out, err);
+                workspace().prepareWorkspace(runner, workspace, container, environmentCache, out, err);
             }
 
             placeAgentFiles(runner, selected, container, environmentCache, out, err);

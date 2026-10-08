@@ -75,6 +75,11 @@ final class GateWiring {
                 "--pid-file", state.resolve("gate.pid").toString(),
                 // The one ref this task may push to: nothing else in the mirror is the task's to move.
                 "--ref", org.fuin.sokar.gate.GitGate.INCOMING + taskName));
+        if (project.securityClass() == org.fuin.sokar.core.project.SecurityClass.ONLINE) {
+            // An online task's push goes on to the upstream at once, from here, with the host's key; its container
+            // holds none.
+            command.add("--pass-on");
+        }
         if (repository != null) {
             // On the recorded command line, so that resuming the task brings back a gate on the
             // same mirror. A resumed task that served the project's own repository instead would

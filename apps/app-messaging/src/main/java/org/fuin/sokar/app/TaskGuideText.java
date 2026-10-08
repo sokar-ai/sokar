@@ -38,9 +38,10 @@ public final class TaskGuideText {
                 files handed to you, the builds of what you push, and a mailbox where the task has one.
 
                 **When your work is done, commit it and push it with `git push sokar`, and name no branch.** The push
-                goes to this task's own place, `$SOKAR_TASK_REF`: at the gate, where a person reviews it, or for a
-                task that works on its remote directly, its own branch there - never onto a branch you name. A person
-                takes back only what you pushed; what is only in your workspace stays in this task.
+                goes to this task's own place, `$SOKAR_TASK_REF`, at the gate on this machine: where a person reviews
+                it, or, in an online project, from where it goes on at once to this task's own branch at the forge -
+                never onto a branch you name. A person takes back only what you pushed; what is only in your
+                workspace stays in this task.
 
                 **When you are told the repository you work from moved on, `git fetch sokar` brings it.**
                 Rebase or merge your work onto it before you push again.

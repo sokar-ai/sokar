@@ -197,14 +197,11 @@ public class TaskRunner {
         final Path state = paths.tasks().containerState(container);
         Files.createDirectories(state);
 
-        // An online task's remote is the upstream; over ssh it needs that host on the port its address names.
-        final String upstream = repository.upstream() != null ? repository.upstream() : project.upstream();
-        final Integer sshPort = project.securityClass() == SecurityClass.ONLINE ? sshPort(upstream) : null;
-        final String sshHost = sshPort == null ? null : upstreamHost(upstream);
+        // No class opens a port to the upstream: an online task's remote is its gate, like a guarded one's, and only
+        // the host reaches the upstream.
         final Path ruleset = state.resolve("ruleset.nft");
         Files.writeString(ruleset,
-                rulesetFor(project, hostResolvers(), wiring.gateAddress(), wiring.gatePort(),
-                        sshHost == null ? null : sshPort),
+                rulesetFor(project, hostResolvers(), wiring.gateAddress(), wiring.gatePort()),
                 StandardCharsets.UTF_8);
         out.println("policy    " + ruleset);
 
@@ -212,9 +209,6 @@ public class TaskRunner {
         // it while the container is coming up.
         final Path dnsConfig = state.resolve("dns.conf");
         final org.fuin.sokar.shield.DnsPolicy dns = dnsPolicyFor(project, allowedDomains);
-        if (sshHost != null) {
-            dns.upstreamOverSsh(sshHost);
-        }
         dns.writeTo(dnsConfig);
         out.println("resolver  " + dnsConfig
                 + (allowedDomains.isEmpty() ? " (no domains allowed)"
@@ -276,10 +270,6 @@ public class TaskRunner {
             // needs no firewall rule, and the provider's own host is withheld from the ruleset
             // so this is the only route to a working credential.
             specification.volume(wiring.vaultSocket(), TaskWiring.VAULT_MOUNT);
-        }
-        if (wiring.sshSocket() != null) {
-            // The ssh-agent. The private key never crosses this: only signatures do.
-            specification.volume(wiring.sshSocket(), TaskWiring.SSH_MOUNT);
         }
         if (wiring.mailbox() != null) {
             // The agent's own inbox and outbox, and nothing else of the mailbox: what the host
@@ -387,40 +377,9 @@ public class TaskRunner {
         return found.isEmpty() ? java.util.List.of("8.8.8.8") : found;
     }
 
-    /**
-     * Resolves the upstream's addresses, so the firewall can name them.
-     * <p>
-     * Pinned at task start rather than followed: a large host rotates addresses, and a task that
-     * runs long enough for that to matter will see a clearance prompt for the new one, which is
-     * the safe way to be wrong.
-     *
-     * @param upstream Remote as written in the project file.
-     * @return Addresses, empty when the host cannot be resolved.
-     */
-    private static java.util.List<String> upstreamAddresses(String upstream) {
-        final String host = upstreamHost(upstream);
-        if (host == null) {
-            return java.util.List.of();
-        }
-        try {
-            return java.util.Arrays.stream(java.net.InetAddress.getAllByName(host))
-                    .filter(address -> address instanceof java.net.Inet4Address)
-                    .map(java.net.InetAddress::getHostAddress)
-                    .distinct()
-                    .toList();
-        } catch (java.net.UnknownHostException ex) {
-            // Reported by the resolver line instead; a task that cannot resolve its upstream is
-            // a task whose push will fail loudly rather than silently.
-            return java.util.List.of();
-        }
-    }
-
     private String rulesetFor(Project project, java.util.List<String> upstreamResolvers,
-            @Nullable String gateAddress, int gatePort, @Nullable Integer upstreamSshPort) {
+            @Nullable String gateAddress, int gatePort) {
         final NftRuleset ruleset = new NftRuleset(project.securityClass());
-        if (upstreamSshPort != null) {
-            ruleset.upstreamOverSsh(upstreamSshPort);
-        }
         if (gateAddress != null) {
             // Before the security-class check on purpose: the gate is on this machine, and an
             // offline project still has to be able to commit.
@@ -621,32 +580,6 @@ public class TaskRunner {
             return;
         }
         TaskLifecycle.stopHelpers(paths.tasks().containerState(container));
-    }
-
-    /**
-     * Returns the port a git remote is reached on over ssh, for an online task's firewall.
-     *
-     * @param upstream Remote as written in the project file.
-     * @return 22 for {@code git@host:path}, the port an {@code ssh://} address names or 22; {@code null} for a
-     *         remote not reached over ssh.
-     */
-    static @Nullable Integer sshPort(@Nullable String upstream) {
-        if (upstream == null || upstream.isBlank()) {
-            return null;
-        }
-        final String value = upstream.strip();
-        if (value.startsWith("ssh://")) {
-            final String authority = value.substring("ssh://".length()).split("/", 2)[0];
-            final String hostPort = authority.contains("@") ? authority.substring(authority.indexOf('@') + 1) : authority;
-            final String[] parts = hostPort.split(":", 2);
-            try {
-                return parts.length == 2 && !parts[1].isEmpty() ? Integer.valueOf(parts[1]) : Integer.valueOf(22);
-            } catch (NumberFormatException ex) {
-                return null;
-            }
-        }
-        // git@host:path, the scp form, is ssh on its default port.
-        return !value.contains("://") && value.contains("@") && value.contains(":") ? Integer.valueOf(22) : null;
     }
 
     /**

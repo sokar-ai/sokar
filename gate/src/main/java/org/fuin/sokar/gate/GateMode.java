@@ -5,10 +5,9 @@ import org.fuin.sokar.core.project.SecurityClass;
 /**
  * What the gate is allowed to do with what an agent pushed.
  * <p>
- * Only {@link #OFFLINE} changes how this gate behaves. {@link #GATEKEEPING} and {@link #ONLINE}
- * are indistinguishable here, because {@link GitGate#approve} is the only method that forwards
- * anything and both permit it. What separates those two lives in the task runner, not in this
- * package: an online project is given no gate at all.
+ * {@link #OFFLINE} forwards nothing. {@link #GATEKEEPING} forwards what a person approved; {@link #ONLINE} also has its
+ * gate pass a task's push on at once, through {@link GitGate#passOn}, which the task's gate server calls while the push
+ * runs. In both, only the host holds the key the upstream takes.
  */
 public enum GateMode {
 
@@ -25,11 +24,8 @@ public enum GateMode {
     GATEKEEPING,
 
     /**
-     * Forwarding is permitted, exactly as in {@link #GATEKEEPING}.
-     * <p>
-     * A task never reaches this mode. The runner points an online project's agent straight at the
-     * upstream and creates no gate, so nothing is ever pending for review. This is what the
-     * {@code sokar gate} commands see when they are pointed at such a project by hand.
+     * Forwarding is permitted, as in {@link #GATEKEEPING}, and a task's push is passed on at once: its gate gives the
+     * task's branch to the upstream while the agent's push runs, so nothing waits for review.
      */
     ONLINE;
 

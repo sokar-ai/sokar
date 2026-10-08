@@ -307,29 +307,43 @@ class TaskRunCommandTest {
     }
 
     @Test
-    void anOnlineTaskReachesItsSshUpstreamOnTheSshPortAndNothingElseThere(@TempDir Path dir) throws IOException {
+    void anOnlineTaskReachesItsUpstreamOnlyThroughItsGateAndHoldsNoKeyOrSocketOfOne(@TempDir Path dir)
+            throws IOException {
 
-        // Its remote IS the upstream, over ssh: with only 80 and 443 the fetch hung for ever, dropped without a word.
+        // Its remote was the upstream, over ssh, with an ssh-agent socket that answered the forge with the real key:
+        // the agent could push wherever that key reached. Now its gate passes its own branch on, from the host.
+        // A repository on this machine: the host fills the gate from it, which no container could reach.
+        final Path upstream = dir.resolve("upstream.git");
+        for (final String[] command : new String[][] {
+                {"git", "init", "-q", "--bare", "--initial-branch=main", upstream.toString()}}) {
+            final Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            final String said = new String(process.getInputStream().readAllBytes()).strip();
+            try {
+                assertThat(process.waitFor()).as(said).isZero();
+            } catch (InterruptedException ex) {
+                throw new IOException(ex);
+            }
+        }
         final SokarContext context = context(dir, true);
-        trustGithub(context);
         execute(context, "task", "start", "--attach", "shell", "-p", projectFile(dir, """
                 project:
                   name: "uc"
                   security_class: "online"
-                  upstream: "git@github.com:example/uc.git"
+                  upstream: "file://%s"
                 image:
                   base_image: "ubuntu:24.04"
-                """));
+                """.formatted(upstream)));
 
         final Path state = root.resolve("run/sokar").resolve(containerName());
         assertThat(state.resolve("ruleset.nft")).as("the start said:%n%s%n%s", out, err).exists();
-        assertThat(Files.readString(state.resolve("ruleset.nft")))
-                .contains("ip daddr @upstream_v4 tcp dport 22 accept")
-                .contains("ip6 daddr @upstream_v6 tcp dport 22 accept");
-        assertThat(Files.readString(state.resolve("dns.conf")))
-                .as("the upstream's addresses reach the upstream set as they are answered")
-                .contains("nftset=/github.com/inet#sokar#allowed_v4,inet#sokar#allowed_v6,inet#sokar#upstream_v4,"
-                        + "inet#sokar#upstream_v6");
+        assertThat(err.toString()).as("the start said:%n%s", out).doesNotContain("no git gate");
+        assertThat(Files.readString(state.resolve("ruleset.nft"))).doesNotContain("upstream_v4")
+                .doesNotContain("dport 22");
+        assertThat(runner.only("create").describe()).as("the start said:%n%s%n%s", out, err)
+                .doesNotContain("ssh-agent.sock").doesNotContain("SSH_AUTH_SOCK").doesNotContain("GIT_SSH_COMMAND")
+                .contains("--env SOKAR_TASK_REF");
+        assertThat(Files.readString(state.resolve(TaskHelpers.FILE))).as("its gate").contains("\"--pass-on\"")
+                .doesNotContain("ssh-agent");
     }
 
     @Test

@@ -11,7 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Which key an online task's ssh-agent signs with, and what it is told when there is none.
+ * Which key the host lends for an upstream reached over ssh: the gate's fetch and the push an online task's gate passes
+ * on use it, and no container holds it.
  */
 class OnlineSshKeyTest {
 
@@ -34,8 +35,8 @@ class OnlineSshKeyTest {
     @Test
     void theKeyTheProjectDeclaredForItsUpstreamIsTheOneTheAgentSignsWith() throws IOException {
 
-        // The machine held the project's deploy keys and no 'ssh.default', and the online task's agent
-        // was started with that fixed name, failed, and the task could not push.
+        // The machine held the project's deploy keys and no 'ssh.default', and the key was looked for by that fixed
+        // name: nothing could be lent, and nothing could be pushed.
         final SokarContext context = context();
         new CredentialDeclarations(context).declare(new Credential("deploy:sokar-test-project:sokar-test-2",
                 Credential.Kind.SSH_KEY, org.fuin.sokar.core.credential.CredentialRegistry.normalise(UPSTREAM), null,
@@ -44,15 +45,5 @@ class OnlineSshKeyTest {
         assertThat(FollowCredential.sshKeyFor(context, UPSTREAM)).isEqualTo("deploy:sokar-test-project:sokar-test-2");
         assertThat(FollowCredential.sshKeyFor(context, "https://github.com/sokar-ai/sokar-test-2.git"))
                 .as("not an ssh address").isNull();
-    }
-
-    @Test
-    void withNoKeyTheStartSaysWhichItLookedForAndThatAPushWillBeRefused() {
-        final SokarContext context = context();
-
-        assertThat(FollowCredential.sshKeyFor(context, UPSTREAM)).isNull();
-        assertThat(CredentialWiring.noSshKey(UPSTREAM)).contains(UPSTREAM)
-                .contains(String.join(", ", GitCredentialNames.candidatesFor(UPSTREAM)))
-                .contains("a push from inside the task is refused").doesNotContain("did not come up");
     }
 }

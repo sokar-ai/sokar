@@ -14,6 +14,7 @@ would change the answer.
 | An image's readiness is judged against the project file alone | `READY` ignores which agent the image was built for; a task with another agent rebuilds only those layers | [entry](#an-images-readiness-is-judged-against-the-project-file-alone) |
 | A file handed to a task goes to /sokar/files, and only in | a root-owned directory of its own in every task; a base image with `/sokar` is refused; nothing comes out | [entry](#a-file-handed-to-a-task-goes-to-sokarfiles-and-only-in) |
 | A task learns of handed-in files from Sokar, not from its prompt | one guide to all of Sokar in the task, and a line at the prompt when a file arrives | [entry](#a-task-learns-of-handed-in-files-from-sokar-not-from-its-prompt) |
+| Every class pushes through its gate | no key, socket or route to the upstream in any container; an online task's gate passes its own branch on at once | [entry](#every-class-pushes-through-its-gate) |
 | A build is read from the host, never by the task | an online task is handed its builds' verdicts and logs; no forge token, route or verb in it | [entry](#a-build-is-read-from-the-host-never-by-the-task) |
 | Build readers are packages behind a versioned API | `sokar-build-api` and `org.fuin.sokar.Build1`; each forge in a repository of its own; nothing in `sokar` names one | [entry](#build-readers-are-packages-behind-a-versioned-api) |
 | **The machine and the daemon** | | |
@@ -118,6 +119,20 @@ answer:** an agent that takes its instructions some other way than a file, or te
 rest by nothing on its screen.
 
 
+## Every class pushes through its gate
+
+An `online` task once cloned from its upstream and pushed there itself, through an ssh-agent socket that answered
+the forge with the real key. The key never left the vault, but for as long as the task ran the agent could use it for
+everything the key may do: push to `main`, push with force, set tags, delete branches, and with a person's key reach
+every other repository it opens. Holding a key and being able to use it unchecked differ little. So every class works
+against the gate on the host, and the container holds no key, no socket of one and no route to the upstream. The
+classes differ in what the gate does with a push: `guarded` keeps it until a person approves it, `online` passes the
+task's own branch on at once, as `sokar/<task>`, with the key the host lends, and fails the agent's push when the
+forge refuses. Anything but that branch is refused at the gate; a push with force to it goes through, since an agent
+that rebases needs it. Before the agent fetches, the gate fetches from the upstream, at most once every few seconds,
+so an agent fetching in a loop cannot make the host flood the forge with a person's key. A gate that reads the
+upstream from the host can also follow a repository on the same machine, which no container could reach.
+
 ## A build is read from the host, never by the task
 
 An `online` task learns what the build of its own push did without reaching the forge: a helper on the host follows
@@ -151,8 +166,8 @@ knowledge of any agent. Waiting for a person is said only by whatever is asking,
 machine itself raised, or read from the agent's screen against rules the agent's package declares; where an agent
 declares none, the answer is "this agent cannot tell us", never "not waiting". A timeout is not used: a quiet task
 can be finished, stuck or rate-limited, and guessing "waiting" is wrong in the direction that costs most. No channel
-from inside the container carries a status to the host either: that would be a way out beside the vault socket, the
-ssh-agent socket and the gate, written into by the agent, and a status value does not justify it. An agent that
+from inside the container carries a status to the host either: that would be a way out beside the vault socket and
+the gate, written into by the agent, and a status value does not justify it. An agent that
 stops at a first-run dialog inside a task is treated as a defect in that agent's package, caught by each agent
 repository's acceptance step that the agent reaches work without being asked anything.
 

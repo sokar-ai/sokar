@@ -58,6 +58,16 @@ class TaskBuildsHelperTest {
     }
 
     @Test
+    void theHelperFollowsTheBranchTheGatePassedThePushOnTo() {
+        // An online task pushed to refs/heads/<task> at the forge itself; now its gate passes its own ref on as
+        // sokar/<task>, and that is the branch the forge builds.
+        assertThat(BuildsWiring.branchAtTheUpstream("refs/sokar/incoming/builds")).isEqualTo("sokar/builds");
+        assertThat(BuildsWiring.branchAtTheUpstream("refs/heads/builds")).isNull();
+        assertThat(BuildsWiring.branchAtTheUpstream("refs/sokar/incoming/")).isNull();
+        assertThat(BuildsWiring.branchAtTheUpstream(null)).isNull();
+    }
+
+    @Test
     void aLaunchThatStoppedBeforeTheHelperSaysSoForAProjectThatNamesAForge() throws IOException {
 
         // The launch hung in the workspace, was ended, and the task ran with nothing said about its

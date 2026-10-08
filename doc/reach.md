@@ -19,7 +19,7 @@ The numbers here are checked against the code by a test.
 |---|---|---|
 | A name the project did not declare | Does not resolve through the task's resolver | control |
 | A declared host | Reachable on ports 80 and 443 only | control |
-| An online task's ssh upstream | Its host also on the port its address names (22 for `git@host:…`), and no other host on it; a guarded task reaches no upstream over ssh at all | control |
+| The upstream | Never reached by a task, in any class: an online task's gate fetches from it and passes the task's own branch on, from the host; no port to it is open in a container | control |
 | An empty `egress` section | Deny, never a default that widens with a release | control |
 | A reach for something undeclared | Blocked, and raises a clearance prompt: the closest thing on the machine to a hijack alarm | control |
 | The git gate | One address and one port on this machine, never "the machine" | control |
@@ -44,7 +44,7 @@ See [the firewall](security.md) and [DNS](security.md) for how this is enforced.
 | Credential headers from the task | `authorization`, `x-api-key`, `private-token` and `proxy-authorization` are dropped before anything is forwarded | control |
 | A credential in the provider's answer | The first 8 KB of every answer are examined for `access_token`, `refresh_token` and `id_token` as JSON fields, before any of it is handed over; the rest is examined as it streams, and an answer that carries one later is cut off there | control |
 | A request for a token of its own | A `refresh_token` or `client_credentials` grant is refused, in the query and in the whole body decoded - gzip, deflate or zstd - and a body coded otherwise, coded twice, beyond the limit or not decoding is refused rather than forwarded unread | control |
-| The ssh signing key | Not in the container; the task gets an agent socket | control |
+| A key for the upstream | Never in the container, nor a socket that answers with it, in any class: the host lends it to the gate | control |
 | The workspace's `.git/hooks` and `.git/config` | Stay inside the container, where no host-side `git` runs them | control |
 
 ## Spend: what a task can use up

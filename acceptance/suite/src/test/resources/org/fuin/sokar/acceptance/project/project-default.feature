@@ -42,7 +42,9 @@ Feature: Work starts without a project, in the project every machine has
   Scenario: approved work in 'default' reaches an ssh origin with the developer's own key, which the task never holds
     # The developer's key is a throwaway one in an ssh agent, allowed into this account only while the scenario
     # runs; the origin is this machine itself over ssh. Its host key is vouched for from the machine's own key
-    # file, the way a person compares a fingerprint, never accepted on first use.
+    # file, the way a person compares a fingerprint, never accepted on first use. The repository's source is the
+    # origin, named with --upstream outside any checkout: a task started from a checkout takes the checkout as
+    # its source, and its approved work lands there, never at the origin.
     Given the environment variable "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" is set
     And a vault of this scenario's own, unlocked with the passphrase "acceptance"
     And the vault holds the value of "SOKAR_ACCEPTANCE_FAKE_CREDENTIAL" as "anthropic" of kind "api-key"
@@ -59,20 +61,18 @@ Feature: Work starts without a project, in the project every machine has
       trap 'sed -i "/sokar-acceptance-$repo\$/d" ~/.ssh/authorized_keys; ssh-agent -k > /dev/null 2>&1' EXIT
       cat "$base/key.pub" >> ~/.ssh/authorized_keys
       eval "$(ssh-agent -s)" > /dev/null && ssh-add -q "$base/key"
-      git clone -q "$base/$repo.git" "$base/plain" && git -C "$base/plain" remote set-url origin "ssh://$USER@127.0.0.1$base/$repo.git"
+      origin="ssh://$USER@127.0.0.1$base/$repo.git"
       # Before anybody vouched for the host: an agent's task has no gate, so it is not started at all.
       sed -i '/^127\.0\.0\.1 /d' "${XDG_STATE_HOME:-$HOME/.local/state}/sokar/known_hosts" 2>/dev/null
-      (cd "$base/plain" && timeout 300 sokar task start early --agent stub --detach --clearance deny > "$base/early" 2>&1; echo "unvouched start exit $?")
+      (cd "$base" && timeout 300 sokar task start early --upstream "$origin" --agent stub --detach --clearance deny > "$base/early" 2>&1; echo "unvouched start exit $?")
       grep -o "nothing was created" "$base/early"
       grep -o "this machine has never met 127.0.0.1" "$base/early"
       grep -o "sokar credentials trust-host 127.0.0.1" "$base/early"
       podman container exists sokar-default-early && echo "a container exists" || echo "no container"
       sokar credentials trust-host 127.0.0.1 \
           --fingerprint "$(ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | awk '{ print $2 }')" > /dev/null
-      git -c core.sshCommand="ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${XDG_STATE_HOME:-$HOME/.local/state}/sokar/known_hosts" \
-          clone -q "ssh://$USER@127.0.0.1$base/$repo.git" "$base/$repo"
-      cd "$base/$repo"
-      timeout 300 sokar task start sshwork --agent stub --detach --clearance deny > "$base/start" 2>&1
+      cd "$base"
+      timeout 300 sokar task start sshwork --upstream "$origin" --agent stub --detach --clearance deny > "$base/start" 2>&1
       echo "start exit $?"
       grep -o "in 'default' as '$repo'" "$base/start"
       # Detached, so the start returns before the workspace is cloned from the gate.

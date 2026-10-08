@@ -34,19 +34,16 @@ public class TaskWorkspace {
      */
     private static final String GATE_ADDRESS = org.fuin.sokar.runtime.ContainerSpec.HOST_LOOPBACK;
 
-    /** The gate, or {@code null} for an online project that pushes to its upstream directly. */
-    private final @Nullable GitGate gate;
+    /** The gate: every class has one, and an online task's passes its push on at once. */
+    private final GitGate gate;
 
-    /** The gate's token, {@code null} when there is no gate. */
-    private final @Nullable TaskToken token;
+    /** The gate's token. */
+    private final TaskToken token;
 
     private final String host;
 
-    /** The gate's port, zero when there is no gate. */
+    /** The gate's port. */
     private final int port;
-
-    /** The upstream, set only when there is no gate. */
-    private final @Nullable String upstream;
 
     /**
      * Which of the project's repositories the agent has open, or {@code null} for its own.
@@ -66,21 +63,15 @@ public class TaskWorkspace {
      * @param gate The project's gate.
      * @param host Address the container reaches the host on.
      */
-    private TaskWorkspace(@Nullable GitGate gate, String host,
-            @Nullable String upstream, @Nullable String repository) {
+    private TaskWorkspace(GitGate gate, String host, @Nullable String repository) {
         this.repository = repository;
         this.gate = gate;
         this.host = host;
-        this.upstream = upstream;
-        this.token = gate == null ? null : TaskToken.mint();
-        this.port = gate == null ? 0 : freePort();
-        if (gate != null) {
-            gate.initialize();
-            // Before the task clones its workspace from the mirror: what was approved and forwarded since is its base.
-            this.refreshed = gate.refresh();
-        } else {
-            this.refreshed = "";
-        }
+        this.token = TaskToken.mint();
+        this.port = freePort();
+        gate.initialize();
+        // Before the task clones its workspace from the mirror: what was approved and forwarded since is its base.
+        this.refreshed = gate.refresh();
     }
 
     /** What bringing the mirror up to its upstream could not do, or "". */
@@ -106,7 +97,7 @@ public class TaskWorkspace {
      * @return A gated workspace.
      */
     public static TaskWorkspace gated(GitGate gate, String host) {
-        return new TaskWorkspace(gate, host, null, null);
+        return new TaskWorkspace(gate, host, null);
     }
 
     /**
@@ -119,31 +110,7 @@ public class TaskWorkspace {
      */
     public static TaskWorkspace gated(org.fuin.sokar.core.project.Repository repository,
             GitGate gate, String host) {
-        return new TaskWorkspace(gate, host, null, repository.name());
-    }
-
-    /**
-     * A workspace whose remote is the project's real upstream.
-     * <p>
-     * What an {@code online} project gets, and the whole of what that class means: the gate is out
-     * of the path, the agent clones from and pushes to the upstream itself, and there is no review
-     * step. The container therefore needs credentials for that remote, which is the cost of the
-     * class.
-     *
-     * @param upstream Upstream repository URL.
-     * @return A direct workspace.
-     */
-    public static TaskWorkspace direct(String upstream) {
-        return new TaskWorkspace(null, containerVisibleHost(), upstream, null);
-    }
-
-    /**
-     * Returns whether the gate is in the path.
-     *
-     * @return {@code true} when the agent pushes to the gate rather than to the upstream.
-     */
-    public boolean gated() {
-        return gate != null;
+        return new TaskWorkspace(gate, host, repository.name());
     }
 
     /**
@@ -160,7 +127,7 @@ public class TaskWorkspace {
      *
      * @return The task token.
      */
-    public @Nullable TaskToken token() {
+    public TaskToken token() {
         return token;
     }
 
@@ -185,13 +152,11 @@ public class TaskWorkspace {
      * @param project The project.
      * @return Gate URL.
      */
-    public @Nullable String url(Project project) {
+    public String url(Project project) {
         // The repository's name rather than the project's, because that is what the agent has
         // open. With one repository the two are the same string, so nothing that reads a URL
         // today sees a change.
-        return gate == null ? upstream
-                : "http://" + host + ":" + port() + "/"
-                        + (repository == null ? project.name() : repository) + ".git";
+        return "http://" + host + ":" + port() + "/" + (repository == null ? project.name() : repository) + ".git";
     }
 
     /**
@@ -206,18 +171,15 @@ public class TaskWorkspace {
      */
     public Map<String, String> environment(Project project, String taskName) {
         final Map<String, String> environment = new LinkedHashMap<>();
-        if (token != null) {
-            final String header = "Authorization: Basic " + Base64.getEncoder().encodeToString(
-                    ("sokar:" + token.value()).getBytes(StandardCharsets.UTF_8));
-            environment.put("GIT_CONFIG_COUNT", "1");
-            environment.put("GIT_CONFIG_KEY_0", "http.extraHeader");
-            environment.put("GIT_CONFIG_VALUE_0", header);
-        }
+        final String header = "Authorization: Basic " + Base64.getEncoder().encodeToString(
+                ("sokar:" + token.value()).getBytes(StandardCharsets.UTF_8));
+        environment.put("GIT_CONFIG_COUNT", "1");
+        environment.put("GIT_CONFIG_KEY_0", "http.extraHeader");
+        environment.put("GIT_CONFIG_VALUE_0", header);
         environment.put("SOKAR_REMOTE_URL", url(project));
-        // A gated push goes to a ref no branch points at, so nothing an operator is reading moves
-        // underneath them. A direct push has no review step and so goes to a real branch.
-        environment.put("SOKAR_TASK_REF",
-                gate == null ? "refs/heads/" + taskName : GitGate.INCOMING + taskName);
+        // A push goes to a ref no branch points at, so nothing an operator is reading moves underneath them. An online
+        // task's gate passes it on as sokar/<task> at the upstream at once; a guarded one's keeps it for approval.
+        environment.put("SOKAR_TASK_REF", GitGate.INCOMING + taskName);
         return Map.copyOf(environment);
     }
 
@@ -284,33 +246,6 @@ public class TaskWorkspace {
 
     /** What the script prints when the workspace holds no commit when it is done. */
     static final String EMPTY = "sokar-workspace-empty";
-
-    /**
-     * Returns why a workspace has nothing to work on: its fetch failed and it holds no commit. A workspace that holds
-     * work - a resumed task - has something whatever the fetch did, and an empty remote is a project with no history yet.
-     *
-     * @param said What the script printed.
-     * @return Why, with git's own words, or {@code null} when there is something to work on or nothing failed.
-     */
-    static @Nullable String nothingToWorkOn(final String said) {
-        final String problem = fetchProblem(said);
-        if (problem == null || said.lines().noneMatch(EMPTY::equals)) {
-            return null;
-        }
-        final String git = said.lines().filter(line -> line.startsWith(FETCH_SAID + " "))
-                .map(line -> line.substring(FETCH_SAID.length() + 1).strip()).filter(line -> !line.isEmpty())
-                .collect(java.util.stream.Collectors.joining(" / "));
-        return problem + (git.isEmpty() ? "" : "; git said: " + git);
-    }
-
-    /**
-     * Returns the upstream an online task's workspace fetches from and pushes to.
-     *
-     * @return The address, or {@code null} for a gated workspace.
-     */
-    public @Nullable String upstream() {
-        return upstream;
-    }
 
     /** How long the workspace's first fetch from its remote may take before the task starts without it. */
     static final int FETCH_SECONDS = 60;

@@ -61,12 +61,25 @@ final class BuildsWiring {
     }
 
     /**
+     * Returns the branch an online task's gate passes its push on to, the one the forge builds.
+     *
+     * @param ref The ref the task pushes to.
+     * @return {@code sokar/<task>} for the task's own ref at its gate, {@code null} for anything else.
+     */
+    static @Nullable String branchAtTheUpstream(final @Nullable String ref) {
+        return ref == null || !ref.startsWith(org.fuin.sokar.gate.GitGate.INCOMING)
+                || ref.length() == org.fuin.sokar.gate.GitGate.INCOMING.length() ? null
+                        : "sokar/" + ref.substring(org.fuin.sokar.gate.GitGate.INCOMING.length());
+    }
+
+    /**
      * Starts the helper, once the container runs: it hands files into it.
      *
      * @param project The project.
      * @param repository The repository the task works on.
      * @param container The task.
-     * @param ref The ref the task pushes to, {@code refs/heads/<task>} for an online task.
+     * @param ref The ref the task pushes to, {@code refs/sokar/incoming/<task>}, which an online task's gate passes on
+     *        as {@code sokar/<task>} at the upstream.
      * @param out Where progress goes.
      * @param err Where a reason it was not started goes.
      */
@@ -77,7 +90,8 @@ final class BuildsWiring {
             return;
         }
         final String upstream = repository.upstream() != null ? repository.upstream() : project.upstream();
-        if (upstream == null || ref == null || !ref.startsWith("refs/heads/")) {
+        final String branch = branchAtTheUpstream(ref);
+        if (upstream == null || branch == null) {
             err.println("sokar: the task has no upstream branch, so it is not told what its builds did");
             err.flush();
             return;
@@ -93,8 +107,7 @@ final class BuildsWiring {
             return;
         }
         final Path state = context.paths().tasks().containerState(container);
-        final List<String> command = command(context, container, ref.substring("refs/heads/".length()), upstream,
-                builds);
+        final List<String> command = command(context, container, branch, upstream, builds);
         try {
             new ProcessBuilder(org.fuin.sokar.core.process.Scope.around("sokar " + container + " " + HELPER, command))
                     .redirectErrorStream(true).redirectOutput(state.resolve(HELPER + ".log").toFile()).start();

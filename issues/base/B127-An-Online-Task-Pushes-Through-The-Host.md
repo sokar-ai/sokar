@@ -1,6 +1,6 @@
 # B127 — An Online Task Pushes Through The Host
 
-**Status:** now.
+**Status:** implemented here; the acceptance run on the Ubuntu VM is open.
 
 **What must be true.** A task of class `online` reaches its upstream the way a `guarded` one does: only through the
 gate on the host, and with no credential and no socket of one in its container. The host fills the gate from the
