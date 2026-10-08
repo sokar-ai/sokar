@@ -51,9 +51,50 @@ class MessageWatchNoticeTest {
         }
     }
 
+    @Test
+    void a_message_that_lands_moves_while_a_conversation_step_runs(@TempDir final Path dir) throws Exception {
+        // Every pass asked each conversation's transport first, under the one lock a notice waited for too: a written
+        // message took 4-8 s to be taken, and a file a long-poll handed in 5-20 s to be delivered.
+        final SokarContext context = context(dir);
+        final Mailbox mailbox = new Mailbox(context.paths().messaging().mailbox("sokar-p-t"));
+        mailbox.create();
+        try (MessageWatch watch = new MessageWatch(context, Duration.ZERO)) {
+            assertThat(watch.startNotices()).isTrue();
+            final java.lang.reflect.Field passing = MessageWatch.class.getDeclaredField("passing");
+            passing.setAccessible(true);
+            final Object lock = passing.get(watch);
+            final java.util.concurrent.CountDownLatch held = new java.util.concurrent.CountDownLatch(1);
+            final java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+            final Thread step = Thread.ofVirtual().start(() -> {
+                synchronized (lock) {
+                    held.countDown();
+                    try {
+                        release.await(30, java.util.concurrent.TimeUnit.SECONDS);
+                    } catch (final InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            });
+            assertThat(held.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            try {
+                Files.writeString(mailbox.inbound().resolve("m-3.json"), "{\"messageId\":\"m-3\"}");
+
+                assertThat(appearsWithin(mailbox.hold().resolve("m-3.json"), Duration.ofSeconds(3)))
+                        .as("moved while the conversation step still runs").isTrue();
+            } finally {
+                release.countDown();
+                step.join();
+            }
+        }
+    }
+
     /** Waits for something another thread does, without holding the build up when it does not. */
     private boolean appears(final Path file) {
-        final long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+        return appearsWithin(file, Duration.ofSeconds(20));
+    }
+
+    private boolean appearsWithin(final Path file, final Duration patience) {
+        final long deadline = System.nanoTime() + patience.toNanos();
         while (System.nanoTime() < deadline) {
             if (Files.isRegularFile(file)) {
                 return true;

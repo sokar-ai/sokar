@@ -1,0 +1,2 @@
+title: A message a task writes, and one a transport hands in, moves at once - filter, send, delivery - instead of waiting for every conversation's transport to be asked; the read marks follow each delivery
+type: fixed

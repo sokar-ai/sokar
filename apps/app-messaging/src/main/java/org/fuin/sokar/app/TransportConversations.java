@@ -180,6 +180,30 @@ final class TransportConversations {
     }
 
     /**
+     * Marks what the tasks took as read, and asks what the people read, for a transport that confirms by reading: right
+     * after a delivery, so the person sees it read then and not at the next timed pass.
+     *
+     * @param members The tasks something was delivered to.
+     * @return What could not be done.
+     */
+    List<String> confirm(final List<Member> members) {
+        final List<String> failures = new ArrayList<>();
+        for (final Member member : members) {
+            final Path adapter = transports.find(member.scheme());
+            if (adapter == null || !"read".equals(TransportDescription.of(context.runner(), adapter).confirms())) {
+                continue;
+            }
+            try {
+                markRead(adapter, member, failures);
+                askRead(adapter, member, failures);
+            } catch (IOException ex) {
+                failures.add(String.valueOf(ex.getMessage()));
+            }
+        }
+        return failures;
+    }
+
+    /**
      * Hands each message that arrived to every task of the project here, with what came beside it.
      *
      * @param inbound Where the transport put them.

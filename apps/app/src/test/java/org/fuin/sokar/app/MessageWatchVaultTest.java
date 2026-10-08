@@ -40,4 +40,22 @@ class MessageWatchVaultTest {
         assertThat(watch.afterTheVault(passes::incrementAndGet)).as("once").isFalse();
         assertThat(passes).hasValue(1);
     }
+
+    @Test
+    void theVaultOpeningIsSeenOnceEachTimeAndAtTheFirstLookWhenItIsOpenThen() {
+        // After a restart the vault was unlocked and the first message waited for the first timed pass: 64 s.
+        final XdgPaths xdg = XdgPaths.of(name -> null, dir);
+        final SokarContext context = new SokarContext(new FakeCommandRunner(), new SokarPaths(xdg, dir.resolve("bin")),
+                arguments -> 0);
+        final boolean[] open = {true};
+        final MessageWatch watch = new MessageWatch(context, Duration.ofMinutes(1), () -> open[0]);
+
+        assertThat(watch.opened()).as("open at the first look").isTrue();
+        assertThat(watch.opened()).as("still open").isFalse();
+        open[0] = false;
+        assertThat(watch.opened()).as("shut").isFalse();
+        open[0] = true;
+        assertThat(watch.opened()).as("opened again").isTrue();
+        assertThat(watch.opened()).isFalse();
+    }
 }

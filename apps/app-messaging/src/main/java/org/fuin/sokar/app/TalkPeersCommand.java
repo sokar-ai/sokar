@@ -55,7 +55,8 @@ public class TalkPeersCommand implements Callable<Integer>, SokarFactory.Context
 
     /**
      * Returns whom a project's tasks may address by name, besides each other: the file's peers, the people of its
-     * conversation, and each person who joined it, reached in a direct chat.
+     * conversation, and each person who joined it: mentioned in the room, and in their direct chat only for a message
+     * that says {@code "via": "direct"}, an answer to their direct message.
      *
      * @param mail The project's mail.
      * @param members Each person who joined its conversation, to their account.
@@ -98,7 +99,8 @@ public class TalkPeersCommand implements Callable<Integer>, SokarFactory.Context
             out.printf("%-16s %-10s %-10s %s%n", peer.name(), peer.transport(), peer.trust(),
                     installed.containsKey(peer.transport())
                             ? peer.conversation() ? "the project's own conversation"
-                                    : peer.destination().startsWith("@") ? "a direct chat with " + peer.destination()
+                                    : peer.destination().startsWith("@") ? "the room, mentioning " + peer.destination()
+                                            + "; with \"via\": \"direct\", their direct chat"
                                     : peer.destination()
                             : "no '" + peer.transport() + "' transport on this machine");
         }

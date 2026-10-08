@@ -57,6 +57,12 @@ public final class MessageWatch implements AutoCloseable {
     // and two passes moving the same file is a race that ends with a message in neither place.
     private final Object passing = new Object();
 
+    /**
+     * Held while messages are moved, and only then: a written message, or a file a long-poll handed in, waits for no
+     * conversation step, which asks every conversation's transport and took seconds.
+     */
+    private final Object moving = new Object();
+
     private java.nio.file.@org.jspecify.annotations.Nullable WatchService watcher;
 
     /**
@@ -87,6 +93,22 @@ public final class MessageWatch implements AutoCloseable {
 
     /** Whether the last pass found the conversations waiting for the vault. */
     private volatile boolean waitedForTheVault;
+
+    /** Whether the vault was open at the last look; shut until the first. */
+    private volatile boolean wasOpen;
+
+    /**
+     * Tells whether the vault opened since the last look - the first look after the daemon started counts when it is
+     * open then. A message written while it was shut waited for the first timed pass, a minute after the start.
+     *
+     * @return {@code true} once for each time it opened.
+     */
+    boolean opened() {
+        final boolean open = vaultOpen.getAsBoolean();
+        final boolean now = open && !wasOpen;
+        wasOpen = open;
+        return now;
+    }
 
     /** How often a pass's wait looks whether the vault opened for messages that wait for it. */
     static final Duration VAULT_LOOK = Duration.ofSeconds(2);
@@ -147,15 +169,57 @@ public final class MessageWatch implements AutoCloseable {
      */
     public int passOnce() {
         synchronized (passing) {
-            return pass();
+            final List<Path> mailboxes = mailboxes();
+            if (mailboxes.isEmpty()) {
+                return 0;
+            }
+            final Moving prepared = prepared(mailboxes);
+            if (prepared == null) {
+                return 0;
+            }
+            say(conversations(prepared.pass(), mailboxes));
+            synchronized (moving) {
+                return move(prepared, mailboxes);
+            }
         }
     }
 
-    private int pass() {
-        final List<Path> mailboxes = mailboxes();
-        if (mailboxes.isEmpty()) {
-            return 0;
+    /**
+     * Moves what waits in every mailbox - filter, send, delivery - and nothing else: no conversation is asked
+     * anything. What a written message, a file a long-poll handed in, and the vault opening run.
+     *
+     * @return How many mailboxes were moved along.
+     */
+    public int moveOnce() {
+        synchronized (moving) {
+            final List<Path> mailboxes = mailboxes();
+            if (mailboxes.isEmpty()) {
+                return 0;
+            }
+            final Moving prepared = prepared(mailboxes);
+            if (prepared == null) {
+                return 0;
+            }
+            final TransportConversations conversations =
+                    new TransportConversations(context, prepared.pass().transports());
+            final java.util.Map<String, String> projects = new java.util.LinkedHashMap<>();
+            for (final Path mailbox : mailboxes) {
+                final String project = projectOf(mailbox.getFileName().toString());
+                if (project != null) {
+                    projects.put(mailbox.getFileName().toString(), project);
+                }
+            }
+            prepared.pass().acting((transport, container) -> projects.get(container) == null ? null
+                    : conversations.acting(transport, projects.get(container), container));
+            return move(prepared, mailboxes);
         }
+    }
+
+    /** What a pass moves with: its filter and key, and the peers it may reach. */
+    private record Moving(MessagePass pass, List<MessageDelivery.Peer> peers) {
+    }
+
+    private @org.jspecify.annotations.Nullable Moving prepared(final List<Path> mailboxes) {
         final MessagePass pass;
         final List<MessageDelivery.Peer> peers;
         try {
@@ -167,16 +231,18 @@ public final class MessageWatch implements AutoCloseable {
             // No key that can be written, or a keyring with a line nobody can read. Both are the
             // operator's to fix, and both stop every mailbox rather than one - so nothing is moved
             // and the next tick tries again.
-            return 0;
+            return null;
         }
         // Each pass, every mailbox again: one made after the watch started announced its directory before its outbox
         // existed, so the watch on it failed then and was never tried again - and its agent's answers waited for this
-        // timer, a minute (walk 10, 2026-10-04). Registering a directory twice is the same watch.
+        // timer, a minute. Registering a directory twice is the same watch.
         if (watcher != null) {
             mailboxes.forEach(this::watch);
         }
-        say(conversations(pass, mailboxes));
+        return new Moving(pass, peers);
+    }
 
+    private int move(final Moving prepared, final List<Path> mailboxes) {
         int moved = 0;
         for (final Path mailbox : mailboxes) {
             try {
@@ -186,8 +252,8 @@ public final class MessageWatch implements AutoCloseable {
                 final Mail reachable = peersOf(container);
                 // Whom it can reach changes as its project's tasks come and go; the guide beside it does not.
                 MailboxGuide.write(new Mailbox(mailbox), reachable);
-                final MessagePass.Report report = pass.run(new Mailbox(mailbox), reachable, peers,
-                        moderationOf(container));
+                final MessagePass.Report report = prepared.pass().run(new Mailbox(mailbox), reachable,
+                        prepared.peers(), moderationOf(container));
                 woken(container, new Mailbox(mailbox), report);
                 moved++;
             } catch (final IOException | RuntimeException ex) {
@@ -234,6 +300,10 @@ public final class MessageWatch implements AutoCloseable {
                     } catch (final InterruptedException ex) {
                         Thread.currentThread().interrupt();
                         return;
+                    }
+                    if (running && opened()) {
+                        // What waited for the vault leaves once it opens, not at the first pass a minute on.
+                        moveOnce();
                     }
                     passed = running && afterTheVault(this::passOnce);
                 }
@@ -306,7 +376,8 @@ public final class MessageWatch implements AutoCloseable {
                 return;
             }
             if (running) {
-                passOnce();
+                // Only the moving: a written message leaves now, not after every conversation was asked.
+                moveOnce();
             }
         }
     }
@@ -465,11 +536,13 @@ public final class MessageWatch implements AutoCloseable {
                     while (running && conversing.getOrDefault(group, List.of()).stream()
                             .anyMatch(each -> each.container().equals(member.container()))) {
                         final long asked = System.nanoTime();
-                        final TransportConversations.Outcome got =
-                                new TransportConversations(context, transports).waitDirect(member);
+                        final TransportConversations conversations = new TransportConversations(context, transports);
+                        final TransportConversations.Outcome got = conversations.waitDirect(member);
                         say(got.failures());
                         if (!got.handed().isEmpty() && running) {
-                            passOnce();
+                            // Delivered now, then marked read: no conversation step stands in between.
+                            moveOnce();
+                            say(conversations.confirm(List.of(member)));
                         }
                         Thread.sleep(pause(got, Duration.ofNanos(System.nanoTime() - asked)).toMillis());
                     }
@@ -494,11 +567,12 @@ public final class MessageWatch implements AutoCloseable {
                             return;
                         }
                         final long asked = System.nanoTime();
-                        final TransportConversations.Outcome got =
-                                new TransportConversations(context, transports).waitOnce(now);
+                        final TransportConversations conversations = new TransportConversations(context, transports);
+                        final TransportConversations.Outcome got = conversations.waitOnce(now);
                         say(got.failures());
                         if (!got.handed().isEmpty() && running) {
-                            passOnce();
+                            moveOnce();
+                            say(conversations.confirm(now));
                         }
                         Thread.sleep(pause(got, Duration.ofNanos(System.nanoTime() - asked)).toMillis());
                     }
