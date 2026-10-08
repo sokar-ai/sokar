@@ -1,0 +1,2 @@
+title: The daemon's conversations hold what they read of the vault while vault.bin is unchanged and open, instead of decrypting it for every lookup; read once a move are the projects too
+type: changed

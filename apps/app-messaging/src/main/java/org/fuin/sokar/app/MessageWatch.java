@@ -105,6 +105,10 @@ public final class MessageWatch implements AutoCloseable {
      */
     boolean opened() {
         final boolean open = vaultOpen.getAsBoolean();
+        if (!open) {
+            // Shut: what the conversations held of it goes now, not at their next read.
+            VaultCache.drop();
+        }
         final boolean now = open && !wasOpen;
         wasOpen = open;
         return now;
@@ -177,9 +181,14 @@ public final class MessageWatch implements AutoCloseable {
             if (prepared == null) {
                 return 0;
             }
+            final long started = System.nanoTime();
             say(conversations(prepared.pass(), mailboxes));
+            final long conversed = System.nanoTime();
             synchronized (moving) {
-                return move(prepared, mailboxes);
+                final int moved = move(prepared, mailboxes);
+                timed("the timed pass, its conversation step " + millis(started, conversed) + " ms", conversed,
+                        moved);
+                return moved;
             }
         }
     }
@@ -191,7 +200,19 @@ public final class MessageWatch implements AutoCloseable {
      * @return How many mailboxes were moved along.
      */
     public int moveOnce() {
+        return moveOnce("asked");
+    }
+
+    /**
+     * Moves what waits, as {@link #moveOnce()}, saying in the journal what started it and how long it took.
+     *
+     * @param why What started it: a notice, a long-poll's answer, the vault opening.
+     * @return How many mailboxes were moved along.
+     */
+    int moveOnce(final String why) {
+        final long asked = System.nanoTime();
         synchronized (moving) {
+            final long started = System.nanoTime();
             final List<Path> mailboxes = mailboxes();
             if (mailboxes.isEmpty()) {
                 return 0;
@@ -211,8 +232,28 @@ public final class MessageWatch implements AutoCloseable {
             }
             prepared.pass().acting((transport, container) -> projects.get(container) == null ? null
                     : conversations.acting(transport, projects.get(container), container));
-            return move(prepared, mailboxes);
+            final int moved = move(prepared, mailboxes);
+            timed(why + (started - asked > 50_000_000L ? ", after waiting " + millis(asked, started)
+                    + " ms for the move before it" : ""), started, moved);
+            return moved;
         }
+    }
+
+    private static long millis(final long from, final long to) {
+        return (to - from) / 1_000_000L;
+    }
+
+    /**
+     * Says in the daemon's journal how long a move took and what it read: where the seconds of a message go is then
+     * measured, not guessed.
+     */
+    private void timed(final String why, final long started, final int mailboxes) {
+        if (interval.isZero() || interval.isNegative()) {
+            return;
+        }
+        System.out.println("messages  moved " + mailboxes + " mailbox(es) in " + millis(started, System.nanoTime())
+                + " ms (" + why + "; " + VaultCache.counted() + ")");
+        System.out.flush();
     }
 
     /** What a pass moves with: its filter and key, and the peers it may reach. */
@@ -243,6 +284,15 @@ public final class MessageWatch implements AutoCloseable {
     }
 
     private int move(final Moving prepared, final List<Path> mailboxes) {
+        READ.set(new ProjectInventory(context).projects());
+        try {
+            return moveEach(prepared, mailboxes);
+        } finally {
+            READ.remove();
+        }
+    }
+
+    private int moveEach(final Moving prepared, final List<Path> mailboxes) {
         int moved = 0;
         for (final Path mailbox : mailboxes) {
             try {
@@ -273,6 +323,8 @@ public final class MessageWatch implements AutoCloseable {
         if (interval.isZero() || interval.isNegative()) {
             return;
         }
+        // Only the daemon's conversations hold what they read of the vault; a command reads it each time.
+        VaultCache.hold();
         // The waiting polls at once, without a pass: started by the first pass, which waits an interval on purpose, a
         // person's first word after the daemon came up waited for it too (Agent Matrix, 2026-10-04).
         BackgroundPass.start("sokar-conversations", () -> {
@@ -303,7 +355,7 @@ public final class MessageWatch implements AutoCloseable {
                     }
                     if (running && opened()) {
                         // What waited for the vault leaves once it opens, not at the first pass a minute on.
-                        moveOnce();
+                        moveOnce("the vault open");
                     }
                     passed = running && afterTheVault(this::passOnce);
                 }
@@ -327,10 +379,13 @@ public final class MessageWatch implements AutoCloseable {
      */
     public boolean startNotices() {
         final Path root = context.paths().messaging().mailboxes();
-        if (root == null || !Files.isDirectory(root)) {
+        if (root == null) {
             return false;
         }
         try {
+            // Made here when it is not there yet: on a fresh account it came with the first task, after the daemon's
+            // start, and nothing was ever noticed - every message waited for the timed pass.
+            Files.createDirectories(root);
             watcher = root.getFileSystem().newWatchService();
             register(root);
             for (final Path mailbox : mailboxes()) {
@@ -377,7 +432,7 @@ public final class MessageWatch implements AutoCloseable {
             }
             if (running) {
                 // Only the moving: a written message leaves now, not after every conversation was asked.
-                moveOnce();
+                moveOnce("a notice");
             }
         }
     }
@@ -386,7 +441,9 @@ public final class MessageWatch implements AutoCloseable {
         final Mailbox box = new Mailbox(mailbox);
         // And accepted/, where a person's release puts a held message back: it went out only at the next minute's pass
         // (walk 10, 2026-10-04).
-        for (final Path directory : List.of(box.outboxNew(), box.inbound(), box.accepted())) {
+        // And person/, where 'sokar talk say' writes a person's message: unwatched, it went only with whatever pass
+        // came next, up to the timed one.
+        for (final Path directory : List.of(box.outboxNew(), box.inbound(), box.accepted(), box.person())) {
             try {
                 register(directory);
             } catch (final IOException | RuntimeException ex) {
@@ -541,7 +598,10 @@ public final class MessageWatch implements AutoCloseable {
                         say(got.failures());
                         if (!got.handed().isEmpty() && running) {
                             // Delivered now, then marked read: no conversation step stands in between.
-                            moveOnce();
+                            System.out.println("messages  " + member.container() + "'s direct chat answered after "
+                                    + millis(asked, System.nanoTime()) + " ms with " + got.handed().size()
+                                    + " message(s)");
+                            moveOnce("a direct chat's answer");
                             say(conversations.confirm(List.of(member)));
                         }
                         Thread.sleep(pause(got, Duration.ofNanos(System.nanoTime() - asked)).toMillis());
@@ -571,7 +631,9 @@ public final class MessageWatch implements AutoCloseable {
                         final TransportConversations.Outcome got = conversations.waitOnce(now);
                         say(got.failures());
                         if (!got.handed().isEmpty() && running) {
-                            moveOnce();
+                            System.out.println("messages  " + key + " answered after " + millis(asked, System.nanoTime())
+                                    + " ms with " + got.handed().size() + " message(s)");
+                            moveOnce("a conversation's answer");
                             say(conversations.confirm(now));
                         }
                         Thread.sleep(pause(got, Duration.ofNanos(System.nanoTime() - asked)).toMillis());
@@ -630,9 +692,21 @@ public final class MessageWatch implements AutoCloseable {
         wake.announceFiles(container);
     }
 
+    /** The projects as the move on this thread read them once, so each of its mailboxes does not read them again. */
+    private static final ThreadLocal<List<ProjectInventory.Summary>> READ = new ThreadLocal<>();
+
+    /**
+     * Returns this machine's projects: as the running move read them, else read now. A move asked for them three times
+     * a mailbox, each time reading every project's file.
+     */
+    private List<ProjectInventory.Summary> projects() {
+        final List<ProjectInventory.Summary> read = READ.get();
+        return read != null ? read : new ProjectInventory(context).projects();
+    }
+
     private @Nullable String projectOf(final String container) {
         return ProjectNames.of(container, labels(),
-                new ProjectInventory(context).projects().stream().map(ProjectInventory.Summary::name).toList());
+                projects().stream().map(ProjectInventory.Summary::name).toList());
     }
 
     /** How long the runtime's labels are taken as they were: a pass asks for every mailbox, and podman is slow. */
@@ -660,7 +734,7 @@ public final class MessageWatch implements AutoCloseable {
      */
     Moderation moderationOf(final String container) {
         final String owner = projectOf(container);
-        for (final ProjectInventory.Summary summary : new ProjectInventory(context).projects()) {
+        for (final ProjectInventory.Summary summary : projects()) {
             if (summary.file() == null || !summary.name().equals(owner)) {
                 continue;
             }
@@ -675,7 +749,7 @@ public final class MessageWatch implements AutoCloseable {
 
     Mail peersOf(final String container) {
         final String owner = projectOf(container);
-        for (final ProjectInventory.Summary summary : new ProjectInventory(context).projects()) {
+        for (final ProjectInventory.Summary summary : projects()) {
             if (summary.file() == null || !summary.name().equals(owner)) {
                 continue;
             }

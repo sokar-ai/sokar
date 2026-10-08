@@ -110,11 +110,42 @@ class MessageWatchNoticeTest {
     }
 
     @Test
-    void a_machine_with_no_mailboxes_yet_does_not_refuse_to_watch(@TempDir final Path dir) {
+    void a_fresh_account_whose_first_mailbox_comes_after_the_start_is_watched_too(@TempDir final Path dir)
+            throws IOException {
+        // No mail/ when the daemon started: the watch gave up, and every message waited for the timed pass, 37-60 s.
         final SokarContext context = context(dir);
         try (MessageWatch watch = new MessageWatch(context, Duration.ZERO)) {
-            assertThat(watch.startNotices()).as("nothing to watch is not a failure to watch")
-                    .isFalse();
+            assertThat(watch.startNotices()).as("nothing to watch yet is no reason to stop watching").isTrue();
+            final Mailbox mailbox = new Mailbox(context.paths().messaging().mailbox("sokar-p-t"));
+            mailbox.create();
+            Files.writeString(mailbox.inbound().resolve("m-4.json"), "{\"messageId\":\"m-4\"}");
+
+            assertThat(appearsWithin(mailbox.hold().resolve("m-4.json"), Duration.ofSeconds(5)))
+                    .as("noticed in a mailbox made after the start").isTrue();
+        }
+    }
+
+    @Test
+    void a_persons_message_written_on_the_host_is_noticed(@TempDir final Path dir) throws IOException {
+        // 'sokar talk say' writes into person/, which was not watched: such a message went with the next pass of any
+        // other cause, up to the timed one a minute on.
+        final SokarContext context = context(dir);
+        final Mailbox mailbox = new Mailbox(context.paths().messaging().mailbox("sokar-p-t"));
+        mailbox.create();
+        try (MessageWatch watch = new MessageWatch(context, Duration.ZERO)) {
+            assertThat(watch.startNotices()).isTrue();
+            Files.writeString(mailbox.person().resolve("m-5.json"), "{\"metadata\":{\"to\":\"nobody\"}}");
+
+            final long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+            while (Files.exists(mailbox.person().resolve("m-5.json")) && System.nanoTime() < deadline) {
+                try {
+                    Thread.sleep(50);
+                } catch (final InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+            assertThat(mailbox.person().resolve("m-5.json")).as("taken on its notice").doesNotExist();
         }
     }
 }

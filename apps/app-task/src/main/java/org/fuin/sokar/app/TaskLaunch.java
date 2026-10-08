@@ -703,6 +703,13 @@ public final class TaskLaunch {
 
             final boolean gated = !request.noGate() && !request.dryRun();
             final TaskWorkspace workspace = workspace().openWorkspace(project, gated, out, err);
+            final String earlier = workspace().refusal();
+            if (earlier != null) {
+                err.println("sokar: " + earlier);
+                err.println("sokar: nothing was created");
+                err.flush();
+                return 65;
+            }
             if (gated && workspace == null && request.mode() != org.fuin.sokar.wire.TaskMode.SHELL) {
                 // An agent's work leaves through the gate. Started without one, it has an empty workspace and
                 // nowhere to hand back what it does - which is how a task in 'default' whose origin was over ssh

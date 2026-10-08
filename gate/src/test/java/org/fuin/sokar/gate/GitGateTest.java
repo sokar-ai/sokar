@@ -304,6 +304,26 @@ class GitGateTest {
     }
 
     @Test
+    void anOnlineGateForgetsATasksPassedOnRefButKeepsAndListsItsRescue() throws IOException {
+        // A rescue never went on: forgetting it with the task's ref would lose work nobody has seen.
+        final Path upstream = upstreamWithMain();
+        final GitGate gate = gate(GateMode.ONLINE, upstream.toString());
+        git(root, "clone", "--quiet", mirror.toString(), work.toString());
+        makeCommit("agent.txt", "written by the agent");
+        git(work, "push", "--quiet", mirror.toString(), "HEAD:" + GitGate.INCOMING + "task-1");
+        git(work, "push", "--quiet", mirror.toString(), "HEAD:" + GitGate.INCOMING + "task-1" + GitGate.RESCUED);
+
+        assertThat(gate.pending()).as("what went on waits for nobody").containsExactly("task-1" + GitGate.RESCUED);
+        assertThat(gate.waiting("task-1")).as("online").isNull();
+        gate.forget("task-1");
+
+        assertThat(gate.resolves(GitGate.INCOMING + "task-1")).isFalse();
+        assertThat(gate.resolves(GitGate.INCOMING + "task-1" + GitGate.RESCUED)).isTrue();
+        assertThat(gate(GateMode.GATEKEEPING, upstream.toString()).waiting("task-1" + GitGate.RESCUED))
+                .as("guarded names what waits").contains("add agent.txt");
+    }
+
+    @Test
     void readsTheRefsAPushWouldUpdateAndRefusesWhatItCannotRead() {
         final String commands = pkt("0".repeat(40) + " " + "a".repeat(40) + " refs/sokar/incoming/t\0report-status\n")
                 + pkt("b".repeat(40) + " " + "c".repeat(40) + " refs/heads/main\n") + "0000PACK";

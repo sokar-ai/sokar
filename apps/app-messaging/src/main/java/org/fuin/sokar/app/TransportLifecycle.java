@@ -392,11 +392,13 @@ final class TransportLifecycle {
     Map<String, String> secrets(String scheme, String scope) {
         final Optional<VaultFile.Opener> opener = context.opener();
         if (opener.isEmpty() || !context.vault().exists()) {
+            // Locked: nothing read before may be used any longer.
+            VaultCache.drop();
             return Map.of();
         }
         final VaultEntry entry;
         try {
-            entry = context.vault().read(opener.get()).get(entry(scheme, scope));
+            entry = VaultCache.read(context.vault(), opener.get()).get(entry(scheme, scope));
         } catch (org.fuin.sokar.vault.VaultException ex) {
             return Map.of();
         }

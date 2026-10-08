@@ -119,7 +119,7 @@ class InboundCheckTest {
                 .refuse(mailbox, mailbox.inbound().resolve("m-1.json"), "ops");
 
         assertThat(runner.lines()).singleElement()
-                .satisfies(line -> assertThat(line).contains("--blocking")
+                .satisfies(line -> assertThat(line).contains("--blocking").contains("--stabilityDelayMillis 0")
                         .contains(mailbox.check().toString()));
     }
 

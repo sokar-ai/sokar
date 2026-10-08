@@ -43,6 +43,18 @@ final class WorkspaceSetup {
      * @param upstream Value of {@code --upstream}, or {@code null}.
      * @param repository Which repository of the project, or {@code null} for its own.
      */
+    /** Why the start must not go on, when the gate holds what an earlier task of this name left; or {@code null}. */
+    private @Nullable String refusal;
+
+    /**
+     * Returns why the last {@link #openWorkspace} refused the start, or {@code null}.
+     *
+     * @return The reason, for the start to say before it creates nothing.
+     */
+    @Nullable String refusal() {
+        return refusal;
+    }
+
     WorkspaceSetup(SokarContext context, String task, @Nullable String upstream,
             @Nullable String repository) {
         this.context = context;
@@ -60,6 +72,7 @@ final class WorkspaceSetup {
      */
     @Nullable TaskWorkspace openWorkspace(Project project, boolean wanted, PrintWriter out,
             PrintWriter err) {
+        refusal = null;
         if (!wanted) {
             return null;
         }
@@ -74,9 +87,24 @@ final class WorkspaceSetup {
                 err.flush();
                 return null;
             }
-            final TaskWorkspace opened = TaskWorkspace.gated(chosen,
-                    GateSupport.gate(context, project, chosen, upstream, seed(project, chosen, out)),
-                    TaskWorkspace.containerVisibleHost());
+            final org.fuin.sokar.gate.GitGate gate =
+                    GateSupport.gate(context, project, chosen, upstream, seed(project, chosen, out));
+            gate.initialize();
+            if (project.securityClass() == org.fuin.sokar.core.project.SecurityClass.ONLINE) {
+                // What an earlier task of this name left went on to the upstream long ago; here it would only make the
+                // new task's plain push "fetch first", and an agent that followed git's hint pull it into its own.
+                gate.forget(task);
+            } else {
+                final String earlier = gate.waiting(task);
+                if (earlier != null) {
+                    // Its work waits for a person, and a new task of the same name would push onto it.
+                    refusal = "work of an earlier task called " + task + " waits at the gate (" + earlier
+                            + "): approve or reject it first, with 'sokar gate approve' or 'sokar gate reject', or"
+                            + " start under another name";
+                    return null;
+                }
+            }
+            final TaskWorkspace opened = TaskWorkspace.gated(chosen, gate, TaskWorkspace.containerVisibleHost());
             if (!opened.refreshed().isEmpty()) {
                 err.println("sokar: " + opened.refreshed());
                 err.flush();

@@ -67,8 +67,10 @@ public final class MessageFiltering {
             // is. It refuses unless the project says it only reports: reporting, a payload in plain text left
             // unless a person happened to hold it, and the person was not told. Its thresholds were measured on
             // agents' own traffic, and a person can still read a refused message and deliver it.
+            // No settle: every message is put in place by rename - by the agent as its guide says, by a transport, by
+            // 'sokar talk say' - so none is ever seen half written, and the filter's 200 ms wait only delayed each.
             final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(filter.toString(), "--mail",
-                    mailbox.root().toString()));
+                    mailbox.root().toString(), "--stabilityDelayMillis", "0"));
             if (!reportOnly) {
                 command.add("--blocking");
             }

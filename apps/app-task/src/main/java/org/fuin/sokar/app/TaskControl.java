@@ -254,6 +254,33 @@ public final class TaskControl {
         }
     }
 
+    /**
+     * Has an online task's gate forget its ref once the task is removed: it was passed on as it was pushed, and a new
+     * task of the same name would otherwise have its plain push refused with "fetch first". Never fatal: the next
+     * start of that name forgets it too.
+     *
+     * @param task The removed task, as podman listed it.
+     */
+    private void forgetOnline(final ContainerSummary task) {
+        if (task.project() == null) {
+            return;
+        }
+        try {
+            final org.fuin.sokar.core.project.Project project = GateSupport.byName(context, task.project());
+            if (project.securityClass() != org.fuin.sokar.core.project.SecurityClass.ONLINE) {
+                return;
+            }
+            final org.fuin.sokar.core.project.Repository repository = GateSupport.repository(project,
+                    task.repository() == null || task.repository().isBlank() ? null : task.repository());
+            final String name = org.fuin.sokar.runtime.ContainerName.taskIn(project.name(), task.name());
+            if (name != null) {
+                GateSupport.gate(context, project, repository, null, null).forget(name);
+            }
+        } catch (RuntimeException ex) {
+            // Left for the next start of that name, which forgets it before the task clones.
+        }
+    }
+
     private Stopped stopRecorded(String container, boolean purge, boolean rescue, boolean force) {
 
         final Path state = context.paths().tasks().containerState(container);
@@ -307,6 +334,7 @@ public final class TaskControl {
         if (purge) {
             context.podman().remove(container);
             closeJournal(container);
+            summary.ifPresent(this::forgetOnline);
         } else {
             context.podman().stop(container);
             // Written on the way down, while the answer is still knowable. Whoever removes this

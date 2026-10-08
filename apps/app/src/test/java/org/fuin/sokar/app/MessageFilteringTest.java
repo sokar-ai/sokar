@@ -44,7 +44,9 @@ class MessageFilteringTest {
         // not told the filter would have refused it.
         assertThat(runner.lines()).singleElement(org.assertj.core.api.InstanceOfAssertFactories.STRING)
                 .contains("--mail " + mailbox.root())
-                .contains("--blocking");
+                .contains("--blocking")
+                // Every message is put in place by rename: the filter's 200 ms settle only delayed each one.
+                .contains("--stabilityDelayMillis 0");
     }
 
     @Test

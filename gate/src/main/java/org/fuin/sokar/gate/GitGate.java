@@ -241,15 +241,13 @@ public class GitGate {
      * @return Incoming refs, without the namespace prefix.
      */
     public List<String> pending() {
-        if (mode == GateMode.ONLINE) {
-            // An online task's ref was passed on as it was pushed; nothing of it waits for anybody.
-            return List.of();
-        }
         final CommandResult result = gitIn("for-each-ref", "--format=%(refname)", INCOMING);
         final List<String> refs = new ArrayList<>();
         // As git names them: a name ending in a Unicode space is not the name without it.
         result.standardOutput().lines()
                 .filter(line -> line.startsWith(INCOMING))
+                // An online task's ref was passed on as it was pushed and waits for nobody; its rescue never went on.
+                .filter(line -> mode != GateMode.ONLINE || line.endsWith(RESCUED))
                 .forEach(line -> refs.add(line.substring(INCOMING.length())));
         return List.copyOf(refs);
     }
@@ -263,16 +261,14 @@ public class GitGate {
      * @return Pending pushes.
      */
     public List<PendingPush> pendingDetail() {
-        if (mode == GateMode.ONLINE) {
-            return List.of();
-        }
         final CommandResult result = gitIn("for-each-ref",
                 "--format=%(refname)\t%(objectname)\t%(committerdate:unix)\t%(objecttype)\t%(contents:subject)",
                 "--sort=committerdate", INCOMING);
         final List<PendingPush> pushes = new ArrayList<>();
         result.standardOutput().lines().forEach(line -> {
             final String[] fields = line.split("\t", 5);
-            if (fields.length == 5 && fields[0].startsWith(INCOMING)) {
+            if (fields.length == 5 && fields[0].startsWith(INCOMING)
+                    && (mode != GateMode.ONLINE || fields[0].endsWith(RESCUED))) {
                 // Listed whatever the agent pushed: receive-pack refuses a tag or a blob only under refs/heads, and
                 // one that made this throw took the review queue away from every task of the project.
                 final String subject = "commit".equals(fields[3]) ? fields[4]
@@ -621,6 +617,34 @@ public class GitGate {
             gitWith(lease, "push", "--end-of-options", upstreamUrl, commit + ":refs/heads/" + branch);
         }
         removeIfStill(name, commit);
+    }
+
+    /**
+     * Forgets the ref a task left at its gate: for an {@code online} task, whose push went on and so waits for nobody,
+     * when it is removed or a new task of its name starts. Its rescue stays: that work never went on, and waits. A new task of the same name otherwise
+     * met the old ref, its plain push was refused with git's "fetch first", and an agent that followed the hint pulled
+     * a removed task's work into its own.
+     *
+     * @param name The task's name, without the namespace prefix.
+     */
+    public void forget(String name) {
+        if (resolves(INCOMING + name)) {
+            gitIn("update-ref", "-d", INCOMING + name);
+        }
+    }
+
+    /**
+     * Returns the commit and subject of a task's work that waits at the gate, for a start that would otherwise build a
+     * new task of the same name on top of it.
+     *
+     * @param name The task's name, without the namespace prefix.
+     * @return {@code "<commit> <subject>"}, or {@code null} when nothing of that name waits.
+     */
+    public @org.jspecify.annotations.Nullable String waiting(String name) {
+        if (mode == GateMode.ONLINE || !resolves(INCOMING + name)) {
+            return null;
+        }
+        return gitIn("log", "-1", "--format=%h %s", INCOMING + name).standardOutput().strip();
     }
 
     /**

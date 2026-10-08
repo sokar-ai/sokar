@@ -306,6 +306,76 @@ class TaskRunCommandTest {
         Files.writeString(known, "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample\n");
     }
 
+    /** Runs git, or fails the test with what it said. */
+    private static String git(final Path in, final String... arguments) throws IOException {
+        final java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of("git", "-c", "user.name=T",
+                "-c", "user.email=t@example.org", "-c", "init.defaultBranch=main"));
+        command.addAll(java.util.List.of(arguments));
+        final Process process = new ProcessBuilder(command).directory(in.toFile()).redirectErrorStream(true).start();
+        final String said = new String(process.getInputStream().readAllBytes()).strip();
+        try {
+            assertThat(process.waitFor()).as(said).isZero();
+        } catch (InterruptedException ex) {
+            throw new IOException(ex);
+        }
+        return said;
+    }
+
+    /** A project of the given class on a repository of this machine, whose gate holds what a removed 'second' left. */
+    private String leftByARemovedTask(final Path dir, final String securityClass) throws IOException {
+        final Path upstream = dir.resolve("upstream.git");
+        git(dir, "init", "-q", "--bare", upstream.toString());
+        final Path seed = java.nio.file.Files.createDirectories(dir.resolve("seed"));
+        git(seed, "init", "-q");
+        git(seed, "commit", "-q", "--allow-empty", "-m", "first");
+        git(seed, "push", "-q", upstream.toString(), "HEAD:refs/heads/main");
+        final String file = projectFile(dir, """
+                project:
+                  name: "uc"
+                  security_class: "%s"
+                  upstream: "file://%s"
+                image:
+                  base_image: "ubuntu:24.04"
+                """.formatted(securityClass, upstream));
+        // A first task makes the gate, and a task called 'second' worked there before it was removed.
+        assertThat(execute(context(dir, true), "task", "start", "--attach", "shell", "-p", file))
+                .as("the start said:%n%s%n%s", out, err).isZero();
+        git(seed, "commit", "-q", "--allow-empty", "-m", "the removed task's work");
+        git(seed, "push", "-q", root.resolve("data/sokar/mirrors/uc.git").toString(),
+                "HEAD:refs/sokar/incoming/second");
+        return file;
+    }
+
+    @Test
+    void aNewGuardedTaskIsRefusedWhileWorkOfAnEarlierOneOfItsNameWaitsAtTheGate(@TempDir Path dir)
+            throws IOException {
+        // A removed task's work waited at the gate; a new task of the same name was refused its plain push with
+        // "fetch first", and an agent that followed git's hint would have pulled that work into its own.
+        final String file = leftByARemovedTask(dir, "guarded");
+
+        final int exit = execute(context(dir, true), "task", "start", "second", "--attach", "shell", "-p",
+                file);
+
+        assertThat(exit).as("the start said:%n%s%n%s", out, err).isEqualTo(65);
+        assertThat(err.toString()).contains("work of an earlier task called second waits at the gate")
+                .contains("the removed task's work").contains("nothing was created");
+        assertThat(runner.invocations().stream().map(command -> command.describe()))
+                .noneMatch(line -> line.contains("create") && line.contains("sokar-uc-second"));
+    }
+
+    @Test
+    void aNewOnlineTaskStartsCleanSinceWhatAnEarlierOneOfItsNameLeftWentOnLongAgo(@TempDir Path dir)
+            throws IOException {
+        final String file = leftByARemovedTask(dir, "online");
+
+        final int exit = execute(context(dir, true), "task", "start", "second", "--attach", "shell", "-p",
+                file);
+
+        assertThat(exit).as("the start said:%n%s%n%s", out, err).isZero();
+        assertThat(git(dir, "--git-dir", root.resolve("data/sokar/mirrors/uc.git").toString(), "for-each-ref",
+                "refs/sokar/incoming/")).as("what the removed task left").doesNotContain("incoming/second");
+    }
+
     @Test
     void anOnlineTaskReachesItsUpstreamOnlyThroughItsGateAndHoldsNoKeyOrSocketOfOne(@TempDir Path dir)
             throws IOException {

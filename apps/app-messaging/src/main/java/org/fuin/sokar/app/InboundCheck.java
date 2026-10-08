@@ -95,8 +95,9 @@ public final class InboundCheck {
                 StandardCopyOption.REPLACE_EXISTING);
         final CommandResult result;
         try {
+            // No settle, as on the way out: what is checked here was put in place by rename.
             result = runner.run(HelperEnvironment.chosen(Command.of(filter.toString(), "--mail",
-                    mailbox.check().toString(), "--blocking")));
+                    mailbox.check().toString(), "--blocking", "--stabilityDelayMillis", "0")));
         } catch (final RuntimeException e) {
             return "it is from an external peer and the filter could not be run: " + e.getMessage();
         }
