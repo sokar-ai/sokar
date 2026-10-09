@@ -29,13 +29,15 @@ project:
   description: "The thing that talks to the payment provider"
 
   # Required: offline, guarded or online. See security.md.
-  #   offline  no network at all; declaring egress is refused.
+  #   offline  no network at all, not even for the host; egress and upstream are refused,
+  #            and the project is followed only from a file.
   #   guarded  reaches what egress names, pushes to a gate, holds no upstream credential.
   #   online   pushes to a gate that passes its own branch on at once; needs 'upstream'.
   security_class: "guarded"
 
-  # Where approved work for the project's OWN repository goes. Required for online.
-  # In guarded the agent never sees it: the gate forwards what a person approved.
+  # Where approved work for the project's OWN repository goes. Required for online,
+  # refused for offline. In guarded the agent never sees it: the gate forwards what a
+  # person approved.
   upstream: "git@github.com:you/myproject.git"
 
   # Optional. The public keys of the people whose signed commits change this file. A commit

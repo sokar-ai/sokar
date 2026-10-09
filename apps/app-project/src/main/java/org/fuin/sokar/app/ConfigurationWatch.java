@@ -168,6 +168,13 @@ public final class ConfigurationWatch implements AutoCloseable {
             if (!which.test(followed)) {
                 continue;
             }
+            if (FollowedProjects.fromAFile(followed.url())) {
+                // Nothing to fetch, and nothing that may be: an offline project followed from a file never connects.
+                done.put(followed.name(), new Reconcile.Result(Reconcile.Outcome.FROM_A_FILE, followed.commit(),
+                        "followed from a file, so nothing is fetched: follow it again from a newer file to change it,"
+                                + " 'sokar project follow " + followed.name() + " <file>'"));
+                continue;
+            }
             try {
                 final Reconcile.Result result = reconcile.run(followed);
                 // Only onto the record it read: a project unfollowed, or a first follow refused, while this fetched is

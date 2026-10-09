@@ -57,6 +57,15 @@ public final class Reconcile {
         /** The commit or the repository could not be read. */
         UNREADABLE,
 
+        /**
+         * The definition says {@code offline}, and it came from an address: following fetches it again in the
+         * background, so the project would connect every round. Followed from a file instead, or not at all.
+         */
+        OFFLINE_FROM_A_URL,
+
+        /** Followed from a file, so nothing is fetched: following it again from a newer file is how it changes. */
+        FROM_A_FILE,
+
         /** The repository could not be reached. What was verified before still runs. */
         UNREACHABLE,
 
@@ -464,10 +473,32 @@ public final class Reconcile {
      * @param commit What to move to.
      * @return What happened.
      */
+    /** Whether a commit's project file says {@code offline}; one that cannot be read is judged where it is read. */
+    private static boolean offline(final CommandRunner runner, final Path clone, final String commit) {
+        final CommandResult shown = runner.run(Command.of("git", "-C", clone.toString(), "show",
+                commit + ":project.yml"));
+        if (!shown.successful()) {
+            return false;
+        }
+        try {
+            return ProjectReader.read(new java.io.StringReader(shown.standardOutput()), "project.yml")
+                    .securityClass() == org.fuin.sokar.core.project.SecurityClass.OFFLINE;
+        } catch (final RuntimeException ex) {
+            return false;
+        }
+    }
+
     private Result applied(final CommandRunner runner, final Path clone,
             final FollowedProjects.Followed followed, final String commit) {
         if (commit.equals(followed.commit())) {
             return new Result(Outcome.UNCHANGED, followed.commit(), "");
+        }
+        if (!FollowedProjects.fromAFile(followed.url()) && offline(runner, clone, commit)) {
+            // Before anything of it is used: what was in force stays, and a first follow records nothing.
+            return new Result(Outcome.OFFLINE_FROM_A_URL, followed.commit(), followed.name() + " is offline, and an"
+                    + " offline project never connects, not even to fetch its own settings: follow it from a file, a"
+                    + " bundle of its repository or a directory on this machine, 'sokar project follow "
+                    + followed.name() + " <file>'");
         }
         try {
             // Read before the reset, because afterwards there is nothing left to see. The rule is

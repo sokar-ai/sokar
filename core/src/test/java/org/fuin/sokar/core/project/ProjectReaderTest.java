@@ -419,6 +419,36 @@ class ProjectReaderTest {
     }
 
     @Test
+    void anOfflineProjectNamesNoUpstream() {
+        // The host cloned an offline project's mirror from it on the first start: offline then meant "offline after
+        // the first start". It never connects; a repository comes in as a file.
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> read(MINIMAL
+                .replace("security_class: \"online\"", "security_class: \"offline\"")))
+                .isInstanceOf(ProjectException.class)
+                .hasMessageContaining("is offline, so it names no upstream")
+                .hasMessageContaining("sokar gate restore");
+    }
+
+    @Test
+    void anOfflineProjectsFurtherRepositoryNamesNoUpstream() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> read(MINIMAL
+                .replace("security_class: \"online\"", "security_class: \"offline\"")
+                .replace("  upstream: \"git@github.com:example/uc.git\"\n", "") + """
+                repositories:
+                  backend:
+                    upstream: "git@github.com:example/backend.git"
+                """)).isInstanceOf(ProjectException.class)
+                .hasMessageContaining("backend")
+                .hasMessageContaining("names no upstream");
+    }
+
+    @Test
+    void anOfflineProjectWithoutAnUpstreamIsRead() {
+        assertThat(read(MINIMAL.replace("security_class: \"online\"", "security_class: \"offline\"")
+                .replace("  upstream: \"git@github.com:example/uc.git\"\n", "")).upstream()).isNull();
+    }
+
+    @Test
     void anOfflineProjectDeclaresNoCredentials() {
         // The broker would reach the destination for the task, and an offline project reaches nothing.
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> read(MINIMAL

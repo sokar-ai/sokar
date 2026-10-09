@@ -40,20 +40,19 @@ Any further repository of the project has its own beside it, at
 from it and pushes back into it, so both questions, how history gets in and how work gets out, are
 answered on the host, by a person.
 
-**Getting a history in.** The mirror is seeded from the first of these that exists:
+**Getting a history in.** Nothing here connects out, not even the host: an offline project names no
+`upstream`, a start of its task takes no `--upstream`, and the project itself is followed only from a file,
+`sokar project follow NAME FILE`, a bundle of its repository or a directory on this machine, which is never
+fetched again. The mirror is seeded from one of these:
 
-1. `--upstream` on the command,
-2. the project's `upstream:`,
-3. the checkout you are standing in. Committed history only, since a bare clone has no working
-   tree.
+1. `sokar gate restore`, from a bundle carried here by whatever means a disconnected machine has;
+2. the followed project's own repository, from the file it was followed from, and the task's start says
+   so (`seed ... (the followed clone)`);
+3. the checkout you are standing in. Committed history only, since a bare clone has no working tree.
+   Sokar prints that it seeds from there rather than doing it silently, because the seed decides what
+   the agent believes the project is.
 
-The third needs no network at all: `cd` into your own working copy and start the task. Sokar prints
-that it seeds from there rather than doing it silently, because the seed decides what the agent
-believes the project is. A mirror that already exists is never re-seeded. The other way in is
-`sokar gate restore`, from a bundle carried here by whatever means a disconnected machine has.
-A followed project's own repository is seeded from the clone this machine verified, so its history
-is not fetched from the forge a second time, and the task's start says so (`seed ... (the followed
-clone)`).
+A mirror that already exists is never re-seeded.
 
 **Getting changed work out.** The agent's push lands in the mirror, so the work is on the host the
 moment the task ends. From there:

@@ -24,8 +24,10 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
     @Parameters(index = "0", paramLabel = "<name>", description = "The project's name.")
     private String name;
 
-    @Parameters(index = "1", paramLabel = "<url>",
-            description = "Where its repository is. Fetched with this account's own credentials.")
+    @Parameters(index = "1", paramLabel = "<url|file>",
+            description = "Where its repository is: an address, fetched with this account's own credentials and"
+                    + " again in the background, or a file - a bundle or a directory on this machine - read once and"
+                    + " never fetched. An offline project is followed only from a file.")
     private String url;
 
     @picocli.CommandLine.Option(names = "--accept-rewrite",
@@ -66,6 +68,10 @@ public class ProjectFollowCommand implements Callable<Integer>, SokarFactory.Con
     public Integer call() throws Exception {
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
+        if (FollowedProjects.fromAFile(url)) {
+            // Recorded as where it is, not where this command happened to run.
+            url = java.nio.file.Path.of(url).toAbsolutePath().normalize().toString();
+        }
         final FollowSignedBy following = new FollowSignedBy(context);
         // One key keeps every way it had, a fingerprint among them; several are whole keys, all pinned or none.
         signedBy = signedByAll.size() == 1 ? signedByAll.get(0) : null;

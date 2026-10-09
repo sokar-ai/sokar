@@ -1,0 +1,2 @@
+title: An offline project never connects - its upstream and --upstream are refused, and it is followed only from a file - and any project can be followed from a bundle or a directory, which is never fetched in the background
+type: changed

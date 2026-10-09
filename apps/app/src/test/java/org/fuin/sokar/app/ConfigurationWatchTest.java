@@ -32,7 +32,8 @@ class ConfigurationWatchTest {
         final SokarContext context = new SokarContext(new ProcessCommandRunner(), new SokarPaths(xdg,
                 dir.resolve("bin")), arguments -> 0);
         final FollowedProjects follows = new FollowedProjects(context.paths().projects().followed());
-        final String nowhere = dir.resolve("no-such-repository.git").toString();
+        // An address, so it is fetched: a plain path is a file, which is never fetched.
+        final String nowhere = dir.resolve("no-such-repository.git").toUri().toString();
         follows.write(new FollowedProjects.Followed("waited", nowhere, "a1b2c3", "2026-10-07T00:00:00Z",
                 "VAULT_LOCKED", "cannot fetch while this account's vault is shut"));
         follows.write(new FollowedProjects.Followed("other", nowhere, "a1b2c3", "2026-10-07T00:00:00Z", "APPLIED",

@@ -853,4 +853,99 @@ class ReconcileTest {
                 ? Files.readString(context.paths().projects().configurationSigners()) : "")
                 .doesNotContain(other.split("\\s+")[1]);
     }
+
+    /** A project repository whose file says the class, unsigned: followed with --unverified in these tests. */
+    private Path ofClass(final Path dir, final String securityClass) throws IOException {
+        final Path repo = Files.createDirectories(dir.resolve("published-" + securityClass));
+        git(repo, "init", "-q", "-b", "main", ".");
+        git(repo, "config", "user.email", "operator@example.org");
+        git(repo, "config", "user.name", "Operator");
+        setClass(repo, securityClass);
+        return repo;
+    }
+
+    private void setClass(final Path repo, final String securityClass) throws IOException {
+        Files.writeString(repo.resolve("project.yml"), """
+                project:
+                  name: demo
+                  description: %s
+                  security_class: %s
+                image:
+                  base_image: ubuntu:24.04
+                """.formatted(securityClass + " " + System.nanoTime(), securityClass));
+        git(repo, "add", "project.yml");
+        git(repo, "commit", "-q", "--no-gpg-sign", "-m", securityClass);
+    }
+
+    @Test
+    void an_offline_project_is_followed_from_a_local_directory(@TempDir final Path dir) throws Exception {
+        final SokarContext context = context(dir);
+        final Path repo = ofClass(dir, "offline");
+
+        final FollowSignedBy.Answer answer = new FollowSignedBy(context).follow("demo", repo.toString(), null, true,
+                false);
+
+        assertThat(answer.result().outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+    }
+
+    @Test
+    void an_offline_project_is_followed_from_a_bundle(@TempDir final Path dir) throws Exception {
+        final SokarContext context = context(dir);
+        final Path repo = ofClass(dir, "offline");
+        final Path bundle = dir.resolve("demo.bundle");
+        git(repo, "bundle", "create", "-q", bundle.toString(), "--all");
+
+        final FollowSignedBy.Answer answer = new FollowSignedBy(context).follow("demo", bundle.toString(), null, true,
+                false);
+
+        assertThat(answer.result().outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+    }
+
+    @Test
+    void an_offline_project_is_not_followed_from_a_url(@TempDir final Path dir) throws Exception {
+        // Following fetches the definition again in the background: an offline project would connect every round.
+        final SokarContext context = context(dir);
+        final Path repo = ofClass(dir, "offline");
+
+        final FollowSignedBy.Answer answer = new FollowSignedBy(context).follow("demo", repo.toUri().toString(), null,
+                true, false);
+
+        assertThat(answer.result().outcome()).isEqualTo(Reconcile.Outcome.OFFLINE_FROM_A_URL);
+        assertThat(answer.result().detail()).contains("follow it from a file");
+        assertThat(answer.recorded()).isFalse();
+    }
+
+    @Test
+    void a_project_followed_from_a_url_that_turns_offline_keeps_what_it_had(@TempDir final Path dir)
+            throws Exception {
+        final SokarContext context = context(dir);
+        final Path repo = ofClass(dir, "guarded");
+        final FollowSignedBy.Answer first = new FollowSignedBy(context).follow("demo", repo.toUri().toString(), null,
+                true, false);
+        assertThat(first.result().outcome()).isEqualTo(Reconcile.Outcome.APPLIED);
+        setClass(repo, "offline");
+
+        final java.util.Map<String, Reconcile.Result> done = new ConfigurationWatch(context, java.time.Duration.ZERO)
+                .refresh("demo");
+
+        assertThat(done.get("demo").outcome()).isEqualTo(Reconcile.Outcome.OFFLINE_FROM_A_URL);
+        assertThat(done.get("demo").commit()).as("what was in force stays").isEqualTo(first.result().commit());
+    }
+
+    @Test
+    void a_project_followed_from_a_file_is_never_fetched_and_says_how_it_changes(@TempDir final Path dir)
+            throws Exception {
+        final SokarContext context = context(dir);
+        final Path repo = ofClass(dir, "offline");
+        final FollowSignedBy.Answer first = new FollowSignedBy(context).follow("demo", repo.toString(), null, true,
+                false);
+        setClass(repo, "offline");
+
+        final java.util.Map<String, Reconcile.Result> done = new ConfigurationWatch(context, java.time.Duration.ZERO)
+                .refresh("demo");
+
+        assertThat(done.get("demo").outcome()).isEqualTo(Reconcile.Outcome.FROM_A_FILE);
+        assertThat(done.get("demo").commit()).isEqualTo(first.result().commit());
+        assertThat(done.get("demo").detail()).contains("follow it again from a newer file");
+    }
 }

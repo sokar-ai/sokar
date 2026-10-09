@@ -85,6 +85,14 @@ final class WorkspaceSetup {
         }
         try {
             final Repository chosen = GateSupport.repository(project, repository);
+            if (project.securityClass() == org.fuin.sokar.core.project.SecurityClass.OFFLINE && upstream != null) {
+                // The host would clone the mirror from it over the network; an offline project never connects.
+                err.println("sokar: '" + project.name() + "' is offline, so it takes no --upstream: nothing connects"
+                        + " out for it, not even the host. Bring the repository in as a file with 'sokar gate"
+                        + " restore', or start from a checkout of it on this machine.");
+                err.flush();
+                return null;
+            }
             if (project.securityClass() == org.fuin.sokar.core.project.SecurityClass.ONLINE
                     && chosen.upstream() == null && upstream == null) {
                 // Online passes every push on at once, which needs somewhere to pass it to. Its gate is the same as a

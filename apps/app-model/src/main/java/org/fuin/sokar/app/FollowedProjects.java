@@ -427,4 +427,22 @@ public final class FollowedProjects {
     private static String text(final Map<?, ?> document, final String key) {
         return document.get(key) instanceof String value ? value : "";
     }
+
+    /**
+     * Whether a project is followed from a file - a bundle or a directory on this machine - rather than fetched from
+     * an address. Told by the form alone: an address names a scheme ({@code https://}, {@code file://}) or a host
+     * before a colon ({@code git@host:path}); anything else is a path. Such a project is never fetched in the
+     * background, which is what lets an offline project be followed at all.
+     *
+     * @param source Where the project is followed from.
+     * @return {@code true} for a path.
+     */
+    public static boolean fromAFile(final String source) {
+        if (source.contains("://")) {
+            return false;
+        }
+        final int colon = source.indexOf(':');
+        final int slash = source.indexOf('/');
+        return colon < 0 || (slash >= 0 && slash < colon);
+    }
 }

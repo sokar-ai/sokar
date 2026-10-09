@@ -53,7 +53,7 @@ public class ProjectRefreshCommand implements Callable<Integer>, SokarFactory.Co
             if (!result.detail().isEmpty()) {
                 out.println("    " + result.detail());
             }
-            failed |= !ConfigurationWatch.fetched(result);
+            failed |= !ConfigurationWatch.fetched(result) && result.outcome() != Reconcile.Outcome.FROM_A_FILE;
         }
         out.flush();
         return failed ? 70 : 0;

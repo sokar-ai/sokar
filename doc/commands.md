@@ -311,7 +311,7 @@ recorded as such, and the receiving peer may refuse it again.
 ## project
 
 ```
-sokar project follow NAME URL [--signed-by=<key> | --unverified] [--dry-run] [--accept-rewrite]
+sokar project follow NAME URL|FILE [--signed-by=<key> | --unverified] [--dry-run] [--accept-rewrite]
 sokar project following
 sokar project refresh [NAME]
 sokar project list
@@ -323,9 +323,14 @@ sokar project enroll PROJECT [--remove] [--as=PRINCIPAL]
 
 - **`follow`** takes the project's configuration from its repository, checked against the
   `--signed-by` key. `--unverified` skips the check, and Sokar says so wherever the project is shown.
+  From an address (`https://`, `file://`, `git@host:`), it is fetched again in the background. From a
+  file - a bundle of the repository, or a directory on this machine - it is read once and never fetched;
+  following it again from a newer file is how its settings change. An offline project is followed only
+  from a file, and a fetch from an address that turns a project offline is refused.
 - **`following`** lists the follows; **`list`** (also `sokar projects`) lists the projects.
 - **`refresh`** fetches a followed project's repository now, or every one's without a name, instead of
-  waiting for the next round. It prints what each fetch found and exits non-zero when one failed.
+  waiting for the next round. It prints what each fetch found and exits non-zero when one failed. A
+  project followed from a file is not fetched; it says `from_a_file` and how it changes.
 - **`unfollow`** removes the mirror, image, build directory and tasks. The repository and upstream
   are untouched. It refuses while work waits at the gate or tasks run. `--force` removes it all the
   same and destroys that work; with `--force` a project this account does not follow is not an error,

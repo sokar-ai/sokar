@@ -1,6 +1,6 @@
 # B137 — An Offline Project Never Connects
 
-**Status:** decided.
+**Status:** implemented here; the acceptance suite's bundle round trip is open.
 
 **What must be true.** A project of the class `offline` makes no connection out, neither from the task nor from the
 host on its behalf. A repository comes in as one file a person carries to the machine, and the work leaves the same
@@ -54,3 +54,18 @@ project there. The operator chose the file for the definition too, with no comma
 
 **Decided, 2026-10-09:** a project offline today with an `upstream:` is simply refused after the update; there are no
 users beyond the testers, so nothing is kept for compatibility.
+
+## As built, 2026-10-09
+
+- `Project` refuses `upstream:` for offline, the project's and each further repository's, naming `sokar gate
+  restore`; `WorkspaceSetup` refuses `--upstream` for an offline start before any git command runs.
+- `FollowedProjects.fromAFile`: a source with a scheme or a host before a colon is an address, anything else a path
+  (a bundle or a directory). `follow` records a path absolute; `ConfigurationWatch` fetches no path and answers
+  `FROM_A_FILE` with how it changes; `project refresh` does not count that as a failure.
+- `Reconcile` reads the class of the commit about to be applied: offline from an address is `OFFLINE_FROM_A_URL`,
+  so a first follow records nothing and a later fetch keeps what was in force.
+- Tests: `ProjectReaderTest` (three), `OfflineUpstreamTest`, `ReconcileTest` (directory, bundle, address, a project
+  turning offline, a file never fetched). Two tests that followed a plain path and expected it fetched now name it
+  as `file://`.
+- **Open:** the acceptance suite following a bundle on a clean machine, restoring a bundle and backing up the work.
+

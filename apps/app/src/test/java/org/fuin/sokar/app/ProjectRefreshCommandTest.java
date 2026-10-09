@@ -44,9 +44,9 @@ class ProjectRefreshCommandTest {
         final SokarContext context = new SokarContext(new ProcessCommandRunner(), new SokarPaths(xdg,
                 dir.resolve("bin")), arguments -> 0);
         final FollowedProjects follows = new FollowedProjects(context.paths().projects().followed());
-        follows.write(new FollowedProjects.Followed("p", dir.resolve("no-such.git").toString(), "", "", "APPLIED",
+        follows.write(new FollowedProjects.Followed("p", dir.resolve("no-such.git").toUri().toString(), "", "", "APPLIED",
                 ""));
-        follows.write(new FollowedProjects.Followed("q", dir.resolve("no-such.git").toString(), "", "", "APPLIED",
+        follows.write(new FollowedProjects.Followed("q", dir.resolve("no-such.git").toUri().toString(), "", "", "APPLIED",
                 ""));
 
         assertThat(run(context, "project", "refresh", "p")).as("the fetch failed").isNotZero();

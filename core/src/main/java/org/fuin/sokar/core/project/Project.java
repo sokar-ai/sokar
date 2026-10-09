@@ -295,6 +295,22 @@ public record Project(String name, String description, SecurityClass securityCla
             throw new ProjectException("Project '" + name + "' is offline, so it can declare no"
                     + " egress. Remove the 'egress' section or raise the security class.");
         }
+        if (securityClass == SecurityClass.OFFLINE && upstream != null && !upstream.isBlank()) {
+            // The host cloned the mirror from it on the first start, so offline meant "offline after the first start".
+            // An offline project never connects: its repository comes in as a file.
+            throw new ProjectException("Project '" + name + "' is offline, so it names no upstream: nothing connects"
+                    + " out for it, not even the host. Remove 'upstream' and bring the repository in as a file with"
+                    + " 'sokar gate restore', or start from a checkout of it on this machine.");
+        }
+        if (securityClass == SecurityClass.OFFLINE && repositories != null) {
+            for (final Repository repository : repositories) {
+                if (repository.upstream() != null && !repository.upstream().isBlank()) {
+                    throw new ProjectException("Project '" + name + "' is offline, so its repository '"
+                            + repository.name() + "' names no upstream either. Remove its 'upstream' and bring it"
+                            + " in as a file with 'sokar gate restore'.");
+                }
+            }
+        }
         if (securityClass == SecurityClass.ONLINE && (upstream == null || upstream.isBlank())) {
             // An online project puts the agent's remote at the upstream itself, so without one
             // there is nothing for it to clone from and the class means nothing. Refused here
