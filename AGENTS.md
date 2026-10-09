@@ -5,7 +5,7 @@
 - **`mvn test` is unit tests only**: whatever needs podman or a machine is in the acceptance suite, which surefire
   never sees, so it runs against a real machine before a push is proposed:
 
-      ./mvnw -q -s settings.xml -N exec:java@deploy -Ddeploy.options="--vm <user>@<host> --key <key> --account"
+      ./mvnw -q -s settings.xml -pl acceptance/legs compile exec:exec@legs -Dlegs.args="deploy --vm <user>@<host> --key <key> --account"
       ./mvnw -B -s settings.xml -pl acceptance/suite -am verify -Dsurefire.skip=true \
           -Dsokar.acceptance.host=<host> -Dsokar.acceptance.user=<user> 2>&1 | tee suite.log
 
@@ -32,8 +32,9 @@
 
 ## Installing on a machine to test
 
-- **`exec:java@deploy` builds the packages CI publishes and installs them on a machine that stays**, with lingering
-  and the daemon restarted; `--skip-build` installs what is in `target/`, and the interface is not installed by it.
+- **The legs module's `deploy` builds the packages CI publishes and installs them on a machine that stays**, with
+  lingering and the daemon restarted; `--skip-build` installs what is in `target/`, and the interface is not
+  installed by it.
 - **`--account` installs into one account only** (`~/.local/bin`, `~/.local/share/sokar`, its own
   `sokard.service`) and stops unless the login PATH's binary, the daemon and the hooks are all that account's.
 - **A non-login shell still runs the package's `sokar`**, since `~/.local/bin` is on PATH only after a login shell:

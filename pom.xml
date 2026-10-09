@@ -65,8 +65,6 @@
         <sokar.snapshot.run>0</sokar.snapshot.run>
         <!-- The command line 'exec:exec@machines' gives sokar-machines, such as 'jdk' or 'sweep'. -->
         <machines.args></machines.args>
-        <!-- Options for exec:java@deploy, such as the one that skips the build. -->
-        <deploy.options></deploy.options>
         <!-- Appended to a package version when this is NOT a CI build. Empty here; the
              'local-package' profile at the end of this file sets it.
 
@@ -621,23 +619,6 @@
                     <execution>
                         <id>cpu-check</id>
                         <phase>none</phase>
-                    </execution>
-                    <!-- Builds the packages CI would and installs them on the machine SOKAR_VM and SOKAR_VM_KEY name. -->
-                    <execution>
-                        <id>deploy</id>
-                        <goals>
-                            <goal>java</goal>
-                        </goals>
-                        <configuration>
-                            <mainClass>org.fuin.sokar.machines.Main</mainClass>
-                            <includeProjectDependencies>false</includeProjectDependencies>
-                            <includePluginDependencies>true</includePluginDependencies>
-                            <executableDependency>
-                                <groupId>org.fuin.sokar</groupId>
-                                <artifactId>sokar-machines</artifactId>
-                            </executableDependency>
-                            <commandlineArgs>deploy --repo ${maven.multiModuleProjectDirectory} ${deploy.options}</commandlineArgs>
-                        </configuration>
                     </execution>
                     <!-- Any other sokar-machines command, in a JVM of its own: it exits with the command's code. -->
                     <execution>

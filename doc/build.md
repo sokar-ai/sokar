@@ -135,13 +135,13 @@ which is the `package`-instead-of-`verify` mistake above.
 ### Installing on a machine that stays
 
 ```
-SOKAR_VM=user@host SOKAR_VM_KEY=<key> ./mvnw -q -N exec:java@deploy
-SOKAR_VM=user@host SOKAR_VM_KEY=<key> ./mvnw -q -N exec:java@deploy -Ddeploy.options='--skip-build'
+./mvnw -q -s settings.xml -pl acceptance/legs compile exec:exec@legs -Dlegs.args="deploy --vm user@host --key <key>"
+./mvnw -q -s settings.xml -pl acceptance/legs compile exec:exec@legs -Dlegs.args="deploy --vm user@host --key <key> --skip-build"
 ```
 
-Builds the packages CI would publish and installs them on that machine, with `sokar-machines`
-taken from Central. `-Ddeploy.options` passes its options; `--account` installs into one account
-only. Any other `sokar-machines` command runs as
+Builds the packages CI would publish and installs them on that machine. The command lives in this
+tree's `acceptance/legs`, which knows where its modules leave the packages; `--vm` and `--key` default
+to `SOKAR_VM` and `SOKAR_VM_KEY`. `--account` installs into one account only. Any other `sokar-machines` command runs as
 `./mvnw -s settings.xml -N exec:exec@machines -Dmachines.args='<command> <options>'`, in a JVM of its
 own, and that is how the workflows here run a leg, a sweep and the pinned GraalVM.
 
