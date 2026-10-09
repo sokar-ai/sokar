@@ -48,6 +48,9 @@ final class Deploy {
     /** Where an account install puts the binaries and the hooks - found before the package's. */
     static final String ACCOUNT_BIN = ".local/bin";
 
+    /** Where the build leaves the deb, relative to the checkout. */
+    static final String PACKAGES = "dist/dist-deb/target";
+
     /** Who an install changes. */
     enum Scope {
 
@@ -144,9 +147,9 @@ final class Deploy {
             }
         }
 
-        final Optional<Path> deb = newest(repository.resolve("dist-deb/target"), "sokar_*.deb");
+        final Optional<Path> deb = newest(repository.resolve(PACKAGES), "sokar_*.deb");
         if (deb.isEmpty()) {
-            out.println("no sokar deb in dist-deb/target");
+            out.println("no sokar deb in " + PACKAGES);
             return 1;
         }
         // A package built earlier may no longer outrank what the machine is offered, and apt would

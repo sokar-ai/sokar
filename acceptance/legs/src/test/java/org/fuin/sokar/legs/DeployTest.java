@@ -214,7 +214,7 @@ class DeployTest {
 
     @Test
     void installsTheNewestPackageWhenTargetHoldsSeveral() throws IOException {
-        final Path target = Files.createDirectories(repository.resolve("dist-deb/target"));
+        final Path target = Files.createDirectories(repository.resolve(Deploy.PACKAGES));
         final Path older = Files.writeString(target.resolve("sokar_0.1.0~snapshot.1_amd64.deb"), "");
         final Path newer = Files.writeString(target.resolve("sokar_0.1.0~snapshot.2_amd64.deb"), "");
         Files.setLastModifiedTime(older, java.nio.file.attribute.FileTime.fromMillis(2000));
@@ -224,7 +224,7 @@ class DeployTest {
     }
 
     private Path deb() throws IOException {
-        final Path target = Files.createDirectories(repository.resolve("dist-deb/target"));
+        final Path target = Files.createDirectories(repository.resolve(Deploy.PACKAGES));
         return Files.writeString(target.resolve("sokar_0.1.0~snapshot.7.1_amd64.deb"), "");
     }
 

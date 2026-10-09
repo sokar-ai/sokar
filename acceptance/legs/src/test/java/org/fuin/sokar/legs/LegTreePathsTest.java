@@ -110,6 +110,14 @@ class LegTreePathsTest {
         assertThat(ROOT.resolve("systemd/sokard.service")).isRegularFile();
     }
 
+    @Test
+    void theDeployLooksForTheDebWhereAModuleOfThisTreeBuildsIt() {
+        // The deploy kept reading dist-deb/target after the grouping moved the module to dist/dist-deb: every
+        // account install said "no sokar deb", with the packages built one directory over.
+        final Path module = ROOT.resolve(Deploy.PACKAGES).getParent();
+        assertThat(module.resolve("pom.xml")).as("the module that leaves " + Deploy.PACKAGES).isRegularFile();
+    }
+
     private static void assertBuiltByTheLeg(final String binary) throws IOException {
         final Matcher built = BUILT.matcher(binary);
         assertThat(built.matches()).as(binary + " is <module>/target/<image name>").isTrue();

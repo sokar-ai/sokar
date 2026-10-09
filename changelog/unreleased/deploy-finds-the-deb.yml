@@ -1,0 +1,2 @@
+title: The account install finds the deb where the build leaves it since dist/ was grouped, dist/dist-deb/target, instead of saying there is none
+type: fixed
