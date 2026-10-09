@@ -38,7 +38,10 @@ on 2026-10-09 that offline never connects.
 
 ## To be checked
 
-- A followed offline project: following fetches the project's definition from a forge on the host. Whether that is
-  allowed for an offline project, or whether such a project must be added from a file too.
-- A project that is offline today with an `upstream:` will be refused after the update. Whether the refusal alone is
-  enough, or whether the release notes name the step to take.
+- A followed offline project. `sokar project follow NAME URL` clones the project's own repository (its project file,
+  image recipe, settings) on the host, and the daemon fetches it again every five minutes, and on `project refresh`.
+  Nothing skips an offline project there today. Whether that is allowed for an offline project, or whether its
+  definition must come in as a file too.
+
+**Decided, 2026-10-09:** a project offline today with an `upstream:` is simply refused after the update; there are no
+users beyond the testers, so nothing is kept for compatibility.
