@@ -21,6 +21,8 @@ work takes.
 
 ### offline
 
+Never leaves the host.
+
 Nothing resolves and nothing leaves. The agent works against a mirror on this machine. There is no
 route to the upstream, not for the agent and not for a person inside the container either.
 
@@ -69,6 +71,8 @@ machine unless a person moves it. That is the guarantee, not a gap in it.
 
 ### guarded
 
+Review on the host.
+
 The default, and the one the gate was built for. The agent clones from a gate on this machine and
 pushes to it; it never reaches the upstream itself. The gate, on the host, brings the mirror up to the
 upstream's branches when a task starts and on `sokar task refresh`, where the mirror was cloned from
@@ -91,6 +95,8 @@ gate and in which no hook runs. Two things to know about the shortcut:
   privileges of whoever next runs git in that directory.
 
 ### online
+
+Review on the forge.
 
 The agent works against the gate on this machine, as in `guarded`: it clones from it and pushes to
 it, and its container holds no key, no socket of one, and no route to the upstream. What differs is
