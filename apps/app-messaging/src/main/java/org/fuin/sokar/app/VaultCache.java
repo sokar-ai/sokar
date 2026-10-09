@@ -40,10 +40,10 @@ final class VaultCache {
     /**
      * Returns how the vault was read since the last call, for the daemon's journal, and starts counting again.
      *
-     * @return {@code "<n> vault read(s), <m> held"}.
+     * @return {@code "vault: <n> decrypted, <m> from memory"} - lookups, not messages: "held" read as held messages.
      */
     static String counted() {
-        return READS.getAndSet(0) + " vault read(s), " + HELD.getAndSet(0) + " held";
+        return "vault: " + READS.getAndSet(0) + " decrypted, " + HELD.getAndSet(0) + " from memory";
     }
 
     private VaultCache() {

@@ -68,6 +68,13 @@ public final class MessageWatch implements AutoCloseable {
      */
     private final Object moving = new Object();
 
+    /**
+     * Whether a move waits for its turn at {@link #moving}. A move asked meanwhile is merged into it: that one starts
+     * after it was asked, so it moves what the second would have, and a second move behind it found nothing left.
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean waitingToMove =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
     private java.nio.file.@org.jspecify.annotations.Nullable WatchService watcher;
 
     /**
@@ -216,7 +223,13 @@ public final class MessageWatch implements AutoCloseable {
      */
     int moveOnce(final String why) {
         final long asked = System.nanoTime();
+        if (!waitingToMove.compareAndSet(false, true)) {
+            said("messages  merged " + why + " into the move that waits its turn");
+            return 0;
+        }
         synchronized (moving) {
+            // Cleared before the mailboxes are looked at: what arrives after this needs a move of its own.
+            waitingToMove.set(false);
             final long started = System.nanoTime();
             final List<Path> mailboxes = mailboxes();
             if (mailboxes.isEmpty()) {
@@ -262,11 +275,16 @@ public final class MessageWatch implements AutoCloseable {
      * measured, not guessed.
      */
     private void timed(final String why, final long started, final int mailboxes) {
+        said("messages  moved " + mailboxes + " mailbox(es) in " + millis(started, System.nanoTime())
+                + " ms (" + why + "; " + VaultCache.counted() + ")");
+    }
+
+    /** One line in the daemon's journal; a watch a command or a test made says nothing. */
+    private void said(final String line) {
         if (interval.isZero() || interval.isNegative()) {
             return;
         }
-        System.out.println("messages  moved " + mailboxes + " mailbox(es) in " + millis(started, System.nanoTime())
-                + " ms (" + why + "; " + VaultCache.counted() + ")");
+        System.out.println(line);
         System.out.flush();
     }
 

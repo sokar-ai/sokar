@@ -110,6 +110,49 @@ class MessageWatchNoticeTest {
     }
 
     @Test
+    void a_move_asked_while_another_waits_its_turn_is_merged_into_it(@TempDir final Path dir) throws Exception {
+        // A notice and a long-poll's answer close together each ran a move, the second one waiting for the first
+        // ("after waiting 116-200 ms for the move before it") only to find nothing left. The one that waits now takes
+        // both: it starts after the second was asked, so it sees what that one would have moved.
+        final SokarContext context = context(dir);
+        final Mailbox mailbox = new Mailbox(context.paths().messaging().mailbox("sokar-p-t"));
+        mailbox.create();
+        final MessageWatch watch = new MessageWatch(context, Duration.ZERO);
+        final java.lang.reflect.Field moving = MessageWatch.class.getDeclaredField("moving");
+        moving.setAccessible(true);
+        final Object lock = moving.get(watch);
+        final java.util.concurrent.CountDownLatch held = new java.util.concurrent.CountDownLatch(1);
+        final java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        final Thread running = Thread.ofVirtual().start(() -> {
+            synchronized (lock) {
+                held.countDown();
+                try {
+                    release.await(30, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (final InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+        assertThat(held.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        final java.util.concurrent.atomic.AtomicInteger first = new java.util.concurrent.atomic.AtomicInteger(-1);
+        final Thread waiting = Thread.ofVirtual().start(() -> first.set(watch.moveOnce("a notice")));
+        while (waiting.getState() != Thread.State.BLOCKED && waiting.isAlive()) {
+            Thread.sleep(5);
+        }
+        Files.writeString(mailbox.inbound().resolve("m-6.json"), "{\"messageId\":\"m-6\"}");
+
+        final Thread second = Thread.ofVirtual().start(() -> watch.moveOnce("a conversation's answer"));
+        second.join(java.time.Duration.ofSeconds(2));
+
+        assertThat(second.isAlive()).as("merged into the move that waits, not queued behind it").isFalse();
+        release.countDown();
+        running.join(java.time.Duration.ofSeconds(5));
+        waiting.join(java.time.Duration.ofSeconds(10));
+        assertThat(Files.exists(mailbox.hold().resolve("m-6.json"))).as("the waiting move took it").isTrue();
+        watch.close();
+    }
+
+    @Test
     void closing_waits_for_the_notices_to_stop(@TempDir final Path dir) throws Exception {
         // It closed and returned while the notice thread was still settling and then moving: the caller deleted the
         // mail directories under it. Seen as a test whose temp directory could not be deleted, 1 run in 6 on the VM.

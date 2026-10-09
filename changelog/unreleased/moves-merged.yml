@@ -1,0 +1,2 @@
+title: "The daemon's journal says 'vault: R decrypted, H from memory' instead of vault reads and held, and a move asked while another waits its turn is merged into it rather than run again behind it"
+type: changed

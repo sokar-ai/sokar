@@ -68,4 +68,21 @@ class VaultCacheTest {
         final Map<String, VaultEntry> once = VaultCache.read(vault, opener);
         assertThat(VaultCache.read(vault, opener)).as("a command holds nothing").isNotSameAs(once);
     }
+
+    @Test
+    void theJournalSaysWhatWasDecryptedAndWhatCameFromMemory() {
+        // "0 vault read(s), 3 held" read as three held messages beside 'talk held'; they were three lookups answered
+        // from what the daemon holds, and no decryption.
+        final VaultFile vault = new VaultFile(dir.resolve("vault.bin"));
+        vault.write(Map.of("a", secret("one")), PASSPHRASE);
+        final VaultFile.Opener opener = VaultFile.Opener.passphrase(PASSPHRASE);
+        VaultCache.hold();
+        VaultCache.counted();
+
+        VaultCache.read(vault, opener);
+        VaultCache.read(vault, opener);
+        VaultCache.read(vault, opener);
+
+        assertThat(VaultCache.counted()).isEqualTo("vault: 1 decrypted, 2 from memory");
+    }
 }
