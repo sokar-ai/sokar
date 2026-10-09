@@ -31,6 +31,14 @@ leaves as `<an OAuth app Copilot accepts>`, so a person cannot finish the step f
   api-key` or `vault import` for a key. On a terminal it offers to run the grant there and then, and starts the task
   when it is granted. Without a terminal it only names it, exit 65 as today.
 
+- **`vault put` for a grant asks for what it means.** For an `oauth-device` or `oauth-code` entry, the value is the
+  client secret. A public client, Copilot's among them, has none. Today `vault put` asks `Value for '<name>':`,
+  refuses an empty answer ("nothing on standard input"), and takes `-` as "no secret" (`DeviceGrant.Client.of`)
+  without saying so anywhere. The operator could not tell what to type (2026-10-09). For these kinds it asks
+  `Client secret for '<name>' (none for a public client: press Enter):` and takes an empty answer as a public
+  client. Without a terminal, empty standard input means the same. `-` keeps working. **The built-in grant of
+  `vault authorize` asks nothing**: a provider's `grant:` is a public client unless it says otherwise.
+
 ## The client id
 
 What is known:
