@@ -17,7 +17,7 @@ repositories. Sokar puts each agent in a rootless container it cannot leave. The
 credential: the host attaches it on the way out, and only for the provider it belongs to. The task
 reaches only the hosts declared for it, and everything else is refused. The agent works on its own
 copy of your repository, and in the default class its work comes back only as a branch you look at
-and approve. Installed with apt or dnf, one native program, for any agent: Claude Code, Pi, Oh My Pi.
+and approve. Installed with apt or dnf, one native program, for any agent - Claude Code, for example.
 
 ## For a developer
 
@@ -55,8 +55,8 @@ hold, spend and produce. See [How far a task can get](reach.md).
 **Does my code leave the machine?** To the model provider, yes: an agent sends what it reads to its
 provider, and no security class closes that. To anywhere else, only the hosts the project declares.
 
-**Which agents?** Claude Code, Pi and Oh My Pi today. An agent is a separate package, so another can
-be added without a new release of Sokar.
+**Which agents?** Any agent: each comes as a package of its own, Claude Code's for example, so
+another can be added without a new release of Sokar.
 
 **Where does it run?** On Linux: Debian, Ubuntu, Fedora and RHEL. It is built on kernel machinery a
 macOS or Windows host would keep on the far side of a virtual machine.
