@@ -69,3 +69,9 @@ users beyond the testers, so nothing is kept for compatibility.
   as `file://`.
 - **Open:** the acceptance suite following a bundle on a clean machine, restoring a bundle and backing up the work.
 
+**What "never connects" covers, 2026-10-09:** the code and the project's definition: no upstream, no follow from an
+address, no seed over the network. It does not cover the agent's model: an offline task's agent still reaches its AI
+provider through the host's broker, as in every class (`TaskLaunch` wires the broker without regard to the class), so
+the prompts and what the agent reads leave the machine to the provider. The offline picture and `security.md` say so.
+**Decided by the operator, 2026-10-09:** offline keeps reaching its provider; it is said plainly instead.
+

@@ -21,12 +21,12 @@ work takes.
 
 ### offline
 
-*No connection out: in and out as a file, carried by hand.*
+*No route for the code: in and out as a file, carried by hand. The agent's model calls still reach its provider through the host.*
 
 Nothing resolves and nothing leaves. The agent works against a mirror on this machine. There is no
 route to the upstream, not for the agent and not for a person inside the container either.
 
-![offline: no connection out; the agent clones from the local mirror and pushes back to it; the repository comes in as one file a person carries to the machine, and the work leaves the same way](images/security-classes-offline.svg)
+![offline: the agent clones from the local mirror and pushes back to it; the repository comes in as one file a person carries to the machine and the work leaves the same way; only the agent's model calls reach its AI provider, through the host](images/security-classes-offline.svg)
 
 "Nothing leaves" is about the container, and the mirror is not in it. The mirror is a bare
 repository on the host:
