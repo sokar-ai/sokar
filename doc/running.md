@@ -223,8 +223,9 @@ builds:
 - **Sokar keeps no copy of a log.** What it writes down is which builds it delivered - commit, verdict, each job's
   result and its log's name, size and sha256 - and that outlives the task. `sokar task status TASK` shows the builds.
 - **The forge is read from the host**, by a build reader Sokar starts beside the task; its API host is not something
-  the task can reach. Readers are packages of their own; writing one is in
-  [writing a build reader](build-readers.md).
+  the task can reach. Readers are packages of their own, installed beside Sokar from the same repositories - for
+  GitHub, `sudo apt install sokar-build-github` or `sudo dnf install sokar-build-github`, which puts it at
+  `/usr/libexec/sokar/builds/github`. Writing one is in [writing a build reader](build-readers.md).
 
 ## What a task's agent is told
 
