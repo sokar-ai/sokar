@@ -289,7 +289,7 @@ done.** On `failure`, read the log each failed `job` line names, fix the cause, 
 Two things are called "the agent", and they live in different places:
 
 - **The agent package** (for example `sokar-agent-claude`) installs **on the host**, under
-  `/usr/libexec/sokar/agents/`. It is Sokar's adapter: it knows the agent's flags, where it keeps its
+  `/usr/libexec/sokar/agents/`, or anywhere with one description file in `/usr/share/sokar/agents.d/` that names it. It is Sokar's adapter: it knows the agent's flags, where it keeps its
   credentials and how to read its output.
 - **The agent's CLI** (for example `claude`) runs **inside the task image**.
 

@@ -20,7 +20,9 @@ public record AgentPaths(SokarPaths paths) {
      * @return Directory scanner.
      */
     public AgentDirectory agentDirectory() {
-        return new AgentDirectory(java.util.List.of(paths.xdg().data().resolve("agents"), paths.packagedAgents()));
+        return new AgentDirectory(java.util.List.of(paths.xdg().data().resolve("agents"), paths.packagedAgents()),
+                java.util.List.of(paths.xdg().data().resolve("agents.d"),
+                        SokarPaths.packaged(AgentDirectory.PACKAGED_DESCRIPTIONS)));
     }
 
     /**

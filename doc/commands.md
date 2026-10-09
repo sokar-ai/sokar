@@ -394,6 +394,9 @@ not used /usr/libexec/sokar/agents/sokar-agent-<name>
          hidden by /home/<user>/.local/share/sokar/agents/sokar-agent-<name>
 ```
 
+An agent's description in `agents.d/` hidden by the account's own is said the same way, and one that names no
+usable executable as `not taken <file>` with the reason.
+
 The `vault` line says whether a vault exists yet. The `daemon` line says whether `sokard` runs, and
 whether it is the same version as this command: after an update it restarts itself, and the line says
 when one did not (see [After an update](running.md#after-an-update)). The daemon answers the same

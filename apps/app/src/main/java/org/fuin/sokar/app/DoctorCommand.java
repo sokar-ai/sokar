@@ -466,13 +466,21 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
                     .ifPresent(winner ->
                             hidden.add(new java.nio.file.Path[] { shadowed, winner }));
         }
-        if (hidden.isEmpty()) {
+        agents.hiddenDescriptions().forEach((loser, winner) ->
+                hidden.add(new java.nio.file.Path[] { loser, winner }));
+        final java.util.List<org.fuin.sokar.agent.api.AgentDirectory.Description> refused = agents.descriptions()
+                .stream().filter(description -> description.refusal() != null).toList();
+        if (hidden.isEmpty() && refused.isEmpty()) {
             return;
         }
         out.println();
         for (final java.nio.file.Path[] pair : hidden) {
             out.println("not used " + pair[0]);
             out.println("         hidden by " + pair[1]);
+        }
+        for (final org.fuin.sokar.agent.api.AgentDirectory.Description description : refused) {
+            out.println("not taken " + description.file());
+            out.println("         " + description.refusal());
         }
     }
 

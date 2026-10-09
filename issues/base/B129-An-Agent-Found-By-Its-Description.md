@@ -1,6 +1,6 @@
 # B129 — An Agent Found By Its Description
 
-**Status:** open.
+**Status:** implemented here; the package check's install of such an agent is open.
 
 **What must be true.** An agent of another vendor is found once its package is installed, under the vendor's own
 names: the package, the executable and the place it lives need not start with `sokar`. The package puts one small
@@ -48,3 +48,17 @@ something the vendor states on purpose.
   released, and until when; or whether those packages move to a description in their next release.
 - Whether the transports (`/usr/libexec/sokar/transports`) and the build readers (`/usr/libexec/sokar/builds`) are
   found the same way, by a description of their own kind.
+
+## As built, 2026-10-09
+
+- `AgentDirectory` reads `~/.local/share/sokar/agents.d/` then `/usr/share/sokar/agents.d/` beside the binary
+  locations: a `<name>.yaml` with `executable: <absolute path>` adds that executable; the account's wins by name.
+  Refused, and said with the file and why: no `executable`, a relative path, not a regular file, not executable.
+- **Decided here for the "to be checked":** the `sokar-agent-*` file names are still read beside the descriptions, so
+  the agent packages released before keep working; transports and build readers stay as they are for now.
+- `sokar agents` says each refused description; `--verbose` says which description found an agent. `sokar doctor`
+  says a description hidden by the account's and one not taken.
+- **Tested:** `AgentDescriptionTest` - found under the vendor's names, the refusals, the account's hiding the
+  system's, removing the description removing the agent, and the old names beside it.
+- **Open:** the package check installing such an agent in a clean Debian and Fedora.
+

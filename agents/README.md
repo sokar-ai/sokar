@@ -353,6 +353,23 @@ Both install one file, `/usr/libexec/sokar/agents/<name>`, which is where Sokar
 looks. Nothing is registered and no post-install script runs: installing the
 package is the whole integration.
 
+### An agent of another vendor, under its own names
+
+A vendor's package need not carry Sokar's name. The package's name is free, the
+executable may live anywhere, and one small file is the whole registration:
+`/usr/share/sokar/agents.d/<name>.yaml`, naming the executable by its absolute path:
+
+```yaml
+executable: /opt/acme/bin/coder
+```
+
+Nothing else goes in it: the agent describes itself when Sokar asks it, as every
+agent does. A file in `~/.local/share/sokar/agents.d/` wins over the system's of
+the same name, so a person can try their own build without root. A description
+whose path is not absolute, not a regular file or not executable is not taken;
+`sokar agents` and `sokar doctor` name the file and why. The `sokar-agent-*`
+files above are still found as before.
+
 **The package version is the agent module's own version**, and nothing else.
 Sokar's release line does not appear in the artifact — that is the point of
 shipping agents separately. An agent released against an unchanged CLI is still

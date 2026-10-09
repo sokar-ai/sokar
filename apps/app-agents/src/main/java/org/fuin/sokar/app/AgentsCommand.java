@@ -70,7 +70,8 @@ public class AgentsCommand implements Callable<Integer> {
                 ? AgentDirectory.standard(xdg.data())
                 : new AgentDirectory(java.util.stream.Stream.concat(
                         java.util.stream.Stream.of(directory),
-                        AgentDirectory.standard(xdg.data()).locations().stream()).toList());
+                        AgentDirectory.standard(xdg.data()).locations().stream()).toList(),
+                        AgentDirectory.standard(xdg.data()).descriptionLocations());
 
         final java.util.Map<String, org.fuin.sokar.agent.api.ProviderDefinition> providers =
                 org.fuin.sokar.agent.api.ProviderDirectory.standard(xdg.data()).all();
@@ -84,6 +85,14 @@ public class AgentsCommand implements Callable<Integer> {
                 return 0;
             }
 
+            // A vendor's description that names nothing usable is said, not quietly skipped: the agent it meant is
+            // missing from the list, and the file is the one place that says why.
+            for (final AgentDirectory.Description description : locations.descriptions()) {
+                if (description.refusal() != null) {
+                    err.println("sokar: not taken: " + description.file() + " - " + description.refusal());
+                }
+            }
+            err.flush();
             if (agents.size() > 0) {
                 out.printf("%-12s %-16s %-22s %s%n", "NAME", "BINARY", "LABEL", "FROM");
                 for (final InstalledAgent agent : agents.all()) {
@@ -91,6 +100,11 @@ public class AgentsCommand implements Callable<Integer> {
                             agent.definition().binary(), agent.definition().label(),
                             agent.executable());
                     if (verbose) {
+                        for (final AgentDirectory.Description description : locations.descriptions()) {
+                            if (agent.executable().equals(description.executable())) {
+                                out.println("             found by: " + description.file());
+                            }
+                        }
                         // The address the guard recognises. Somebody looking at a commit and
                         // wondering whether a person or an agent wrote it has nowhere else to
                         // find out, now that a pre-push hook decides on exactly this.
