@@ -7,6 +7,7 @@ theme: readthedocs
 strict: true
 nav:
   - Start here: index.md
+  - The elevator pitch: pitch.md
   - Getting started: getting-started.md
   - Using it:
       - How it works: how-it-works.md
