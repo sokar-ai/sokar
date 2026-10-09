@@ -8,7 +8,7 @@
 
 The guarantees are tested one by one today; a suite that tries to break them as an attacker would is what a release should have to pass.
 
-**Guideline points it answers:** OWASP AI Agent Cheat Sheet §10; Acalvio 12. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** OWASP AI Agent Cheat Sheet §10; Acalvio 12. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

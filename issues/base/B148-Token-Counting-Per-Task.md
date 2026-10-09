@@ -8,7 +8,7 @@
 
 Nothing counts what a task used; a ceiling (B138) and an inventory (B156) need the count first.
 
-**Guideline points it answers:** AISVS 12.1.3, 12.2.5. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** AISVS 12.1.3, 12.2.5. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

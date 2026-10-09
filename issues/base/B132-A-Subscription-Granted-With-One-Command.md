@@ -9,7 +9,7 @@ through is decided and written down, with its owner.
 
 ## Why
 
-On 2026-10-09 the operator started a task with `--provider github-copilot` on a fresh machine and was told only:
+On 2026-10-09 a task started with `--provider github-copilot` on a fresh machine and was told only:
 
     sokar: the vault holds no credential for 'github-copilot'
 
@@ -34,7 +34,7 @@ leaves as `<an OAuth app Copilot accepts>`, so a person cannot finish the step f
 - **`vault put` for a grant asks for what it means.** For an `oauth-device` or `oauth-code` entry, the value is the
   client secret. A public client, Copilot's among them, has none. Today `vault put` asks `Value for '<name>':`,
   refuses an empty answer ("nothing on standard input"), and takes `-` as "no secret" (`DeviceGrant.Client.of`)
-  without saying so anywhere. The operator could not tell what to type (2026-10-09). For these kinds it asks
+  without saying so anywhere. Nobody could tell what to type (2026-10-09). For these kinds it asks
   `Client secret for '<name>' (none for a public client: press Enter):` and takes an empty answer as a public
   client. Without a terminal, empty standard input means the same. `-` keeps working. **The built-in grant of
   `vault authorize` asks nothing**: a provider's `grant:` is a public client unless it says otherwise.
@@ -44,7 +44,7 @@ leaves as `<an OAuth app Copilot accepts>`, so a person cannot finish the step f
 What is known:
 
 - GitHub's device flow needs the client id of an OAuth app, and no secret.
-- **Neither agent signs in with an app of its own vendor.** The setup that works on the operator's machines uses the
+- **Neither agent signs in with an app of its own vendor.** The setup that works on the machines it was tried on uses the
   client id Oh My Pi signs in with. That is the OAuth app of another, unrelated tool, read from Oh My Pi's source on
   2026-10-01. Pi signs in with an id widely cited as GitHub's own editor-plugin app, owner not verified, and
   presents itself to GitHub as that editor in its request headers. So "the agent's own app" would still ship
@@ -52,8 +52,8 @@ What is known:
 - Copilot accepts tokens from the app Oh My Pi uses. Not measured: whether it accepts a token from an OAuth app
   Sokar owns, and whether an editor's app is accepted without the editor's headers.
 
-On 2026-10-09 the operator first chose the agent's app on the premise that it was the agent vendor's own. That
-premise was wrong, as above. **Knowing whose ids they are, the operator decided the same day:**
+On 2026-10-09 the agent's app was first chosen on the premise that it was the agent vendor's own. That
+premise was wrong, as above. **Knowing whose ids they are, it was decided the same day:**
 
 1. **The client id comes from the agent package that will use the grant.** It is carried in the agent's description
    file (B129), so Sokar signs in the way the agent itself would without Sokar. `vault authorize github-copilot` takes
@@ -102,5 +102,5 @@ the Pi family first, each id with its owner as read from the agent's source.
 - **Tested:** `GrantEntryTest`, `ProviderDefinitionReaderTest`, `AgentDefinitionReaderTest` (with the JSON round
   trip), `VaultPutCommandTest`, `CredentialWiringTest`.
 - **Open:** at a terminal, `task start` offering to run the grant and then starting the task; the agents' own
-  `login.grants`, which Agent Smith's packages declare.
+  `login.grants`, which the agent packages declare.
 

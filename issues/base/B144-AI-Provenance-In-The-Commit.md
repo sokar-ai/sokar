@@ -8,7 +8,7 @@
 
 Guidance asks that AI-made work be labelled; the commit is where a reader of the history looks.
 
-**Guideline points it answers:** AISVS AC.9/AC.10; labelling per BSI catalogue 2.6, Myni Gmeind §5, the federal LLM guidance sheet. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** AISVS AC.9/AC.10; labelling per BSI catalogue 2.6, Myni Gmeind §5, the federal LLM guidance sheet. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

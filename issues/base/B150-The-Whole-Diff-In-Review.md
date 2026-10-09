@@ -8,7 +8,7 @@
 
 A person approves what they saw; a cut diff that does not say so lets unseen changes pass.
 
-**Guideline points it answers:** AISVS 9.2.2. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** AISVS 9.2.2. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

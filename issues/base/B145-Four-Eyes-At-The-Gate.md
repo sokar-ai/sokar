@@ -8,7 +8,7 @@
 
 Approval is one person today, who may be the one who asked the agent for the work.
 
-**Guideline points it answers:** AISVS AC.4.1, AC.8.4; Swisscom 4.1 (roles). From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** AISVS AC.4.1, AC.8.4; Swisscom 4.1 (roles). From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

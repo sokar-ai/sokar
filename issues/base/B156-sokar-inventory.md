@@ -8,7 +8,7 @@
 
 An organisation asked to keep a register of its AI use has to collect it from each machine.
 
-**Guideline points it answers:** BSI catalogue 2.1; NCSC asset management; Acalvio 1. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** BSI catalogue 2.1; NCSC asset management; Acalvio 1. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

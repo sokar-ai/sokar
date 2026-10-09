@@ -35,6 +35,6 @@ for the commit nobody read.
 
 - Whether a stopped task is reason enough to approve without asking, since nothing can move its ref any more.
 
-**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F20,
+**Guideline points, 2026-10-09:** a review of security guidelines counts this as its item F20,
 answering AISVS 9.2.8, OWASP AI Agent Cheat Sheet §1/§4.
 

@@ -41,6 +41,6 @@ its signature to mean its image can pin one now.
 - Whether to require podman's signature policy (`policy.json`) for a project that names a signed image, or the
   digest alone.
 
-**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F9,
+**Guideline points, 2026-10-09:** a review of security guidelines counts this as its item F9,
 answering NCSC/CISA secure development, OWASP LLM03, Sysdig 6, AISVS C06.
 

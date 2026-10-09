@@ -8,7 +8,7 @@
 
 Access that nobody uses stays open until somebody notices.
 
-**Guideline points it answers:** ACSC (privileged access after inactivity). From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** ACSC (privileged access after inactivity). From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

@@ -28,7 +28,7 @@ declared by hand in the packages, and a test that fails when a binary needs more
 
 ## The systems
 
-Decided by the operator on 2026-10-09: **Ubuntu 26.04 is the minimum**, the first Ubuntu with podman 5 (24.04 has
+Decided on 2026-10-09: **Ubuntu 26.04 is the minimum**, the first Ubuntu with podman 5 (24.04 has
 4.9.3), and **Debian 13 and Fedora 43 and 44 besides it**, confirmed the same day:
 
     system         podman   glibc   why

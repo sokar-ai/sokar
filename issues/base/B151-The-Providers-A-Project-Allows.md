@@ -8,7 +8,7 @@
 
 An organisation's rules can permit only some providers; today any provider the vault holds can be chosen.
 
-**Guideline points it answers:** Stadt Zürich KI-Richtlinie Art. 6. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** Stadt Zürich KI-Richtlinie Art. 6. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

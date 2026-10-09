@@ -8,7 +8,7 @@ refuses and names `sokar vault unlock`.
 
 ## Why
 
-The operator, 2026-10-09: when Sokar knows the vault has to be opened, it should open it in the same command. Today
+Asked on 2026-10-09: when Sokar knows the vault has to be opened, it should open it in the same command. Today
 some commands ask and others refuse with "'sokar vault unlock'". `vault login` even runs the whole login first and
 fails afterwards: "logged in, but the vault is locked". With B132's offer at `task start`, a first start on a fresh
 machine becomes one command: the passphrase, the grant, the task.

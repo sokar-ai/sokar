@@ -1,6 +1,6 @@
 # B134 — A Task Terminal As The Terminal Outside
 
-**Status:** implemented here; Pi and the per-agent check in a real task are open, for the operator's test.
+**Status:** implemented here; Pi and the per-agent check in a real task are open, for the joint test.
 
 **What must be true.** An agent in a task behaves at the keyboard and on the screen as it does in a plain terminal on
 the same machine. Scrolling, Esc, modified keys, colours, the clipboard, links, focus and images work as they do
@@ -8,7 +8,7 @@ outside. Where something cannot, it is written down, with why.
 
 ## Why
 
-On 2026-10-09 the operator found that PageUp and PageDown do not scroll in Oh My Pi inside a task, though they do in
+On 2026-10-09 it was found that PageUp and PageDown do not scroll in Oh My Pi inside a task, though they do in
 a plain console. It holds for every agent, since each runs in the one tmux session the task image sets up.
 `/etc/sokar/tmux.conf` (`runtime/.../Containerfile.java`) holds `history-limit 10000`, `extended-keys on`,
 `terminal-features 'xterm*:extkeys'` and `default-terminal tmux-256color`, and nothing for scrolling, Esc, colours,
@@ -51,7 +51,7 @@ without `extended-keys-format`.
    account's tasks, with no image rebuilt; without the file nothing changes. What Sokar itself depends on - the
    screen it reads for `at_rest`, the lines it types to wake an agent - is set again after the person's file, so a
    setting there cannot break it unawares; which settings those are comes out of the measurement and is written down.
-   Decided by the operator on 2026-10-09.
+   Decided on 2026-10-09.
 4. **tmux stays.** It carries reattaching, the `at_rest` screen reading and the wake lines. A relay that passes raw
    bytes without a terminal of its own comes up only if configuration cannot get there, and then as a proposal to
    the operator, with what would be lost.
@@ -95,5 +95,5 @@ need wrapping. **What Sokar depends on**, set again after the account's file: `h
 **As built:** the settings in `Containerfile`, pinned by `ContainerfileTest`; `~/.config/sokar/tmux.conf` copied into
 a task as root after it starts (`TaskRunner`, `AccountTmuxTest`); the order checked in a built image, with a binding
 and `mouse off` from the account's file taking effect and its `history-limit` and `default-terminal` set back.
-**Open:** Pi, and each agent in a real task with the operator's own terminal; the acceptance kit's per-key test.
+**Open:** Pi, and each agent in a real task with a person's own terminal; the acceptance kit's per-key test.
 

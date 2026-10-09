@@ -8,7 +8,7 @@
 
 Logs are sensitive data themselves; nobody has checked all of Sokar's at once.
 
-**Guideline points it answers:** OWASP AI Agent Cheat Sheet §6/§8; NCSC (logs as sensitive data). From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** OWASP AI Agent Cheat Sheet §6/§8; NCSC (logs as sensitive data). From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

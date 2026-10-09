@@ -62,6 +62,6 @@ SHA-256 and `sokar:delivery=fetched-at-image-build`.
   returns components as data, how many to print is the renderer's decision and may differ between
   the CLI and an interface without either being wrong.
 
-**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F9,
+**Guideline points, 2026-10-09:** a review of security guidelines counts this as its item F9,
 answering NCSC/CISA secure development, OWASP LLM03, Sysdig 6, AISVS C06.
 

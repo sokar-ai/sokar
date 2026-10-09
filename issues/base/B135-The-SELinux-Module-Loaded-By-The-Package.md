@@ -11,8 +11,8 @@ it present after a plain install.
 Today the packages ship `selinux/sokar_socket.te` and `install-selinux-policy.sh` under `/usr/share/sokar/selinux`
 and nothing more. Until a person runs `sudo /usr/share/sokar/selinux/install-selinux-policy.sh`, SELinux refuses a
 task container's `connectto` on Sokar's sockets. The agent then reports an authentication failure, and `doctor` says
-"MISSING - a task cannot reach the vault proxy". The operator asked on 2026-10-09 why the install does not do what is
-known to be needed, and decided the same day: the package does it.
+"MISSING - a task cannot reach the vault proxy". Asked on 2026-10-09: why does the install not do what is
+known to be needed? Decided the same day: the package does it.
 
 ## The shape
 

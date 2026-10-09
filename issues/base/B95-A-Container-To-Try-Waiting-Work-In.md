@@ -48,6 +48,6 @@ deploy keys; building there runs the agent's code with all of it.
 1. **Its limits**: the task's, or a review's own - a build or an IDE backend wants more memory than many tasks.
 2. **Whether the result is recorded with the review**, so an approval can say which run it followed.
 
-**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F7,
+**Guideline points, 2026-10-09:** a review of security guidelines counts this as its item F7,
 answering the source document's "same SAST/DAST gates for AI code" (§3), Checkmarx, LinkedIn 11.
 

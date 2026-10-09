@@ -8,7 +8,7 @@
 
 A token committed in the repository is in the agent's hands: it can push past the gate with it and it reaches the provider with the text (`how-it-works.md`, `faq.md`).
 
-**Guideline points it answers:** OWASP AI Agent Cheat Sheet §5; AISVS AC.12.2; the guidance to keep secrets away from AI tools. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** OWASP AI Agent Cheat Sheet §5; AISVS AC.12.2; the guidance to keep secrets away from AI tools. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

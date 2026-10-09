@@ -44,6 +44,6 @@ TLS to the project's own repository; `repo_gpgcheck` is not set either.
 - Each `sokar-setup-<version>.sh` has a detached signature beside it, made with the same key. Seen to fail:
   verifying a published setup script against its signature with the public key fails, or a version has none.
 
-**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F9,
+**Guideline points, 2026-10-09:** a review of security guidelines counts this as its item F9,
 answering NCSC/CISA secure development, OWASP LLM03, Sysdig 6, AISVS C06.
 

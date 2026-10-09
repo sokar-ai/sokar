@@ -8,11 +8,11 @@
 
 An offline task's model calls go to its provider through the host's broker, as in every class; `security.md` said "nothing leaves".
 
-**Guideline points it answers:** Data protection reading of the security classes. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** Data protection reading of the security classes. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 
-`security.md` and its offline picture already say it (2026-10-09, decided by the operator to keep the route and say it); `how-it-works.md`, `reach.md` and `faq.md` follow.
+`security.md` and its offline picture already say it (2026-10-09, decided: keep the route and say it); `how-it-works.md`, `reach.md` and `faq.md` follow.
 
 ## Acceptance
 

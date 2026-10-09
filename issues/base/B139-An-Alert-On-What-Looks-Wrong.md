@@ -8,7 +8,7 @@
 
 Today these are journalled (`reach.md`) and nobody is told while it happens.
 
-**Guideline points it answers:** OWASP AI Agent Cheat Sheet §5/§6; Acalvio 7, 10, 11; ACSC (frequent repetitive prompts, a baseline); AISVS 9.1.3, 9.6.1, 9.6.3. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** OWASP AI Agent Cheat Sheet §5/§6; Acalvio 7, 10, 11; ACSC (frequent repetitive prompts, a baseline); AISVS 9.1.3, 9.6.1, 9.6.3. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

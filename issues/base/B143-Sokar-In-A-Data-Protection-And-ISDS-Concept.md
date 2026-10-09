@@ -8,7 +8,7 @@
 
 Authorities' guidance asks an organisation for such a concept; Sokar's part of it is spread over several pages.
 
-**Guideline points it answers:** Swiss authorities' guidance sheets; BSI catalogue 2.1. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** Swiss authorities' guidance sheets; BSI catalogue 2.1. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

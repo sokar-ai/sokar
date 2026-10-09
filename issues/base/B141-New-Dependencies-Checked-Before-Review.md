@@ -8,7 +8,7 @@
 
 Today the manifests are only shown first in a review; a hallucinated package name that someone registered is not told apart from a real one.
 
-**Guideline points it answers:** OpenSSF 6; Checkmarx (slopsquatting). From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** OpenSSF 6; Checkmarx (slopsquatting). From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

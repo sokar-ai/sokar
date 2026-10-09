@@ -8,7 +8,7 @@
 
 An agent left to itself can run for as long as nobody looks.
 
-**Guideline points it answers:** AISVS 9.1.1. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** AISVS 9.1.1. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

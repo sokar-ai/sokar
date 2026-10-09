@@ -11,8 +11,8 @@ way.
 The task of an offline project reaches nothing. The host did, once: a project with `upstream:`, or a start with
 `--upstream`, had its mirror cloned over the network on the first start (`git clone --bare <upstream>`). After that
 the mirror is never fetched again. So "offline" meant "offline after the first start", which is not what a person
-choosing it for a machine without a route, or for code that must not touch a network, expects. The operator decided
-on 2026-10-09 that offline never connects.
+choosing it for a machine without a route, or for code that must not touch a network, expects. Decided on
+2026-10-09: offline never connects.
 
 ## The shape
 
@@ -50,7 +50,7 @@ on 2026-10-09 that offline never connects.
 
 **Decided, 2026-10-09:** following was the one connection left. `sokar project follow NAME URL` clones the
 project's own repository on the host, and the daemon fetches it again every five minutes; nothing skipped an offline
-project there. The operator chose the file for the definition too, with no command of offline's own.
+project there. The file was chosen for the definition too, with no command of offline's own.
 
 **Decided, 2026-10-09:** a project offline today with an `upstream:` is simply refused after the update; there are no
 users beyond the testers, so nothing is kept for compatibility.
@@ -73,5 +73,5 @@ users beyond the testers, so nothing is kept for compatibility.
 address, no seed over the network. It does not cover the agent's model: an offline task's agent still reaches its AI
 provider through the host's broker, as in every class (`TaskLaunch` wires the broker without regard to the class), so
 the prompts and what the agent reads leave the machine to the provider. The offline picture and `security.md` say so.
-**Decided by the operator, 2026-10-09:** offline keeps reaching its provider; it is said plainly instead.
+**Decided, 2026-10-09:** offline keeps reaching its provider; it is said plainly instead.
 

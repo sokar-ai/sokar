@@ -8,7 +8,7 @@
 
 An incident needs everything stopped now; today each task is stopped by name.
 
-**Guideline points it answers:** AISVS 9.1.3, 12.4.3. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** AISVS 9.1.3, 12.4.3. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

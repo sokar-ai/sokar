@@ -8,7 +8,7 @@
 
 `corporate-security.md` says Sokar does not limit spending. A convinced or looping agent spends the account's money without a bound.
 
-**Guideline points it answers:** OWASP LLM10 (unbounded consumption); OWASP AI Agent Cheat Sheet §9; Sysdig 7/8; AISVS 9.1.2. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** OWASP LLM10 (unbounded consumption); OWASP AI Agent Cheat Sheet §9; Sysdig 7/8; AISVS 9.1.2. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

@@ -8,7 +8,7 @@
 
 Today these are in separate journals that can be edited without a trace; regulation asks for event logs.
 
-**Guideline points it answers:** Swisscom 3.3.2 (EU AI Act Art. 12); Lumenalta step 2. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** Swisscom 3.3.2 (EU AI Act Art. 12); Lumenalta step 2. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 

@@ -8,7 +8,7 @@
 
 Data sovereignty obligations may rule out a remote provider; Sokar can make the local one easy to use.
 
-**Guideline points it answers:** Federal LLM guidance sheet; DSB ZH. From the operator's review of security guidelines, 2026-10-09.
+**Guideline points it answers:** Federal LLM guidance sheet; DSB ZH. From a review of security guidelines, 2026-10-09.
 
 ## The shape
 
