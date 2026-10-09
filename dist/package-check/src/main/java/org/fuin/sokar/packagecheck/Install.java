@@ -57,7 +57,7 @@ record Install(Path deb, Path rpm, Path agentDeb) {
     }
 
     /**
-     * The install on Debian's side.
+     * The install on Ubuntu.
      * <p>
      * The mirror is the one Sokar writes into the images it builds: on 2026-09-11 this step took 582
      * of the Publish job's 610 seconds, because a plain {@code ubuntu:24.04} fetches from a disrupted
@@ -65,13 +65,28 @@ record Install(Path deb, Path rpm, Path agentDeb) {
      *
      * @return the script
      */
+    String ubuntu() {
+        return apt("""
+                sed -i 's|^URIs:.*|URIs: http://azure.archive.ubuntu.com/ubuntu/|' \\
+                    /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+                """);
+    }
+
+    /**
+     * The install on Debian, from its own mirrors: Ubuntu's would serve it the wrong release.
+     *
+     * @return the script
+     */
     String debian() {
+        return apt("");
+    }
+
+    private static String apt(final String sources) {
         return FAILED + """
                 export DEBIAN_FRONTEND=noninteractive
                 printf '%s\\n' 'Acquire::http::Timeout "20";' 'Acquire::Retries "2";' \\
                     > /etc/apt/apt.conf.d/99-sokar-timeouts
-                sed -i 's|^URIs:.*|URIs: http://azure.archive.ubuntu.com/ubuntu/|' \\
-                    /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+                """ + sources + """
                 apt-get update -qq --error-on=any >/tmp/step.log 2>&1 || failed "apt-get update"
                 apt-get install -y -qq /deb/sokar_*.deb >/tmp/step.log 2>&1 || failed "installing sokar"
                 apt-get install -y -qq /agent/sokar-agent-stub_*.deb >/tmp/step.log 2>&1 && echo AGENT-OK \

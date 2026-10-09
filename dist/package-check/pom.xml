@@ -31,6 +31,12 @@
         <check.image.ubuntu.digest>sha256:3595d7fc4286a33fad0fd853a4063e654287a9c3787437d7937c94ca3f7a804e</check.image.ubuntu.digest>
         <check.image.fedora>registry.fedoraproject.org/fedora:44</check.image.fedora>
         <check.image.fedora.digest>sha256:7011f51bd8089d345be42d41f0aa3190d258823528852a5e7ec976fe2fd20f53</check.image.fedora.digest>
+        <!-- The oldest systems supported, beside the newest: the packages declare the C library their binaries
+             need, and only an install where it is oldest shows the declaration holds. Moved by hand. -->
+        <check.image.debian>docker.io/library/debian:13</check.image.debian>
+        <check.image.debian.digest>sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5</check.image.debian.digest>
+        <check.image.fedora.oldest>registry.fedoraproject.org/fedora:43</check.image.fedora.oldest>
+        <check.image.fedora.oldest.digest>sha256:11fdb21721a2f09139b1ee636e9376d0618137743c0de8bfeaa8d1e95cea1dab</check.image.fedora.oldest.digest>
 
         <sokar.release.min-age>3d</sokar.release.min-age>
         <sokar.release.pin.ubuntu-image.label>The ubuntu image the .deb is installed in</sokar.release.pin.ubuntu-image.label>

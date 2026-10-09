@@ -81,4 +81,11 @@ class InstallTest {
         assertThat(install.fedora()).containsSubsequence("/rpm/sokar-0*.rpm", "/agent/sokar-agent-stub-*.rpm", "sokar setup");
     }
 
+    @Test
+    void installsDebianFromItsOwnMirrorsAndUbuntuFromTheOneSokarWrites() {
+        // Ubuntu's mirror in Debian's sources would serve it another distribution's release.
+        final Install install = new Install(Path.of("/d/sokar.deb"), Path.of("/r/sokar.rpm"), Path.of("/a/stub.deb"));
+        assertThat(install.ubuntu()).contains("azure.archive.ubuntu.com");
+        assertThat(install.debian()).doesNotContain("ubuntu.com").contains("apt-get update");
+    }
 }

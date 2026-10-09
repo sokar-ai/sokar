@@ -40,6 +40,12 @@ public final class Main {
     /** The image the .deb is installed in, by its registry and its digest. */
     static final String UBUNTU = image("ubuntu");
 
+    /** The oldest Debian supported, with the lowest C library the packages may need. */
+    static final String DEBIAN = image("debian");
+
+    /** The oldest Fedora supported. */
+    static final String FEDORA_OLDEST = image("fedora-oldest");
+
     private Main() {
         throw new UnsupportedOperationException("Utility class");
     }
@@ -47,7 +53,7 @@ public final class Main {
     /**
      * Reads one pinned image, as the build filtered it from the pom.
      *
-     * @param name {@code ubuntu} or {@code fedora}
+     * @param name {@code ubuntu}, {@code debian}, {@code fedora} or {@code fedora-oldest}
      * @return the image, with its registry and its digest
      */
     private static String image(String name) {
@@ -150,8 +156,10 @@ public final class Main {
         VersionOrder.check(sokarVersion, inCi, Main::dpkgGreater, report);
 
         final Install install = new Install(deb, rpm, agentDeb);
-        install.check("Debian", UBUNTU, install.debian(), sokarVersion, report);
+        install.check("Ubuntu 26.04", UBUNTU, install.ubuntu(), sokarVersion, report);
+        install.check("Debian 13", DEBIAN, install.debian(), sokarVersion, report);
         install.check("Fedora", FEDORA, install.fedora(), rpmVersion, report);
+        install.check("Fedora 43", FEDORA_OLDEST, install.fedora(), rpmVersion, report);
 
         out.println();
         out.println(report.failures() == 0 ? "== all checks passed ==" : "== " + report.failures() + " check(s) failed ==");

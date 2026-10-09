@@ -16,4 +16,12 @@ class ImagesTest {
         assertThat(Main.UBUNTU).matches(PINNED).startsWith("docker.io/library/ubuntu:26.04@");
         assertThat(Main.FEDORA).matches(PINNED).startsWith("registry.fedoraproject.org/fedora:");
     }
+
+    @Test
+    void installsInTheOldestSystemsSupportedToo() {
+        // The packages declare the C library their binaries need; only an install where it is oldest shows the
+        // declaration holds, so Debian 13 (glibc 2.41) and Fedora 43 are checked beside the newest.
+        assertThat(Main.DEBIAN).matches(PINNED).startsWith("docker.io/library/debian:13@");
+        assertThat(Main.FEDORA_OLDEST).matches(PINNED).startsWith("registry.fedoraproject.org/fedora:43@");
+    }
 }

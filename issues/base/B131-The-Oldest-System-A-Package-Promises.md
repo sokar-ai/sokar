@@ -1,6 +1,6 @@
 # B131 — The Oldest System A Package Promises
 
-**Status:** implemented here; the package check's install in the oldest systems is open.
+**Status:** implemented here.
 
 **What must be true.** The `.deb` and the `.rpm` install only where `sokar`, `sokard` and the stub agent can start:
 they declare the oldest C library and zlib the binaries need, a build that would need more fails before it is
@@ -76,5 +76,5 @@ The same pattern, from its first version, for `sokar-build-github`'s package (it
   `GLIBC_2.34` for `sokar`, `sokard` and the stub.
 - **Measured once:** the packages install and `sokar --version` runs in clean `debian:13` (glibc 2.41, podman
   5.4.2) and `fedora:43` (glibc 2.42, podman 5.8.4).
-- **Open:** `dist/package-check` installs in `ubuntu:26.04` and `fedora:44` only; the oldest, `debian:13` and
-  `fedora:43`, belong there too, so the install is checked on every build and not once.
+- **Every build:** `dist/package-check` installs in `debian:13` and `fedora:43` beside `ubuntu:26.04` and
+  `fedora:44`, each pinned by digest; Debian from its own mirrors, not Ubuntu's.
