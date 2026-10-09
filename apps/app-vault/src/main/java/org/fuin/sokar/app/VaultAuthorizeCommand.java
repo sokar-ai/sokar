@@ -11,6 +11,7 @@ import org.fuin.sokar.vault.VaultEntry;
 import org.fuin.sokar.vault.VaultException;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.Spec;
 
@@ -35,6 +36,10 @@ public class VaultAuthorizeCommand implements Callable<Integer>, SokarFactory.Co
                     + "' that names the service.")
     private String name;
 
+    @Option(names = "--agent", paramLabel = "<agent>",
+            description = "When several installed agents sign in to the provider, whose app is granted.")
+    private @org.jspecify.annotations.Nullable String agentName;
+
     @Spec
     private CommandSpec spec;
 
@@ -49,6 +54,10 @@ public class VaultAuthorizeCommand implements Callable<Integer>, SokarFactory.Co
     public Integer call() {
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
+        final int made = madeFromTheProvider(out, err);
+        if (made != 0) {
+            return made;
+        }
         final Flow grant;
         try {
             grant = flowFor(context, name);
@@ -107,6 +116,47 @@ public class VaultAuthorizeCommand implements Callable<Integer>, SokarFactory.Co
             err.flush();
             return 70;
         }
+    }
+
+    /**
+     * Makes the entry for a provider nothing is stored for yet, from the provider's grant and the client id of the
+     * agent that signs in, so a person types none of it. An entry that is there is used as it is.
+     *
+     * @param out Where the entry made is said.
+     * @param err Where a refusal goes.
+     * @return 0 when there is an entry to authorize, or when this is not a provider's name; otherwise an exit code.
+     */
+    private int madeFromTheProvider(final PrintWriter out, final PrintWriter err) {
+        final org.fuin.sokar.agent.api.ProviderDefinition provider = context.providers().get(name);
+        if (provider == null || provider.grant().isEmpty() || !context.vault().exists()) {
+            return 0;
+        }
+        final java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> opener = context.openerAsking(false, err);
+        if (opener.isEmpty() || context.vault().read(opener.get()).containsKey(name)) {
+            return 0;
+        }
+        final java.util.List<org.fuin.sokar.agent.api.AgentDefinition> agents = new java.util.ArrayList<>();
+        try (var installed = context.agents()) {
+            for (final String agent : installed.names()) {
+                installed.find(agent).ifPresent(found -> agents.add(found.definition()));
+            }
+        }
+        final GrantEntry.Choice choice = GrantEntry.choose(provider, agents, agentName);
+        if (choice.refusal() != null) {
+            err.println("sokar: " + choice.refusal());
+            err.flush();
+            return 2;
+        }
+        final VaultEntry entry = java.util.Objects.requireNonNull(choice.entry());
+        context.vault().update(opener.get(), entries -> {
+            entries.put(name, entry);
+            return entries;
+        });
+        out.println("entry     " + name + " (" + entry.type() + "), with the app " + choice.agent() + " signs in with: "
+                + entry.settings().get("client_id")
+                + (entry.settings().containsKey("client_owner") ? ", " + entry.settings().get("client_owner") : ""));
+        out.flush();
+        return 0;
     }
 
     /**

@@ -96,7 +96,10 @@ public final class ProviderDefinitionReader {
                 ordered(root.get("auth_prefix"), origin),
                 ordered(root.get("unbrokerable"), origin),
                 ordered(root.get("token_env"), origin),
-                ordered(root.get("auth_query"), origin));
+                ordered(root.get("auth_query"), origin),
+                // What a person grants once, as everyone does: the kind of flow, its URLs and scopes. The client id is
+                // not here; it is the agent's that signs in, in its own definition.
+                ordered(root.get("grant"), origin));
     }
 
     private static String required(Map<?, ?> section, String key, String origin) {

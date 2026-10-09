@@ -395,4 +395,44 @@ class AgentDefinitionReaderTest {
         assertThatThrownBy(() -> new PackagedTree("uc/tree", "/opt/my tree")).isInstanceOf(AgentException.class);
         assertThat(new PackagedTree("uc/tree", "/opt/uc-1.2_x").target()).isEqualTo("/opt/uc-1.2_x");
     }
+
+    @Test
+    void readsTheAppItSignsInToAProviderWithOneIdPerHost() {
+        // An agent may use one OAuth app on github.com and another on an Enterprise host; Sokar grants whichever the
+        // agent itself would use, and says whose it is.
+        final AgentDefinition agent = read(MINIMAL + """
+                login:
+                  arguments: []
+                  grants:
+                    github-copilot:
+                      hosts:
+                        github.com: Ov23-for-github
+                        "*": Ov23-for-enterprise
+                      owner: another tool's app, as its source says
+                """);
+
+        final AgentGrant grant = agent.grantFor("github-copilot");
+        assertThat(grant).isNotNull();
+        assertThat(grant.clientIdFor("github.com")).isEqualTo("Ov23-for-github");
+        assertThat(grant.clientIdFor("ghe.example.com")).isEqualTo("Ov23-for-enterprise");
+        assertThat(grant.owner()).isEqualTo("another tool's app, as its source says");
+        assertThat(agent.grantFor("openrouter")).isNull();
+        assertThat(AgentDefinitionJson.read(AgentDefinitionJson.write(agent)).grants())
+                .as("the same after the interface's JSON").isEqualTo(agent.grants());
+    }
+
+    @Test
+    void anAgentThatSignsInToNothingHasNoGrant() {
+        assertThat(read(MINIMAL).grants()).isEmpty();
+    }
+
+    @Test
+    void refusesAGrantWithoutAClientId() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> read(MINIMAL + """
+                login:
+                  grants:
+                    github-copilot:
+                      owner: nobody
+                """)).isInstanceOf(AgentException.class).hasMessageContaining("hosts");
+    }
 }

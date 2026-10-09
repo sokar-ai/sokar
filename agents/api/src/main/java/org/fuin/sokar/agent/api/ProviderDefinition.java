@@ -26,11 +26,32 @@ import org.jspecify.annotations.Nullable;
  * @param unbrokerable Credential type to why it cannot go through the proxy.
  * @param tokenEnvironment Credential type to the variable this provider's credential is
  *        conventionally read from.
+ * @param grant What a person grants once for it: the flow's {@code kind}, its URLs and {@code scopes}, the same for
+ *        everyone; empty for a provider reached with a key. The client id is the signing-in agent's.
  */
 public record ProviderDefinition(String name, String label, String upstream,
         Map<String, String> dialects, Map<String, String> authHeader,
         Map<String, String> authPrefix, Map<String, String> unbrokerable,
-        Map<String, String> tokenEnvironment, Map<String, String> authQuery) {
+        Map<String, String> tokenEnvironment, Map<String, String> authQuery, Map<String, String> grant) {
+
+    /**
+     * Constructor for a provider a person grants nothing for, as every provider was before {@code grant}.
+     *
+     * @param name Short name.
+     * @param label Human-readable name.
+     * @param upstream Base URL.
+     * @param dialects Dialect to path.
+     * @param authHeader Credential type to header name.
+     * @param authPrefix Credential type to prefix.
+     * @param unbrokerable Credential type to why it cannot be brokered.
+     * @param tokenEnvironment Credential type to the variable its token goes in.
+     * @param authQuery Credential type to the URL parameter its key travels in.
+     */
+    public ProviderDefinition(String name, String label, String upstream, Map<String, String> dialects,
+            Map<String, String> authHeader, Map<String, String> authPrefix, Map<String, String> unbrokerable,
+            Map<String, String> tokenEnvironment, Map<String, String> authQuery) {
+        this(name, label, upstream, dialects, authHeader, authPrefix, unbrokerable, tokenEnvironment, authQuery, Map.of());
+    }
 
     /**
      * Constructor for a provider whose keys all travel in a header - every provider before a key could
@@ -65,6 +86,8 @@ public record ProviderDefinition(String name, String label, String upstream,
      * @param authPrefix Prefix by credential type.
      * @param unbrokerable Reason a credential type cannot be brokered.
      * @param tokenEnvironment Variable by credential type.
+     * @param authQuery URL parameter by credential type.
+     * @param grant What a person grants once, as everyone does.
      */
     public ProviderDefinition {
         if (!name.matches("[a-z0-9][a-z0-9-]{0,30}")) {

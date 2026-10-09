@@ -1,8 +1,8 @@
 # GitHub Copilot. Reached with the GitHub token a person grants once through GitHub's device flow, kept on
-# the host and attached by the broker: store an 'oauth-device' entry named 'github-copilot' and run
-# 'sokar vault authorize github-copilot'. Copilot gives that token no expiry and no refresh token, and
-# only the OAuth application's owner can revoke it at GitHub - a person does, under
-# Settings → Applications → Authorized OAuth Apps.
+# the host and attached by the broker: 'sokar vault authorize github-copilot' makes the entry from the grant
+# below and the client id of the installed agent that signs in to Copilot, and starts the flow. Copilot gives
+# that token no expiry and no refresh token, and only the OAuth application's owner can revoke it at GitHub -
+# a person does, under Settings → Applications → Authorized OAuth Apps.
 name: github-copilot
 label: GitHub Copilot
 upstream: https://api.githubcopilot.com
@@ -21,3 +21,11 @@ auth_prefix:
 # and a task that cannot authenticate is started.
 token_env:
   _default: COPILOT_GITHUB_TOKEN
+
+# What a person grants once, the same for everybody: GitHub's device flow and the scope Copilot asks. The client
+# id is not here - it is the signing-in agent's own, in its definition's login.grants.
+grant:
+  kind: oauth-device
+  device_authorization_url: https://github.com/login/device/code
+  token_url: https://github.com/login/oauth/access_token
+  scopes: read:user

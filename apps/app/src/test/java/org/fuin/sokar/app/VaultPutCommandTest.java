@@ -44,7 +44,7 @@ class VaultPutCommandTest {
             }
         };
 
-        assertThat(VaultPutCommand.valueFrom("anthropic", null, in)).isEqualTo("sk-piped");
+        assertThat(VaultPutCommand.valueFrom("anthropic", null, in, null)).isEqualTo("sk-piped");
         assertThat(closed[0]).as("standard input was closed").isFalse();
     }
 
@@ -137,5 +137,18 @@ class VaultPutCommandTest {
 
         assertThatThrownBy(() -> VaultPutCommand.readValue(false, () -> null, forbidden()))
                 .isInstanceOf(IOException.class);
+    }
+
+    @org.junit.jupiter.api.Test
+    void asksForAGrantsClientSecretByNameAndTakesNoneForAPublicClient() {
+        // "Value for 'github-copilot':" - the operator could not tell that it meant the client secret, nor that
+        // Copilot's public client has none (2026-10-09).
+        assertThat(VaultPutCommand.prompt("github-copilot", "oauth-device"))
+                .isEqualTo("Client secret for 'github-copilot' (none for a public client: press Enter): ");
+        assertThat(VaultPutCommand.prompt("anthropic", "api-key")).isEqualTo("Value for 'anthropic': ");
+        assertThat(VaultPutCommand.grantValue("", "oauth-device")).as("a public client").isEqualTo("-");
+        assertThat(VaultPutCommand.grantValue("", "oauth-code")).isEqualTo("-");
+        assertThat(VaultPutCommand.grantValue("s3cret", "oauth-device")).isEqualTo("s3cret");
+        assertThat(VaultPutCommand.grantValue("", "api-key")).as("a key is never empty").isEmpty();
     }
 }

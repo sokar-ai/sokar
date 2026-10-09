@@ -205,4 +205,28 @@ class ProviderDefinitionReaderTest {
         assertThat(directory.all().get("openrouter").upstream()).isEqualTo("https://other.example");
         assertThat(directory.shadowed()).containsEntry(packaged.resolve("openrouter.yaml"), own.resolve("experiment.yaml"));
     }
+
+    @Test
+    void readsTheGrantAPersonGivesOnceWithTheSettingsEveryoneShares() {
+        // GitHub's device flow is the same for everybody but the client: the URLs and the scope belong to the provider,
+        // the client id to the agent that signs in, so a person types none of them.
+        final ProviderDefinition copilot = read("""
+                name: github-copilot
+                upstream: https://api.githubcopilot.com
+                dialects:
+                  openai: ""
+                grant:
+                  kind: oauth-device
+                  device_authorization_url: https://github.com/login/device/code
+                  token_url: https://github.com/login/oauth/access_token
+                  scopes: read:user
+                """);
+
+        assertThat(copilot.grant()).containsEntry("kind", "oauth-device")
+                .containsEntry("device_authorization_url", "https://github.com/login/device/code")
+                .containsEntry("token_url", "https://github.com/login/oauth/access_token")
+                .containsEntry("scopes", "read:user")
+                .doesNotContainKey("client_id");
+        assertThat(read(OPENROUTER).grant()).as("a key, nothing to grant").isEmpty();
+    }
 }

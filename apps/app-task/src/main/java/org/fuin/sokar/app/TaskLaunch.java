@@ -1313,9 +1313,32 @@ public final class TaskLaunch {
      * @param agent The agent, or {@code null}.
      * @return The sentence, ending in a space, or "".
      */
-    private static String signIn(@Nullable InstalledAgent agent) {
-        return agent == null || agent.definition().loginArguments() == null ? ""
-                : "Sign in first with 'sokar vault login " + agent.name() + "'; ";
+    private String signIn(@Nullable InstalledAgent agent) {
+        final SelectedProvider selection = agent == null ? null : credentials().provider(agent);
+        final org.fuin.sokar.agent.api.ProviderDefinition provider =
+                selection == null ? null : context.providers().get(selection.name());
+        return nextStep(agent == null ? null : agent.name(), agent != null && agent.definition().loginArguments() != null,
+                provider, agent == null ? "" : credentials().credentialName(agent));
+    }
+
+    /**
+     * Returns the one command that gets a task its credential, said where a start is refused for want of it.
+     *
+     * @param agent The agent's name, or {@code null} when none is installed.
+     * @param logsIn Whether the agent declares a login of its own.
+     * @param provider The provider chosen, or {@code null}.
+     * @param credential The vault entry the credential would be under.
+     * @return The sentence, ending in "; ", or empty when there is nothing to name.
+     */
+    static String nextStep(@Nullable String agent, boolean logsIn,
+            org.fuin.sokar.agent.api.@Nullable ProviderDefinition provider, String credential) {
+        if (provider != null && !provider.grant().isEmpty()) {
+            return "Grant it first with 'sokar vault authorize " + provider.name() + "'; ";
+        }
+        if (agent != null && logsIn) {
+            return "Sign in first with 'sokar vault login " + agent + "'; ";
+        }
+        return credential.isEmpty() ? "" : "Store its key first with 'sokar vault put " + credential + "'; ";
     }
 
     private CredentialChoice credentials() {

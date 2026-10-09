@@ -76,6 +76,15 @@ public final class AgentDefinitionJson {
         if (definition.atRest() != null) {
             out.put("atRest", Map.of("shows", definition.atRest().shows(), "lacks", definition.atRest().lacks()));
         }
+        if (!definition.grants().isEmpty()) {
+            out.put("grants", definition.grants().stream().map(grant -> {
+                final Map<String, Object> one = new LinkedHashMap<>();
+                one.put("provider", grant.provider());
+                one.put("hosts", grant.hosts());
+                putIfPresent(one, "owner", grant.owner());
+                return one;
+            }).toList());
+        }
         if (definition.ready() != null) {
             out.put("readyMarker", definition.ready().text());
             putIfPresent(out, "readyWithinSeconds", definition.ready().withinSeconds());
@@ -149,7 +158,12 @@ public final class AgentDefinitionJson {
                         optional(ids, "key"), optional(ids, "directory"), optional(ids, "suffix")) : null,
                 strings(source.get("instructionArguments")),
                 source.get("atRest") instanceof Map<?, ?> rest
-                        ? new AtRest(strings(rest.get("shows")), strings(rest.get("lacks"))) : null);
+                        ? new AtRest(strings(rest.get("shows")), strings(rest.get("lacks"))) : null,
+                source.get("grants") instanceof List<?> grants ? grants.stream()
+                        .filter(Map.class::isInstance).map(Map.class::cast)
+                        .map(grant -> new AgentGrant(String.valueOf(grant.get("provider")), map(grant.get("hosts")),
+                                optional(grant, "owner")))
+                        .toList() : List.of());
     }
 
     private static Map<String, Object> writeWaiting(Waiting waiting) {

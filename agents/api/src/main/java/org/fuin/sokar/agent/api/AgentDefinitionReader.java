@@ -132,7 +132,36 @@ public final class AgentDefinitionReader {
                 strings(optionalSection(root, "instructions").get("arguments")),
                 // What its screen shows at rest, so a message that names it may wake it; absent, it is never typed into.
                 session.get("at_rest") instanceof Map<?, ?> rest
-                        ? new AtRest(strings(rest.get("shows")), strings(rest.get("lacks"))) : null);
+                        ? new AtRest(strings(rest.get("shows")), strings(rest.get("lacks"))) : null,
+                // The OAuth apps it signs in to providers with, which 'sokar vault authorize' grants for it.
+                grants(optionalSection(root, "login").get("grants"), origin));
+    }
+
+    /**
+     * Reads {@code login.grants}: per provider, the client id by host and whose app it is.
+     *
+     * @param value The section, or {@code null}.
+     * @param origin Where it was read from, for a refusal.
+     * @return The grants, in the order declared.
+     */
+    private static List<AgentGrant> grants(final @Nullable Object value, final String origin) {
+        if (value == null) {
+            return List.of();
+        }
+        if (!(value instanceof Map<?, ?> byProvider)) {
+            throw new AgentException(origin + ": login.grants must be a mapping of provider to its grant");
+        }
+        final List<AgentGrant> grants = new java.util.ArrayList<>();
+        byProvider.forEach((provider, grant) -> {
+            if (!(grant instanceof Map<?, ?> section) || !(section.get("hosts") instanceof Map<?, ?> hosts)) {
+                throw new AgentException(origin + ": the grant for '" + provider + "' needs 'hosts', the client id by"
+                        + " host");
+            }
+            final Map<String, String> ids = new java.util.LinkedHashMap<>();
+            hosts.forEach((host, id) -> ids.put(String.valueOf(host), String.valueOf(id)));
+            grants.add(new AgentGrant(String.valueOf(provider), ids, optional(section, "owner")));
+        });
+        return List.copyOf(grants);
     }
 
     /**

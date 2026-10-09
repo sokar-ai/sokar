@@ -57,6 +57,8 @@ import org.jspecify.annotations.Nullable;
  * @param instructionArguments How the agent takes standing instructions from a file, with {@value #FILE} where the
  *        file goes, or empty when it declares no way. Sokar gives it the file that says how the task's mailbox works.
  * @param atRest What its screen shows at rest at its prompt, or {@code null}: then it is never woken by typing.
+ * @param grants The OAuth apps it signs in to providers with, which {@code sokar vault authorize} grants for it; empty
+ *        when it signs in to none.
  */
 public record AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
         HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
@@ -67,7 +69,62 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
         List<PackagedTree> packaged, @Nullable String configDirectory,
         @Nullable List<String> loginArguments, @Nullable String loginDocumentation,
         List<String> sandboxedArguments, @Nullable ReadyMarker ready, @Nullable Waiting waiting,
-        @Nullable SessionIds sessionIds, List<String> instructionArguments, @Nullable AtRest atRest) {
+        @Nullable SessionIds sessionIds, List<String> instructionArguments, @Nullable AtRest atRest,
+        List<AgentGrant> grants) {
+
+    /**
+     * Constructor for an agent that signs in to no provider through Sokar, as every agent did before {@code grants}.
+     *
+     * @param name Short name.
+     * @param label Human-readable label.
+     * @param binary Executable inside the container.
+     * @param gitIdentity Commit author.
+     * @param headless Command-line shape.
+     * @param supportsResume Whether it continues a session.
+     * @param resumeFlag The flag that does, or {@code null}.
+     * @param tokenEnvironment Where its token goes, by credential type.
+     * @param provider How it reaches a provider, or {@code null}.
+     * @param allowedDomains Destinations it may reach.
+     * @param refusedDomains Destinations it may not.
+     * @param version Its pinned version, or {@code null}.
+     * @param artifacts What the image build fetches.
+     * @param installAsRoot Commands run as root in the image.
+     * @param installAsAgent Commands run as the agent in the image.
+     * @param packaged Trees the package carries.
+     * @param configDirectory Where it keeps its credentials, or {@code null}.
+     * @param loginArguments What runs its login, or {@code null}.
+     * @param loginDocumentation Where that login is described, or {@code null}.
+     * @param sandboxedArguments What turns its own permission prompts off.
+     * @param ready What it shows once at work, or {@code null}.
+     * @param waiting What waiting for a person looks like, or {@code null}.
+     * @param sessionIds Where it names its session, or {@code null}.
+     * @param instructionArguments How it takes standing instructions.
+     * @param atRest What its screen shows at rest, or {@code null}.
+     */
+    public AgentDefinition(String name, String label, String binary, GitIdentity gitIdentity,
+            HeadlessFlags headless, boolean supportsResume, @Nullable String resumeFlag,
+            Map<String, String> tokenEnvironment, @Nullable AgentProvider provider,
+            List<String> allowedDomains, List<String> refusedDomains, @Nullable String version,
+            List<InstallArtifact> artifacts, List<String> installAsRoot, List<String> installAsAgent,
+            List<PackagedTree> packaged, @Nullable String configDirectory,
+            @Nullable List<String> loginArguments, @Nullable String loginDocumentation,
+            List<String> sandboxedArguments, @Nullable ReadyMarker ready, @Nullable Waiting waiting,
+            @Nullable SessionIds sessionIds, List<String> instructionArguments, @Nullable AtRest atRest) {
+        this(name, label, binary, gitIdentity, headless, supportsResume, resumeFlag, tokenEnvironment, provider,
+                allowedDomains, refusedDomains, version, artifacts, installAsRoot, installAsAgent, packaged,
+                configDirectory, loginArguments, loginDocumentation, sandboxedArguments, ready, waiting, sessionIds,
+                instructionArguments, atRest, List.of());
+    }
+
+    /**
+     * Returns the grant this agent signs in to a provider with.
+     *
+     * @param providerName The provider's name.
+     * @return The grant, or {@code null} when it names none for that provider.
+     */
+    public @Nullable AgentGrant grantFor(String providerName) {
+        return grants.stream().filter(grant -> grant.provider().equals(providerName)).findFirst().orElse(null);
+    }
 
     /** Where the file goes in {@link #instructionArguments()}. */
     public static final String FILE = "{file}";
@@ -481,6 +538,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
             }
         }
         artifacts = List.copyOf(artifacts);
+        grants = grants == null ? List.of() : List.copyOf(grants);
         installAsRoot = List.copyOf(installAsRoot);
         installAsAgent = List.copyOf(installAsAgent);
     }

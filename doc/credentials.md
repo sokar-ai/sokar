@@ -132,16 +132,20 @@ access for the seconds the login takes.
 
 ### A subscription granted once: GitHub Copilot
 
-Copilot is reached with a GitHub token a person grants once, through GitHub's device flow, stored as
-an `oauth-device` entry named after the provider:
+Copilot is reached with a GitHub token a person grants once, through GitHub's device flow. One command makes
+the entry and starts the flow:
 
 ```
-sokar vault put github-copilot --type oauth-device --setting client_id=<an OAuth app Copilot accepts> \
-    --setting device_authorization_url=https://github.com/login/device/code \
-    --setting token_url=https://github.com/login/oauth/access_token --setting scopes=read:user
 sokar vault authorize github-copilot
 sokar task start --provider github-copilot --model <a model the agent lists for Copilot> ...
 ```
+
+- **Whose app is granted.** GitHub's device flow needs an OAuth app's client id. Sokar ships none of its own: it
+  grants the app the agent itself signs in with, as declared in the agent's definition (`login.grants`), and
+  says whose it is. Several installed agents sign in to Copilot? `--agent` picks one. The provider's URLs and
+  scope come from `providers/github-copilot.yaml`.
+- **Another app.** `sokar vault put github-copilot --type oauth-device --setting client_id=<id> ...` stores your
+  own; asked for its client secret, press Enter for a public client. `vault authorize` then uses that entry.
 
 - The token never expires and has nothing to renew it. The task gets a stand-in of its own in
   `COPILOT_GITHUB_TOKEN`.

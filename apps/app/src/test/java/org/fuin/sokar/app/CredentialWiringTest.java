@@ -82,4 +82,34 @@ class CredentialWiringTest {
         assertThat(TaskLaunch.refusesWithoutCredential(org.fuin.sokar.wire.TaskMode.SHELL))
                 .isFalse();
     }
+
+    @Test
+    void namesTheOneCommandThatGetsTheCredential() {
+        // The operator on 2026-10-09 was told only that the vault held nothing for 'github-copilot'.
+        final org.fuin.sokar.agent.api.ProviderDefinition copilot =
+                org.fuin.sokar.agent.api.ProviderDefinitionReader.read(new java.io.StringReader("""
+                        name: github-copilot
+                        upstream: https://api.githubcopilot.com
+                        dialects:
+                          openai: ""
+                        grant:
+                          kind: oauth-device
+                          device_authorization_url: https://github.com/login/device/code
+                          token_url: https://github.com/login/oauth/access_token
+                        """), "github-copilot.yaml");
+        final org.fuin.sokar.agent.api.ProviderDefinition openrouter =
+                org.fuin.sokar.agent.api.ProviderDefinitionReader.read(new java.io.StringReader("""
+                        name: openrouter
+                        upstream: https://openrouter.ai
+                        dialects:
+                          openai: "/api/v1"
+                        """), "openrouter.yaml");
+
+        assertThat(TaskLaunch.nextStep(null, false, copilot, "github-copilot"))
+                .isEqualTo("Grant it first with 'sokar vault authorize github-copilot'; ");
+        assertThat(TaskLaunch.nextStep("claude", true, null, "anthropic"))
+                .isEqualTo("Sign in first with 'sokar vault login claude'; ");
+        assertThat(TaskLaunch.nextStep("pi", false, openrouter, "openrouter"))
+                .isEqualTo("Store its key first with 'sokar vault put openrouter'; ");
+    }
 }

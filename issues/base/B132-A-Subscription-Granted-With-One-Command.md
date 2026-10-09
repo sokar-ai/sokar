@@ -1,6 +1,6 @@
 # B132 — A Subscription Granted With One Command
 
-**Status:** decided.
+**Status:** implemented here, but for the offer at `task start`; the agents' grants are theirs to declare.
 
 **What must be true.** For a provider Sokar knows, `sokar vault authorize <provider>` is the one command that grants
 it: on an empty vault it creates the entry with the provider's own settings and goes straight into the device flow.
@@ -84,3 +84,23 @@ the Pi family first, each id with its owner as read from the agent's source.
 - `task start --provider github-copilot` on an empty vault names `sokar vault authorize github-copilot`. On a
   terminal it offers to run it, and the task starts after the grant.
 - A Copilot request through the broker succeeds with the granted token, on a machine whose account has Copilot.
+
+## As built, 2026-10-09
+
+- **The provider's grant:** `ProviderDefinition.grant()`, read from `grant:` (kind, URLs, scopes, never a client id);
+  `providers/github-copilot.yaml` declares GitHub's device flow and `read:user`.
+- **The agent's app:** `AgentDefinition.grants()`, read from `login.grants.<provider>.hosts` (client id by host,
+  `"*"` for any other) and `owner`, carried in the interface's JSON. `AgentGrant.clientIdFor(host)`.
+- **`vault authorize <provider>`** on a vault without that entry makes it (`GrantEntry`): the provider's grant, the
+  client id of the one installed agent that signs in, `client_owner` from its owner, and `-` as a public client's
+  secret; `--agent` chooses among several. A provider reached with a key, no agent that signs in, or none for the
+  host is refused with the command that does instead. An entry that is there is used as it is.
+- **`vault put`** asks a grant's `Client secret for '<name>' (none for a public client: press Enter)` and stores an
+  empty answer as `-`.
+- **`task start`** refused for want of the credential names `sokar vault authorize <provider>` for a provider with a
+  grant, `sokar vault login <agent>` for an agent's sign-in, `sokar vault put <name>` for a key.
+- **Tested:** `GrantEntryTest`, `ProviderDefinitionReaderTest`, `AgentDefinitionReaderTest` (with the JSON round
+  trip), `VaultPutCommandTest`, `CredentialWiringTest`.
+- **Open:** at a terminal, `task start` offering to run the grant and then starting the task; the agents' own
+  `login.grants`, which Agent Smith's packages declare.
+

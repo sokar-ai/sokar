@@ -1,0 +1,2 @@
+title: sokar vault authorize makes the entry for a provider with a grant, from its URLs and scopes and the client id of the agent that signs in, vault put asks a grant for its client secret by name, and a start refused for want of a credential names the command that gets it
+type: added

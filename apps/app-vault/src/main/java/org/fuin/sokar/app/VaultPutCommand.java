@@ -74,13 +74,41 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
      * @throws IOException If standard input cannot be read.
      */
     static String valueFrom(String name, java.io.@org.jspecify.annotations.Nullable Console tty,
-            java.io.InputStream in) throws IOException {
+            java.io.InputStream in, @org.jspecify.annotations.Nullable String kind) throws IOException {
         // isTerminal() rather than a null check: since Java 22 a Console is handed out even when
         // standard input is a pipe, and reading a piped secret through readPassword would hang.
         final boolean interactive = tty != null && tty.isTerminal();
-        return readValue(interactive,
-                () -> tty == null ? new char[0] : tty.readPassword("Value for '%s': ", name),
-                new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)));
+        return grantValue(readValue(interactive,
+                () -> tty == null ? new char[0] : tty.readPassword("%s", prompt(name, kind)),
+                new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))), kind);
+    }
+
+    /**
+     * Returns what a person is asked for: the client secret for a grant, the value for anything else.
+     *
+     * @param name The entry's name.
+     * @param kind The entry's kind, or {@code null}.
+     * @return The prompt.
+     */
+    static String prompt(String name, @org.jspecify.annotations.Nullable String kind) {
+        return granted(kind) ? "Client secret for '" + name + "' (none for a public client: press Enter): "
+                : "Value for '" + name + "': ";
+    }
+
+    /**
+     * Returns the value to store for a grant: nothing typed is a public client, which has no secret.
+     *
+     * @param value What was typed or read.
+     * @param kind The entry's kind, or {@code null}.
+     * @return The value, {@value GrantEntry#NO_SECRET} for a grant's empty answer.
+     */
+    static String grantValue(String value, @org.jspecify.annotations.Nullable String kind) {
+        return value.isEmpty() && granted(kind) ? GrantEntry.NO_SECRET : value;
+    }
+
+    private static boolean granted(@org.jspecify.annotations.Nullable String kind) {
+        return org.fuin.sokar.supervisor.DeviceGrant.KIND.equals(kind)
+                || org.fuin.sokar.supervisor.CodeGrant.KIND.equals(kind);
     }
 
     /**
@@ -311,7 +339,7 @@ public class VaultPutCommand implements Callable<Integer>, SokarFactory.ContextA
 
         String value;
         if (fromFile == null) {
-            value = valueFrom(name, System.console(), System.in);
+            value = valueFrom(name, System.console(), System.in, type);
         } else {
             // The machine reads its own disk. This is what lets an interface offer "use the key
             // that is already here" without the value crossing a socket or a person retyping it.
