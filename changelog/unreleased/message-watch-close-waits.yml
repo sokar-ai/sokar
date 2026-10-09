@@ -1,0 +1,2 @@
+title: Closing the message watch waits for its notice pass to finish, so a stopping daemon does not take the mail directories from under a move
+type: fixed

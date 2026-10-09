@@ -110,6 +110,24 @@ class MessageWatchNoticeTest {
     }
 
     @Test
+    void closing_waits_for_the_notices_to_stop(@TempDir final Path dir) throws Exception {
+        // It closed and returned while the notice thread was still settling and then moving: the caller deleted the
+        // mail directories under it. Seen as a test whose temp directory could not be deleted, 1 run in 6 on the VM.
+        final SokarContext context = context(dir);
+        final Mailbox mailbox = new Mailbox(context.paths().messaging().mailbox("sokar-p-t"));
+        mailbox.create();
+        final MessageWatch watch = new MessageWatch(context, Duration.ZERO);
+        assertThat(watch.startNotices()).isTrue();
+        Files.writeString(mailbox.inbound().resolve("m-5.json"), "{\"messageId\":\"m-5\"}");
+        // Inside the settling pause that follows the notice.
+        Thread.sleep(50);
+
+        watch.close();
+
+        assertThat(watch.noticing()).as("the notice thread still runs after close").isFalse();
+    }
+
+    @Test
     void a_fresh_account_whose_first_mailbox_comes_after_the_start_is_watched_too(@TempDir final Path dir)
             throws IOException {
         // No mail/ when the daemon started: the watch gave up, and every message waited for the timed pass, 37-60 s.

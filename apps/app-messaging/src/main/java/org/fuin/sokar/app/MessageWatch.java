@@ -51,7 +51,12 @@ public final class MessageWatch implements AutoCloseable {
     /** How long to wait after a change, so a burst of files becomes one pass rather than ten. */
     private static final Duration SETTLE = Duration.ofMillis(250);
 
+    /** How long closing waits for a notice pass that is moving: one pass, with room. */
+    private static final Duration CLOSING = Duration.ofSeconds(10);
+
     private volatile boolean running = true;
+
+    private volatile @Nullable Thread noticing;
 
     // One pass at a time. The timer and the watch would otherwise walk the same mailbox at once,
     // and two passes moving the same file is a race that ends with a message in neither place.
@@ -404,8 +409,18 @@ public final class MessageWatch implements AutoCloseable {
             watcher = null;
             return false;
         }
-        BackgroundPass.start("sokar-message-notices", this::notices);
+        noticing = BackgroundPass.start("sokar-message-notices", this::notices);
         return true;
+    }
+
+    /**
+     * Tells whether the notice thread still runs.
+     *
+     * @return {@code true} while it does.
+     */
+    boolean noticing() {
+        final Thread thread = noticing;
+        return thread != null && thread.isAlive();
     }
 
     private void notices() {
@@ -481,6 +496,16 @@ public final class MessageWatch implements AutoCloseable {
                 // Closing a watch service that is already gone is not a failure worth reporting:
                 // the daemon is stopping either way.
                 watcher = null;
+            }
+        }
+        // Waited for, never interrupted: a pass that is moving a message finishes the move, and only then may the
+        // caller take the mail directories away.
+        final Thread thread = noticing;
+        if (thread != null && thread != Thread.currentThread()) {
+            try {
+                thread.join(CLOSING.toMillis());
+            } catch (final InterruptedException ex) {
+                Thread.currentThread().interrupt();
             }
         }
     }
