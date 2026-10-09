@@ -614,9 +614,65 @@ public class GitGate {
         // could not be forwarded to a private upstream unless the account happened to have a key
         // of its own lying about, which is exactly the arrangement the vault exists to replace.
         try (GitCredentials.Lease lease = lending.forUrl(upstreamUrl)) {
+            refuseEarlierWork(lease, upstreamUrl, branch, commit);
             gitWith(lease, "push", "--end-of-options", upstreamUrl, commit + ":refs/heads/" + branch);
         }
         removeIfStill(name, commit);
+    }
+
+    /**
+     * Returns the first of {@code <branch>-2}, {@code -3}, ... the upstream does not hold, for a person whose approve
+     * met earlier work: a suggestion, never a force over the branch that is taken.
+     *
+     * @param taken The branch that holds earlier work.
+     * @return The next free branch; {@code <taken>-2} when the upstream cannot be asked.
+     */
+    public String nextFreeBranch(String taken) {
+        final String upstream = upstreamUrl;
+        if (upstream == null) {
+            return taken + "-2";
+        }
+        try (GitCredentials.Lease lease = lending.forUrl(upstream)) {
+            final String listed = gitWith(lease, "ls-remote", "--heads", "--end-of-options", upstream)
+                    .standardOutput();
+            for (int next = 2; next < 100; next++) {
+                final String candidate = taken + "-" + next;
+                if (!listed.contains("refs/heads/" + candidate + "\n") && !listed.endsWith("refs/heads/" + candidate)) {
+                    return candidate;
+                }
+            }
+        } catch (GateException ex) {
+            return taken + "-2";
+        }
+        return taken + "-2";
+    }
+
+    /**
+     * Refuses by name a branch that holds work the reviewed commit did not grow from, before git refuses it as a
+     * non-fast-forward in its own words. A branch that is not there, or that the work grew from, passes.
+     *
+     * @param lease The upstream's credential.
+     * @param upstream The upstream.
+     * @param branch The branch to push to.
+     * @param commit The reviewed commit.
+     * @throws GateException.BranchExists When it holds earlier work.
+     */
+    private void refuseEarlierWork(GitCredentials.Lease lease, String upstream, String branch, String commit) {
+        final String listed = gitWith(lease, "ls-remote", "--end-of-options", upstream, "refs/heads/" + branch)
+                .standardOutput().strip();
+        if (listed.isEmpty()) {
+            return;
+        }
+        final String at = listed.split("\\s+")[0];
+        if (at.equals(commit)) {
+            return;
+        }
+        gitWith(lease, "fetch", "--quiet", "--end-of-options", upstream, "refs/heads/" + branch);
+        final CommandResult grewFrom = runner.run(Command.of("git", "--git-dir", mirror.toString(), "merge-base",
+                "--is-ancestor", at, commit));
+        if (!grewFrom.successful()) {
+            throw new GateException.BranchExists(branch, at);
+        }
     }
 
     /**
@@ -645,6 +701,30 @@ public class GitGate {
             return null;
         }
         return gitIn("log", "-1", "--format=%h %s", INCOMING + name).standardOutput().strip();
+    }
+
+    /**
+     * A task's work that waits at the gate, in full.
+     *
+     * @param commit The commit it holds.
+     * @param subject Its subject line.
+     */
+    public record Waiting(String commit, String subject) {
+    }
+
+    /**
+     * Returns the work of a task's name that waits at the gate, for a start refused by name.
+     *
+     * @param name The task's name, without the namespace prefix.
+     * @return The work, or {@code null} when nothing of that name waits.
+     */
+    public @org.jspecify.annotations.Nullable Waiting waitingWork(String name) {
+        if (mode == GateMode.ONLINE || !resolves(INCOMING + name)) {
+            return null;
+        }
+        final String[] parts = gitIn("log", "-1", "--format=%H%n%s", INCOMING + name).standardOutput().strip()
+                .split("\n", 2);
+        return new Waiting(parts[0], parts.length > 1 ? parts[1] : "");
     }
 
     /**

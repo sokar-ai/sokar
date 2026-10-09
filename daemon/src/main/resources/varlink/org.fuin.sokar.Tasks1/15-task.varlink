@@ -934,6 +934,10 @@ error NoSuchFile(task: string, name: string)
 # made: CanStart answers the same as UNKNOWN_HOST_KEY. detail says what to do.
 error UnknownHostKey(host: string, hostKeys: []HostKey, detail: string)
 
+# Start of a guarded or offline task whose name's earlier work still waits at the gate: nothing was created. 'commit'
+# and 'subject' are that work's. Approve or reject it first, or start under another name.
+error EarlierWorkWaits(task: string, commit: string, subject: string)
+
 error NoSuchTask(task: string)
 
 # The named log is not a file in that task's state directory.

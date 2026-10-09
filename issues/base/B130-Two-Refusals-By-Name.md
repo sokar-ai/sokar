@@ -1,6 +1,6 @@
 # B130 — Two Refusals By Name
 
-**Status:** decided.
+**Status:** implemented here; the interface and the plugin are theirs.
 
 **What must be true.** Two refusals that a returning task name runs into reach a client by name, with what it needs
 to offer the next step, instead of as `Failed` with git's text or a general start failure. An interface can then
@@ -40,3 +40,16 @@ its name. Two things of the earlier task can still be there.
 - Seen to fail first: today's `Failed` for the branch and today's general start failure for the waiting work, each in
   a unit test of the daemon's side, then green with the named error.
 - The interface and the plugin show each refusal and offer the next step, tested on a handover against a real daemon.
+
+## As built, 2026-10-09
+
+- **`BranchExists(branch, at)`:** `GitGate.approve` asks the upstream for the branch before it pushes; one that holds a
+  commit the reviewed work did not grow from is refused with it, and nothing is pushed. A branch the work grew from,
+  or none, passes. `sokar gate approve` says `<branch> already holds <at>, from earlier work; approve onto another
+  branch with --branch <next free>`, the next free being `<branch>-2`, then `-3`, as the upstream lists them
+  (`GitGate.nextFreeBranch`).
+- **`EarlierWorkWaits(task, commit, subject)`:** the start that refused with the daemon's words answers it, with the
+  waiting work's full commit and subject (`GitGate.waitingWork`); the CLI keeps its words and exit 65.
+- **Seen to fail first:** `SokarDaemonTest` - `Approve` answered `Failed`, `Start` the general start failure - then
+  green with the named errors; `GitGateTest` for the refusal, the branch that grew from it, and the next free name.
+

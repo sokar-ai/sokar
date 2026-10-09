@@ -1406,6 +1406,15 @@ public final class TaskLaunch {
         return gate;
     }
 
+    /**
+     * Returns the earlier work of this task's name that waits at the gate, when the start was refused for it.
+     *
+     * @return The work, or {@code null}.
+     */
+    public org.fuin.sokar.gate.GitGate.@Nullable Waiting earlierWork() {
+        return workspace == null ? null : workspace.earlierWork();
+    }
+
     private WorkspaceSetup workspace() {
         if (workspace == null) {
             workspace = new WorkspaceSetup(context, request.task(), request.upstream(),

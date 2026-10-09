@@ -108,6 +108,9 @@ final class GateMethods {
                 // Typed, so an interface says it in its own words and offers the review again.
                 throw new VarlinkException(INTERFACE + ".MovedSinceReview", Map.of("name", text(parameters, "name"),
                         "reviewed", ex.reviewed(), "now", ex.now()));
+            } catch (org.fuin.sokar.gate.GateException.BranchExists ex) {
+                // Typed, so an interface offers another branch in the same dialog instead of showing git's text.
+                throw new VarlinkException(INTERFACE + ".BranchExists", Map.of("branch", ex.branch(), "at", ex.at()));
             }
             replies.last(Map.of("forwarded", text(parameters, "name"), "branch", branch));
         });

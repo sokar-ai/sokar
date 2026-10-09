@@ -46,11 +46,18 @@ final class WorkspaceSetup {
     /** Why the start must not go on, when the gate holds what an earlier task of this name left; or {@code null}. */
     private @Nullable String refusal;
 
+    /** The earlier work of this task's name that waits at the gate, when that is the refusal. */
+    private org.fuin.sokar.gate.GitGate.@Nullable Waiting earlierWork;
+
     /**
      * Returns why the last {@link #openWorkspace} refused the start, or {@code null}.
      *
      * @return The reason, for the start to say before it creates nothing.
      */
+    org.fuin.sokar.gate.GitGate.@Nullable Waiting earlierWork() {
+        return earlierWork;
+    }
+
     @Nullable String refusal() {
         return refusal;
     }
@@ -97,6 +104,7 @@ final class WorkspaceSetup {
             } else {
                 final String earlier = gate.waiting(task);
                 if (earlier != null) {
+                    earlierWork = gate.waitingWork(task);
                     // Its work waits for a person, and a new task of the same name would push onto it.
                     refusal = "work of an earlier task called " + task + " waits at the gate (" + earlier
                             + "): approve or reject it first, with 'sokar gate approve' or 'sokar gate reject', or"

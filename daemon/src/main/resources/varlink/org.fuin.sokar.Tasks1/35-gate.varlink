@@ -113,6 +113,7 @@ method Approve(
   signed: ?bool,
   # The commit the person reviewed, as Pending answers it. Refused as MovedSinceReview when the push has moved since,
   # so what goes is what was read; the task's gate stays up during a review. Empty: whatever it holds now.
+  # Refused as BranchExists when 'branch' holds work the commit did not grow from.
   commit: ?string
 ) -> (forwarded: string, branch: string)
 
@@ -165,3 +166,8 @@ error MovedSinceReview(name: string, reviewed: string, now: string)
 
 # Approve was called without a branch to push to.
 error BranchRequired(name: string)
+
+# Approve's branch holds work the reviewed commit did not grow from - earlier work of a task whose name came back:
+# nothing was pushed. 'at' is the commit the branch holds. Approve onto another branch, such as the next free
+# '<branch>-2'; never a force over it, since it can be somebody's reviewed work.
+error BranchExists(branch: string, at: string)

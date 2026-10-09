@@ -1,0 +1,2 @@
+title: Approve refuses by name, as BranchExists, a branch that holds earlier work and suggests the next free one, and Start refuses by name, as EarlierWorkWaits, a task whose name's earlier work waits at the gate
+type: added

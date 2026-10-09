@@ -1106,6 +1106,54 @@ class GitGateTest {
     }
 
     @Test
+    void approvingOntoABranchThatHoldsEarlierWorkIsRefusedByNameAndNothingIsPushed() throws Exception {
+
+        // A task's name came back after a restart: the upstream still holds sokar/task-1 from the earlier task. The
+        // approve was git's "! [rejected] (non-fast-forward)" as Failed; now it is named, with what the branch holds.
+        final Path upstream = root.resolve("upstream.git");
+        git(root, "init", "--bare", "--initial-branch=main", upstream.toString());
+        final Path earlier = root.resolve("earlier");
+        git(root, "init", "--initial-branch=main", earlier.toString());
+        Files.writeString(earlier.resolve("earlier.txt"), "the earlier task's reviewed work");
+        git(earlier, "add", "earlier.txt");
+        git(earlier, "commit", "-m", "earlier work");
+        git(earlier, "push", upstream.toString(), "HEAD:refs/heads/sokar/task-1");
+        final String held = git(earlier, "rev-parse", "HEAD").standardOutput().strip();
+        final GitGate gate = gate(GateMode.GATEKEEPING, upstream.toString());
+        pushWork("task-1", "new.txt");
+
+        assertThatThrownBy(() -> gate.approve("task-1", "sokar/task-1", null))
+                .isInstanceOfSatisfying(GateException.BranchExists.class, refused -> {
+                    assertThat(refused.branch()).isEqualTo("sokar/task-1");
+                    assertThat(refused.at()).isEqualTo(held);
+                });
+        assertThat(runner.runOrFail(Command.of("git", "--git-dir", upstream.toString(), "rev-parse", "sokar/task-1"))
+                .standardOutput().strip()).as("the earlier work is untouched").isEqualTo(held);
+        assertThat(gate.pending()).as("still waiting for another branch").containsExactly("task-1");
+
+        assertThat(gate.nextFreeBranch("sokar/task-1")).isEqualTo("sokar/task-1-2");
+        gate.approve("task-1", "sokar/task-1-2", null);
+        assertThat(gate.pending()).isEmpty();
+        assertThat(gate.nextFreeBranch("sokar/task-1")).as("the next one, once -2 is taken").isEqualTo("sokar/task-1-3");
+    }
+
+    @Test
+    void approvingOntoABranchTheWorkGrewFromStillForwards() throws Exception {
+        final Path upstream = root.resolve("upstream.git");
+        git(root, "init", "--bare", "--initial-branch=main", upstream.toString());
+        final GitGate gate = gate(GateMode.GATEKEEPING, upstream.toString());
+        pushWork("task-1", "first.txt");
+        gate.approve("task-1", "sokar/task-1", null);
+        makeCommit("second.txt", "the same task, later");
+        git(work, "push", mirror.toString(), "HEAD:" + GitGate.INCOMING + "task-1");
+
+        gate.approve("task-1", "sokar/task-1", null);
+
+        assertThat(runner.runOrFail(Command.of("git", "--git-dir", upstream.toString(), "rev-parse", "sokar/task-1"))
+                .standardOutput().strip()).isEqualTo(git(work, "rev-parse", "HEAD").standardOutput().strip());
+    }
+
+    @Test
     void aTaskSeesAndFetchesItsOwnWorkAndNoOtherTasks() throws Exception {
 
         // Every task's gate served the whole shared mirror: one agent listed another's ref and fetched its unreviewed

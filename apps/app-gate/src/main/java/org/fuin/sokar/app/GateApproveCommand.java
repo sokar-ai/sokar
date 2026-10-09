@@ -81,6 +81,12 @@ public class GateApproveCommand implements Callable<Integer>, SokarFactory.Conte
             }
             out.flush();
             return 0;
+        } catch (GateException.BranchExists ex) {
+            // The words the contract names, and the next free branch to approve onto: never a force over this one.
+            err.println("sokar: " + ex.branch() + " already holds " + ex.at() + ", from earlier work; approve onto"
+                    + " another branch with --branch " + suggested(ex.branch()));
+            err.flush();
+            return 70;
         } catch (GateException ex) {
             err.println("sokar: " + ex.getMessage());
             err.flush();
@@ -89,6 +95,24 @@ public class GateApproveCommand implements Callable<Integer>, SokarFactory.Conte
             err.println("sokar: " + ex.getMessage());
             err.flush();
             return 2;
+        }
+    }
+
+    /**
+     * Returns the next free branch after one that holds earlier work: {@code <branch>-2}, then {@code -3}, as the
+     * upstream lists them, or {@code -2} when it cannot be asked.
+     *
+     * @param taken The branch that holds earlier work.
+     * @return A suggestion only; the person chooses.
+     */
+    private String suggested(final String taken) {
+        try {
+            final Project project = GateSupport.byName(context, projectName);
+            final GitGate gate = GateSupport.gate(context, project,
+                    GateSupport.repository(context, project, repository, name), upstream, null);
+            return gate.nextFreeBranch(taken);
+        } catch (RuntimeException ex) {
+            return taken + "-2";
         }
     }
 }

@@ -63,4 +63,42 @@ public class GateException extends RuntimeException {
             return now;
         }
     }
+
+    /**
+     * The branch an approve would push to holds work the reviewed commit did not grow from - earlier work of a task
+     * whose name came back. Nothing was pushed; another branch takes it, never a force over the old one.
+     */
+    public static final class BranchExists extends GateException {
+
+        private static final long serialVersionUID = 1L;
+
+        /** The branch. */
+        private final String branch;
+
+        /** The commit it holds. */
+        private final String at;
+
+        /**
+         * Constructor.
+         *
+         * @param branch The branch.
+         * @param at The commit it holds.
+         */
+        public BranchExists(String branch, String at) {
+            super(branch + " already holds " + at + ", from earlier work; nothing was pushed - approve onto another"
+                    + " branch");
+            this.branch = branch;
+            this.at = at;
+        }
+
+        /** @return The branch. */
+        public String branch() {
+            return branch;
+        }
+
+        /** @return The commit it holds. */
+        public String at() {
+            return at;
+        }
+    }
 }

@@ -2151,6 +2151,110 @@ class SokarDaemonTest {
     }
 
     @Test
+    void approvingOntoABranchThatHoldsEarlierWorkIsRefusedByName(@TempDir Path dir) throws Exception {
+
+        // A task's name came back: its upstream still holds sokar/t from earlier work. Approve answered Failed with
+        // git's "! [rejected] (non-fast-forward)"; an interface could only show the text.
+        final SokarContext context = context(dir);
+        final org.fuin.sokar.core.process.ProcessCommandRunner git = new org.fuin.sokar.core.process.ProcessCommandRunner();
+        final java.util.function.BiConsumer<Path, String[]> in = (where, arguments) -> {
+            final java.util.List<String> all = new java.util.ArrayList<>(java.util.List.of("git", "-C", where.toString(),
+                    "-c", "user.email=t@example.com", "-c", "user.name=T"));
+            all.addAll(java.util.List.of(arguments));
+            git.runOrFail(org.fuin.sokar.core.process.Command.of(all));
+        };
+        final Path checkout = Files.createDirectories(dir.resolve("app"));
+        in.accept(checkout, new String[] {"init", "-q", "-b", "main"});
+        Files.writeString(checkout.resolve("README.md"), "app\n");
+        in.accept(checkout, new String[] {"add", "."});
+        in.accept(checkout, new String[] {"commit", "-q", "-m", "start"});
+        // The earlier task's work, on a branch of its own that has nothing in common with what comes now.
+        in.accept(checkout, new String[] {"checkout", "-q", "--orphan", "sokar/t"});
+        Files.writeString(checkout.resolve("earlier.txt"), "earlier\n");
+        in.accept(checkout, new String[] {"add", "earlier.txt"});
+        in.accept(checkout, new String[] {"commit", "-q", "-m", "earlier work"});
+        final String held = git.runOrFail(org.fuin.sokar.core.process.Command.of("git", "-C", checkout.toString(),
+                "rev-parse", "HEAD")).standardOutput().strip();
+        in.accept(checkout, new String[] {"checkout", "-q", "main"});
+        new org.fuin.sokar.app.DefaultProject(context).add(checkout.toString(), "app", checkout.toString(), "");
+        final org.fuin.sokar.core.project.Project project = org.fuin.sokar.app.GateSupport.byName(context, "default");
+        final org.fuin.sokar.gate.GitGate gate = org.fuin.sokar.app.GateSupport.gate(context, project,
+                project.repository("app"), null, null);
+        gate.initialize();
+        final Path work = dir.resolve("work");
+        git.runOrFail(org.fuin.sokar.core.process.Command.of("git", "clone", "-q", gate.mirror().toString(),
+                work.toString()));
+        Files.writeString(work.resolve("new.txt"), "new\n");
+        in.accept(work, new String[] {"add", "."});
+        in.accept(work, new String[] {"commit", "-q", "-m", "new work"});
+        in.accept(work, new String[] {"push", "-q", gate.mirror().toString(), "HEAD:refs/sokar/incoming/t"});
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Approve",
+                        Map.of("project", "default", "repository", "app", "name", "t", "branch", "sokar/t")))
+                        .isInstanceOfSatisfying(VarlinkException.class, refused -> {
+                            assertThat(refused.getErrorName()).isEqualTo(SokarDaemon.INTERFACE + ".BranchExists");
+                            assertThat(refused.getParameters()).containsEntry("branch", "sokar/t")
+                                    .containsEntry("at", held);
+                        });
+            }
+        });
+        assertThat(git.runOrFail(org.fuin.sokar.core.process.Command.of("git", "-C", checkout.toString(),
+                "rev-parse", "sokar/t")).standardOutput().strip()).as("nothing was pushed").isEqualTo(held);
+    }
+
+    @Test
+    void startingATaskWhoseNamesEarlierWorkWaitsIsRefusedByName(@TempDir Path dir) throws Exception {
+
+        // A guarded task's name came back while its earlier work still waits at the gate: Start answered the general
+        // start failure with the daemon's words, and an interface could not offer that work or another name.
+        final SokarContext context = hooked(dir);
+        final org.fuin.sokar.core.process.ProcessCommandRunner git = new org.fuin.sokar.core.process.ProcessCommandRunner();
+        final java.util.function.BiConsumer<Path, String[]> in = (where, arguments) -> {
+            final java.util.List<String> all = new java.util.ArrayList<>(java.util.List.of("git", "-C", where.toString(),
+                    "-c", "user.email=t@example.com", "-c", "user.name=T"));
+            all.addAll(java.util.List.of(arguments));
+            git.runOrFail(org.fuin.sokar.core.process.Command.of(all));
+        };
+        final Path checkout = Files.createDirectories(dir.resolve("app"));
+        in.accept(checkout, new String[] {"init", "-q", "-b", "main"});
+        Files.writeString(checkout.resolve("README.md"), "app\n");
+        in.accept(checkout, new String[] {"add", "."});
+        in.accept(checkout, new String[] {"commit", "-q", "-m", "start"});
+        new org.fuin.sokar.app.DefaultProject(context).add(checkout.toString(), "app", checkout.toString(), "");
+        final org.fuin.sokar.core.project.Project project = org.fuin.sokar.app.GateSupport.byName(context, "default");
+        final org.fuin.sokar.gate.GitGate gate = org.fuin.sokar.app.GateSupport.gate(context, project,
+                project.repository("app"), null, null);
+        gate.initialize();
+        final Path work = dir.resolve("work");
+        git.runOrFail(org.fuin.sokar.core.process.Command.of("git", "clone", "-q", gate.mirror().toString(),
+                work.toString()));
+        Files.writeString(work.resolve("earlier.txt"), "earlier\n");
+        in.accept(work, new String[] {"add", "."});
+        in.accept(work, new String[] {"commit", "-q", "-m", "the earlier task's work"});
+        in.accept(work, new String[] {"push", "-q", gate.mirror().toString(), "HEAD:refs/sokar/incoming/t"});
+        final String waiting = git.runOrFail(org.fuin.sokar.core.process.Command.of("git", "-C", work.toString(),
+                "rev-parse", "HEAD")).standardOutput().strip();
+        runner.answering("podman version", "5.8.1");
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                assertThatThrownBy(() -> client.call(SokarDaemon.INTERFACE + ".Start",
+                        Map.of("project", "default", "repository", "app", "task", "t")))
+                        .isInstanceOfSatisfying(VarlinkException.class, refused -> {
+                            assertThat(refused.getErrorName()).isEqualTo(SokarDaemon.INTERFACE + ".EarlierWorkWaits");
+                            assertThat(refused.getParameters()).containsEntry("task", "t")
+                                    .containsEntry("commit", waiting)
+                                    .containsEntry("subject", "the earlier task's work");
+                        });
+            }
+        });
+        assertThat(runner.lines()).as("nothing was created").noneMatch(line -> line.startsWith("podman create")
+                || line.startsWith("podman run") || line.startsWith("podman build"));
+    }
+
+    @Test
     void aGateCallWithoutAProjectIsRefused(@TempDir Path dir) throws Exception {
 
         // A gate belongs to a project, and answering about the wrong one is worse than refusing.

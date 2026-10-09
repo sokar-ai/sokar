@@ -435,6 +435,13 @@ final class TaskMethods {
                     });
             }
             sink.flush();
+            final org.fuin.sokar.gate.GitGate.Waiting earlier = launch.earlierWork();
+            if (existing == null && code != 0 && earlier != null) {
+                // Typed, so an interface offers the waiting work or another name in the same dialog; nothing was made.
+                System.out.println(startLine(text(parameters, "task"), "", code));
+                throw new VarlinkException(INTERFACE + ".EarlierWorkWaits", Map.of("task", text(parameters, "task"),
+                        "commit", earlier.commit(), "subject", earlier.subject()));
+            }
             // The one trace a start leaves on the machine: what was output went to the caller only.
             final String container = java.util.Objects.requireNonNullElse(started.get(), "");
             System.out.println(startLine(text(parameters, "task"), container, code));
