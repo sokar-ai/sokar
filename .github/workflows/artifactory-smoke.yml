@@ -1,5 +1,6 @@
 # Does Artifactory answer, and can this token actually do what the publish step needs? Manual.
 name: Artifactory smoke test
+run-name: "${{ github.workflow }} · ${{ github.ref_name }}: ${{ github.event.head_commit.message || github.event.pull_request.title || github.workflow }}"
 
 on:
   workflow_dispatch:
