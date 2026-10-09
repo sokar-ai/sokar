@@ -1,0 +1,2 @@
+title: sokar doctor no longer calls the SELinux policy missing where SELinux is built into the kernel but not running, as under WSL2; it looks for a mounted selinuxfs, not its empty mount point
+type: fixed

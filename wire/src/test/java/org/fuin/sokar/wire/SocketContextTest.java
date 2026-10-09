@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests for {@link SocketContext}.
@@ -15,13 +16,30 @@ import org.junit.jupiter.api.condition.EnabledIf;
  */
 class SocketContextTest {
 
+    @TempDir
+    Path dir;
+
     static boolean selinux() {
-        return Files.isDirectory(Path.of("/sys/fs/selinux"));
+        return Files.isRegularFile(Path.of("/sys/fs/selinux/enforce"));
     }
 
     @Test
     void namesTheTypeThePolicyDefines() {
         assertThat(SocketContext.TYPE).isEqualTo("sokar_socket_t");
+    }
+
+    @Test
+    void takesAnEmptyMountPointForNoSelinux() {
+        // WSL2's kernel has SELinux built in and leaves /sys/fs/selinux as an empty directory without running it:
+        // doctor called the policy missing on a machine that needs none.
+        assertThat(SocketContext.selinuxPresent(dir)).isFalse();
+    }
+
+    @Test
+    void takesAMountedSelinuxfsForSelinux() throws Exception {
+        // Mounted in enforcing and permissive mode alike, so both need the policy.
+        Files.writeString(dir.resolve("enforce"), "0");
+        assertThat(SocketContext.selinuxPresent(dir)).isTrue();
     }
 
     @Test

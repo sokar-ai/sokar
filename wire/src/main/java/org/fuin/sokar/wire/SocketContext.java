@@ -30,7 +30,7 @@ public final class SocketContext implements Closeable {
     /** Type the policy module defines and grants containers {@code connectto} on. */
     public static final String TYPE = "sokar_socket_t";
 
-    /** Present only where SELinux is; the attribute file below exists either way. */
+    /** Where selinuxfs is mounted when SELinux runs; the attribute file below exists either way. */
     private static final Path SELINUXFS = Path.of("/sys/fs/selinux");
 
     /** Per-thread attribute deciding the context of sockets this thread creates. */
@@ -113,7 +113,19 @@ public final class SocketContext implements Closeable {
      * @return {@code true} if SELinux is present.
      */
     public static boolean selinuxPresent() {
-        return Files.isDirectory(SELINUXFS);
+        return selinuxPresent(SELINUXFS);
+    }
+
+    /**
+     * Tells whether SELinux is mounted at a place.
+     *
+     * @param selinuxfs Where selinuxfs is mounted when SELinux runs.
+     * @return {@code true} if SELinux is present.
+     */
+    static boolean selinuxPresent(Path selinuxfs) {
+        // The directory alone is no answer: a kernel with SELinux built in but not running keeps it as an empty
+        // mount point. 'enforce' is there only when selinuxfs is mounted.
+        return Files.isRegularFile(selinuxfs.resolve("enforce"));
     }
 
     /**
