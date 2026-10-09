@@ -1529,6 +1529,18 @@ public final class TaskLaunch {
      * @return The exit code, unchanged.
      */
     private int cleanUp(TaskRunner runner, String container, int code, PrintWriter out) {
+        try {
+            return cleanUpOrFail(runner, container, code, out);
+        } catch (final RuntimeException ex) {
+            // Said, never in its place: what failed while cleaning up replaced the refusal that caused the clean-up,
+            // and a start refused for its agent answered over the socket that its container was no task Sokar made.
+            out.println("sokar: cleaning up after it failed: " + ex.getMessage());
+            out.flush();
+            return code;
+        }
+    }
+
+    private int cleanUpOrFail(TaskRunner runner, String container, int code, PrintWriter out) {
 
         final boolean exists = context.podman().idOf(container).isPresent();
 

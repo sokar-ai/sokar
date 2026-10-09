@@ -705,6 +705,16 @@ class PodmanTest {
     }
 
     @Test
+    void aTaskNameWithoutARecordHasNoIdAndNothingIsAsked() {
+
+        // A start refused before it made anything cleaned up after itself by asking for the container's id: the task
+        // had no record, so asking threw "is no task Sokar made", and that replaced the refusal - over the socket every
+        // early refusal arrived as Failed with this sentence instead of its own.
+        assertThat(recording().idOf("sokar-p-never-made")).isEmpty();
+        assertThat(runner.invocations()).as("podman is not asked about it").isEmpty();
+    }
+
+    @Test
     void aTaskIsListedOnlyWhenItsLiveIdIsTheOneSokarRecorded() {
 
         // The operator, 2026-10-04: "Sokar must not pick running containers by their name. Anybody could start such a

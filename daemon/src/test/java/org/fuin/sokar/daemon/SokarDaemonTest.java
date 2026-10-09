@@ -2208,8 +2208,11 @@ class SokarDaemonTest {
     void startingATaskWhoseNamesEarlierWorkWaitsIsRefusedByName(@TempDir Path dir) throws Exception {
 
         // A guarded task's name came back while its earlier work still waits at the gate: Start answered the general
-        // start failure with the daemon's words, and an interface could not offer that work or another name.
-        final SokarContext context = hooked(dir);
+        // start failure with the daemon's words, and an interface could not offer that work or another name. With the
+        // records checked, as the real daemon checks them: without, it passed here while the daemon answered that the
+        // task was no task Sokar made.
+        final SokarContext hooked = hooked(dir);
+        final SokarContext context = new SokarContext(runner, hooked.paths(), arguments -> 0, name -> null, true);
         final org.fuin.sokar.core.process.ProcessCommandRunner git = new org.fuin.sokar.core.process.ProcessCommandRunner();
         final java.util.function.BiConsumer<Path, String[]> in = (where, arguments) -> {
             final java.util.List<String> all = new java.util.ArrayList<>(java.util.List.of("git", "-C", where.toString(),
@@ -2248,10 +2251,44 @@ class SokarDaemonTest {
                                     .containsEntry("commit", waiting)
                                     .containsEntry("subject", "the earlier task's work");
                         });
+                // As an interface starts a task: streamed, with "more".
+                assertThatThrownBy(() -> client.callMore(SokarDaemon.INTERFACE + ".Start",
+                        Map.of("project", "default", "repository", "app", "task", "t"), reply -> true))
+                        .isInstanceOfSatisfying(VarlinkException.class, refused -> assertThat(refused.getErrorName())
+                                .isEqualTo(SokarDaemon.INTERFACE + ".EarlierWorkWaits"));
             }
         });
         assertThat(runner.lines()).as("nothing was created").noneMatch(line -> line.startsWith("podman create")
                 || line.startsWith("podman run") || line.startsWith("podman build"));
+    }
+
+    @Test
+    void aStartRefusedBeforeAnythingExistsAnswersItsOwnRefusal(@TempDir Path dir) throws Exception {
+
+        // Refused for its agent before anything was made, the start cleaned up by asking podman about a container that
+        // never existed; with the records checked that threw "is no task Sokar made", which replaced the refusal: over
+        // the socket it arrived as Failed, on the command line as exit 70. Seen on the Ubuntu VM, 2026-10-09.
+        final SokarContext hooked = hooked(dir);
+        final SokarContext context = new SokarContext(runner, hooked.paths(), arguments -> 0, name -> null, true);
+        final Path checkout = Files.createDirectories(dir.resolve("app"));
+        final org.fuin.sokar.core.process.ProcessCommandRunner git = new org.fuin.sokar.core.process.ProcessCommandRunner();
+        git.runOrFail(org.fuin.sokar.core.process.Command.of("git", "-C", checkout.toString(), "init", "-q", "-b",
+                "main"));
+        git.runOrFail(org.fuin.sokar.core.process.Command.of("git", "-C", checkout.toString(), "-c",
+                "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"));
+        new org.fuin.sokar.app.DefaultProject(context).add(checkout.toString(), "app", checkout.toString(), "");
+        runner.answering("podman version", "5.8.1");
+
+        servingContext(context, dir, socket -> {
+            try (VarlinkClient client = new VarlinkClient(socket)) {
+                final Map<String, Object> reply = client.call(SokarDaemon.INTERFACE + ".Start",
+                        Map.of("project", "default", "repository", "app", "task", "fresh", "prompt", "hello"));
+
+                assertThat(((Number) reply.get("exitCode")).intValue()).as("its own refusal's code").isNotZero();
+                assertThat(String.join("\n", (List<String>) reply.get("output")))
+                        .doesNotContain("is no task Sokar made");
+            }
+        });
     }
 
     @Test

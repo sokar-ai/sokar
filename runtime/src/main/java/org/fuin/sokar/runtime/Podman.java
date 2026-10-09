@@ -541,8 +541,16 @@ public class Podman {
      * @return Container id, or empty.
      */
     public Optional<String> idOf(String container) {
+        final String target;
+        try {
+            target = target(container);
+        } catch (final NotATaskException ex) {
+            // A task Sokar has no record of does not exist as one: thrown, it replaced the refusal of a start that made
+            // nothing and asked here while cleaning up.
+            return Optional.empty();
+        }
         final CommandResult result = runner.run(podman("container", "inspect",
-                "--format", "{{.Id}}", target(container)));
+                "--format", "{{.Id}}", target));
         return result.successful() && !result.trimmedOutput().isEmpty()
                 ? Optional.of(result.trimmedOutput())
                 : Optional.empty();
