@@ -45,7 +45,14 @@ without `extended-keys-format`.
 2. **Then the configuration** that closes what differs, written into `tmux.conf` by `Containerfile`, fitted to the
    image's tmux. An option a tmux lacks is set with `-q`, as `extended-keys` is today, and the measurement says
    what that costs on 3.4.
-3. **tmux stays.** It carries reattaching, the `at_rest` screen reading and the wake lines. A relay that passes raw
+3. **A person's own tmux settings, per account:** Sokar's `tmux.conf` ends by loading an optional file of the
+   account, `~/.config/sokar/tmux.conf`, given to the task read-only at its start and read with `source-file -q`
+   after Sokar's settings. Key bindings, the prefix, the mouse and colours can then be set once for all of an
+   account's tasks, with no image rebuilt; without the file nothing changes. What Sokar itself depends on - the
+   screen it reads for `at_rest`, the lines it types to wake an agent - is set again after the person's file, so a
+   setting there cannot break it unawares; which settings those are comes out of the measurement and is written down.
+   Decided by the operator on 2026-10-09.
+4. **tmux stays.** It carries reattaching, the `at_rest` screen reading and the wake lines. A relay that passes raw
    bytes without a terminal of its own comes up only if configuration cannot get there, and then as a proposal to
    the operator, with what would be lost.
 
@@ -54,4 +61,6 @@ without `extended-keys-format`.
 - A test per key and capability, in the acceptance kit: send the key or sequence into a task's session and read what
   the program inside received, against what a plain terminal delivers. A difference is caught when it comes back.
 - `ContainerfileTest` pins the configuration lines, as it pins today's.
+- A binding set in the account's `~/.config/sokar/tmux.conf` works in a task started after it, and a setting
+  there that Sokar depends on is overridden, each seen in a test.
 - Seen to fail first: PageUp in a task today, against the measured plain-terminal behaviour.
