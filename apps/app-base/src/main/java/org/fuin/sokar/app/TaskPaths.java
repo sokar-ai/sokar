@@ -93,4 +93,14 @@ public record TaskPaths(SokarPaths paths) {
     public Path buildContext(String project) {
         return paths.xdg().data().resolve("build").resolve(project);
     }
+
+    /**
+     * Returns the account's own tmux settings, copied into every task it starts: key bindings, the prefix, the mouse,
+     * colours. Beside the account's other Sokar settings; there or not, as the person chooses.
+     *
+     * @return {@code ~/.config/sokar/tmux.conf} by default.
+     */
+    public Path accountTmux() {
+        return paths.xdg().config().resolve("tmux.conf");
+    }
 }

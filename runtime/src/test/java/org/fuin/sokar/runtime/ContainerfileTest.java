@@ -155,9 +155,43 @@ class ContainerfileTest {
 
         assertThat(Containerfile.render(project))
                 .contains("history-limit " + Containerfile.SCROLLBACK)
-                .contains("/etc/sokar/tmux.conf")
-                .contains("set -gq extended-keys on")
-                .contains("set -asq terminal-features 'xterm*:extkeys'");
+                .contains("/etc/sokar/tmux.conf");
+    }
+
+    @Test
+    void aSessionFeelsLikeTheTerminalOutside() {
+
+        // Measured 2026-10-09 with tmux 3.4 behind 'podman exec -it', against the same path without tmux: Esc arrived
+        // 501 ms late, Shift+Enter and focus events not at all, and truecolour, the clipboard (OSC 52), links and the
+        // title were dropped on the way out. The wheel reached an agent in the alternate screen as nothing it asked for.
+        final Project project = new Project("uc", "", SecurityClass.GUARDED, "ubuntu:24.04", null);
+
+        assertThat(Containerfile.render(project))
+                .contains("set -sg escape-time 10")
+                .contains("set -gq extended-keys always")
+                .contains("set -g focus-events on")
+                .contains("set -g set-clipboard on")
+                .contains("set -gq allow-passthrough on")
+                .contains("set -asq terminal-features \"xterm*:RGB:clipboard:hyperlinks:focus:title:extkeys\"")
+                .contains("set -g set-titles on")
+                .contains("set -g mouse on")
+                .contains("bind -n S-PPage if -F \"#{alternate_on}\" \"send-keys S-PPage\" \"copy-mode -eu\"");
+    }
+
+    @Test
+    void aPersonsOwnSettingsComeAfterSokarsAndWhatSokarDependsOnAfterThem() {
+
+        // A person's file may change any key, the mouse or the colours, and nothing Sokar states about a session: how
+        // much it remembers, and the terminal the agent is told it has.
+        final String rendered = Containerfile.render(
+                new Project("uc", "", SecurityClass.GUARDED, "ubuntu:24.04", null));
+
+        final int own = rendered.indexOf("source-file -q " + Containerfile.ACCOUNT_TMUX_CONF);
+        final int sokars = rendered.indexOf("source-file " + Containerfile.REQUIRED_TMUX_CONF);
+        assertThat(own).as("the account's file is read").isPositive();
+        assertThat(sokars).as("after it, what Sokar depends on").isGreaterThan(own);
+        assertThat(rendered.indexOf("history-limit " + Containerfile.SCROLLBACK)).isGreaterThan(sokars);
+        assertThat(rendered.substring(sokars)).contains("default-terminal");
     }
 
     @Test

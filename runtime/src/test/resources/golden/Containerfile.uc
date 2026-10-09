@@ -65,20 +65,44 @@ RUN set -eux; \
 # what it can resolve, because a default-terminal naming an entry the image lacks
 # is worse than the eight colours it was meant to replace.
 #
-# Extended keys on, so a modified Enter reaches an agent that asks for one: with it
-# off, agents in a task warned at every start that Shift+Enter may not work. '-q',
+# Extended keys always, so a modified Enter reaches an agent: with them off, agents
+# in a task warned at every start that Shift+Enter may not work, and 'on' passed them
+# only to a program asking in a way tmux 3.4 knows, which the agents do not. '-q',
 # because a tmux older than the option would otherwise complain about the line.
 # And xterm-like clients are told they take modified keys: tmux asks a client for
 # them only when its terminal-features say so, and a client that answers the
 # terminal queries plainly - the interface's does - is otherwise never asked.
+#
+# The rest makes a session feel like the terminal outside, each line for a difference
+# measured on 2026-10-09 with tmux 3.4 behind 'podman exec -it': Esc arrived 501 ms
+# late; Shift+Enter and focus events never arrived; truecolour, the clipboard, links
+# and the title were dropped on the way out; and the wheel reached an agent in the
+# alternate screen as nothing it had asked for. Shift+PageUp scrolls the session's
+# history where the agent writes into it, and goes to the agent where it draws its
+# own screen. Options an older tmux lacks are set with '-q'.
+#
+# Then a person's own file, copied in when a task starts, and last what Sokar itself
+# depends on, so nothing in that file changes it unawares.
 RUN mkdir -p /etc/sokar \
-    && printf 'set -g history-limit 10000\n' > /etc/sokar/tmux.conf \
-    && printf 'set -gq extended-keys on\n' >> /etc/sokar/tmux.conf \
-    && printf "set -asq terminal-features 'xterm*:extkeys'\n" >> /etc/sokar/tmux.conf \
+    && printf '%s\n' \
+        'set -sg escape-time 10' \
+        'set -gq extended-keys always' \
+        'set -g focus-events on' \
+        'set -g set-clipboard on' \
+        'set -gq allow-passthrough on' \
+        'set -asq terminal-features "xterm*:RGB:clipboard:hyperlinks:focus:title:extkeys"' \
+        'set -g set-titles on' \
+        'set -g set-titles-string "#T"' \
+        'set -g mouse on' \
+        'bind -n S-PPage if -F "#{alternate_on}" "send-keys S-PPage" "copy-mode -eu"' \
+        'source-file -q /etc/sokar/account-tmux.conf' \
+        'source-file /etc/sokar/tmux-required.conf' \
+        > /etc/sokar/tmux.conf \
+    && printf 'set -g history-limit 10000\n' > /etc/sokar/tmux-required.conf \
     && if infocmp tmux-256color >/dev/null 2>&1; then \
-        printf 'set -g default-terminal "tmux-256color"\n' >> /etc/sokar/tmux.conf; \
+        printf 'set -g default-terminal "tmux-256color"\n' >> /etc/sokar/tmux-required.conf; \
     elif infocmp screen-256color >/dev/null 2>&1; then \
-        printf 'set -g default-terminal "screen-256color"\n' >> /etc/sokar/tmux.conf; \
+        printf 'set -g default-terminal "screen-256color"\n' >> /etc/sokar/tmux-required.conf; \
     fi
 
 # The agent never runs as root. A rootless podman user namespace already maps this
@@ -114,5 +138,5 @@ ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin
 ENV LANG=C.UTF-8
 
 LABEL org.fuin.sokar.project="uc"
-LABEL org.fuin.sokar.recipe="e6f5cd4bd01a72ff"
+LABEL org.fuin.sokar.recipe="565f4655c57ba02d"
 LABEL org.fuin.sokar.security-class="guarded"

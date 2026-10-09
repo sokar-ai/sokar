@@ -1,6 +1,6 @@
 # B134 — A Task Terminal As The Terminal Outside
 
-**Status:** decided; what differs is measured first.
+**Status:** implemented here; Pi and the per-agent check in a real task are open, for the operator's test.
 
 **What must be true.** An agent in a task behaves at the keyboard and on the screen as it does in a plain terminal on
 the same machine. Scrolling, Esc, modified keys, colours, the clipboard, links, focus and images work as they do
@@ -64,3 +64,36 @@ without `extended-keys-format`.
 - A binding set in the account's `~/.config/sokar/tmux.conf` works in a task started after it, and a setting
   there that Sokar depends on is overridden, each seen in a test.
 - Seen to fail first: PageUp in a task today, against the measured plain-terminal behaviour.
+
+## Measured, 2026-10-09
+
+tmux 3.4 with `/etc/sokar/tmux.conf`, behind `podman exec -it` in `ubuntu:24.04`, against the same path without tmux.
+A program in the container logged every byte it received, with the monotonic time the host shares, and wrote
+the sequences an agent writes; a script played the outside terminal (`TERM=xterm-256color`).
+
+    what                               without tmux        today's tmux        as built
+    Esc                                0 ms                501 ms              10 ms
+    PageUp, Ctrl+Right, Alt+x, paste   as sent             as sent             as sent
+    Shift+Enter, CSI u form            as sent             nothing             as sent
+    Shift+Enter, xterm's form          as sent             nothing             in the CSI u form
+    focus out, focus in                as sent             nothing             as sent
+    the wheel, the agent asked         as sent             as sent             as sent
+    Shift+PageUp                       the terminal's      to the agent        tmux's history (no alternate
+                                       scrollback                              screen), else to the agent
+    truecolour, OSC 52                 passed              dropped             passed
+    links (OSC 8), title               passed             dropped             passed (a link gains an id)
+    images (kitty protocol)            passed              dropped             only wrapped for tmux
+
+Claude Code runs without the alternate screen and asks for no mouse; Oh My Pi runs in the alternate screen and asks
+for the mouse. With `mouse off`, tmux never asked the outside terminal for it, so the wheel reached Oh My Pi as
+whatever that terminal sends in an alternate screen, usually arrow keys, not as scrolling.
+
+**Not closed, written down in `doc/running.md`:** the terminal's own scrollback holds nothing of the session; while
+scrolled back in tmux, keys go to tmux; a mouse selection is tmux's; xterm's Shift+Enter arrives as CSI u; images
+need wrapping. **What Sokar depends on**, set again after the account's file: `history-limit` and `default-terminal`.
+
+**As built:** the settings in `Containerfile`, pinned by `ContainerfileTest`; `~/.config/sokar/tmux.conf` copied into
+a task as root after it starts (`TaskRunner`, `AccountTmuxTest`); the order checked in a built image, with a binding
+and `mouse off` from the account's file taking effect and its `history-limit` and `default-terminal` set back.
+**Open:** Pi, and each agent in a real task with the operator's own terminal; the acceptance kit's per-key test.
+

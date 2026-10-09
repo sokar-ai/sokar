@@ -170,6 +170,28 @@ If the daemon is not running, `ssh HOST systemctl --user start sokard` starts it
 and restarted on failure, instead of leaving an unsupervised process behind an ssh command. For it to keep
 running after you disconnect, the account needs lingering.
 
+## The terminal in a task
+
+An agent in a task runs in a tmux session inside its container: that is what lets you close the window and come back
+to it. Sokar sets the session up to feel like the terminal outside. Esc arrives within 10 ms, and Shift+Enter, Ctrl and Alt
+keys arrive. Focus, truecolour, the clipboard (OSC 52), links and the window title pass. The mouse wheel goes to an
+agent that asked for the mouse. Measured with tmux 3.4, the version of the default base image, these differences remain:
+
+- **Scrolling back.** The session's history is tmux's, not your terminal's: your terminal's own scrollback holds
+  nothing of it. The wheel and Shift+PageUp scroll tmux's history wherever the agent writes into it, as Claude Code
+  does. While scrolled back, keys go to tmux rather than to the agent, until you scroll to the bottom or press `q`.
+  An agent that draws its own screen, as Oh My Pi does, gets the wheel and PageUp itself and scrolls its own view.
+- **Selecting text with the mouse** selects in tmux and copies to your clipboard. Your terminal's own selection is
+  reached with Shift held, in most terminals.
+- **Shift+Enter in xterm's form** arrives at the agent in the CSI u form.
+- **Images** reach the terminal only from a program that wraps them for tmux; most agents do not.
+
+**Your own settings.** A file `~/.config/sokar/tmux.conf` is copied into each task you start, read-only for the agent,
+and read after Sokar's settings: key bindings, the prefix, the mouse and colours, set once for all your tasks with no
+image rebuilt. It takes effect for tasks started after you change it. Two things are set again after it, because
+Sokar depends on them: how much a session remembers (`history-limit`), which `sokar task attach` states, and the
+terminal the agent is told it has (`default-terminal`).
+
 ## Handing a file to a running task
 
 A task's work comes from its repository, but some things a task needs never belong in git: a build log, a

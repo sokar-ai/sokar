@@ -292,7 +292,45 @@ public class TaskRunner {
         // If the nft hook fails, this is where it stops: the container never reaches running.
         podman.start(container);
         out.println("started   yes");
+        giveAccountTmux(container, out);
         startScreenWriter(container);
+    }
+
+    /**
+     * Copies the account's own tmux settings into a task that just started, before its session does: the session reads
+     * them after Sokar's and before what Sokar depends on. Never fatal, since a task without them is a task as before.
+     *
+     * @param container The task's container.
+     * @param out Where the start is said.
+     */
+    private void giveAccountTmux(final String container, final PrintWriter out) {
+        final List<List<String>> steps = accountTmuxSteps(container);
+        if (steps.isEmpty()) {
+            return;
+        }
+        try {
+            runOrFail(steps.get(0), paths.tasks().accountTmux(), "the account's tmux settings could not be written");
+            runOrFail(steps.get(1), null, "the account's tmux settings could not be made read-only");
+            out.println("tmux      " + paths.tasks().accountTmux() + " (the account's own settings)");
+        } catch (final IOException ex) {
+            out.println("tmux      " + paths.tasks().accountTmux() + " not given: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Returns what copies the account's tmux settings into a task: written as root and left readable, so the agent
+     * reads them and cannot change them, and none when the account has no such file.
+     *
+     * @param container The task's container.
+     * @return The commands, in order; empty without the file.
+     */
+    List<List<String>> accountTmuxSteps(final String container) {
+        if (!Files.isRegularFile(paths.tasks().accountTmux())) {
+            return List.of();
+        }
+        final String target = org.fuin.sokar.runtime.Containerfile.ACCOUNT_TMUX_CONF;
+        return List.of(podman.asRootWithInputArguments(container, List.of("dd", "of=" + target, "status=none")),
+                podman.asRootArguments(container, List.of("chmod", "0644", target)));
     }
 
     /**
