@@ -37,6 +37,7 @@ public class VaultRevokeCommand implements Callable<Integer>, SokarFactory.Conte
     public Integer call() {
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
+        context.openIfShut(true, false, err);
         final Keyslots.Revocation result = new Keyslots(context).revoke(id);
         if (result.outcome() != Keyslots.Revoked.REVOKED) {
             err.println("sokar: " + result.detail());

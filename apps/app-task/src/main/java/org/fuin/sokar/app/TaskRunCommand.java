@@ -505,6 +505,10 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             return 0;
         }
         if (down.stream().anyMatch(each -> "NEEDS_VAULT".equals(each.startAction()))) {
+            // At a terminal it is opened here, as 'sokar vault unlock' would, and the tasks come back with it.
+            context.openIfShut(true, true, err);
+        }
+        if (down.stream().anyMatch(each -> "NEEDS_VAULT".equals(each.startAction())) && context.opener().isEmpty()) {
             err.println("sokar: the tasks need their tokens from the vault, which is shut; 'sokar vault unlock' once,"
                     + " then this again");
             err.flush();

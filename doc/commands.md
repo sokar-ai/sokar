@@ -35,7 +35,10 @@ container and needs nothing installed. `sokar vault import claude` copies what a
 signed in here holds; a second login would replace what that install uses. `sokar vault put NAME`
 stores a value you already have; `sokar providers` says which names to use.
 
-**Open and close the vault.** `sokar vault unlock --for 30m` caches the passphrase for a while (there
+**Open and close the vault.** A command that needs a shut vault asks for the passphrase at the
+terminal and carries on: for that command alone, or, for `task start`, `run` and `resume`, the way
+`sokar vault unlock` keeps it open, since the task needs it afterwards. Without a terminal it refuses
+and names `sokar vault unlock`. `sokar vault unlock --for 30m` caches the passphrase for a while (there
 is no default limit), `sokar vault lock` drops it, `sokar vault passphrase` changes it. To start
 over, `sokar vault clear --yes` removes it, and `sokar vault init` makes a new one.
 
@@ -110,8 +113,9 @@ takes `sokar approve TASK`; `--yes` answers for a script.
 - `--rm` removes the container when you leave. By default it is kept.
 - A running task is refused; use `attach`.
 - After a reboot, `task list` shows which tasks went down and `sokar task start --restarted` brings
-  them all back. Nothing comes back by itself. The first start after a reboot needs the vault unlocked,
-  even for a task with no credential of its own, because the task's gate token is kept there.
+  them all back. Nothing comes back by itself. The first start after a reboot needs the vault open,
+  even for a task with no credential of its own, because the task's gate token is kept there; at a
+  terminal it asks for the passphrase.
 - A task whose agent names its sessions continues the conversation it was having, after a stop or a
   reboot alike, and the start says whether it continued or began fresh. An agent that names no
   session, or a continuation that failed, begins fresh and says so; nothing runs twice unasked.

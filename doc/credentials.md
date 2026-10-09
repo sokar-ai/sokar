@@ -107,7 +107,8 @@ Each is reached through the broker, with the credential on the host and a stand-
 
 ![three ways a credential reaches the vault: an operator types an API key on standard input, an agent logs itself in and vault import copies the token out of its own config file, and an operator stores an ssh key seed the same way](images/auth-entry.svg)
 
-All of these happen on the host, and the vault has to be open (`sokar vault unlock`).
+All of these happen on the host. When the vault is shut, Sokar asks for its passphrase at the terminal and
+carries on; a script, which has no terminal, runs `sokar vault unlock` first.
 
 | Command | What it does |
 |---|---|

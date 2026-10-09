@@ -1,0 +1,2 @@
+title: At a terminal, a command that needs a shut vault asks for the passphrase itself and carries on; a task's start, run and resume keep it open as sokar vault unlock does, and vault login asks before the login
+type: changed

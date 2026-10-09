@@ -90,8 +90,16 @@ public class TaskResumeCommand implements Callable<Integer>, SokarFactory.Contex
      */
     static int resume(SokarContext context, String container, PrintWriter out, PrintWriter err,
             @org.jspecify.annotations.Nullable Suggests suggests) {
-        // Decided by TaskControl, which the daemon calls too. This renders, and nothing else.
-        return render(new TaskControl(context).resume(container), container, out, err, suggests);
+        // Decided by TaskControl, which the daemon calls too. This renders, and asks for a shut vault at a terminal:
+        // the decision that needs it is made before anything is started, so it is simply made again once it is open.
+        TaskControl.Resumed result = new TaskControl(context).resume(container);
+        if (result.outcome() == TaskControl.Outcome.NEEDS_VAULT) {
+            context.openIfShut(true, true, err);
+            if (context.opener().isPresent()) {
+                result = new TaskControl(context).resume(container);
+            }
+        }
+        return render(result, container, out, err, suggests);
     }
 
     /**

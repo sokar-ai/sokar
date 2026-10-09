@@ -79,6 +79,9 @@ public class TaskWatchBuildsCommand implements Callable<Integer>, SokarFactory.C
                 return 1;
             }
         }
+        // Started by hand at a terminal it asks once, as 'sokar vault unlock' would: it reads the credential for as long
+        // as it watches. Started for a task it has no terminal and waits for the vault as before.
+        context.openIfShut(true, true, err);
         final TaskPaths paths = context.paths().tasks();
         final Path state = paths.containerState(container);
         final Path executable;

@@ -613,6 +613,9 @@ public final class TaskLaunch {
                 }
                 declaredOrAdded.put(added.getKey(), added.getValue());
             }
+            // A shut vault is opened here, at a terminal, as 'sokar vault unlock' would: the broker spends its tokens for
+            // the task's life. Only where this start reads it; without a terminal the refusals below stay as they were.
+            context.openIfShut(!declaredOrAdded.isEmpty() || wiring().unavailableFor(select(agents)) != null, true, err);
             for (final java.util.Map.Entry<String, String> named : declaredOrAdded.entrySet()) {
                 final org.fuin.sokar.vault.VaultEntry entry = context.readableCredentials()
                         .map(stored -> stored.get(named.getKey())).orElse(null);

@@ -192,6 +192,14 @@ public final class AgentLogin {
             }
             out.flush();
 
+            // Asked before the login, never after it: a person who signed in and was then told the vault is locked had to
+            // sign in again. Without a terminal nothing is asked, and the end of the login refuses as before.
+            context.openIfShut(true, false, out);
+            if (context.vault().exists() && context.opener().isEmpty()) {
+                return failed(Outcome.VAULT_LOCKED, "the vault is locked, so nothing was run: what the login produced"
+                        + " could not be stored - 'sokar vault unlock' and run this again");
+            }
+
             return run(context, agent, command, configDirectory, out);
 
         } catch (RuntimeException ex) {

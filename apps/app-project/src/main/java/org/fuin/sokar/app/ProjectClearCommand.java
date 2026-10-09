@@ -53,6 +53,8 @@ public class ProjectClearCommand implements Callable<Integer>, SokarFactory.Cont
 
     @Override
     public Integer call() {
+        // What the vault holds for it is listed and cleared too: at a terminal a shut vault is opened for this alone.
+        context.openIfShut(true, false, spec.commandLine().getErr());
         final boolean listOnly = dryRun || !yes;
         return ClearCommand.render(new Clearing(context).project(name, listOnly, force), listOnly, !dryRun && !yes,
                 spec.commandLine().getOut());

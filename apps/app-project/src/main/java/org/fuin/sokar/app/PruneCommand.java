@@ -38,6 +38,8 @@ public class PruneCommand implements Callable<Integer>, SokarFactory.ContextAwar
 
     @Override
     public Integer call() {
+        // A deploy key left over is found only in the vault: at a terminal a shut vault is opened for this alone.
+        context.openIfShut(true, false, spec.commandLine().getErr());
         final PrintWriter out = spec.commandLine().getOut();
         final Prune.Result result = new Prune(context).run(yes, includingWork);
         if (!result.found() && result.unchecked().isEmpty()) {

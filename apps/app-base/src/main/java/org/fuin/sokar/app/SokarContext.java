@@ -22,10 +22,37 @@ import org.fuin.sokar.runtime.HookInstaller;
  * @param recognizesTasks Whether a container is a task only by the id Sokar recorded when it made it. Always so
  *        for {@link #real()}, which is how every command and the daemon build their context; a test that builds one
  *        itself says whether it wants it.
+ * @param prompt Who is asked for the vault passphrase when the vault is shut: the terminal for {@link #real()},
+ *        nobody for a context a test builds unless it says otherwise.
  */
 public record SokarContext(CommandRunner runner, SokarPaths paths,
         java.util.function.ToIntFunction<List<String>> exec,
-        java.util.function.UnaryOperator<String> environment, boolean recognizesTasks) {
+        java.util.function.UnaryOperator<String> environment, boolean recognizesTasks, VaultPrompt prompt) {
+
+    /** How often a wrong passphrase is asked again before the command refuses as it would without a terminal. */
+    private static final int TRIES = 3;
+
+    /**
+     * What a person typed in this process, by vault file: one command asks once, and everything it reads after that
+     * opens the vault with it. A command is one process; the daemon has no terminal and never asks.
+     */
+    private static final java.util.Map<java.nio.file.Path, char[]> ASKED =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Constructor for a context that asks nobody for the vault passphrase.
+     *
+     * @param runner Runs commands.
+     * @param paths Where files go.
+     * @param exec Runs a command on this process's terminal.
+     * @param environment Reads an environment variable.
+     * @param recognizesTasks Whether a container is a task only by the id Sokar recorded.
+     */
+    public SokarContext(CommandRunner runner, SokarPaths paths,
+            java.util.function.ToIntFunction<List<String>> exec,
+            java.util.function.UnaryOperator<String> environment, boolean recognizesTasks) {
+        this(runner, paths, exec, environment, recognizesTasks, VaultPrompt.NOBODY);
+    }
 
     /**
      * Constructor for a context built by a test, whose containers are what its fake runtime says they are.
@@ -59,7 +86,17 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
      * @return The context.
      */
     public SokarContext recognizingTasks() {
-        return new SokarContext(runner, paths, exec, environment, true);
+        return new SokarContext(runner, paths, exec, environment, true, prompt);
+    }
+
+    /**
+     * Returns this context asking a person for the vault passphrase through the given prompt.
+     *
+     * @param asking Who is asked.
+     * @return The context.
+     */
+    public SokarContext asking(final VaultPrompt asking) {
+        return new SokarContext(runner, paths, exec, environment, recognizesTasks, asking);
     }
 
     /**
@@ -109,7 +146,7 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
     public static SokarContext real() {
         // Every container a command or the daemon acts on as a task is one Sokar recorded, never one named like it.
         return new SokarContext(new ProcessCommandRunner(), SokarPaths.current(),
-                SokarContext::runInTerminal, System::getenv, true);
+                SokarContext::runInTerminal, System::getenv, true, VaultPrompt.terminal());
     }
 
     /**
@@ -178,6 +215,10 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
      * @return An opener, or empty when the vault is shut.
      */
     public java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> opener() {
+        final char[] asked = ASKED.get(paths.vault().vaultFile().toAbsolutePath());
+        if (asked != null) {
+            return java.util.Optional.of(org.fuin.sokar.vault.VaultFile.Opener.passphrase(asked.clone()));
+        }
         final java.util.Optional<char[]> passphrase = new org.fuin.sokar.vault.PassphraseTiers(
                 org.fuin.sokar.vault.KernelKeyring.source(paths.vault().vaultKeyringKey())).passphrase();
         if (passphrase.isPresent()) {
@@ -185,6 +226,83 @@ public record SokarContext(CommandRunner runner, SokarPaths paths,
                     org.fuin.sokar.vault.VaultFile.Opener.passphrase(passphrase.get()));
         }
         return VaultShare.held(paths).map(org.fuin.sokar.vault.VaultFile.Opener::share);
+    }
+
+    /**
+     * Returns whatever opens this vault, asking a person for the passphrase when it is shut and there is one to ask.
+     * <p>
+     * Without a terminal it asks nobody and returns what {@link #opener()} does, so a script, the daemon and the
+     * watchers refuse as before. A wrong passphrase is asked again, {@value #TRIES} times in all.
+     *
+     * @param unlock Whether the answer unlocks the vault as {@code sokar vault unlock} does, for the same time,
+     *        because a task needs it after this command: a task's start, run and resume. Otherwise it opens the
+     *        vault for this command only.
+     * @param err Where a wrong passphrase is said.
+     * @return An opener, or empty when the vault is shut and stays shut.
+     */
+    public java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> openerAsking(final boolean unlock,
+            final java.io.PrintWriter err) {
+        final java.util.Optional<org.fuin.sokar.vault.VaultFile.Opener> held = opener();
+        if (held.isPresent() || !vault().exists()) {
+            return held;
+        }
+        final String shown = unlock
+                ? "Vault passphrase (unlocks it as 'sokar vault unlock' does): "
+                : "Vault passphrase (for this command only): ";
+        for (int tried = 0; tried < TRIES; tried++) {
+            final char[] answer = prompt.ask(shown);
+            if (answer == null) {
+                return java.util.Optional.empty();
+            }
+            final boolean opens;
+            try {
+                opens = vault().accepts(answer);
+            } catch (final org.fuin.sokar.vault.VaultException ex) {
+                err.println("sokar: " + ex.getMessage());
+                err.flush();
+                return java.util.Optional.empty();
+            }
+            if (opens) {
+                if (unlock && org.fuin.sokar.vault.KernelKeyring.available()) {
+                    try {
+                        // Until reboot, as 'vault unlock' without --for: the broker spends the tokens for the
+                        // task's life, and the daemon and later sessions find it there.
+                        new org.fuin.sokar.vault.KernelKeyring(paths.vault().vaultKeyringKey()).store(answer, null);
+                    } catch (final org.fuin.sokar.vault.VaultException ex) {
+                        err.println("sokar: the vault opens, but the passphrase could not be kept: " + ex.getMessage());
+                        err.flush();
+                    }
+                }
+                ASKED.put(paths.vault().vaultFile().toAbsolutePath(), answer.clone());
+                return java.util.Optional.of(org.fuin.sokar.vault.VaultFile.Opener.passphrase(answer));
+            }
+            err.println("sokar: that passphrase does not open " + vault().path());
+            err.flush();
+        }
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * Opens a shut vault at a terminal, where the command needs it: the one line a command that refused on a shut vault
+     * puts before its first read. Without a terminal, or when it is open or not needed, nothing happens, and the
+     * command's own refusal stays as it was.
+     *
+     * @param needed Whether this command reads the vault at all.
+     * @param unlock Whether a task needs it after this command, as {@link #openerAsking(boolean, java.io.PrintWriter)}.
+     * @param err Where a wrong passphrase is said.
+     */
+    public void openIfShut(final boolean needed, final boolean unlock, final java.io.PrintWriter err) {
+        if (needed && vault().exists() && opener().isEmpty()) {
+            openerAsking(unlock, err);
+        }
+    }
+
+    /**
+     * Forgets every passphrase typed in this process, as a test that asked must before the next.
+     */
+    static void forgetAsked() {
+        ASKED.values().forEach(answer -> java.util.Arrays.fill(answer, '\0'));
+        ASKED.clear();
     }
 
     /**

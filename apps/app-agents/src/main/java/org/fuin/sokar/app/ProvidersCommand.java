@@ -36,6 +36,8 @@ public class ProvidersCommand implements Callable<Integer>, SokarFactory.Context
     @Override
     public Integer call() {
 
+        // Which credential each provider has is read from the vault: at a terminal a shut one is opened for this alone.
+        context.openIfShut(true, false, spec.commandLine().getErr());
         final PrintWriter out = spec.commandLine().getOut();
         final ProviderInventory.Listing listing = ProviderInventory.list(context);
 

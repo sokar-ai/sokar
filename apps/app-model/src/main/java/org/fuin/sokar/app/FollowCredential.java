@@ -35,6 +35,11 @@ import org.jspecify.annotations.Nullable;
  */
 public final class FollowCredential implements AutoCloseable {
 
+    /** Where a wrong passphrase is said, when a command asks for a shut vault. */
+    private static final java.io.PrintWriter STDERR = new java.io.PrintWriter(
+            new java.io.OutputStreamWriter(System.err, java.nio.charset.StandardCharsets.UTF_8), true);
+
+
     /**
      * Returns what to type to store what this URL needs.
      *
@@ -168,6 +173,8 @@ public final class FollowCredential implements AutoCloseable {
         }
         // Nothing lent still needs the destination's policy: an ssh origin reached with the developer's own agent
         // key is checked against this machine's known hosts, strictly, or ssh refuses a host this machine vouched for.
+        // At a terminal a shut vault is opened here for this command; the daemon has none and waits as before.
+        context.openIfShut(true, false, STDERR);
         if (context.vault().exists() && context.opener().isEmpty()) {
             return nothingLent(context, url, true);
         }
@@ -239,6 +246,8 @@ public final class FollowCredential implements AutoCloseable {
 
     private static FollowCredential fromVault(final SokarContext context,
             final Credential credential, final String label) {
+        // At a terminal a shut vault is opened here for this command; the daemon has none and waits as before.
+        context.openIfShut(true, false, STDERR);
         if (context.vault().exists() && context.opener().isEmpty()) {
             return new FollowCredential(Map.of(), null, null, true);
         }

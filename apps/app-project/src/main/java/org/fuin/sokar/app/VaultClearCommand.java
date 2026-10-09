@@ -43,6 +43,7 @@ public class VaultClearCommand implements Callable<Integer>, SokarFactory.Contex
 
     @Override
     public Integer call() {
+        context.openIfShut(true, false, spec.commandLine().getErr());
         final boolean listOnly = dryRun || !yes;
         final PrintWriter out = spec.commandLine().getOut();
         final Clearing.Result result = new VaultClearing(context).clear(listOnly, force);

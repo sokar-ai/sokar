@@ -1,6 +1,6 @@
 # B133 — A Shut Vault Opened Where It Is Needed
 
-**Status:** decided.
+**Status:** implemented here; the suite scenario is open.
 
 **What must be true.** At a terminal, a command that needs a shut vault asks for the passphrase itself and carries
 on. Nobody is sent off to type `sokar vault unlock` and then the first command again. Without a terminal it still
@@ -64,3 +64,21 @@ machine becomes one command: the passphrase, the grant, the task.
   and nothing waits for input.
 - The acceptance kit's step that types `sokar vault unlock` before a start is kept for the no-terminal path, and one
   scenario starts a task on a shut vault by answering the prompt.
+
+## As built, 2026-10-09
+
+- **One place:** `SokarContext.openerAsking(unlock, err)` and `openIfShut(needed, unlock, err)`. A `VaultPrompt` asks
+  only when standard input and output are a terminal (`Console.isTerminal()`); `real()` has it, every context a
+  test builds has `VaultPrompt.NOBODY`. A passphrase typed once serves the rest of the process; three wrong ones,
+  and the command refuses as before. With `unlock`, the answer goes into the kernel keyring as `vault unlock`
+  without `--for` puts it.
+- **Asking now:** `task start` (only where the start reads the vault), `task run`, `task resume` (the decision is
+  made again once it is open), `task watch-builds` started by hand, `vault login` (before its container; a vault
+  that stays shut refuses before the login, never after), `vault revoke`, `clear`, `project clear`,
+  `vault clear`, `prune`, `providers`, and the credential of `projects follow`/`refresh` for a private repository.
+- **Unchanged:** the daemon, the watchers and a pipe have no terminal and refuse as before; `doctor` and
+  `vault passphrase` report.
+- **Tested:** `OpenerAskingTest` (no terminal, right, wrong twice, three wrong, unlock kept, nothing asked when open
+  or absent, asked only where needed). **Open:** the suite scenario that starts a task on a shut vault by answering
+  the prompt.
+
