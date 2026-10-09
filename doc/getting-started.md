@@ -26,6 +26,10 @@ on your local network. Sokar refuses to start a task rather than run with less, 
 release never changes a package's major version. Ubuntu 25.10 and 26.04, Debian 13 and
 Fedora 43 and 44 ship podman 5.
 
+**Supported are Ubuntu 26.04, Debian 13, and Fedora 43 and 44.** The packages declare the C
+library and zlib their binaries need (glibc 2.34 today), and the build refuses a binary that
+needs more, or a floor above Debian 13's glibc 2.41, so a package that installs also starts.
+
 Sokar calls `podman`, `nft`, `dnsmasq`, `git` and `nsenter`. The packages declare them, so
 the package manager pulls them in.
 

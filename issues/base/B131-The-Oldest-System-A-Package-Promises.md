@@ -1,6 +1,6 @@
 # B131 — The Oldest System A Package Promises
 
-**Status:** decided.
+**Status:** implemented here; the package check's install in the oldest systems is open.
 
 **What must be true.** The `.deb` and the `.rpm` install only where `sokar`, `sokard` and the stub agent can start:
 they declare the oldest C library and zlib the binaries need, a build that would need more fails before it is
@@ -62,3 +62,19 @@ is at most glibc 2.41**, Debian 13's; today they would declare 2.34, what the bi
 - The packages install and `sokar doctor` runs on Debian 13 and Fedora 43, each in a container or on a machine, once.
 
 The same pattern, from its first version, for `sokar-build-github`'s package (its GH01).
+
+## As built, 2026-10-09
+
+- **The check is shared:** `sokar-release check-linkage` in `sokar-buildtools` (`--declare LIBRARY=PREFIX:FLOOR`,
+  `--ceiling PREFIX=VERSION`, the binaries). A static-pie binary, as the hooks are, needs nothing. The agents' own
+  `NativeLinkageCheck` copies can move to it.
+- **Here:** `package.glibc.floor` 2.34, `package.zlib.floor` 1.2.2 and `package.glibc.ceiling` 2.41 in the root
+  pom; the `.deb` depends on `libc6 (>= 2.34), zlib1g`, the `.rpm` requires `libc.so.6(GLIBC_2.34)(64bit)` and
+  `libz.so.1(ZLIB_1.2.2)(64bit)`; `dist-check` runs `check-linkage` on the six binaries under `-Pdist`. The
+  build's three jobs run on `ubuntu-24.04`. `doc/getting-started.md` names the supported systems.
+- **Seen to fail first:** `-Dpackage.glibc.floor=2.33` stops the package build at `check-linkage`, naming
+  `GLIBC_2.34` for `sokar`, `sokard` and the stub.
+- **Measured once:** the packages install and `sokar --version` runs in clean `debian:13` (glibc 2.41, podman
+  5.4.2) and `fedora:43` (glibc 2.42, podman 5.8.4).
+- **Open:** `dist/package-check` installs in `ubuntu:26.04` and `fedora:44` only; the oldest, `debian:13` and
+  `fedora:43`, belong there too, so the install is checked on every build and not once.

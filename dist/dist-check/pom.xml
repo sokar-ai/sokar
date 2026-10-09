@@ -76,6 +76,38 @@
                             </systemPropertyVariables>
                         </configuration>
                     </plugin>
+                    <!-- The binaries the packages carry need no newer C library or zlib than both declare, and
+                         that floor stays within the oldest system supported. -->
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>check-linkage</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${java.home}/bin/java</executable>
+                                    <includeProjectDependencies>false</includeProjectDependencies>
+                                    <includePluginDependencies>true</includePluginDependencies>
+                                    <executableDependency>
+                                        <groupId>org.fuin.sokar</groupId>
+                                        <artifactId>sokar-release</artifactId>
+                                    </executableDependency>
+                                    <commandlineArgs>-classpath %classpath org.fuin.sokar.release.Main check-linkage --declare libc.so.6=GLIBC:${package.glibc.floor} --declare libz.so.1=ZLIB:${package.zlib.floor} --ceiling GLIBC=${package.glibc.ceiling} ${project.basedir}/../../apps/app/target/sokar ${project.basedir}/../../daemon/target/sokard ${project.basedir}/../../agents/stub/target/sokar-agent-stub ${project.basedir}/../../hooks/target/sokar-hook-nft ${project.basedir}/../../hooks/target/sokar-hook-supervisor ${project.basedir}/../../hooks/target/sokar-hook-reader</commandlineArgs>
+                                </configuration>
+                            </execution>
+                        </executions>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.fuin.sokar</groupId>
+                                <artifactId>sokar-release</artifactId>
+                                <version>${sokar.buildtools.version}</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
                 </plugins>
             </build>
         </profile>

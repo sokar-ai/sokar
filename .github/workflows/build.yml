@@ -29,7 +29,8 @@ jobs:
   # Every push and every pull request, including from a fork.
   build:
     name: Build and unit tests
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: the packages' C library floor is measured on what this builds.
+    runs-on: ubuntu-24.04
     # About three times a normal run (5.5 min): GitHub's default is six hours, and a slow runner once took 14 times
     # as long.
     timeout-minutes: 20
@@ -79,7 +80,8 @@ jobs:
   # sokar-buildtools rebuilds when it moves a pin.
   legs:
     name: Leg - ${{ matrix.os }}
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: the packages' C library floor is measured on what this builds.
+    runs-on: ubuntu-24.04
     # About three times a normal leg (17 min). The step that rents the machine stops sooner, so the clean-up below
     # still runs inside this limit and deletes what the run created.
     timeout-minutes: 60
@@ -137,7 +139,8 @@ jobs:
   # Snapshots of the agent API, so an agent repository can build without a checkout of this one.
   deploy:
     name: Publish
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: the packages' C library floor is measured on what this builds.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [build, legs]
     if: >-

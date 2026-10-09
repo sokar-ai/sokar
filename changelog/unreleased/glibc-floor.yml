@@ -1,0 +1,2 @@
+title: The .deb and the .rpm declare the C library and zlib their binaries need, glibc 2.34 and zlib 1.2.2, and the package build refuses a binary needing more or a floor above Debian 13's glibc 2.41
+type: added

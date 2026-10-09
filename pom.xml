@@ -63,6 +63,12 @@
              Verified against dpkg and rpm themselves, including 9 < 10, which is a numeric
              comparison in both and not a lexical one. -->
         <sokar.snapshot.run>0</sokar.snapshot.run>
+        <!-- The C library and zlib the native binaries need, measured with readelf, which both packages declare by
+             hand: jdeb and the rpm plugin do not read a binary. dist-check holds the binaries to them. -->
+        <package.glibc.floor>2.34</package.glibc.floor>
+        <package.zlib.floor>1.2.2</package.zlib.floor>
+        <!-- The oldest system supported, Debian 13's glibc: a floor above it drops that system, so it is refused. -->
+        <package.glibc.ceiling>2.41</package.glibc.ceiling>
         <!-- The command line 'exec:exec@machines' gives sokar-machines, such as 'jdk' or 'sweep'. -->
         <machines.args></machines.args>
         <!-- Appended to a package version when this is NOT a CI build. Empty here; the
