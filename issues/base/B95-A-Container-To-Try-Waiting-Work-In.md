@@ -47,3 +47,7 @@ deploy keys; building there runs the agent's code with all of it.
 
 1. **Its limits**: the task's, or a review's own - a build or an IDE backend wants more memory than many tasks.
 2. **Whether the result is recorded with the review**, so an approval can say which run it followed.
+
+**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F7. The
+points named for F7-F9 and F20 together are OpenSSF 2, Checkmarx, NCSC supply chain and AISVS 9.2.8.
+

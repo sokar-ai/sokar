@@ -34,3 +34,7 @@ for the commit nobody read.
 ## To be checked
 
 - Whether a stopped task is reason enough to approve without asking, since nothing can move its ref any more.
+
+**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F20. The
+points named for F7-F9 and F20 together are OpenSSF 2, Checkmarx, NCSC supply chain and AISVS 9.2.8.
+

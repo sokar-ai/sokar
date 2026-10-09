@@ -40,3 +40,7 @@ its signature to mean its image can pin one now.
 
 - Whether to require podman's signature policy (`policy.json`) for a project that names a signed image, or the
   digest alone.
+
+**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F9. The
+points named for F7-F9 and F20 together are OpenSSF 2, Checkmarx, NCSC supply chain and AISVS 9.2.8.
+

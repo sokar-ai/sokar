@@ -43,3 +43,7 @@ TLS to the project's own repository; `repo_gpgcheck` is not set either.
   skipped.
 - Each `sokar-setup-<version>.sh` has a detached signature beside it, made with the same key. Seen to fail:
   verifying a published setup script against its signature with the public key fails, or a version has none.
+
+**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F9. The
+points named for F7-F9 and F20 together are OpenSSF 2, Checkmarx, NCSC supply chain and AISVS 9.2.8.
+
