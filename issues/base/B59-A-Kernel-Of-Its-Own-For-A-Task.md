@@ -92,6 +92,6 @@ The first two decide whether the rest is worth doing.
   --restarted`, and its conversation with it where B46 ([index](README.md)) can. A runtime that can freeze and restore a workload would change
   what those can promise, and it is not available through podman today.
 
-**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F8. The
-points named for F7-F9 and F20 together are OpenSSF 2, Checkmarx, NCSC supply chain and AISVS 9.2.8.
+**Guideline points, 2026-10-09:** the operator's review of security guidelines counts this as its item F8,
+answering OpenSSF tip 2, OWASP AI Agent Cheat Sheet §9.
 
