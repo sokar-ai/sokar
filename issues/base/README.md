@@ -50,6 +50,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
+| B136 | [An Approve Bound To What Was Reviewed](B136-An-Approve-Bound-To-What-Was-Reviewed.md) | open | - | What `sokar gate approve` forwards is the commit the person read; a push between review and approve is never forwarded unseen. | whether a stopped task needs asking | a security review found the plain approve takes whatever waits |
 | B108 | [The Narrowed Message Schema Enforced](B108-The-Narrowed-Message-Schema-Enforced.md) | open | sokar-message-sluice, if the filter checks it | B14's narrowed A2A schema - fixed kinds and data parts, a Sokar extension URI - enforced, and the agents told so. | which side checks what | the operator, 2026-10-04 |
 | B98 | [The Image A Signature Names](B98-The-Image-A-Signature-Names.md) | open | - | A signed project's image is the image it names: a digest, said when missing, recorded when built. | signature policy or digest alone | Codex's review (PJ19) |
 | B99 | [Packages Signed And Checked](B99-Packages-Signed-And-Checked.md) | open | the agent repositories | Every RPM is signed, and every place that sets up the repository checks it. | - | Codex's review (PJ19), shared with the agents |
