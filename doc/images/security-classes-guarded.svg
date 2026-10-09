@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 250" width="880" height="250" role="img" aria-label="Guarded: the agent pushes to the local gate, the operator reviews there and approves, and only the approve reaches the upstream. Alongside it, dashed, the path by which unreviewed work leaves without ever passing the approval.">
-  <rect x="0" y="0" width="880" height="250" rx="8" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" width="880" height="300" role="img" aria-label="Guarded: the agent pushes to the local gate, the operator reviews there and approves, and only the approve reaches the upstream. The agent never reaches the upstream itself; the gate on the host fetches from it at the task's start and on sokar task refresh. Alongside it, dashed, the path by which unreviewed work leaves without ever passing the approval.">
+  <rect x="0" y="0" width="880" height="300" rx="8" fill="#ffffff"/>
   <defs>
     <marker id="ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#57606a"/>
@@ -36,9 +36,12 @@
     <text x="445" y="112" font-size="11" text-anchor="middle" fill="#a8480f">pushes</text>
     <path d="M 236 83 L 190 83" stroke="#1a6b56" stroke-width="1.6" fill="none" marker-end="url(#review)"/>
     <text x="212" y="74" font-size="10.5" text-anchor="middle" fill="#1a6b56">review</text>
-    <path d="M 320 110 L 320 148 L 794 148 L 794 112" stroke="#1a6b56" stroke-width="1.8" fill="none" marker-end="url(#review)"/>
-    <text x="557" y="141" font-size="11.5" text-anchor="middle" fill="#1a6b56">gate approve — exactly the ref that was read</text>
-    <path d="M 109 110 L 109 210 L 794 210 L 794 112" stroke="#b3261e" stroke-width="1.6" fill="none" stroke-dasharray="6 5" marker-end="url(#danger)"/>
-    <text x="450" y="228" font-size="11.5" text-anchor="middle" fill="#b3261e">fetch it out of the mirror, push it yourself — past the approval, and the queue still says "waiting"</text>
+    <text x="575" y="166" font-size="11" text-anchor="middle" fill="#57606a">no route to the upstream</text>
+    <path d="M 300 110 L 300 206 L 774 206 L 774 112" stroke="#1a6b56" stroke-width="1.8" fill="none" marker-end="url(#review)"/>
+    <text x="560" y="199" font-size="11.5" text-anchor="middle" fill="#1a6b56">gate approve — exactly the ref that was read, with the host's key</text>
+    <path d="M 814 112 L 814 236 L 340 236 L 340 112" stroke="#1a6b56" stroke-width="1.4" fill="none" marker-end="url(#review)"/>
+    <text x="580" y="229" font-size="11" text-anchor="middle" fill="#1a6b56">the gate fetches: at the task's start, and on sokar task refresh</text>
+    <path d="M 109 110 L 109 266 L 850 266 L 850 112" stroke="#b3261e" stroke-width="1.6" fill="none" stroke-dasharray="6 5" marker-end="url(#danger)"/>
+    <text x="480" y="284" font-size="11.5" text-anchor="middle" fill="#b3261e">fetch it out of the mirror, push it yourself — past the approval, and the queue still says "waiting"</text>
   </g>
 </svg>

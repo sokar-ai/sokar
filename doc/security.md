@@ -14,7 +14,7 @@ work takes.
 
 | | offline | guarded (default) | online |
 |---|---|---|---|
-| **In** | seeded from the mirror | cloned from the mirror | cloned from the mirror, which fetches from the upstream first |
+| **In** | cloned from the mirror, seeded once on the host and never fetched again | cloned from the mirror, which the host fetches into from the upstream at the task's start | as guarded, and the gate fetches again before each fetch of the agent |
 | **Out** | into the mirror; off the machine only by hand | `sokar gate approve` | the gate passes the task's own branch on at once |
 | **Credential in the container** | none | none | none |
 | **Review** | by hand, out of the mirror | at the gate, before the upstream | none, unless somebody does it on the forge afterwards |
@@ -24,7 +24,7 @@ work takes.
 Nothing resolves and nothing leaves. The agent works against a mirror on this machine. There is no
 route to the upstream, not for the agent and not for a person inside the container either.
 
-![offline: the agent clones from the local mirror and pushes back to it; the upstream is out of reach](images/security-classes-offline.svg)
+![offline: the agent clones from the local mirror and pushes back to it; the upstream is out of reach, and the mirror was seeded once on the host](images/security-classes-offline.svg)
 
 "Nothing leaves" is about the container, and the mirror is not in it. The mirror is a bare
 repository on the host:
@@ -69,11 +69,14 @@ machine unless a person moves it. That is the guarantee, not a gap in it.
 
 ### guarded
 
-The default, and the one the gate was built for. The agent pushes to a gate on this machine. The
-work waits under `refs/sokar/incoming/<task>` until somebody reads and approves it, and the approve
-is what forwards it.
+The default, and the one the gate was built for. The agent clones from a gate on this machine and
+pushes to it; it never reaches the upstream itself. The gate, on the host, brings the mirror up to the
+upstream's branches when a task starts and on `sokar task refresh`, where the mirror was cloned from
+that upstream; one seeded from a checkout stays as it was seeded. The work waits under
+`refs/sokar/incoming/<task>` until somebody reads and approves it, and the approve is what forwards
+it.
 
-![guarded: the agent pushes to the local gate, the operator reviews and approves, and only the approve reaches the upstream — while a dashed path shows work leaving past the approval](images/security-classes-guarded.svg)
+![guarded: the agent clones from and pushes to the local gate, which alone fetches from the upstream; the operator reviews and approves, and only the approve reaches the upstream — while a dashed path shows work leaving past the approval](images/security-classes-guarded.svg)
 
 The dashed path is not a hole in the container. It is a person with their own key, fetching the
 agent's branch into their own checkout and pushing it. Nothing stops that, so `sokar gate checkout`
@@ -95,15 +98,16 @@ what the gate does with a push. It passes the task's own branch on to the upstre
 `sokar/<task>`, with the key the host lends for it, and the agent's push succeeds only when the
 upstream took it; a refusal by the forge fails the agent's push with the forge's words. The gate
 refuses a push to any other branch, a tag, a deletion and any other repository; a push with force
-to the task's own branch goes through, since an agent that rebases needs it. Before the agent
-fetches, the gate fetches from the upstream - at most once every few seconds, so an agent fetching
-in a loop cannot make the host flood the forge with your key.
+to the task's own branch goes through, since an agent that rebases needs it. The gate fetches from
+the upstream when the task starts, as in `guarded`, and again before each fetch of the agent - at most
+once every few seconds, so an agent fetching in a loop cannot make the host flood the forge with your
+key.
 
 Nothing is reviewed before it lands. That is what the class is for, and why a project has to
 choose it; a task cannot ask for it. The forge builds the branch at once, and the task is told
 what its builds did ([Running](running.md)).
 
-![online: the agent clones from and pushes to the gate on this machine; the gate fetches from the upstream and passes the task's own branch on at once, with the host's key; any review happens afterwards on the forge](images/security-classes-online.svg)
+![online: the agent clones from and pushes to the gate on this machine and never reaches the upstream; the gate fetches from the upstream at the task's start and before each fetch of the agent, and passes the task's own branch on at once, with the host's key; any review happens afterwards on the forge](images/security-classes-online.svg)
 
 ### What the pictures do not show
 

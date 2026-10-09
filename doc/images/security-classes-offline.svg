@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 210" width="880" height="210" role="img" aria-label="Offline: the agent clones from the local mirror and pushes back to it; there is no path to the upstream and the resolver answers nothing.">
-  <rect x="0" y="0" width="880" height="210" rx="8" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 240" width="880" height="240" role="img" aria-label="Offline: the agent clones from the local mirror and pushes back to it; there is no path to the upstream and the resolver answers nothing. The mirror is seeded once on the host, from the upstream or a checkout, and never fetched again.">
+  <rect x="0" y="0" width="880" height="240" rx="8" fill="#ffffff"/>
   <defs>
     <marker id="ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#57606a"/>
@@ -25,6 +25,8 @@
     <rect x="726" y="60" width="136" height="46" rx="6" fill="none" stroke="#d0d7de" stroke-dasharray="5 4"/>
     <text x="794" y="88" font-size="13" text-anchor="middle" fill="#a0a8b0">Upstream</text>
     <text x="794" y="126" font-size="11" text-anchor="middle" fill="#a0a8b0">out of reach</text>
+    <path d="M 794 140 L 794 206 L 320 206 L 320 112" stroke="#8c959f" stroke-width="1.4" fill="none" stroke-dasharray="2 4" marker-end="url(#ink)"/>
+    <text x="557" y="224" font-size="11" text-anchor="middle" fill="#8c959f">seeded once on the host, from the upstream or a checkout, and never fetched again</text>
     <path d="M 404 74 L 486 74" stroke="#a8480f" stroke-width="1.6" fill="none" marker-end="url(#agent)"/>
     <text x="445" y="66" font-size="11" text-anchor="middle" fill="#a8480f">clones</text>
     <path d="M 486 96 L 404 96" stroke="#a8480f" stroke-width="1.6" fill="none" marker-end="url(#agent)"/>
