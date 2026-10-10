@@ -85,7 +85,7 @@ class CredentialWiringTest {
 
     @Test
     void namesTheOneCommandThatGetsTheCredential() {
-        // The operator on 2026-10-09 was told only that the vault held nothing for 'github-copilot'.
+        // On 2026-10-09 a start said only that the vault held nothing for 'github-copilot'.
         final org.fuin.sokar.agent.api.ProviderDefinition copilot =
                 org.fuin.sokar.agent.api.ProviderDefinitionReader.read(new java.io.StringReader("""
                         name: github-copilot

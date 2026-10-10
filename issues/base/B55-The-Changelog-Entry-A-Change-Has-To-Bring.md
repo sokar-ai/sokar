@@ -38,7 +38,7 @@ by a commit that only rewrote a URL in the `[Unreleased]:` link line. A new file
    it. Today `lint` checks only that the `changelog` directory exists and that its YAML is valid,
    and nothing in logchange (1.19.16) requires an entry.
 2. **If upstream declines, a small fuinorg plugin**, in its own repository under
-   `github.com/fuinorg`, since the operator's rule puts what is not Sokar-specific there. Either way
+   `github.com/fuinorg`, since the rule puts what is not Sokar-specific there. Either way
    the plugin that repository would have held becomes smaller, or unnecessary.
 
 ## What the check must keep from the old one

@@ -200,7 +200,7 @@ class ContainerfileTest {
     @Test
     void everyImageCarriesAUtf8Locale() {
 
-        // Measured on the Ubuntu VM, 2026-09-12, and reported by the operator before that: the
+        // Measured on the Ubuntu VM, 2026-09-12, and reported before that: the
         // base image sets no LANG and 'podman exec' passes none, so LC_CTYPE was POSIX and an
         // agent's terminal interface arrived with every non-ASCII character replaced - its
         // banner, its prompt markers and its spinner all underscores. In the same container the

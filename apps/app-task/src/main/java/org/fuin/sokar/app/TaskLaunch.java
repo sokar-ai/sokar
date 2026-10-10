@@ -1170,7 +1170,7 @@ public final class TaskLaunch {
      * the container by hand is what it is for, and whether the agent could authenticate may not
      * matter to it at all - so it warns and starts, which is what every mode used to do.
      * <p>
-     * Named rather than inlined because it is a decision, taken by the operator on 2026-09-12
+     * Named rather than inlined because it is a decision, taken on 2026-09-12
      * after a locked vault let an {@code AGENT} task build an image and a container and then land
      * somebody in an agent that could not authenticate.
      *
