@@ -61,6 +61,16 @@ public final class Offer {
             BooleanSupplier remedy, BooleanSupplier holds) {
     }
 
+    /**
+     * Says whether this process has a terminal a person can answer at.
+     *
+     * @return {@code true} when standard input and output are a terminal.
+     */
+    public static boolean atTerminal() {
+        final java.io.Console console = System.console();
+        return console != null && console.isTerminal();
+    }
+
     /** Nobody asked and nothing taken: every gap refused as before. */
     public static final Offer NOBODY = new Offer(Asker.NOBODY, true, false, null);
 

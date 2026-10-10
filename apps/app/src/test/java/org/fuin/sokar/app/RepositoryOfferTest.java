@@ -39,4 +39,25 @@ class RepositoryOfferTest {
 
         assertThat(OwnRepository.worksIn(project)).isEqualTo("api, web");
     }
+
+    @Test
+    void atATerminalAStartWithoutARepositoryAsksWhichOfTheOnesWorkStartsIn() {
+        final var project = ProjectReader.read(new StringReader("""
+                project: { name: "shop", security_class: "guarded" }
+                image: { base_image: "ubuntu:24.04" }
+                repositories:
+                  api:
+                    upstream: "git@forge.example.org:o/api.git"
+                  web:
+                    upstream: "git@forge.example.org:o/web.git"
+                """), "test");
+        final java.io.StringWriter err = new java.io.StringWriter();
+
+        assertThat(TaskRunCommand.repositoryChosen(project,
+                new Offer(question -> "2", false, false, new java.io.PrintWriter(err, true)))).isEqualTo("web");
+        assertThat(err.toString()).contains("1  api").contains("2  web").doesNotContain("shop");
+        assertThat(TaskRunCommand.repositoryChosen(project,
+                new Offer(question -> "", false, false, new java.io.PrintWriter(err, true)))).as("no answer").isNull();
+        assertThat(err.toString()).contains("'sokar task start --repository <name>'");
+    }
 }

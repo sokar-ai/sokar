@@ -244,6 +244,16 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             // directory somebody was standing in. Where the file comes from is ProjectSource's
             // answer, and it prefers the one this machine verified.
             projectFile = ProjectSource.require(context, projectName);
+            if ((repository == null || repository.isBlank()) && !noGate && !dryRun && !noInput && Offer.atTerminal()) {
+                // Asked here, before the task is named, so an unnamed task is named after the repository chosen.
+                final org.fuin.sokar.core.project.Project chosenFrom = ProjectReader.read(projectFile);
+                if (!chosenFrom.workRepositoryNames().isEmpty()) {
+                    repository = repositoryChosen(chosenFrom, new Offer(Offer.Asker.terminal(), noInput, yes, err));
+                    if (repository == null) {
+                        return 2;
+                    }
+                }
+            }
             if (!spec.commandLine().getParseResult().hasMatchedPositional(0) && repository != null
                     && !repository.isBlank()) {
                 // The task started from this checkout, when there is one, as every other task command takes it; a new
@@ -555,5 +565,17 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             out.flush();
         }
         return failed == 0 ? 0 : 1;
+    }
+
+    /**
+     * Asks which of a project's repositories a task without one is for, where a start would refuse and name the option.
+     *
+     * @param project The project.
+     * @param offer Who is asked.
+     * @return The one chosen, or {@code null} when nothing was, said with the command.
+     */
+    static @Nullable String repositoryChosen(final org.fuin.sokar.core.project.Project project, final Offer offer) {
+        return offer.choose("say which repository this task is for", project.workRepositoryNames(),
+                "sokar task start --repository <name>");
     }
 }
