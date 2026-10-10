@@ -8,7 +8,7 @@ says when it changed.
 
 ## Why
 
-From Codex's review (PJ19), "Project images are not digest- or signature-pinned", rated important.
+From a code review (sokar-project PJ19), "Project images are not digest- or signature-pinned", rated important.
 
 A project file's `base_image` is any image reference, and it reaches the container file's `FROM` as written. A tag
 such as `ubuntu:24.04` names whatever the registry serves under it on the day a machine first builds the image:

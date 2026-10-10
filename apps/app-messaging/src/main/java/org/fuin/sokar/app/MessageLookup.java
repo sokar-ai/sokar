@@ -19,7 +19,7 @@ import org.fuin.sokar.wire.Json;
  * <p>
  * Three places, and no others: {@code hold/}, what the filter refused ({@code rejected/}) and what it
  * could not check at all ({@code error/}). A refused original holds what was refused in clear text,
- * secrets included; the operator decided that a person may read it in full and still deliver it, so
+ * secrets included; it was decided that a person may read it in full and still deliver it, so
  * it is found here - by a person asking, never by the stream or the record, which stay without content.
  */
 final class MessageLookup {
@@ -146,7 +146,7 @@ final class MessageLookup {
     /**
      * Says whether a message may leave, from the filter's answer to it as the host keeps it.
      * <p>
-     * <strong>Fail closed</strong> (Agent Coordinator and Agent Sluice, 2026-10-04): an answer that is missing - a
+     * <strong>Fail closed</strong> (2026-10-04): an answer that is missing - a
      * filter defect, a receipt lost in a crash - holds the message, as a flagged one is held, never reads as clean.
      * And only the host's copies are asked, never the agent's box, which the agent can empty.
      *
@@ -170,7 +170,7 @@ final class MessageLookup {
             }
         }
         // A message whose id cannot be read is no exception: after the filter every accepted message has one, so
-        // an empty one means Sokar could not read it, and that holds too (Agent Sluice, 2026-10-04).
+        // an empty one means Sokar could not read it, and that holds too (2026-10-04).
         return answered ? "" : id.isEmpty() ? "its id cannot be read, so it waits for a person"
                 : "the filter's answer to it is missing, so it waits for a person";
     }

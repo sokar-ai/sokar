@@ -9,7 +9,7 @@ import java.util.Optional;
  * <p>
  * <strong>Why not {@code Console.readPassword}.</strong> It shows nothing at all, and nothing at
  * all is indistinguishable from a terminal that has hung - which is exactly what it looks like
- * through an interface that opened the session for somebody. The operator asked for the feedback
+ * through an interface that opened the session for somebody. The feedback was asked for
  * every other passphrase prompt in the world gives.
  * <p>
  * <strong>Why the echo is off rather than simply printing.</strong> The terminal is put into raw

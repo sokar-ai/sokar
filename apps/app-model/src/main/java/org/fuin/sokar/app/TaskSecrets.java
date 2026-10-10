@@ -18,7 +18,7 @@ import org.jspecify.annotations.Nullable;
  * every model call fails as a bad credential. They used to live only in the runtime directory, which a reboot
  * wipes.
  * <p>
- * <strong>In the vault, not beside it</strong> - the operator's decision: no push or provider credential lies on
+ * <strong>In the vault, not beside it</strong> - decided: no push or provider credential lies on
  * disk outside the vault, at the cost that the first start after a reboot needs the vault unlocked, which the
  * credential proxy needs anyway.
  * <p>
@@ -129,7 +129,7 @@ public final class TaskSecrets {
                 final Map<String, VaultEntry> updated = new LinkedHashMap<>(entries);
                 // Only a task's own entries, whose owner is a container: a grant or a transport's secrets are the
                 // account's, owned by no task. Pruning every reserved name took them too, at every task start
-                // (found by Agent Frontend, 2026-09-30: the transport's provisioning token gone).
+                // (found on 2026-09-30: the transport's provisioning token gone).
                 updated.keySet().removeIf(name -> name.startsWith(PREFIX) && !existing.contains(owner(name)));
                 put(updated, container + GATE, tokens.gate());
                 put(updated, container + PROVIDER, tokens.provider());

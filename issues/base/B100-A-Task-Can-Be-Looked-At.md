@@ -9,7 +9,7 @@ loopback-only view; nothing of the box runs on their computer.
 
 Written beside B95 (a container to try waiting work in). The interface's half is in `sokar-frontend`.
 
-The operator tests the interface on his own computer with the guided walk: the agent answers in a panel and changes
+A person tests the interface on their own computer with the guided walk: the agent answers in a panel and changes
 the code live, with hot reload and Dart's MCP server. An agent in a Sokar task cannot do that - it reaches neither
 the host's files nor its tools - and the person cannot reach what it built to try it.
 

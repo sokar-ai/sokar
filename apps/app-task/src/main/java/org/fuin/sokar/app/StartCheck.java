@@ -270,7 +270,7 @@ public final class StartCheck {
             Map<String, String> run) {
         // Before the agent's own credential: an undeclared destination refuses a start in every mode, where a
         // missing credential does not stop a shell - an interface told only the second would offer a start
-        // that Start then refuses (found by Agent Frontend, 2026-09-29).
+        // that Start then refuses (found on 2026-09-29).
         if (rest.outcome() != Outcome.READY && rest.outcome() != Outcome.CREDENTIAL_MISSING
                 && rest.outcome() != Outcome.CREDENTIAL_UNUSABLE && rest.outcome() != Outcome.VAULT_LOCKED) {
             return rest;

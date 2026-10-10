@@ -131,7 +131,7 @@ class MessageReadTest {
 
     @Test
     void readsWhatTheFilterRefusedInFullWithTheFiltersOwnAnswer(@TempDir final Path dir) throws IOException {
-        // The operator's decision: a person sees the full text of a refused message, to decide about it.
+        // Decided: a person sees the full text of a refused message, to decide about it.
         final Mailbox mailbox = mailbox(dir);
         Files.createDirectories(mailbox.rejected());
         Files.writeString(mailbox.rejected().resolve("m-1.json"), MESSAGE);

@@ -84,7 +84,7 @@ public class DnsPolicy {
      * This is what a declared domain means: resolving a name and being allowed to reach it are
      * one decision, not two. Without it a declared host resolves and is then dropped, raising a
      * clearance prompt about something the definition already declared - measured on
-     * {@code github.com}, dropped twenty times while the operator saw only a hang. The prompt
+     * {@code github.com}, dropped twenty times while the person saw only a hang. The prompt
      * exists for what an agent reached for that nobody declared.
      * <p>
      * Resolved rather than pinned because pinning does not work: a large host rotates addresses,

@@ -122,7 +122,7 @@ class ProjectMailTest {
 
     @Test
     void a_setting_in_the_wrong_place_is_refused_and_named_where_it_belongs() {
-        // Found by Agent Matrix: under 'mail:', one section too low, followed without a word and never read.
+        // Found: under 'mail:', one section too low, followed without a word and never read.
         assertThatThrownBy(() -> read(HEAD + "mail:\n  upstream: \"git@example.org:p.git\"\n"))
                 .hasMessageContaining("'mail.upstream' is not a setting; it belongs under 'project:'");
         assertThatThrownBy(() -> read(HEAD.replace("security_class", "securty_class")
@@ -261,7 +261,7 @@ class ProjectMailTest {
     @Test
     void aProjectWithAConversationHasItsPeopleAsAPeerNobodyWrote() {
 
-        // The MVP's rule: reaching the people in the room needs no step from anyone (the operator, 2026-10-04).
+        // The MVP's rule: reaching the people in the room needs no step from anyone (2026-10-04).
         final Project project = read(HEAD + """
                 mail:
                   transports:

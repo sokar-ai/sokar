@@ -259,7 +259,7 @@ public record AgentDefinition(String name, String label, String binary, GitIdent
      * model when one was asked for.
      * <p>
      * The model goes by the same declared flag as in an unattended run. An attended start used to accept
-     * {@code --model} and drop it, so the agent answered on its own default - measured by Agent Smith
+     * {@code --model} and drop it, so the agent answered on its own default - measured
      * on 2026-09-29, with two agents' headers naming models nobody had asked for.
      *
      * @param model The model to ask for, or {@code null} for the agent's own.

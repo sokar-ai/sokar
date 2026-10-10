@@ -20,7 +20,7 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * <strong>One file per credential, so every process that finds one can raise it</strong> - a start refused
  * for want of it, the broker of a running task that finds the grant ended - and the daemon streams them to
- * every interface, so a second person sees what the first was refused (decided by the operator on
+ * every interface, so a second person sees what the first was refused (decided on
  * 2026-09-29). <strong>Raised once per credential until a grant lands:</strong> a second refusal for the same
  * entry keeps the first question; a grant clears it.
  */

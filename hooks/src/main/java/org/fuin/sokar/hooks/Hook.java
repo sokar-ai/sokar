@@ -71,7 +71,7 @@ public abstract class Hook {
 
             // The container the runtime runs is the one Sokar created for this sidecar, or nothing is done: any
             // container can carry the annotation and name a real task's sidecar, and a foreign one's poststop would
-            // otherwise reap that task's helpers (the operator, 2026-10-04).
+            // otherwise reap that task's helpers (2026-10-04).
             final Path sidecarFile = Path.of(sidecarPath);
             final Path stateDirectory = sidecarFile.getParent();
             final String recorded = stateDirectory == null ? null : Sidecar.recordedId(stateDirectory);

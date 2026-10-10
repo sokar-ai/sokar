@@ -148,7 +148,7 @@ class AgentWakeTest {
         assertThat(AgentWake.namesIt(refused, "sokar-p-writer", "p")).isTrue();
         assertThat(AgentWake.namesIt(flagged, "sokar-p-writer", "p")).isTrue();
         assertThat(AgentWake.namesIt(receipt, "sokar-p-writer", "p")).as("a plain receipt").isFalse();
-        // An id the detectors flagged is not repeated in the answer (Agent Sluice, 2026-10-04).
+        // An id the detectors flagged is not repeated in the answer (2026-10-04).
         final Path unlinked = Files.writeString(dir.resolve("k.json"),
                 "{\"metadata\":{},\"parts\":[{\"data\":{\"decision\":\"rejected\"}}]}");
         assertThat(AgentWake.namesIt(unlinked, "sokar-p-writer", "p")).as("a refusal of a flagged id").isTrue();
@@ -157,7 +157,7 @@ class AgentWakeTest {
     @Test
     void aMessageThatFoundTheAgentAtWorkIsAnnouncedOnceItRestsAndOnlyOnce() throws IOException {
 
-        // Agent Smith, 2026-10-04: a word that arrived while the agent worked was never announced, and it went to rest
+        // 2026-10-04: a word that arrived while the agent worked was never announced, and it went to rest
         // with mail it was never told of.
         final Mailbox mailbox = new Mailbox(dir.resolve("mail").resolve("sokar-p-writer"));
         mailbox.create();
@@ -223,7 +223,7 @@ class AgentWakeTest {
     @Test
     void twoPathsAtTheSameMomentOfRestTypeOneLineAndAnotherArrivalWaitsOutTheQuiet() throws Exception {
 
-        // Agent Smith, 2026-10-04: the same message announced twice, and the second Enter broke the agent's turn.
+        // 2026-10-04: the same message announced twice, and the second Enter broke the agent's turn.
         final Mailbox mailbox = new Mailbox(dir.resolve("mail").resolve("sokar-p-writer"));
         mailbox.create();
         Files.writeString(mailbox.inboxNew().resolve("m-1.json"), "{\"metadata\":{\"via\":\"direct\"}}");

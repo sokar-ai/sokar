@@ -16,12 +16,12 @@ import org.fuin.sokar.wire.Json;
 /**
  * What a task's agent is told about its mailbox: how it works, and whom it can reach.
  * <p>
- * Nothing told a running agent that its mailbox existed (the operator, 2026-10-04), so messages between tasks worked
+ * Nothing told a running agent that its mailbox existed (2026-10-04), so messages between tasks worked
  * only when a person explained them by hand. Two files in the box, both written by the host and only read by the agent:
  * <ul>
  * <li>{@link Mailbox#GUIDE}, how it works. <strong>The same for every task of one Sokar version</strong>: an agent
  * takes it into its system prompt, and a provider caches a prompt by its beginning, so a text that changed between two
- * starts of one session would have the whole conversation read again, uncached (Agent Smith, 2026-10-04). It says only
+ * starts of one session would have the whole conversation read again, uncached (2026-10-04). It says only
  * what the host and the filter enforce, from their own constants, so it cannot promise what they refuse.</li>
  * <li>{@link Mailbox#CARD}, whom the task can reach right now: written again at every pass, read by the agent before
  * it writes. Names only - a task never learns where a peer is.</li>

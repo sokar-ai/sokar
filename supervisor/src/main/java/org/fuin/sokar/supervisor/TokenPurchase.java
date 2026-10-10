@@ -22,7 +22,7 @@ import org.jspecify.annotations.Nullable;
  * <strong>The container never performs the exchange.</strong> The vault holds the client secret, the token
  * URL and the scopes; this buys the access token on the host, keeps it in memory until shortly before it
  * expires, and the broker attaches it. The container presents its phantom token and sees neither the secret
- * nor the token bought with it. Decided by the operator on 2026-09-29: per task, in memory, never written to
+ * nor the token bought with it. Decided on 2026-09-29: per task, in memory, never written to
  * disk - so no live token rests outside the vault, and tasks do not depend on each other's cache.
  * <p>
  * <strong>One exchange, however many requests are waiting.</strong> Twenty requests arriving with no valid

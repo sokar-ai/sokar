@@ -189,7 +189,7 @@ public final class MessageDelivery {
             final Path person = mailbox.inbound().resolve(name + PERSON_SUFFIX);
             if (!Files.isRegularFile(signature) && Files.isRegularFile(person)) {
                 // A person's words, which their conversation's transport handed over and the host took from a member
-                // of it: no key signs them, and they are not filtered (the operator, 2026-10-04) - the filter stands
+                // of it: no key signs them, and they are not filtered (2026-10-04) - the filter stands
                 // between an agent and everybody else, not between a person and the agent.
                 final String who = Files.readString(person, StandardCharsets.UTF_8).strip();
                 final String id;

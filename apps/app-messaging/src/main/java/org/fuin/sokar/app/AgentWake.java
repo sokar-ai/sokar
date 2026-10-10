@@ -12,10 +12,10 @@ import org.fuin.sokar.wire.Json;
 /**
  * Wakes an agent at rest at its prompt when a message for it arrived: one fixed line typed into its terminal.
  * <p>
- * A person writes in the project's conversation and nothing else (the operator, 2026-10-04), so an agent waiting at
+ * A person writes in the project's conversation and nothing else (2026-10-04), so an agent waiting at
  * its prompt has to learn that a message for it is there. Typed only where its agent declares what its screen shows at
  * rest and shows it now, and never where a question to a person is open: the line and its Enter would answer it
- * (Agent Smith, 2026-10-04). The line is Sokar's own and the same every time; what was written reaches the agent only
+ * (2026-10-04). The line is Sokar's own and the same every time; what was written reaches the agent only
  * as the file the host put into its inbox.
  */
 public final class AgentWake {
@@ -98,7 +98,7 @@ public final class AgentWake {
     /**
      * Tells a task's agent at rest about every message in its inbox that names it and it was not told about yet.
      * <p>
-     * <strong>Tried at every pass until it lands or the message is read</strong> (Agent Smith, 2026-10-04): a word
+     * <strong>Tried at every pass until it lands or the message is read</strong> (2026-10-04): a word
      * that arrived while the agent worked found it busy, the one try was spent, and it went to rest with mail it was
      * never told of. Each message is announced once; one line covers all that wait.
      *
@@ -126,7 +126,7 @@ public final class AgentWake {
         try {
             // One at a time per task, across the daemon's passes and a person's 'talk tell' in another process: two
             // paths that found the same message at the same moment of rest typed it twice, and the second Enter broke
-            // into the turn the first had started (Agent Smith, 2026-10-04).
+            // into the turn the first had started (2026-10-04).
             Files.createDirectories(mailbox.record());
             return FileLocks.holding(mailbox.record().resolve(".wake.lock"),
                     () -> announceHeld(mailbox, container, project, waking));

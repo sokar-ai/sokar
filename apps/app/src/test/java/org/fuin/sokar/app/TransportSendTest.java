@@ -190,7 +190,7 @@ class TransportSendTest {
     @Test
     void aMessageToAPersonGoesToThemAndOneToTheRoomToTheRoom(@TempDir final Path dir) throws IOException {
 
-        // A direct chat (the operator, 2026-10-04): the room is what the task acts in, and a person is a destination of
+        // A direct chat (2026-10-04): the room is what the task acts in, and a person is a destination of
         // their own, which the host queued from the project's peer; an empty one is the room's.
         final Mailbox mailbox = queued(dir);
         Files.writeString(mailbox.queueActive("local").resolve("m-1.json"),

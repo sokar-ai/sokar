@@ -7,7 +7,7 @@ signature the machine has checked against the repository's packaging key.
 
 ## Why
 
-From Codex's review (PJ19): `sokar-buildtools`' "Fedora package installation disables signature checking", and the
+From a code review (sokar-project PJ19): `sokar-buildtools`' "Fedora package installation disables signature checking", and the
 agent repositories' "Release RPMs are built with signing disabled", shared with Sokar. Placed Soon, with the agents'
 side in their repositories.
 
@@ -26,7 +26,7 @@ TLS to the project's own repository; `repo_gpgcheck` is not set either.
   the others. So the key, the CI secret that carries it and how a repository signs with it are written here first,
   and every repository moves together.
 - **The setup script is signed too.** `sokar-setup-<version>.sh` is the one Sokar interface that is a file, and a
-  wizard runs it as root on a machine that has nothing of Sokar's yet (Codex's review of `sokar-frontend`, PJ19).
+  wizard runs it as root on a machine that has nothing of Sokar's yet (a code review of `sokar-frontend`, PJ19).
   Each version gets a detached signature beside it, made with the same key, so a caller holding that public key can
   check exactly the bytes it is about to show and run; `latest` is only a pointer to a version.
 

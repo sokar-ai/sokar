@@ -4,7 +4,7 @@ package org.fuin.sokar.app;
  * Names a task nobody named: after its repository.
  * <p>
  * An unnamed start used to be called {@code shell} whatever it was, so an agent's session read as the wrong mode
- * (the operator, 2026-10-01). The repository is what a person recognises a task by. A second unnamed task on the
+ * (2026-10-01). The repository is what a person recognises a task by. A second unnamed task on the
  * same repository gets the next free name - {@code my-first-2} - and never takes over the first silently.
  */
 public final class TaskNames {

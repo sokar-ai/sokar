@@ -133,7 +133,7 @@ public final class ProjectReader {
         }
 
         // Before anything is read from it: a setting in the wrong place, or misspelt, is no setting at all, and
-        // the file looked applied (found by Agent Matrix, 2026-09-30, with a key one section too low).
+        // the file looked applied (found on 2026-09-30, with a key one section too low).
         ProjectSchema.check(root, origin);
 
         final Map<?, ?> project = section(root, "project", origin);

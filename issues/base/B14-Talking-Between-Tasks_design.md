@@ -108,7 +108,7 @@ enum spelling, not `agent`) from a task's outbox and nothing else, requires `mes
 whose `metadata.to` names exactly one peer. The filter checks the A2A 1.0 envelope: `contextId` is optional,
 `extensions` is an optional list of any URIs (no Sokar extension URI exists), and `metadata` is free. The narrowed
 schema below - fixed kinds with fixed data parts, a Sokar extension URI - is enforced by nothing yet; enforcing it is
-B108, in Soon (the operator, 2026-10-04). What an agent is told is what is enforced: the mailbox guide, in `doc/messages.md`.
+B108, in Soon (2026-10-04). What an agent is told is what is enforced: the mailbox guide, in `doc/messages.md`.
 
 What the narrowed schema allows, and nothing else:
 

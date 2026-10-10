@@ -20,7 +20,7 @@ import org.jspecify.annotations.Nullable;
  * that keeps a conversation of its own, and keeps what it hands back.
  * <p>
  * <strong>Sokar knows no transport here.</strong> What a room is, how an account is made, which homeserver
- * runs where: all the transport's, behind these four verbs (decided by the operator on 2026-09-30). Sokar
+ * runs where: all the transport's, behind these four verbs (decided on 2026-09-30). Sokar
  * hands each verb the project's settings for it as JSON on stdin, exactly as {@code mail.transports.<scheme>}
  * says them, and the secrets it kept as environment variables; it keeps the {@code secrets} and
  * {@code account} a verb prints in the account's vault, opaque, and hands them back as they were printed.
@@ -127,7 +127,7 @@ final class TransportLifecycle {
      * <p>
      * <strong>{@code --loopback-only}</strong> for an offline project: the transport refuses (78) before it
      * contacts anything but this machine's loopback. Checking {@code reaches} afterwards alone came too late -
-     * the transport had already reached out (found by Agent Matrix, 2026-09-30). Both hold: the transport is
+     * the transport had already reached out (found on 2026-09-30). Both hold: the transport is
      * told, and what it says it reaches is still checked.
      *
      * @param scheme The transport.
@@ -141,7 +141,7 @@ final class TransportLifecycle {
             throws Refused {
         writable(scheme);
         // The account's and the project's, as they were printed: so it keeps what it made - the project's relay
-        // - rather than making it again (asked by Agent Matrix, 2026-09-30).
+        // - rather than making it again (asked on 2026-09-30).
         final Map<String, String> given = new LinkedHashMap<>(secrets(scheme, "account"));
         given.putAll(secrets(scheme, "project/" + project));
         final Map<?, ?> said = run(scheme, settings, given, loopbackOnly, "setup", "--project", project);
@@ -452,7 +452,7 @@ final class TransportLifecycle {
 
     /**
      * Refuses before a verb runs when what it hands back could not be kept: a transport that made an
-     * account whose token is then dropped has an account nobody can use or remove (found by Agent Matrix,
+     * account whose token is then dropped has an account nobody can use or remove (found on
      * 2026-09-30, with a locked vault: the homeserver's administrator registered and lost).
      *
      * @param scheme The transport.

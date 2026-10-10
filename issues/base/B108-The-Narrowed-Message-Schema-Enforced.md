@@ -7,7 +7,7 @@ the guide it reads tells it exactly that schema, not a looser one.
 
 ## Why
 
-B14's design narrows A2A 1.0 for Sokar's messages, and nothing enforces it; decided by the operator that it is to
+B14's design narrows A2A 1.0 for Sokar's messages, and nothing enforces it; decided that it is to
 be enforced. The mailbox guide (`/run/sokar/mail/README.md`, in `doc/messages.md`) tells agents the looser rules that are enforced today. The filter's side, if it checks it, is
 `sokar-message-sluice`'s.
 

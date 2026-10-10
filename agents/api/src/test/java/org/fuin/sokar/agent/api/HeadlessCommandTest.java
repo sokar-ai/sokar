@@ -188,7 +188,7 @@ class HeadlessCommandTest {
     @Test
     void anAgentInATaskWithAMailboxIsToldWhereItsInstructionsAre() {
 
-        // An agent was never told that its mailbox existed (the operator, 2026-10-04): its own way of taking standing
+        // An agent was never told that its mailbox existed (2026-10-04): its own way of taking standing
         // instructions gets the file, directly behind what turns its prompts off, attended and unattended alike.
         final AgentDefinition definition = agent(FULL + """
 
@@ -235,7 +235,7 @@ class HeadlessCommandTest {
     @Test
     void anAgentSaysWhatItsScreenShowsAtRestAndItSurvivesTheWayToSokar() {
 
-        // So a message that names it can wake it, and never while it works or asks a person something (Agent Smith,
+        // So a message that names it can wake it, and never while it works or asks a person something (
         // 2026-10-04): what must be on the screen, and what must not.
         final AgentDefinition definition = agent(FULL.replace("  resume_flag: \"--resume\"\n",
                 "  resume_flag: \"--resume\"\n  at_rest:\n    shows: [\"bypass permissions on\"]\n"

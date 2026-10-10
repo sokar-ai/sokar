@@ -98,7 +98,7 @@ public class Podman {
     /**
      * Returns this runtime acting only on the tasks Sokar recorded, each by the container id it recorded.
      * <p>
-     * <strong>A task is what Sokar made, never what is named like one</strong> (the operator, 2026-10-04): anything
+     * <strong>A task is what Sokar made, never what is named like one</strong> (2026-10-04): anything
      * that runs as the account can start a container with any name and any label. So a task is listed only when its
      * live id is the one Sokar recorded when it created it, and every act on a task - start, stop, remove, exec, its
      * screen, a line typed into it - goes to that id, never to the name. A name with no record is acted on by nothing.
@@ -1284,7 +1284,7 @@ public class Podman {
             // Erased rather than the cursor moved, because what is on the screen belongs to the agent
             // that just ended - and erased as at the start, the screen only: 'clear' on a current
             // terminfo erases the scrollback too, where the conversation is kept for anyone who wants
-            // to read back (the operator, 2026-10-01).
+            // to read back (2026-10-01).
             script.append("printf '\\033[?1049l\\033[?25h\\033[0m\\033[r\\033[?7h"
                     + "\\033[?1000l\\033[?1002l\\033[?1003l\\033[?1006l'; stty sane; ");
             script.append("printf '\\033[H\\033[2J'; ");

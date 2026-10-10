@@ -358,7 +358,7 @@ public final class MessageWatch implements AutoCloseable {
         // Only the daemon's conversations hold what they read of the vault; a command reads it each time.
         VaultCache.hold();
         // The waiting polls at once, without a pass: started by the first pass, which waits an interval on purpose, a
-        // person's first word after the daemon came up waited for it too (Agent Matrix, 2026-10-04).
+        // person's first word after the daemon came up waited for it too (2026-10-04).
         BackgroundPass.start("sokar-conversations", () -> {
             try {
                 Thread.sleep(SETTLE);
@@ -844,7 +844,7 @@ public final class MessageWatch implements AutoCloseable {
         if (people != null) {
             peers.add(people);
         }
-        // And each of them by the name they joined with, reached in a direct chat with them (the operator, 2026-10-04).
+        // And each of them by the name they joined with, reached in a direct chat with them (2026-10-04).
         final java.util.Set<String> rooms = project.mail().conversations();
         if (!rooms.isEmpty()) {
             final List<String> named = peers.stream().map(org.fuin.sokar.core.project.Mail.Peer::name).toList();
@@ -875,7 +875,7 @@ public final class MessageWatch implements AutoCloseable {
             }
             // Through the project's conversation, on whichever transport keeps it: a person in it sees what the
             // tasks say to each other. A project without one is standalone - its tasks do not message each
-            // other at all (decided by the operator on 2026-09-30, when the local transport was retired).
+            // other at all (decided on 2026-09-30, when the local transport was retired).
             final java.util.Set<String> conversations = project.mail().conversations();
             if (conversations.isEmpty()) {
                 break;

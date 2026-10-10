@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * <strong>Asked at two moments</strong>, which is why it is not buried in either: when a fetch has
  * been refused, and when somebody declares a credential and wants to know before they rely on it.
- * The second is the better moment and was Agent Frontend's idea.
+ * The second is the better moment.
  */
 public final class ForgeIdentity {
 

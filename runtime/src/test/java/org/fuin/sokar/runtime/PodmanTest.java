@@ -717,7 +717,7 @@ class PodmanTest {
     @Test
     void aTaskIsListedOnlyWhenItsLiveIdIsTheOneSokarRecorded() {
 
-        // The operator, 2026-10-04: "Sokar must not pick running containers by their name. Anybody could start such a
+        // 2026-10-04: "Sokar must not pick running containers by their name. Anybody could start such a
         // container and Sokar would think it is its own." A label says only what its creator wrote.
         runner.answering("ps", "sokar-p-real\tUp 1 minute\t\t\tp\tguarded\t\t\ta1b2c3\n"
                 + "sokar-p-fake\tUp 1 minute\t\t\tp\tguarded\t\t\tffff00\n"

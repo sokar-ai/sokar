@@ -109,7 +109,7 @@ class ProjectTasksArePeersTest {
     void aStandaloneProjectsTasksAreNobodysPeers(@TempDir Path dir) {
 
         // No transport that keeps a conversation, so no messaging: the local transport is retired, and a
-        // project without a conversation works alone (decided by the operator on 2026-09-30).
+        // project without a conversation works alone (decided on 2026-09-30).
         tasks("sokar-acme-api", "sokar-acme-web");
 
         assertThat(new MessageWatch(context(dir), Duration.ZERO).withSiblings(project(""), "sokar-acme-planning")

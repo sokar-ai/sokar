@@ -8,7 +8,7 @@ import org.fuin.sokar.core.process.Command;
 /**
  * The environment the message filter and every transport start from: chosen, never the caller's whole one.
  * <p>
- * <strong>What the caller had does not decide what they do</strong> (decided by the operator on 2026-09-30).
+ * <strong>What the caller had does not decide what they do</strong> (decided on 2026-09-30).
  * Inherited, a {@code SOKAR_MSGSLUICE_*} in the shell that started Sokar switched the filter's checks off, and a
  * {@code SOKAR_MATRIX_TLS_VERIFY=off} switched a transport's certificate checks off; an outer agent's session
  * variables reached them too. They get what a process needs to find its tools, its home and its account's user

@@ -142,7 +142,7 @@ class MessageDispatchTest {
     void a_message_a_person_released_goes_although_the_peer_is_undecided_but_never_to_a_refused_peer(
             @TempDir final Path dir) throws IOException {
 
-        // Found by Agent Matrix: released, then held again by the same mode at the next pass, for ever.
+        // Found: released, then held again by the same mode at the next pass, for ever.
         final Mailbox mailbox = accepted(dir, "m-9.json",
                 "{\"messageId\":\"m-9\",\"metadata\":{\"to\":\"reviewer\"}}");
         Files.writeString(mailbox.accepted().resolve("m-9.json" + MessageDispatch.RELEASED_SUFFIX), "");
@@ -203,7 +203,7 @@ class MessageDispatchTest {
     @Test
     void anAnswerTheAgentRemovedFromItsBoxStillHoldsWhatTheFilterFlagged(@TempDir final Path dir) throws IOException {
 
-        // Agent Sluice, 2026-10-04: the agent can empty its own inbox, so only the host's copy is asked.
+        // 2026-10-04: the agent can empty its own inbox, so only the host's copy is asked.
         final Mailbox mailbox = accepted(dir, "m-12.json", "{\"messageId\":\"m-12\",\"metadata\":{\"to\":\"reviewer\"}}");
         Files.writeString(mailbox.feedback().resolve("receipt-m-12.json"), "{\"messageId\":\"r-12\","
                 + "\"metadata\":{\"inReplyToMessageId\":\"m-12\"},\"parts\":[{\"data\":{\"wouldReject\":true}}]}");

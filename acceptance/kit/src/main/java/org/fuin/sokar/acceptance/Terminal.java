@@ -186,7 +186,7 @@ public final class Terminal implements AutoCloseable {
      * in cooked mode turns it into a line feed, so a shell or a passphrase prompt reads the same line
      * either way. A program in raw mode sees what was sent, and the agents' own interfaces run in raw
      * mode: they take a line feed as Ctrl-J, a new line inside the prompt, and submit nothing.
-     * Measured on 2026-09-29 by Agent Smith against three agents at their pinned versions.
+     * Measured on 2026-09-29 against three agents at their pinned versions.
      * <p>
      * <strong>And on its own, after the text.</strong> Text and carriage return in one write read as a
      * paste to at least one agent's interface, and a carriage return inside a paste does not submit:

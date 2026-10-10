@@ -375,7 +375,7 @@ public final class TaskLaunch {
     /**
      * Says what a task in {@code default} may not be given, and narrows what it would be given by default.
      * <p>
-     * {@code default}'s settings are Sokar's and cannot be changed (decided by the operator on 2026-10-01): no egress
+     * {@code default}'s settings are Sokar's and cannot be changed (decided on 2026-10-01): no egress
      * beyond what the agent needs, so no credential for another destination, no other upstream, and no blocked
      * connection let through by a prompt. Whoever needs any of that makes a project repository and follows it.
      *

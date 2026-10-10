@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The operator's words of 2026-10-04: every agent reads every message in the room, a person addresses one with
+ * Decided on 2026-10-04: every agent reads every message in the room, a person addresses one with
  * {@code @agentname} or in a direct chat, and a person's words are not filtered.
  */
 class EveryoneReadsTheRoomTest {

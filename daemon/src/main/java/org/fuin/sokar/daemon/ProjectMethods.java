@@ -370,7 +370,7 @@ final class ProjectMethods {
             // 'NoSuchProject' for a name this machine does not LIST - not for one it lists but
             // does not follow. Those are projects from before following, and answering the error
             // here left an interface offering to clear one and with nothing to show for it, while
-            // force would have swept it blind. Found by Agent Frontend; the operator hit
+            // force would have swept it blind. Found through the interface; it was hit
             // the same wall on a test machine the same hour.
             if (deleted.outcome() == org.fuin.sokar.app.ProjectDeletion.Outcome.BUILT_IN) {
                 throw new VarlinkException(INTERFACE + ".Failed", Map.of("message", String.valueOf(deleted.detail())));
@@ -413,7 +413,7 @@ final class ProjectMethods {
         });
 
         // A machine's own keys, for an interface that registers them at a forge or writes them into a project:
-        // only the public halves ever leave this machine (decided by the operator, 2026-09-30).
+        // only the public halves ever leave this machine (decided on 2026-09-30).
         server.method("DeployKey", (parameters, replies) -> {
             final String name = text(parameters, "project");
             final String repository = text(parameters, "repository");

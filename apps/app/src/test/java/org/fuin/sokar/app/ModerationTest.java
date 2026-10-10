@@ -48,7 +48,7 @@ class ModerationTest {
     void aFileThatSetsNothingSendsToTheProjectAndItsRoomAndRefusesStrangers(
             @TempDir final Path dir) throws IOException {
 
-        // Decided by the operator on 2026-10-04: set once in project.yml, with defaults good enough to leave alone.
+        // Decided on 2026-10-04: set once in project.yml, with defaults good enough to leave alone.
         final Moderation moderation = moderation(dir, guarded(Mail.Rules.UNSAID, READER, OPS));
 
         assertThat(moderation.whyNotNow("sokar-p-2")).as("another task of the project").isEmpty();
@@ -131,7 +131,7 @@ class ModerationTest {
 
     @Test
     void aHoldIsTheProjectsAndATaskStartedLaterFindsIt(@TempDir final Path dir) throws IOException {
-        // Decided by the operator on 2026-09-29: held for the project, not for one task's mailbox.
+        // Decided on 2026-09-29: held for the project, not for one task's mailbox.
         final SokarPaths paths = new SokarPaths(org.fuin.sokar.core.config.XdgPaths.of(name -> switch (name) {
             case "XDG_STATE_HOME" -> dir.resolve("state").toString();
             case "XDG_RUNTIME_DIR" -> dir.resolve("run").toString();
@@ -150,7 +150,7 @@ class ModerationTest {
     void aPersonInTheConversationIsWatchedAsTheRoomIs(@TempDir final Path dir)
             throws IOException {
 
-        // A direct chat with michi leaves the machine as a message to the room does (the operator, 2026-10-04).
+        // A direct chat with michi leaves the machine as a message to the room does (2026-10-04).
         final Moderation moderation = new Moderation(dir.resolve("moderation").resolve("p.json"),
                 guarded(new Mail.Rules(null, Mail.PROMPT, null), READER), java.util.Set.of("michi"));
 

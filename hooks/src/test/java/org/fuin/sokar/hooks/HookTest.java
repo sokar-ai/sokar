@@ -167,7 +167,7 @@ class HookTest {
     void aContainerThatIsNotTheTaskItsSidecarBelongsToGetsNothingAndStopsNothing(
             @org.junit.jupiter.api.io.TempDir Path dir) throws IOException {
 
-        // Any container can carry the annotation and name a real task's sidecar (the operator, 2026-10-04).
+        // Any container can carry the annotation and name a real task's sidecar (2026-10-04).
         final Path sidecar = sidecarFile(dir);
         Sidecar.recordId(dir, "0f0f0f0f0f0f");
         final Succeeding hook = new Succeeding();

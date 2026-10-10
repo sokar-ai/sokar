@@ -62,8 +62,8 @@ public final class CredentialDeclarations {
 
         /**
          * The host turned this key away. Not "nothing to say" - said, because a key registered
-         * nowhere looks perfectly good here and can only fail at the first fetch. Found by Agent
-         * Frontend, whose check would otherwise have passed one.
+         * nowhere looks perfectly good here and can only fail at the first fetch. Found by an
+         * interface whose check would otherwise have passed one.
          */
         KEY_REFUSED,
 
@@ -309,7 +309,7 @@ public final class CredentialDeclarations {
      * agent anything, and an ssh destination never asks for a password - so an ssh key declared
      * for {@code https://} is a record that can only ever fail, at the moment somebody is trying
      * to get work done. It was accepted, and an interface had no business working out which
-     * combinations are possible. Asked for by Agent Frontend, who had two of them on a
+     * combinations are possible. Asked for by an interface that had two of them on a
      * machine.
      *
      * @param credential What was declared.

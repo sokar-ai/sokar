@@ -89,9 +89,9 @@ class AgentLoginTest {
                 .contains("sensible-browser").contains("www-browser");
         // BROWSER is set again, and both reversals happened for measured reasons rather than
         // taste. With it set, Claude Code redirects to a port on localhost instead of printing a
-        // code (Agent Smith); that port is unreachable from the operator's computer unless the
+        // code; that port is unreachable from the operator's computer unless the
         // container shares this machine's network, which the login container does - so the
-        // redirect lands somewhere an ssh forward can reach. The operator chose that over
+        // redirect lands somewhere an ssh forward can reach. That was chosen over
         // copying a code between two windows.
         assertThat(rendered).contains("ENV BROWSER=");
     }

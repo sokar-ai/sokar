@@ -199,7 +199,7 @@ final class VaultMethods {
                 // Nothing is written. Every refusal a real declaration gives, plus - for a key -
                 // who the forge thinks we are, which catches a key that is for another account or
                 // another repository at the moment somebody chooses it rather than at the first
-                // fetch. Agent Frontend's idea, and the better moment by a mile.
+                // fetch. The better moment by a mile.
                 final org.fuin.sokar.app.CredentialDeclarations.Check would =
                         declarations.wouldDeclare(declared);
                 // Only worth asking when the value is actually there; a key nothing holds cannot

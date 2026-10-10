@@ -140,7 +140,7 @@ class ProjectUnfollowCommandTest {
 
         // It did not, over the socket: the terminal removed the clone by hand AFTER the deletion
         // and the daemon never did, so a project unfollowed from an interface left its verified
-        // clone on the machine - while the contract said the clone goes. Found by Agent Frontend.
+        // clone on the machine - while the contract said the clone goes. Found through the interface.
         // Removed through ProjectDeletion now, which is the one thing both ways call, and it is
         // named in the preview for the same reason.
         final SokarContext context = context(dir);

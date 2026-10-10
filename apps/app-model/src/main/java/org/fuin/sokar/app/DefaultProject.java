@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * The project {@code default}: where work on a repository goes that no followed project names.
  * <p>
- * <strong>The one project that does not come from a repository</strong> (decided by the operator on 2026-10-01): every
+ * <strong>The one project that does not come from a repository</strong> (decided on 2026-10-01): every
  * machine has it, it is kept on this machine alone, and no repository, signature or follow is involved. Its settings
  * are Sokar's and cannot be changed - security class {@code guarded}, the default base image, no egress beyond what a
  * task's agent needs, no conversation. Whoever needs anything else makes a project repository and follows it.

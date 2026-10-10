@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * <strong>What is certainly a mistake is refused</strong>: a key that belongs in another section, or one spelt
  * within two letters of a key that belongs here. Ignored, either is silently no setting, and the file looks
- * applied. <strong>Any other unknown key is accepted and warned about</strong> (decided by the operator on
+ * applied. <strong>Any other unknown key is accepted and warned about</strong> (decided on
  * 2026-09-30): a file written for a later Sokar must still run on this one.
  * <p>
  * Two places are open by design: the names under {@code credentials} and {@code repositories} are the

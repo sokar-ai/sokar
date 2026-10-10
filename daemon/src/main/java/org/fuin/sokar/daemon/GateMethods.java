@@ -116,7 +116,7 @@ final class GateMethods {
         });
 
         // For work merged elsewhere: the interface takes it as a bundle, a person merges and signs it on their own
-        // computer and pushes it, and Landed clears it once the upstream holds it (decided by the operator,
+        // computer and pushes it, and Landed clears it once the upstream holds it (decided,
         // 2026-09-30). Nothing is signed or pushed here.
         server.method("PendingBundle", (parameters, replies) -> {
             final GitGate gate = gate(parameters, context);

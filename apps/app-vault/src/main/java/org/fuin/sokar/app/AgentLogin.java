@@ -485,7 +485,7 @@ public final class AgentLogin {
                 }
                 // And then the login is over, said once, by Sokar. Left running, the agent carried on into its
                 // own "Press Enter to continue" while Sokar said the person could leave it however they liked:
-                // two voices for one moment (the operator, 2026-10-01). Nothing in the container is needed
+                // two voices for one moment (2026-10-01). Nothing in the container is needed
                 // any more; a shut vault is asked for after it, where a prompt is possible.
                 podman.stop(container);
                 return;
@@ -532,7 +532,7 @@ public final class AgentLogin {
      * <p>
      * The trailing {@code /.} is the difference, measured against podman rather than read: with
      * it, the contents land directly in the target. Nobody had measured a login end to end -
-     * Agent Smith said so of his side, and it was true of mine.
+     * It was said of the agent's side, and it was true of Sokar's.
      *
      * @param declared What the agent declares as its config directory.
      * @return The source for a copy, whose contents land in the target.
@@ -563,7 +563,7 @@ public final class AgentLogin {
      * for any agent, because all three names are the standard ones.
      * <p>
      * <strong>{@code BROWSER} is deliberately NOT set, and that is a reversal.</strong> It was,
-     * and Agent Smith measured what it costs: with {@code BROWSER} set, Claude Code stops
+     * and it was measured what it costs: with {@code BROWSER} set, Claude Code stops
      * printing a link and a code and switches to redirecting to {@code localhost} on a port it
      * picks per run - which on a machine somebody reaches over ssh lands on the wrong computer
      * and needs that port forwarded, with the port knowable only by reading it out of the URL.
@@ -572,7 +572,7 @@ public final class AgentLogin {
      * <p>
      * The shim stays, because an agent that calls {@code xdg-open} itself still needs the address
      * printed rather than swallowed. <strong>What is NOT measured</strong> is whether the shim's
-     * mere presence makes an agent choose the redirect anyway; Agent Smith's measurement varied
+     * mere presence makes an agent choose the redirect anyway; the measurement varied
      * {@code BROWSER} and not the shim.
      *
      * @return Lines to run as root while the login image is built.
@@ -619,7 +619,7 @@ public final class AgentLogin {
         lines.add("    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/www-browser");
         // Set again, deliberately. Unset, an agent stays on link-and-code and nothing has to be
         // forwarded; set, it redirects to a port on this machine's own loopback - which the
-        // login container shares, so the operator's ssh forward reaches it. The operator chose
+        // login container shares, so the operator's ssh forward reaches it. That was chosen
         // the second: it is the one where nobody has to copy a code between two windows.
         lines.add("ENV BROWSER=/usr/local/bin/xdg-open");
         return java.util.List.copyOf(lines);

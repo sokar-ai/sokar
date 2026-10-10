@@ -296,7 +296,7 @@ public final class MessageRelease {
         final Path signature = mailbox.hold().resolve(name + ".sig");
         if (!refuse && MessageRecord.IN.equals(direction(mailbox, name))) {
             // Held on its way IN: released, it goes to this task, never out - it was turning outgoing and held
-            // again as "this project may not address" its own task (found by Agent Matrix, 2026-09-30). Back
+            // again as "this project may not address" its own task (found on 2026-09-30). Back
             // into inbound, so the next pass delivers it and checks it as it checks every arrival: a message
             // held for its signature is held again unless its sender's key is trusted.
             if (Files.isRegularFile(signature)) {
@@ -321,7 +321,7 @@ public final class MessageRelease {
         }
         if (!refuse) {
             // A person released this message: the next pass sends it whatever the peer's mode or hold says -
-            // asking that mode again held it again, for ever (found by Agent Matrix, 2026-09-30). A peer set to
+            // asking that mode again held it again, for ever (found on 2026-09-30). A peer set to
             // refuse still refuses: that is a decision about the peer, and it is final.
             Files.writeString(target.resolve(name + MessageDispatch.RELEASED_SUFFIX), "",
                     java.nio.charset.StandardCharsets.UTF_8);

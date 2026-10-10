@@ -104,7 +104,7 @@ class CredentialDryRunTest {
 
         // Two different things to do first. A wizard told MISSING_VALUE sends somebody to
         // 'vault put', which fails at its last step on a machine that has no vault at all.
-        // Found by Agent Frontend on an account that had never made one.
+        // Found on an account that had never made one.
         final CredentialDeclarations.Check would = new CredentialDeclarations(context(dir))
                 .wouldDeclare(new Credential("", Credential.Kind.TOKEN,
                         "https://forge.example/", null, "git", Credential.Source.VAULT));

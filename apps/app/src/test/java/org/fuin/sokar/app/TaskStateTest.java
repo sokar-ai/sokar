@@ -153,7 +153,7 @@ class TaskStateTest {
     @Test
     void keepingATasksTokensPrunesGoneTasksOnlyAndNeverTheAccountsGrantsOrTransportSecrets() throws IOException {
 
-        // Found by Agent Frontend: every task start pruned every reserved name whose "owner" was no running
+        // Found: every task start pruned every reserved name whose "owner" was no running
         // container - and a grant or a transport's secrets are owned by no task, so they went every time.
         org.junit.jupiter.api.Assumptions.assumeTrue(org.fuin.sokar.vault.KernelKeyring.available(),
                 "libkeyutils is not installed");

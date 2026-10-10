@@ -16,7 +16,7 @@ import org.fuin.sokar.wire.Json;
 /**
  * How closely a project's messages are watched, peer by peer, and whether a person holds one.
  * <p>
- * <strong>The mode is the project's, set once in its {@code project.yml}.</strong> Decided by the operator on
+ * <strong>The mode is the project's, set once in its {@code project.yml}.</strong> Decided on
  * 2026-10-04: {@code mail.rules} gives a mode for the project's own tasks, its conversation and everyone else, and
  * a peer may name its own; {@link Mail#modeFor} says which applies. Until then each person set a mode per peer
  * here, on the host, and a project's tasks started at {@code prompt} with each other.
@@ -32,7 +32,7 @@ import org.fuin.sokar.wire.Json;
  * </ul>
  * <p>
  * <strong>What a person still decides here is the brake</strong>: holding a peer, for every task of the project,
- * including tasks started later (the operator, 2026-09-29). It lives beside the mailboxes on the host, never inside
+ * including tasks started later (2026-09-29). It lives beside the mailboxes on the host, never inside
  * one: a task must not be able to change how closely it is watched.
  */
 public final class Moderation {

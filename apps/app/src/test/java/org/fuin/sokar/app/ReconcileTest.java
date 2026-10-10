@@ -723,7 +723,7 @@ class ReconcileTest {
         // rebuilt the record through a constructor that defaults the flag - so the follow wrote
         // "unverified" and the next line wrote it away again. The outcome was right, the clone was
         // right, and the one field that says WHO DECIDES read as though a signature had been
-        // checked. Found by Agent Frontend, whose dialog shows that field on every project.
+        // checked. Found through the interface, whose dialog shows that field on every project.
         final SokarContext context = context(dir);
         final Path repo = published(dir, null, "demo");
         final FollowedProjects.Followed taken = new FollowedProjects.Followed("demo",
@@ -763,7 +763,7 @@ class ReconcileTest {
             throws IOException {
 
         // Asked before anything is written. A follow that cannot apply used to leave a project
-        // behind that was followed with nothing in force - the operator met one and had no verb
+        // behind that was followed with nothing in force - one was met, with no verb
         // to take it away.
         final SokarContext context = context(dir);
         final Path key = key(dir, "operator");

@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * A locked vault stopped every conversation without a word (Agent Matrix, 2026-10-04).
+ * A locked vault stopped every conversation without a word (2026-10-04).
  */
 class VaultLockedConversationsTest {
 

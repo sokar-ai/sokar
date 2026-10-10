@@ -140,7 +140,7 @@ class TaskLifecycleCommandsTest {
     @Test
     void anUnnamedTaskIsNamedAfterItsRepositoryAndNeverTakesOverOneThatIsThere(@TempDir Path dir) {
 
-        // Unnamed starts were all 'shell', which read as the wrong mode for an agent's session (the operator, 2026-10-01).
+        // Unnamed starts were all 'shell', which read as the wrong mode for an agent's session (2026-10-01).
         final SokarContext context = context(dir);
         runner.answering("ps", "");
         assertThat(TaskNames.fromRepository(context, "default", "my-first")).isEqualTo("my-first");

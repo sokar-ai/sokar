@@ -385,7 +385,7 @@ class ProjectInventoryTest {
     @Test
     void listsAProjectItFollowsBeforeAnythingHasRun(@TempDir Path dir) throws IOException {
 
-        // Measured by Agent Frontend on a rented machine: their dialog followed a project, the
+        // Measured on a rented machine: an interface's dialog followed a project, the
         // follow applied, and 'Projects()' answered nothing - so the only way into a project
         // ended at the dialog that took it. The listing was assembled from mirrors, tasks and the
         // registry, and a project that has done none of those three is in none of them. A project

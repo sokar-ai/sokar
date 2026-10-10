@@ -108,7 +108,7 @@ class FollowedProjectsTest {
     void aPassesResultIsWrittenOnlyOntoTheRecordItReadSoAnUnfollowMeanwhileStays(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws java.io.IOException {
         // The daemon's pass reads every record, fetches for seconds, and writes what it found. Written unconditionally,
-        // it brought back a project unfollowed while it fetched (found by Agent Frontend, 2026-10-01).
+        // it brought back a project unfollowed while it fetched (found on 2026-10-01).
         final FollowedProjects projects = new FollowedProjects(dir);
         final FollowedProjects.Followed read = projects.follow("p", "git@example.org:p.git", true);
         final FollowedProjects.Followed found = new FollowedProjects.Followed("p", read.url(), "", "now", "UNREACHABLE",

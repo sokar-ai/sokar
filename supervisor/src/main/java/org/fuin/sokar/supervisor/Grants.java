@@ -92,7 +92,7 @@ public final class Grants {
     /**
      * Returns whether an endpoint may be used: https, or plain http on this machine's loopback only.
      * <p>
-     * Decided by the operator on 2026-09-30, as for a homeserver: nothing leaves the machine unencrypted,
+     * Decided on 2026-09-30, as for a homeserver: nothing leaves the machine unencrypted,
      * and a stand-in service on the machine can be measured against.
      *
      * @param url The endpoint.

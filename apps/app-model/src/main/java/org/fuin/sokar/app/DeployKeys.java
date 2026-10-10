@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  * This machine's deploy keys: one per repository of a project, made here, its secret half in the vault and
  * declared for that repository's upstream, its public half handed out for a person to register at the forge.
  * <p>
- * <strong>Read-only for the project's own repository</strong> (decided by the operator on 2026-09-30): a
+ * <strong>Read-only for the project's own repository</strong> (decided on 2026-09-30): a
  * machine reads its project's configuration and never writes it, so a compromised machine cannot change it;
  * only a work repository, where the host pushes approved work, is registered with write access. The access is
  * the forge's to enforce - what this says is how the key is to be registered.

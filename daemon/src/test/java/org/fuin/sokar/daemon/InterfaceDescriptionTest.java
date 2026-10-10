@@ -160,7 +160,7 @@ class InterfaceDescriptionTest {
     @Test
     void everyMethodRepliesWithAStruct() {
 
-        // Found by Agent Frontend on Authorizations, and Prompts and Talk had it too: varlink's grammar wants
+        // Found on Authorizations, and Prompts and Talk had it too: varlink's grammar wants
         // '-> (field: type, ...)', and a strict parser refuses '-> SomeType' - and with it the whole description.
         assertThat(java.util.regex.Pattern.compile("(?m)^method\\s+\\w+\\([^)]*\\)\\s*->\\s*[A-Za-z]")
                 .matcher(SokarDaemon.description()).results().map(java.util.regex.MatchResult::group).toList())
@@ -170,7 +170,7 @@ class InterfaceDescriptionTest {
     @Test
     void noTypeMethodOrErrorIsDeclaredTwice() {
 
-        // Found by Agent Frontend on build 215: a second 'type Grant' beside the egress one. varlink allows
+        // Found on build 215: a second 'type Grant' beside the egress one. varlink allows
         // one definition per name; a strict parser refuses the whole description, and a lenient one reads
         // one of the two fields' sets with the other's.
         final String description = SokarDaemon.description();

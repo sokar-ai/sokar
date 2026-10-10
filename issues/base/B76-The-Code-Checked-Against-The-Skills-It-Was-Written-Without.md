@@ -219,7 +219,7 @@ Fixed, each with a test watched to fail:
   held the readiness wait for ever, the handshake had no limit, and a connection failure escaped the list as
   another kind of exception, leaving the agents started before it running. The wait reads what is there, the
   handshake is bounded, every failure is the agent's own, and its client and socket are cleaned up.
-  **The bound itself was first a defect**, found by Agent Smith's Pi suite under load: the handshake waited on a
+  **The bound itself was first a defect**, found by the Pi agent's suite under load: the handshake waited on a
   virtual thread, so on a machine of two processors an agent that answered in a tenth of a second was given up
   on, and the executor was never closed. It waits on a platform thread of its own, ended with each handshake.
 - **`mode: 0644` installed a file as 0420**, YAML reading it in octal; a mode must be written as a string.

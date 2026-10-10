@@ -11,7 +11,7 @@ import org.fuin.sokar.core.project.ProjectReader;
 /**
  * Checks a draft {@code project.yml} against this machine, before a person commits it.
  * <p>
- * <strong>Three answers, because they block different things</strong> (decided by the operator on
+ * <strong>Three answers, because they block different things</strong> (decided on
  * 2026-09-30): what Sokar refuses anywhere - YAML that does not parse, a key or value the schema refuses - blocks the
  * commit; what this machine's {@code follow} would refuse - an egress set it does not have - means this machine
  * would not take it; and what only this machine lacks - a destination, a vault entry, a transport - or a key a

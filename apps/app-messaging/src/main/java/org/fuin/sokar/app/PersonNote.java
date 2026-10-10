@@ -19,7 +19,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Puts a person's own words into a task's inbox, where its agent already reads.
  * <p>
- * <strong>From a person at this machine, and nowhere else</strong> (decided by the operator on 2026-09-30): what a
+ * <strong>From a person at this machine, and nowhere else</strong> (decided on 2026-09-30): what a
  * person typed at their own machine, or through an interface to its daemon - never a peer's message, which reaches
  * the inbox only through the transport, the signature check and the filter. It carries {@link MessageSay#ROLE},
  * as everything a person writes does, and {@code from: person}, so an agent tells it from a peer's.

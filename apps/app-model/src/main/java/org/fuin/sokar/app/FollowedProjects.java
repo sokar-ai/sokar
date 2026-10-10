@@ -241,7 +241,7 @@ public final class FollowedProjects {
      * <p>
      * <strong>For the daemon's pass over every project</strong>, which reads the records, fetches each project - seconds,
      * over a network - and writes what it found. Written unconditionally, it brought back a project unfollowed while it
-     * fetched, and a first follow refused in the meantime, which is meant to leave nothing (found by Agent Frontend,
+     * fetched, and a first follow refused in the meantime, which is meant to leave nothing (found on
      * 2026-10-01: a follow refused as unreachable listed afterwards). A record that changed or went is left as it is
      * now; the next pass reads it again.
      *

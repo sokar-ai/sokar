@@ -33,7 +33,7 @@ import org.jspecify.annotations.Nullable;
  * <strong>The redirect lands on the machine's own loopback</strong> (RFC 8252): this listens on
  * {@code 127.0.0.1} at the port the entry names, for the one answer it is waiting for. A person at another
  * machine forwards that port through the ssh connection they already hold, so the browser's redirect to
- * {@code 127.0.0.1} comes back down the tunnel. Decided by the operator on 2026-09-29: the device code first,
+ * {@code 127.0.0.1} comes back down the tunnel. Decided on 2026-09-29: the device code first,
  * this second.
  * <p>
  * What comes back is the same refresh token as from {@link DeviceGrant}, kept and spent the same way.

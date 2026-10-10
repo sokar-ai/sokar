@@ -13,7 +13,7 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Every piece existed on its own - removing a task, unfollowing, forgetting a deploy key, clearing a transport -
  * and a person had to know each and its order; clearing a test machine by hand still left deploy keys at a forge
- * (the operator, 2026-10-02: "When I am done, I must be able to clear everything on the server very simply").
+ * (2026-10-02: "When I am done, I must be able to clear everything on the server very simply").
  * <p>
  * <strong>What only a person's credentials can remove is answered, never attempted:</strong> a deploy key at a
  * forge and this machine's line in a project's {@code machine-signers}. The machine holds no forge token and not the

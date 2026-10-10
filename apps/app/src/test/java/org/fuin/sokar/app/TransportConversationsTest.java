@@ -79,7 +79,7 @@ class TransportConversationsTest {
     @Test
     void whatArrivesGoesToEveryTaskOfThatProjectWhomeverItNamesAndNothingIsKept() throws IOException {
 
-        // Every agent reads every message in the room (the operator, 2026-10-04); metadata.to says whom it is meant for.
+        // Every agent reads every message in the room (2026-10-04); metadata.to says whom it is meant for.
         final Mailbox review = mailbox("sokar-p-review");
         final Mailbox build = mailbox("sokar-p-build");
         final Path inbound = Files.createDirectories(dir.resolve("inbound"));

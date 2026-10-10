@@ -34,7 +34,7 @@ class MailboxGuideTest {
     @Test
     void isTheSameForEveryTaskSoAProvidersCacheOfThePromptHolds() {
 
-        // Agent Smith, 2026-10-04: the text ends the system prompt, and a prompt is cached by its beginning.
+        // 2026-10-04: the text ends the system prompt, and a prompt is cached by its beginning.
         assertThat(MailboxGuide.text()).isEqualTo(MailboxGuide.text()).doesNotContain("sokar-");
     }
 

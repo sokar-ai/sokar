@@ -136,7 +136,7 @@ class StartCheckTest {
     void theRepositoryIsAskedLastSoARefusalNeverHidesTheOthers(@TempDir Path dir)
             throws Exception {
 
-        // The point Agent Frontend's question exposed: an interface asking "can work start in this
+        // The point a question from the interface exposed: an interface asking "can work start in this
         // project at all" must not be told to choose a repository and learn nothing about a
         // missing agent. There is no agent on this machine, so that is the answer - even though no
         // repository was named either.
@@ -245,7 +245,7 @@ class StartCheckTest {
     @Test
     void anUndeclaredDestinationIsItsOwnOutcomeAndSaysWhoNamedIt(@TempDir Path dir) throws Exception {
 
-        // Measured by Agent Frontend: the launch blamed the project for what the run had named, and an
+        // Measured: the launch blamed the project for what the run had named, and an
         // interface could not tell the refusal from any other failed launch.
         final Path empty = threeRepositories(dir);
         final StartCheck.Result fromRun = StartCheck.withCredentials(context(dir), READY, empty,
@@ -281,7 +281,7 @@ class StartCheckTest {
     @Test
     void anUndeclaredDestinationIsAnsweredBeforeAMissingCredential(@TempDir Path dir) throws Exception {
 
-        // Measured by Agent Frontend: told only that the agent's credential was missing, an interface offered a
+        // Measured: told only that the agent's credential was missing, an interface offered a
         // shell, and Start then refused it for the destination - which refuses in every mode.
         final StartCheck.Result missing = new StartCheck.Result(StartCheck.Outcome.CREDENTIAL_MISSING, "asker", "p",
                 "anthropic", "the vault holds no credential for 'anthropic'");
@@ -348,7 +348,7 @@ class StartCheckTest {
     void aRepositoryAtAHostThisMachineNeverMetIsRefusedBeforeAnythingIsMade(@TempDir Path dir) throws Exception {
 
         // The start went ahead, ssh refused the workspace's fetch, and the task ran without a gate; the only trace
-        // was a line of prose in its output (found by Agent Frontend, 2026-10-02).
+        // was a line of prose in its output (found on 2026-10-02).
         final SokarContext context = context(dir);
 
         final StartCheck.Result result = StartCheck.withHost(context, READY, upstreams(dir), "backend");
@@ -376,7 +376,7 @@ class StartCheckTest {
     void anUnknownHostIsSaidBeforeALockedVaultBecauseTrustingItNeedsNone(@TempDir Path dir) throws Exception {
 
         // Asked only once all else was ready, it hid behind a locked vault, and a person unlocked first only to be
-        // asked about the host next (found by Agent Frontend, 2026-10-02).
+        // asked about the host next (found on 2026-10-02).
         final StartCheck.Result locked =
                 new StartCheck.Result(StartCheck.Outcome.VAULT_LOCKED, "an-agent", "a-provider", "key", "locked");
 

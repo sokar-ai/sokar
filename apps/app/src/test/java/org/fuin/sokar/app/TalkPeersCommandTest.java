@@ -29,7 +29,7 @@ class TalkPeersCommandTest {
     @Test
     void listsThePeopleOfTheConversationAndEachMemberBesideTheFilesPeers() {
 
-        // Found by Agent Matrix on 2026-10-04: 'people' and the room's members worked as addresses and were not
+        // Found on 2026-10-04: 'people' and the room's members worked as addresses and were not
         // listed, so a person reading the list could not tell they were there.
         final List<Mail.Peer> listed = TalkPeersCommand.listed(new Mail(List.of(new Mail.Peer("ops",
                 "mail:ops@example.org", Mail.Peer.EXTERNAL)), Map.of("matrix", Map.of())),

@@ -1398,7 +1398,7 @@ class SokarDaemonTest {
     @Test
     void anInterfaceManagesDestinationsAsTheFilesAPersonWouldEdit(@TempDir Path dir) throws Exception {
 
-        // The operator's decision: the interface does all of it - list, read, write, remove.
+        // Decided: the interface does all of it - list, read, write, remove.
         serving(dir, socket -> {
             try (VarlinkClient client = new VarlinkClient(socket)) {
                 final Map<String, Object> search = Map.of("name", "brave-search",

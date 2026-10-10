@@ -207,7 +207,7 @@ public final class MessagePass {
      * <strong>What this machine signed, this machine believes.</strong> A project's own tasks here are each
      * other's peers, and every message they send is signed by this installation's one key after its filter
      * read it. Delivered back to a task of the same project - through the project's conversation, say - it
-     * was held as "signed by a key no peer is allowed to use" (found by Agent Matrix, 2026-09-30): no list
+     * was held as "signed by a key no peer is allowed to use" (found on 2026-09-30): no list
      * held this machine's own key. Which task it may reach is still decided by routing - a conversation is
      * one project's, and the local transport addresses a sibling's inbox by path - and what arrives is still
      * read by the filter on the way in, as for any peer this project's file does not vouch for by name.

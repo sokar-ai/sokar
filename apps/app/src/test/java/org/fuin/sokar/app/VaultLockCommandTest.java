@@ -129,7 +129,7 @@ class VaultLockCommandTest {
     void refusesToUnlockAVaultThatDoesNotExistAndNamesInit(@TempDir Path dir) {
 
         // It used to cache the passphrase and exit 0, and the first 'vault put' then made the vault
-        // with it - typed once, with nothing to compare a typo against. Measured by Agent Frontend.
+        // with it - typed once, with nothing to compare a typo against. Measured.
         final SokarContext context = context(dir);
         try {
             assertThat(execute(context, "vault", "unlock",

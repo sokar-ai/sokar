@@ -303,7 +303,7 @@ final class TransportConversations {
 
     /**
      * Fetches what people said to one task in its direct chats, waiting on the server for it, and hands it to that
-     * task: a loop of its own per task, so no other poll of its account runs beside it (Agent Matrix, 2026-10-04).
+     * task: a loop of its own per task, so no other poll of its account runs beside it (2026-10-04).
      *
      * @param member The task.
      * @return What happened.
@@ -363,11 +363,10 @@ final class TransportConversations {
     /**
      * Hands each message that arrived to every task of the project here that is to read it.
      * <p>
-     * <strong>Every agent reads every message in the room</strong> (the operator, 2026-10-04): a task's message
+     * <strong>Every agent reads every message in the room</strong> (2026-10-04): a task's message
      * goes to every other task, whomever its {@code metadata.to} names, and never back to the task that posted it;
      * {@code metadata.to} says whom it is meant for, not who reads it. A person's words in the room go to every
-     * task, and in a direct chat to the one task it is with. They are a person's, so they are not filtered (the
-     * operator, 2026-10-04) - and taken only from somebody who joined the project's conversation.
+     * task, and in a direct chat to the one task it is with. They are a person's, so they are not filtered (2026-10-04) - and taken only from somebody who joined the project's conversation.
      *
      * @param inbound Where the transport put them.
      * @param members The project's tasks on this machine.

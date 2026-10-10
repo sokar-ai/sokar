@@ -260,7 +260,7 @@ not at the machine.
 
 ### As built, a token that never expires, 2026-10-01
 
-Decided by the operator for GitHub Copilot through Oh My Pi, whose sign-in is GitHub's device flow for an OAuth
+Decided for GitHub Copilot through Oh My Pi, whose sign-in is GitHub's device flow for an OAuth
 app: an access token, no refresh token, no expiry.
 
 - **Kept as it is.** When a service grants no refresh token and states no expiry, `vault authorize` keeps the

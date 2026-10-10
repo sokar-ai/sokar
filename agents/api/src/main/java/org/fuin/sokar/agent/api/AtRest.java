@@ -6,7 +6,7 @@ import java.util.List;
  * What an agent's screen shows when it has finished a turn and waits for the next, at its prompt.
  * <p>
  * So a message that names its task can wake it, and never while it works or asks a person something: the line Sokar
- * types then would interrupt it, or answer the question (Agent Smith, 2026-10-04). Neither {@link ReadyMarker}, which
+ * types then would interrupt it, or answer the question (2026-10-04). Neither {@link ReadyMarker}, which
  * says it reached work after its start, nor {@link Waiting}, which says a question is open, tells that. An agent that
  * declares nothing here is never typed into.
  *

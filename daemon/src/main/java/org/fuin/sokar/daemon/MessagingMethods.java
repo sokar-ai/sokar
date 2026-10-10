@@ -132,7 +132,7 @@ final class MessagingMethods {
                 throw new VarlinkException(INTERFACE + ".Failed", Map.of("message", "nothing to tell"));
             }
             final String told = new org.fuin.sokar.app.PersonNote().tell(mailbox, said, null);
-            // A person's word to this one task: its agent at rest is told it is there (Agent Smith, 2026-10-04).
+            // A person's word to this one task: its agent at rest is told it is there (2026-10-04).
             new org.fuin.sokar.app.AgentWake(context).announce(mailbox, mailbox.root().getFileName().toString(), null);
             replies.last(Map.of("message", told));
         });

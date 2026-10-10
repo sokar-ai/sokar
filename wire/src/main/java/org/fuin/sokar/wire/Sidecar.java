@@ -46,7 +46,7 @@ public record Sidecar(int version, String project, String securityClass,
     /**
      * Beside the sidecar, in the task's state directory: the id podman gave back when Sokar created the task.
      * <p>
-     * <strong>What makes a container Sokar's task</strong> (the operator, 2026-10-04): never its name, never a label -
+     * <strong>What makes a container Sokar's task</strong> (2026-10-04): never its name, never a label -
      * anything that runs as the account can give a container either. Written once, right after create and before
      * the container first starts, so its hooks can compare it with the id the runtime hands them.
      */

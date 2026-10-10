@@ -41,7 +41,7 @@ public record Mail(List<Peer> peers, java.util.Map<String, Object> transports, b
      * The people in the project's conversation, as a task addresses them: a peer every project with a conversation has
      * without anybody writing it.
      * <p>
-     * The MVP's rule (the operator, 2026-10-04): reaching the room's people needs no step from anyone. Before, a task
+     * The MVP's rule (2026-10-04): reaching the room's people needs no step from anyone. Before, a task
      * could reach them only through a peer a person had to add by hand, and nothing said so.
      */
     public static final String PEOPLE = "people";

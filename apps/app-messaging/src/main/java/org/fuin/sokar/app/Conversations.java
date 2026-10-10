@@ -145,7 +145,7 @@ public final class Conversations {
      * Says why every conversation waits now: a locked vault holds every project's and task's account.
      * <p>
      * A vault unlocked for a time locked itself, and every message stopped without a word - none was fetched, an
-     * answer was deferred, nothing in the journal (Agent Matrix, 2026-10-04).
+     * answer was deferred, nothing in the journal (2026-10-04).
      *
      * @param context The machine.
      * @return {@link #VAULT_LOCKED}, or "" when the vault is open or there is none.

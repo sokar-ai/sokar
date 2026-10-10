@@ -224,7 +224,7 @@ public final class ProjectInventory {
     public List<Summary> projects() {
 
         // Read first, because a followed project is in this list from the moment the follow is
-        // taken - before any mirror, task or registry entry exists. Found by Agent Frontend:
+        // taken - before any mirror, task or registry entry exists. Found through the interface:
         // their dialog followed a project, the follow applied, and the tree stayed empty.
         final Map<String, FollowedProjects.Followed> followed = new LinkedHashMap<>();
         try {

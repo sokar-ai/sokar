@@ -18,7 +18,7 @@ import org.fuin.sokar.vault.VaultEntry;
  * <strong>An audit fact, not a credential fact.</strong> With a grant a task acts as a named person,
  * unattended, and the record has to say so and outlive the task. Two places: the task's own record, which an
  * interface reads while the task exists, and one line per grant in the account's {@code grants.log}, which
- * is never removed with a task. Decided by the operator on 2026-09-30, until the machine log takes it over.
+ * is never removed with a task. Decided on 2026-09-30, until the machine log takes it over.
  */
 final class GrantRecord {
 

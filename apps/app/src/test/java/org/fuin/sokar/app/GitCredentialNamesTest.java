@@ -80,7 +80,7 @@ class GitCredentialNamesTest {
 
         // A client that says "vault" and no name means "you name it". Writing "" instead produced
         // a record nothing could store into - 'sokar vault put' with no argument - and a
-        // 'sokar vault remove ' with nothing after it. Found by Agent Frontend through the
+        // 'sokar vault remove ' with nothing after it. Found through the
         // interface's own declare.
         assertThat(GitCredentialNames.impliedName(GitCredentialNames.Kind.KEY,
                 "ssh://github.com/acme/x.git")).isEqualTo("git.ssh.github.com");

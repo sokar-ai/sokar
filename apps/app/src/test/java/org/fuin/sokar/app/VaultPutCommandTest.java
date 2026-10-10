@@ -141,7 +141,7 @@ class VaultPutCommandTest {
 
     @org.junit.jupiter.api.Test
     void asksForAGrantsClientSecretByNameAndTakesNoneForAPublicClient() {
-        // "Value for 'github-copilot':" - the operator could not tell that it meant the client secret, nor that
+        // "Value for 'github-copilot':" - nobody could tell that it meant the client secret, nor that
         // Copilot's public client has none (2026-10-09).
         assertThat(VaultPutCommand.prompt("github-copilot", "oauth-device"))
                 .isEqualTo("Client secret for 'github-copilot' (none for a public client: press Enter): ");

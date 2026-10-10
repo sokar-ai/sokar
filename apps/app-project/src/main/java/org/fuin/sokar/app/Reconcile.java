@@ -229,7 +229,7 @@ public final class Reconcile {
      * follow would give.
      * <p>
      * Asked before anything is written, because a follow that cannot apply used to leave a
-     * half-made project behind - the operator met one and had no way to want it gone.
+     * half-made project behind - one was met, with no way to want it gone.
      *
      * @param followed What would be followed. Its commit is ignored: a check answers "would this
      *        work", not "would this be a change".
@@ -652,8 +652,8 @@ public final class Reconcile {
         // 'unverified' is carried, not defaulted. It was dropped here: a follow written with the
         // flag was rewritten by this method one line later, so a project taken WITHOUT an anchor
         // reported itself as one whose signature had been checked - the single field that tells a
-        // person that whoever can push there decides what this machine runs. Found by Agent
-        // Frontend, whose dialog shows it on every project.
+        // person that whoever can push there decides what this machine runs. Found through
+        // the interface, whose dialog shows it on every project.
         return new FollowedProjects.Followed(followed.name(), followed.url(), result.commit(),
                 Instant.now().toString(), result.outcome().name(), result.detail(),
                 result.refused(), result.signer(), followed.unverified());

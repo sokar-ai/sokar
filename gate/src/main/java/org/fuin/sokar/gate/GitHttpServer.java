@@ -137,7 +137,7 @@ public class GitHttpServer implements AutoCloseable {
      * the history the next task of the project clones from, and the base every review compares against.
      * A push to another task's incoming ref would have written work under that task's name. So every ref
      * a push would update is read before git sees the request, and anything but this task's own ref is
-     * refused. Measured by Agent Frontend on 2026-09-29: a plain {@code git push sokar <branch>} landed
+     * refused. Measured on 2026-09-29: a plain {@code git push sokar <branch>} landed
      * in {@code refs/heads/}.
      *
      * @param address Where to listen.

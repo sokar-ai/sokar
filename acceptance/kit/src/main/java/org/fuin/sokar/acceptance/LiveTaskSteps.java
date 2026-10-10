@@ -64,7 +64,7 @@ public class LiveTaskSteps {
      * <p>
      * A failing step skips the scenario's own clean-up, and its agent kept running into every scenario after it: on a
      * leased machine one left behind took the memory the next start needed, and three scenarios after it failed for
-     * that alone (Agent Smith, 2026-10-04). Only a failed scenario's, and only what it started itself, so a passing
+     * that alone (2026-10-04). Only a failed scenario's, and only what it started itself, so a passing
      * scenario's task is its own business. Best effort: a removal that fails must not hide why the scenario did.
      *
      * @param scenario The scenario that ended.

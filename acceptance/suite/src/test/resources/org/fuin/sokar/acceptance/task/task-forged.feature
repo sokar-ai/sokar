@@ -1,7 +1,7 @@
 Feature: A task is what Sokar made
 
   Anything that runs as the account can start a container with any name and any label. So a container is a task
-  only when its id is the one Sokar recorded when it created it - the operator, 2026-10-04: "Sokar must not pick
+  only when its id is the one Sokar recorded when it created it - 2026-10-04: "Sokar must not pick
   running containers by their name. Anybody could start such a container and Sokar would think it is its own."
 
   Scenario: a container named and labelled like a task is no task, and nothing is done to it

@@ -255,8 +255,8 @@ public final class ProjectDeletion {
         // The verified clone. Named here, and removed below, because BOTH ways of ending a
         // project have to take it: the terminal removed it by hand afterwards and the socket did
         // not, so a project unfollowed from an interface left its clone on the machine. The
-        // contract said the clone goes, and one of the two paths quietly did not. Found by Agent
-        // Frontend.
+        // contract said the clone goes, and one of the two paths quietly did not. Found through
+        // the interface.
         if (Files.isDirectory(context.paths().projects().followedClone(project))) {
             removes.add(new Removal("FOLLOWED_CLONE",
                     context.paths().projects().followedClone(project).toString()));

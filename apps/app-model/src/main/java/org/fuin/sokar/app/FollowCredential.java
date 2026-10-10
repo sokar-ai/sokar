@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
  * the vault. A private repository was therefore reachable exactly as far as the account's own ssh
  * setup reached, while the refusal said <em>"this account's vault is shut, so the credential a
  * private repository needs is out of reach"</em> - pointing at a vault that held nothing any of
- * those paths would have used. Found by the operator, through Agent Frontend's dialog.
+ * those paths would have used. Found through the interface's dialog.
  * <p>
  * <strong>Where the work comes from does not change the credential.</strong> An agent in a
  * container, a person at {@code gate approve}, the daemon reconciling on a timer: the connection
@@ -456,7 +456,7 @@ public final class FollowCredential implements AutoCloseable {
         // state() is ALREADY '<XDG_STATE_HOME>/sokar', so resolving 'sokar' onto it wrote
         // '.../state/sokar/sokar/known_hosts' - a directory nothing creates, so ssh warned
         // "Failed to add the host to the list of known hosts" on every single fetch and learned
-        // nothing from one fetch to the next. Found by Agent Frontend, who read the warning
+        // nothing from one fetch to the next. Found by an interface that read the warning
         // instead of skipping past it.
         final Path file = context.paths().xdg().state().resolve("known_hosts");
         try {

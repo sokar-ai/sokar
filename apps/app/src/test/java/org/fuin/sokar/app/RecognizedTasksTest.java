@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * A task is what Sokar recorded, never what is named like one (the operator, 2026-10-04).
+ * A task is what Sokar recorded, never what is named like one (2026-10-04).
  */
 class RecognizedTasksTest {
 

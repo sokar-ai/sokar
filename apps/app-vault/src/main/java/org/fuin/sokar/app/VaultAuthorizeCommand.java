@@ -18,7 +18,7 @@ import picocli.CommandLine.Spec;
 /**
  * Lets a person grant an authorization once, in any browser, for every later task of this account.
  * <p>
- * <strong>The device code flow</strong> (decided by the operator on 2026-09-29): this shows a link and a
+ * <strong>The device code flow</strong> (decided on 2026-09-29): this shows a link and a
  * code, the person decides wherever they are, and the refresh token that comes back is kept in this account's
  * vault, hidden, with who granted it and when. No task ever holds it: the broker spends it on the host.
  * <p>
