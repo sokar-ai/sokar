@@ -190,7 +190,8 @@ to the task's log as it happens, whether or not anybody is watching. See [reach]
 **The clearance prompt.** When a connection is blocked to an address that is not allowed yet, a
 **clearance** decides what happens. With `prompt`, the default, a desktop notification asks
 **Allow** or **Deny**, once per destination and never again, in either direction, so an agent cannot
-wear you down by retrying. `allow`, `deny` and `off` (do not ask) are the other modes; choose one
+wear you down by retrying. A question nobody answers within 60 seconds is a **Deny**: the destination stays
+blocked for the run, and only a person can still allow it, from the interface while the task runs. `allow`, `deny` and `off` (do not ask) are the other modes; choose one
 with `sokar task start --clearance` on a machine without a desktop, or change a running task with
 `sokar task clearance`. If your build really needs a host, declare it in `project.yml` rather than
 clicking Allow: a clearance is one address on one run, a declaration is reviewed and applies to

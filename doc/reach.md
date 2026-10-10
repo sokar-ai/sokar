@@ -89,4 +89,5 @@ things that is:
 - an agent acting on instructions from something it read.
 
 Allow it only if you expected that host. A prompt is asked once per destination and task, and the
-answer, or the silence, is journaled.
+answer, or the silence, is journaled. Silence refuses: a prompt nobody answers within 60 seconds is a Deny, and the
+destination stays blocked for the run unless a person allows it later from the interface while the task runs.
