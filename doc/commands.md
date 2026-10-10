@@ -115,13 +115,14 @@ takes `sokar approve TASK`; `--yes` answers for a script.
 - `--rm` removes the container when you leave. By default it is kept.
 - A running task is refused; use `attach`.
 - **What is missing is offered, not only named.** At a terminal a start asks what it would otherwise tell you
-  to type: at a host this machine never met, it shows the keys the host offers and asks whether to trust its key
-  (no by default, compare it with what the host's owner publishes). A credential the agent lacks is offered the same
-  way: the command the refusal would name - `vault authorize`, `vault login` or `vault put`, which asks a key
-  without echo - runs on this terminal, and the start goes on once the credential is there. With several agents installed and none named, it lists
-  them and asks which, by number; without a terminal it asks for `--agent` as before. Without `-r`, it lists the
-  repositories the project works in and asks which, before the task is named after it. `--no-input` asks nothing and refuses as
-  without a terminal; `--yes` takes a harmless remedy without asking and never a trust decision.
+  to type: at a host this machine never met, it shows the keys the host offers and asks whether to trust its
+  key (no by default, compare it with what the host's owner publishes). A credential the agent lacks is
+  offered the same way: the command the refusal would name - `vault authorize`, `vault login` or `vault put`,
+  which asks a key without echo - runs on this terminal, and the start goes on once the credential is there.
+  With several agents installed and none named, it lists them and asks which, by number; without a terminal it
+  asks for `--agent` as before. Without `-r`, it lists the repositories the project works in and asks which,
+  before the task is named after it. `--no-input` asks nothing and refuses as without a terminal; `--yes`
+  takes a harmless remedy without asking and never a trust decision.
 - After a reboot, `task list` shows which tasks went down and `sokar task start --restarted` brings
   them all back. Nothing comes back by itself. The first start after a reboot needs the vault open,
   even for a task with no credential of its own, because the task's gate token is kept there; at a
@@ -132,7 +133,10 @@ takes `sokar approve TASK`; `--yes` answers for a script.
 
 **`task remove`** refuses when the task is running (`stop` it first, or `--force`), holds commits
 that never reached the gate (`--rescue` pushes them to the gate, `--force` discards them), or its
-contents are unknown. A task never removes itself when it ends.
+contents are unknown. A task never removes itself when it ends. At a terminal it offers instead: to stop a
+running task first; to push the work it holds to the gate, discard it, or keep the task; to start a stopped task
+so its work can be pushed; and to discard unseen what nobody recorded - no by default, and never with `--yes`,
+which otherwise stops or starts the task as removing it needs. `--no-input` asks nothing.
 
 **`task logs`** shows the files of the gate, broker, relay, resolver and clearance watcher, not the
 agent's output. `events.jsonl` is what the firewall blocked: look there when a task starts and then

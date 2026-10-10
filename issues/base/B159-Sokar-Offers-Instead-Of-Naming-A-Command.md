@@ -142,6 +142,13 @@ terminal, no terminal, `--no-input` and `--yes`.
   place: several agents and none named at a start - asked once and kept for the whole start (`OfferTest`).
 - **Task start, which repository:** asked in `task start` itself, before an unnamed task is named after it, and
   only at a terminal, so a script is refused once and as before (`RepositoryOfferTest`).
+- **Task remove:** a running task is offered to be stopped first; work it holds to be pushed to the gate,
+  discarded or kept, by number; a stopped one to be started for the rescue (`sokar task start` itself); what nobody
+  recorded to be discarded unseen, no by default and never by `--yes`. The removal is tried again after each, once
+  per kind of refusal (`TaskRemoveOfferTest`). `Offer.confirm` asks under the same rules where the caller acts.
+- **Not yet:** a provider chosen from a list - refused only for an agent that names no default provider, and every
+  agent today names one; a task chosen from a list - `TaskTarget` asks already at a terminal; a workspace from
+  before a restart copied to `./recovered` (`TaskResumeCommand`).
 - **Task start, hooks:** nothing to offer. A start already registers missing and outdated hooks without asking;
   `DANGLING` means the hook binaries are not where this Sokar has them, which neither `sokar setup` nor anything Sokar
   can run makes good - only installing the package again does, so it stays a message.

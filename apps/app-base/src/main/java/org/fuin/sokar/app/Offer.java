@@ -131,6 +131,23 @@ public final class Offer {
         return false;
     }
 
+    /**
+     * Asks whether to go ahead where the caller does the remedy itself and checks again afterwards, under the same rules
+     * as {@link #resolve}: nothing asked with {@code --no-input} or without a terminal, {@code --yes} for a harmless
+     * step only, a destructive one showing what it touches and defaulting to no.
+     *
+     * @param missing What is missing, as the refusal says it.
+     * @param question What is asked, without its choices.
+     * @param affected What a destructive step touches; empty for a harmless one.
+     * @param destructive Whether the step discards, deletes or leaves something behind.
+     * @return Whether to go ahead.
+     */
+    public boolean confirm(final String missing, final String question, final String affected,
+            final boolean destructive) {
+        return wanted(new Remedy(missing, question, "", affected, destructive, () -> false, () -> false),
+                java.util.Objects.requireNonNull(err, "no writer to say a refusal on"));
+    }
+
     private boolean wanted(final Remedy gap, final PrintWriter said) {
         if (noInput) {
             return false;

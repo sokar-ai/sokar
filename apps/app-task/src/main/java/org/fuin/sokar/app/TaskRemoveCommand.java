@@ -50,6 +50,15 @@ public class TaskRemoveCommand implements Callable<Integer>, SokarFactory.Contex
                     + " reached the gate.")
     private boolean force;
 
+    @Option(names = "--no-input",
+            description = "Asks nothing: a refusal names the option, as without a terminal.")
+    private boolean noInput;
+
+    @Option(names = "--yes",
+            description = "Stops or starts the task where that is what removing it needs, without asking; never"
+                    + " discards.")
+    private boolean yes;
+
     @Spec
     private CommandSpec spec;
 
@@ -79,7 +88,28 @@ public class TaskRemoveCommand implements Callable<Integer>, SokarFactory.Contex
 
         // Decided by TaskControl, which the daemon calls too: a refusal that exists in one caller
         // and not the other is a task removed, over the other surface, with work in it.
-        final TaskControl.Stopped result = new TaskControl(context).remove(container, rescue, force);
+        TaskControl.Stopped result = new TaskControl(context).remove(container, rescue, force);
+        if (!noInput && (yes || Offer.atTerminal())) {
+            // What a refusal would name is offered instead, and the removal tried again after it: at most once per kind
+            // of refusal, so a remedy that did not help ends in that refusal rather than in a loop.
+            final Offer offer = new Offer(Offer.Asker.terminal(), noInput, yes, err);
+            final java.util.Set<TaskControl.Outcome> offered = java.util.EnumSet.noneOf(TaskControl.Outcome.class);
+            String next;
+            while (offered.add(result.outcome()) && (next = nextTry(result.outcome(), container,
+                    result.work() == null ? "" : String.valueOf(result.work()), offer)) != null) {
+                switch (next) {
+                    case "stop" -> new TaskControl(context).stop(container);
+                    case "start" -> context.exec().applyAsInt(java.util.List.of(SokarBinary.path(), "task", "start",
+                            container, "--detach"));
+                    case "rescue" -> rescue = true;
+                    default -> force = true;
+                }
+                if (next.equals("start")) {
+                    rescue = true;
+                }
+                result = new TaskControl(context).remove(container, rescue, force);
+            }
+        }
 
         if (result.work() != null && result.outcome() != TaskControl.Outcome.NOT_A_TASK) {
             out.println("work      " + result.work() + " that never reached the gate");
@@ -154,5 +184,37 @@ public class TaskRemoveCommand implements Callable<Integer>, SokarFactory.Contex
         }
         out.flush();
         return result.clean() ? 0 : 70;
+    }
+
+    /**
+     * Returns what to do before removing again, where a removal was refused for something a person can settle here:
+     * {@code stop}, {@code start}, {@code rescue} or {@code force}; {@code null} when nothing is offered or it was
+     * declined. Discarding is destructive: no by default, never by {@code --yes}.
+     *
+     * @param outcome Why the removal was refused.
+     * @param container The task.
+     * @param work What it holds that never reached the gate, as said, or "".
+     * @param offer Who is asked.
+     * @return What to do, or {@code null}.
+     */
+    static @org.jspecify.annotations.Nullable String nextTry(final TaskControl.Outcome outcome, final String container,
+            final String work, final Offer offer) {
+        return switch (outcome) {
+            case STILL_RUNNING -> offer.confirm(container + " is running", "Stop it, then remove it?", "", false)
+                    ? "stop" : null;
+            case HOLDS_WORK -> {
+                final String chosen = offer.choose(container + " holds " + work + ", which exists nowhere else",
+                        java.util.List.of("push it to the gate, then remove the task",
+                                "discard it with the task", "keep the task"),
+                        "sokar task remove " + container + " --rescue");
+                yield chosen == null || chosen.startsWith("keep") ? null
+                        : chosen.startsWith("push") ? "rescue" : "force";
+            }
+            case NOTHING_KNOWS -> offer.confirm(container + " is stopped and nothing recorded what it holds",
+                    "Discard it unseen?", "whatever the task holds, unseen", true) ? "force" : null;
+            case RESCUE_NEEDS_IT_RUNNING -> offer.confirm(container + " is stopped, so its work cannot be pushed",
+                    "Start it, push its work to the gate, then remove it?", "", false) ? "start" : null;
+            default -> null;
+        };
     }
 }
