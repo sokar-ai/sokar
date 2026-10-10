@@ -140,4 +140,36 @@ public final class Offer {
         return gap.destructive() ? given.equals("y") || given.equals("yes")
                 : given.isEmpty() || given.equals("y") || given.equals("yes");
     }
+
+    /**
+     * Asks a person to choose one of several where a refusal would ask for an option, or refuses as before.
+     * <p>
+     * A choice is never taken by {@code --yes}: there is no harmless default among several.
+     *
+     * @param missing What is missing, as the refusal says it.
+     * @param options What may be chosen, in the order shown.
+     * @param command The command a person would type, named where nobody is asked.
+     * @return The one chosen, or {@code null} when nothing was, said with the command.
+     */
+    public @Nullable String choose(final String missing, final java.util.List<String> options, final String command) {
+        final PrintWriter said = java.util.Objects.requireNonNull(err, "no writer to say a refusal on");
+        String chosen = null;
+        if (!noInput && !options.isEmpty()) {
+            said.println("sokar: " + missing + ":");
+            for (int at = 0; at < options.size(); at++) {
+                said.println("    " + (at + 1) + "  " + options.get(at));
+            }
+            said.flush();
+            final String answer = asker.ask("Which one? [1-" + options.size() + "]");
+            if (answer != null && answer.strip().matches("[0-9]+")) {
+                final int number = Integer.parseInt(answer.strip());
+                chosen = number >= 1 && number <= options.size() ? options.get(number - 1) : null;
+            }
+        }
+        if (chosen == null) {
+            said.println("sokar: " + missing + "; run '" + command + "'");
+            said.flush();
+        }
+        return chosen;
+    }
 }

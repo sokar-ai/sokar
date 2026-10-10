@@ -1133,7 +1133,34 @@ public final class TaskLaunch {
 
     @Nullable
     private InstalledAgent select(InstalledAgents agents) {
-        return select(agents, request.agentName());
+        final String named = request.agentName() != null || offer == Offer.NOBODY ? request.agentName()
+                : agentName(agents.all().stream().map(InstalledAgent::name).toList(), null, offer, chosenAgent);
+        return select(agents, named);
+    }
+
+    /** The agent a person chose when several were installed and none was named: asked once per start. */
+    private final String[] chosenAgent = new String[1];
+
+    /**
+     * Returns the agent a start works with: the one named, else the one a person chooses when several are installed,
+     * asked once and kept for the rest of the start.
+     *
+     * @param installed The installed agents' names.
+     * @param named The one named, or {@code null}.
+     * @param offer Who is asked.
+     * @param chosen Where the choice is kept for this start.
+     * @return The name, or {@code null} to leave it to the agent choice, which takes the only one or refuses.
+     */
+    static @Nullable String agentName(final java.util.List<String> installed, final @Nullable String named,
+            final Offer offer, final @Nullable String[] chosen) {
+        if (named != null) {
+            return named;
+        }
+        if (chosen[0] == null && installed.size() > 1) {
+            chosen[0] = offer.choose("several agents are installed (" + String.join(", ", installed) + ")", installed,
+                    "sokar task start --agent <name>");
+        }
+        return chosen[0];
     }
 
     /**

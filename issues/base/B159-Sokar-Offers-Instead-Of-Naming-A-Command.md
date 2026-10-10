@@ -138,6 +138,8 @@ terminal, no terminal, `--no-input` and `--yes`.
   `vault put`, which asks a key without echo - runs on this terminal as a child of the start (`context.exec`), the
   credential is looked for again, and the start goes on (`CredentialOfferTest`). One command for all three keeps
   rule 1: the remedy is the command's own code.
+- **Choosing from a list, `Offer.choose`:** the options shown by number, one asked; never taken by `--yes`. First
+  place: several agents and none named at a start - asked once and kept for the whole start (`OfferTest`).
 - **Task start, hooks:** nothing to offer. A start already registers missing and outdated hooks without asking;
   `DANGLING` means the hook binaries are not where this Sokar has them, which neither `sokar setup` nor anything Sokar
   can run makes good - only installing the package again does, so it stays a message.
