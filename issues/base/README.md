@@ -54,6 +54,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
+| B161 | [Doctor As Data](B161-Doctor-As-Data.md) | open | sokar-frontend F106 | `sokar doctor --json` says every finding as data from the same checks as the text, for a client to read. | a daemon method too | the interface is to show doctor's findings when it adds a machine |
 | B121 | [A Message Record Without A Chain](B121-A-Message-Record-Without-A-Chain.md) | blocked by B154 | - | A task's message record is the host's plain state - filtered, held, refused, delivered - with no hash chain; what was said, and in which order, is the homeserver's to keep. | - | 2026-10-06 |
 | B160 | [A Project Followed From A File Over The Socket](B160-A-Project-Followed-From-A-File-Over-The-Socket.md) | open | sokar-frontend F104 | A client follows a project from a path on the machine, and from a bundle it hands over in the call itself. | the size limit | since offline is followed only from a file, the interface cannot make an offline project |
 | B138 | [A Cost And Token Ceiling Per Task](B138-A-Cost-And-Token-Ceiling-Per-Task.md) | open | - | A task cannot spend more than its project allows: the broker stops forwarding to the provider once a task's token or cost ceiling is reached, and says so to the task and to the person. | How cost is known per provider and model | a review of security guidelines, 2026-10-09 |
