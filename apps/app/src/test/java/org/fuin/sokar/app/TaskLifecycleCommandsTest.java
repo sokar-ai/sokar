@@ -541,6 +541,20 @@ class TaskLifecycleCommandsTest {
     }
 
     @Test
+    void namesAContainerLikeATaskThatItDoesNotListInsteadOfSayingThereAreNone(@TempDir Path dir) throws IOException {
+
+        // Made before Sokar recorded a container's id: it is not a task Sokar acts on, but saying "No tasks" hid that a
+        // stopped container with a task's record was there, and a prune removed its work unseen.
+        runner.answering("ps", "sokar-uc-shell-1\tExited (0) 5 days ago\n");
+        final SokarContext context = context(dir).recognizingTasks();
+        stateOf("sokar-uc-shell-1");
+
+        assertThat(execute(context, "task", "list")).isZero();
+        assertThat(out.toString()).doesNotContain("No tasks.").contains("not listed").contains("sokar-uc-shell-1")
+                .contains("no container id");
+    }
+
+    @Test
     void saysSoWhenThereAreNoTasks(@TempDir Path dir) {
 
         runner.answering("ps", "");

@@ -50,8 +50,18 @@ public class TaskListCommand implements Callable<Integer>, SokarFactory.ContextA
         // for the interface, and two implementations of it would drift.
         final List<TaskInventory.Task> tasks = new TaskInventory(context).tasks();
 
+        // Named like a task and not listed: a container Sokar holds no id for. Said rather than left out, because
+        // "No tasks" over a stopped container that has a task's record lets its work be removed unseen.
+        final java.util.Set<String> listed = tasks.stream().map(TaskInventory.Task::name)
+                .collect(java.util.stream.Collectors.toSet());
+        final List<String> unlisted = context.podman().sokarContainers().stream()
+                .map(name -> name.split("\t", 2)[0])
+                .filter(org.fuin.sokar.runtime.ContainerName::isTask)
+                .filter(name -> !listed.contains(name)).distinct().toList();
+
         if (tasks.isEmpty()) {
-            out.println("No tasks.");
+            out.println(unlisted.isEmpty() ? "No tasks." : "No tasks Sokar acts on.");
+            unlistedNote(unlisted, out);
             out.flush();
             return 0;
         }
@@ -71,6 +81,7 @@ public class TaskListCommand implements Callable<Integer>, SokarFactory.ContextA
                     age.isEmpty() ? "-" : age,
                     task.helpers());
         }
+        unlistedNote(unlisted, out);
         // Said once, under the table, rather than squeezed into a column: which tasks the machine took down.
         final List<String> restarted = tasks.stream()
                 .filter(task -> TaskInventory.RESTARTED.equals(task.startDetail())).map(TaskInventory.Task::name).toList();
@@ -101,5 +112,20 @@ public class TaskListCommand implements Callable<Integer>, SokarFactory.ContextA
         final int code = state.startsWith("Exited (") ? state.indexOf(')') : -1;
         final String shortened = code > 0 ? state.substring(0, code + 1) : state;
         return shortened.length() <= 18 ? shortened : shortened.substring(0, 17) + "…";
+    }
+
+    /**
+     * Says which containers named like tasks are not listed, and why: Sokar recorded no container id for them - made
+     * before it recorded one, or by something else - so no command of Sokar's acts on them.
+     *
+     * @param unlisted Their names.
+     * @param out Where to say it.
+     */
+    private static void unlistedNote(final List<String> unlisted, final PrintWriter out) {
+        if (!unlisted.isEmpty()) {
+            out.println("not listed: " + String.join(", ", unlisted) + " - named like tasks, but Sokar holds no"
+                    + " container id for them (made before it recorded one, or by something else), so nothing of"
+                    + " Sokar's acts on them; 'podman ps --all' shows them, and removing one removes what is in it");
+        }
     }
 }
