@@ -37,6 +37,36 @@ public class VaultLoginCommand implements Callable<Integer>, SokarFactory.Contex
 
     private SokarContext context = SokarContext.real();
 
+    /** Runs a login: the agent's own, as {@link AgentLogin#login} does. */
+    @FunctionalInterface
+    interface Login {
+        AgentLogin.Result run(SokarContext context, @Nullable String agent, boolean dryRun, boolean force,
+                PrintWriter out);
+    }
+
+    /** Copies what an agent signed in with on this machine, as {@code sokar vault import} does. */
+    @FunctionalInterface
+    interface Importer {
+        int run(@Nullable String agent);
+    }
+
+    /** Asks a person, or answers {@code null} when nobody is at a terminal to answer. */
+    @FunctionalInterface
+    interface Asker {
+        @Nullable String ask(String question);
+    }
+
+    Login login = AgentLogin::login;
+
+    Importer importer = agent -> agent == null ? spec.root().commandLine().execute("vault", "import")
+            : spec.root().commandLine().execute("vault", "import", agent);
+
+    Asker asker = question -> {
+        final java.io.Console console = System.console();
+        // A console object alone is no terminal: since Java 22 one exists for a pipe too.
+        return console == null || !console.isTerminal() ? null : console.readLine("%s ", question);
+    };
+
     @Override
     public void setContext(SokarContext context) {
         this.context = context;
@@ -48,8 +78,31 @@ public class VaultLoginCommand implements Callable<Integer>, SokarFactory.Contex
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
 
-        final AgentLogin.Result result = AgentLogin.login(context, agentName, dryRun, force, out);
+        AgentLogin.Result result = login.run(context, agentName, dryRun, force, out);
         out.flush();
+
+        if (result.outcome() == AgentLogin.Outcome.ALREADY_SIGNED_IN && !dryRun) {
+            // What the refusal would tell a person to type, offered instead where somebody can answer.
+            final String answer = asker.ask("'" + (agentName == null ? "the agent" : agentName) + "' is already signed"
+                    + " in on this machine. Import what it has, which logs in nowhere; log in again, which may"
+                    + " invalidate the credential here; or cancel? [I/a/c]");
+            if (answer != null) {
+                switch (answer.strip().toLowerCase(java.util.Locale.ROOT)) {
+                    case "", "i", "import" -> {
+                        return importer.run(agentName);
+                    }
+                    case "a", "again" -> {
+                        result = login.run(context, agentName, false, true, out);
+                        out.flush();
+                    }
+                    default -> {
+                        out.println("Cancelled - nothing was done.");
+                        out.flush();
+                        return 0;
+                    }
+                }
+            }
+        }
 
         if (result.outcome() == AgentLogin.Outcome.STORED) {
             // The value is never echoed: what is useful is that it arrived and which kind it is.

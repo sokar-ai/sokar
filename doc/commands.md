@@ -32,7 +32,9 @@ agents. Preparing the machine itself is in [running Sokar](running.md#preparing-
 
 **Get a credential in.** `sokar vault login claude` runs the agent's own login in a throwaway
 container and needs nothing installed. `sokar vault import claude` copies what an install already
-signed in here holds; a second login would replace what that install uses. `sokar vault put NAME`
+signed in here holds; a second login would replace what that install uses. `vault login` on an agent already
+signed in here offers that at a terminal - import (the default), log in again, or cancel - and refuses with both
+commands named without one. `sokar vault put NAME`
 stores a value you already have; `sokar providers` says which names to use.
 
 **Open and close the vault.** A command that needs a shut vault asks for the passphrase at the
