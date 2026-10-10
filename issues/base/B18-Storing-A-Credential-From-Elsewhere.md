@@ -8,9 +8,9 @@ reply never carries the value back, and nothing keeps a copy.
 ## Why
 
 **Whether to build it is parked.** The rule was decided, then refined, then the passphrase was
-examined and two of the three original arguments turned out not to survive. Decided: hold both
-secrets together and decide them together, in
-[the secrets-from-elsewhere design](Secrets-From-Elsewhere_design.md).
+examined and two of the three original arguments turned out not to survive. The passphrase half is settled
+since: a device unlocks with a share of its own, never the passphrase ([the vault's
+keyslots](../../doc/credentials.md#the-vaults-keyslots)). The credential half is this requirement.
 
 **Until then a credential is entered at the node, over ssh** - the same rule as the passphrase.
 Nothing below is on the contract, and an interface asks for a secret nowhere.
@@ -205,7 +205,7 @@ on the client's machine.** Whether a forward is needed is the agent's property, 
 built as though the redirect flow were the only one.
 
 The measurements this would rest on are already taken and are in
-[secrets from elsewhere](Secrets-From-Elsewhere_design.md): the forward is a local one, the port
+[authentication](../../doc/credentials.md#working-from-another-machine): the forward is a local one, the port
 cannot be remapped, there is no ordering problem, IPv6 is not a trap, and a port collision exits
 zero while binding only half. They keep whether or not this is ever built.
 
@@ -237,6 +237,12 @@ has to preserve. That is a worse kind of guarantee, accepted knowingly.
   goes red when it is echoed.
 
 ## To be checked
+
+- **Whether the vault must be salted anew on every write.** A salt must be random per vault; the encryption's
+  uniqueness comes from the nonce, which is fresh per write already. Salting anew forces a full Argon2id derivation -
+  64 MiB, three passes - on every `sokar vault put`, for no benefit found.
+- **Whether a forced-command ssh account should be served at all**, or written down as a dead end: it is the one
+  case where entering a secret at the node denies a capability rather than a convenience.
 
 - **Whether the daemon should refuse to store a credential with no expiry**, or merely say so.
   The lifetime argument above says the long-lived key is the problem; refusing one outright would
