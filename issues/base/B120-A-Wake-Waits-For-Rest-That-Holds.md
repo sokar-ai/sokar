@@ -1,6 +1,6 @@
 # B120 — A Wake Waits For Rest That Holds
 
-**Status:** now.
+**Status:** implemented here; the agent repositories' wake scenarios on both legs are the last check.
 
 **What must be true.** Sokar types its wake line into a task's session only when the agent's declared `at_rest` has
 held on two looks at the screen a short while apart, with no sign of work between them, never into a turn that is
@@ -45,3 +45,16 @@ that did not reach the agent, never as a wake that did.
 ## To be checked
 
 - How far apart the two looks are, and whether the daemon's pass waits between them or the next pass takes the second.
+
+## As built, 2026-10-10
+
+- `AgentWake.wake` reads the screen twice, `LOOK` (1.5 s) apart, and types only when both show rest and no open
+  question. A moment after typing it reads again: a screen that shows work means the line was taken. One that still
+  rests gets Enter once more (`Podman.enter`) and a journal line; one that rests after that is said as not delivered,
+  answers `false` - so the message stays unannounced and is tried again - and leaves a mark beside the task's state,
+  so the next try presses Enter alone instead of typing the line into the box a second time.
+- **Answered:** the daemon's pass waits between the looks; the second look is not left to the next pass.
+- **Tested:** `WakeLandsTest` - rest for one look not typed into, rest that holds typed into once, a line left in the
+  box submitted once more, a line still standing not delivered and only submitted next time; `AgentWakeTest`'s agent
+  now takes the line it is given, as a real one does.
+

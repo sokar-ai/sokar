@@ -206,7 +206,11 @@ prompt, or a file arrives in its `/sokar/files`, Sokar types one line of its own
 while the screen matches `at_rest`, and never while a `waiting` rule says a question to a person is open, since the
 line would interrupt its work or answer the question. **An agent is typed into only when it declares both**: one
 with `at_rest` and no `waiting` rule cannot say when a question is open, so it is never woken and finds what arrived
-when it looks, as its guide tells it. `shows` and `lacks` may not both be empty. The values above are
+when it looks, as its guide tells it. **The rest must hold:** the screen is read twice, about a second and a half
+apart, and both must match. **The line must leave the input box:** a screen that still matches `at_rest` a moment
+after the line was typed means the agent took the Enter while it drew something; Sokar presses Enter once more and
+says so in its journal, and a line still standing after that is said as not delivered and only submitted, never typed
+again, at the next try. `shows` and `lacks` may not both be empty. The values above are
 Claude Code's own: each agent declares what its screen shows, measured at the version it pins.
 
 **`instructions` is how a task's agent is told what Sokar gives it there.** Sokar writes one guide - `/sokar/files`

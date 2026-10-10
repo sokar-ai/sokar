@@ -50,11 +50,38 @@ class AgentWakeTest {
         return runner.invocations().stream().anyMatch(command -> command.arguments().contains("send-keys"));
     }
 
+    /**
+     * A wake that looks without waiting, through the stand-in runner, and whose agent takes the line it typed: its
+     * screen shows work from then on, as an agent that took a line does.
+     */
+    private AgentWake taking(final SokarContext context) {
+        final boolean[] typed = {false};
+        return new AgentWake(context, java.time.Duration.ZERO, new AgentWake.Terminal() {
+            @Override
+            public org.fuin.sokar.runtime.Podman.Screen screen(final String container) {
+                return typed[0] ? new org.fuin.sokar.runtime.Podman.Screen(
+                        java.util.List.of("* Working (esc to interrupt)", "  bypass permissions on"), true)
+                        : context.podman().screen(container, 20, false);
+            }
+
+            @Override
+            public boolean type(final String container, final String line) {
+                typed[0] = context.podman().type(container, line);
+                return typed[0];
+            }
+
+            @Override
+            public boolean enter(final String container) {
+                return context.podman().enter(container);
+            }
+        });
+    }
+
     @Test
     void anAgentAtRestIsWokenWithSokarsOwnLine() {
         runner.answering("capture-pane", ">\n  bypass permissions on (shift+tab)\n");
 
-        assertThat(new AgentWake(context()).wake("sokar-p-writer", CLAUDE)).isTrue();
+        assertThat(taking(context()).wake("sokar-p-writer", CLAUDE)).isTrue();
 
         assertThat(runner.invocations()).anySatisfy(command -> assertThat(command.arguments())
                 .contains("-l", AgentWake.LINE));
@@ -165,7 +192,7 @@ class AgentWakeTest {
         final Path state = dir.resolve("run").resolve("sokar").resolve("sokar-p-writer");
         final SokarContext context = context();
         Files.createDirectories(context.paths().tasks().containerState("sokar-p-writer"));
-        final AgentWake waker = new AgentWake(context);
+        final AgentWake waker = taking(context);
         runner.answering("capture-pane", "* Working (esc to interrupt)\n  bypass permissions on\n");
 
         assertThat(waker.announce(mailbox, "sokar-p-writer", "p", () -> waker.wake("sokar-p-writer", CLAUDE))).as("at work: not now").isFalse();

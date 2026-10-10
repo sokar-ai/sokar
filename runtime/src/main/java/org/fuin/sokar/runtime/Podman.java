@@ -1201,6 +1201,22 @@ public class Podman {
     }
 
     /**
+     * Presses Enter in a task's terminal session, once, and types nothing: for a line of Sokar's own that stood in the
+     * agent's input box because the agent took the first Enter while it drew something.
+     *
+     * @param container The task.
+     * @return Whether the keystroke reached the session.
+     */
+    public boolean enter(String container) {
+        try {
+            return runner.run(podman("exec", target(container), "tmux", "send-keys", "-t", Containerfile.SESSION,
+                    "Enter")).exitCode() == 0;
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    /**
      * Says whether the session's own shell reported that it ended.
      * <p>
      * This is how leaving a window is told from finishing the work. Nothing observable from

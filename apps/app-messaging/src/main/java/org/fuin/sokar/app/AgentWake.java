@@ -26,13 +26,77 @@ public final class AgentWake {
 
     private final SokarContext context;
 
+    /** How long between two looks at the screen: before typing, and after it. */
+    static final java.time.Duration LOOK = java.time.Duration.ofMillis(1500);
+
+    private final java.time.Duration look;
+
+    private final Terminal terminal;
+
+    /** What the wake does with a task's terminal: read its screen, type a line with Enter, press Enter alone. */
+    interface Terminal {
+
+        /**
+         * Reads the screen.
+         *
+         * @param container The task.
+         * @return What it shows.
+         */
+        org.fuin.sokar.runtime.Podman.Screen screen(String container);
+
+        /**
+         * Types a line, then Enter.
+         *
+         * @param container The task.
+         * @param line The line.
+         * @return Whether it reached the session.
+         */
+        boolean type(String container, String line);
+
+        /**
+         * Presses Enter alone.
+         *
+         * @param container The task.
+         * @return Whether it reached the session.
+         */
+        boolean enter(String container);
+    }
+
     /**
      * Constructor.
      *
      * @param context The machine.
      */
     public AgentWake(final SokarContext context) {
+        this(context, LOOK, new Terminal() {
+            @Override
+            public org.fuin.sokar.runtime.Podman.Screen screen(final String container) {
+                return context.podman().screen(container, 20, false);
+            }
+
+            @Override
+            public boolean type(final String container, final String line) {
+                return context.podman().type(container, line);
+            }
+
+            @Override
+            public boolean enter(final String container) {
+                return context.podman().enter(container);
+            }
+        });
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param context The machine.
+     * @param look How long between two looks at the screen.
+     * @param terminal What reads and types into a task's terminal.
+     */
+    AgentWake(final SokarContext context, final java.time.Duration look, final Terminal terminal) {
         this.context = context;
+        this.look = look;
+        this.terminal = terminal;
     }
 
     /**
@@ -324,15 +388,75 @@ public final class AgentWake {
         if (definition.atRest() == null || definition.waiting() == null) {
             return false;
         }
-        final org.fuin.sokar.runtime.Podman.Screen screen = context.podman().screen(container, 20, false);
+        // Rest that holds over two looks: an agent's work line comes and goes between its tool calls, and one look
+        // that fell into such a gap typed into a turn that was still running.
+        if (!rests(container, definition) || !pause() || !rests(container, definition)) {
+            return false;
+        }
+        final Path stuck = context.paths().tasks().containerState(container).resolve(STUCK);
+        // A line of ours that stood in the box last time is there still: Enter alone, never the line a second time.
+        final boolean standing = Files.isRegularFile(stuck);
+        if (!(standing ? terminal.enter(container) : terminal.type(container, line))) {
+            return false;
+        }
+        // An agent that took the line works, and its screen says so. One that still rests left the line standing in its
+        // input box: it took the Enter while it drew something.
+        if (!pause() || !rests(container, definition)) {
+            return taken(stuck);
+        }
+        System.out.println("wake      " + container + ": pressed Enter again - the line stood in the input box");
+        System.out.flush();
+        terminal.enter(container);
+        if (!pause() || !rests(container, definition)) {
+            return taken(stuck);
+        }
+        try {
+            Files.createDirectories(stuck.getParent());
+            Files.writeString(stuck, java.time.Instant.now() + "\n", StandardCharsets.UTF_8);
+        } catch (final IOException ex) {
+            // Next time the line is typed again rather than only submitted: worse, not wrong.
+        }
+        System.out.println("wake      " + container + ": the line still stands in the input box - not delivered");
+        System.out.flush();
+        return false;
+    }
+
+    /** Beside a task's state: a line of Sokar's that stood in the agent's input box when it was last woken. */
+    static final String STUCK = "wake-stuck";
+
+    private static boolean taken(final Path stuck) {
+        try {
+            Files.deleteIfExists(stuck);
+        } catch (final IOException ex) {
+            // A stale mark only makes the next wake press Enter alone, which an empty box ignores.
+        }
+        return true;
+    }
+
+    /** Whether the agent's screen shows it at rest, with no question to a person open. */
+    private boolean rests(final String container, final AgentDefinition definition) {
+        final org.fuin.sokar.runtime.Podman.Screen screen = terminal.screen(container);
         if (!screen.live()) {
             return false;
         }
         final String shown = String.join("\n", screen.lines());
-        if (definition.waiting() != null
-                && definition.waiting().read(shown).seen() == org.fuin.sokar.agent.api.Waiting.Seen.WAITING) {
+        final org.fuin.sokar.agent.api.Waiting waiting = definition.waiting();
+        final org.fuin.sokar.agent.api.AtRest atRest = definition.atRest();
+        return waiting != null && atRest != null
+                && waiting.read(shown).seen() != org.fuin.sokar.agent.api.Waiting.Seen.WAITING && atRest.matches(shown);
+    }
+
+    /** Waits between two looks; {@code false} when interrupted, so nothing is typed into a daemon that is stopping. */
+    private boolean pause() {
+        if (look.isZero()) {
+            return true;
+        }
+        try {
+            Thread.sleep(look);
+            return true;
+        } catch (final InterruptedException ex) {
+            Thread.currentThread().interrupt();
             return false;
         }
-        return definition.atRest().matches(shown) && context.podman().type(container, line);
     }
 }

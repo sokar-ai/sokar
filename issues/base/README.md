@@ -37,7 +37,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
-| B120 | [A Wake Waits For Rest That Holds](B120-A-Wake-Waits-For-Rest-That-Holds.md) | now | - | The wake line is typed only when `at_rest` held on two looks a short while apart, never into a running turn. | 1 | 2026-10-05 |
+| B120 | [A Wake Waits For Rest That Holds](B120-A-Wake-Waits-For-Rest-That-Holds.md) | implemented here | - | The wake line is typed only when `at_rest` held on two looks a short while apart, never into a running turn. | 1 | 2026-10-05 |
 | B159 | [Sokar Offers Instead Of Naming A Command](B159-Sokar-Offers-Instead-Of-Naming-A-Command.md) | decided | - | Where Sokar names a command to type, it offers the remedy at a terminal - the command's own function - checks again and carries on; without a terminal it refuses as today. | - | about seventy places found after the joint test, 2026-10-10; built after this push round |
 | B158 | [A Refusal That Knows The Next Command Offers It](B158-A-Refusal-That-Knows-The-Next-Command-Offers-It.md) | implemented here for `vault login` | - | A command that refuses only to name the next command asks at a terminal and does it; without one it refuses as before. | - | found in the joint test, 2026-10-10 |
 | B157 | [Doctor Says Its Findings In Colour](B157-Doctor-Says-Its-Findings-In-Colour.md) | implemented here | - | `sokar doctor` colours a failure red, a warning yellow and what is fine green, beside the same words, and only on a terminal without `NO_COLOR`. | - | found in the joint test, 2026-10-10: the failing line had to be searched for |
