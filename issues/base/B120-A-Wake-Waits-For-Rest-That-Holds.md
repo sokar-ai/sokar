@@ -20,7 +20,21 @@ own ready check already asks that a marker stay on screen for a while before it 
 **One definition of rest:** B118 reads `at rest` for status and list from the same `at_rest`; it takes rest by this
 rule too, so a status never says *at rest* for the instant the wake would not type into.
 
+## The line must also leave the input box
+
+Seen on 2026-10-10 in an agent repository's acceptance run: Claude Code v2.1.267 draws a notice about an unknown model
+when it starts, and the Enter typed after a line is taken by it. The line stays standing in the input box, and the
+agent never works. `Podman.type` types the wake line and then Enter in the same way, so a wake can be lost the same way:
+typed, never submitted, and nothing says so.
+
+So after typing, Sokar looks at the screen again. If its wake line still stands in the input box, it presses Enter once
+more, as a person would, and says in the journal that it had to. A line that still stands after that is said as a wake
+that did not reach the agent, never as a wake that did.
+
 ## Acceptance
+
+- Seen to fail first: a wake whose Enter is swallowed leaves the line in the box; afterwards Enter is pressed once more and
+  the journal says so, and a line still standing after that is reported as not delivered.
 
 - A screen that matches `at_rest` on one look and shows work on the next is not typed into. Seen to fail: a unit test
   whose stand-in screen rests for one look only, against the code that types after one look.
