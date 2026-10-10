@@ -69,6 +69,9 @@ else
     exec 3>&1
 fi
 
+# The repository key's fingerprint, as doc/getting-started.md gives it.
+KEY_FINGERPRINT=10EDAF73ECE5BB29A2E63E9C6B488A9326920DBE
+
 say()  { printf '\n== %s ==\n' "$1"; }
 note() { printf '   %s\n' "$1"; }
 
@@ -163,13 +166,27 @@ if [ "$FAMILY" = apt ]; then
     if [ -f /usr/share/keyrings/sokar.gpg ]; then
         note "/usr/share/keyrings/sokar.gpg is already there"
     elif [ "$SHOW" = yes ]; then
-        printf '   $ %s\n' "curl -fsSL $BASE/api/security/keypair/sokar-packages/public | gpg --dearmor -o /usr/share/keyrings/sokar.gpg"
+        printf '   $ %s\n' "curl -fsSL $BASE/api/security/keypair/sokar-packages/public -o <temporary file>"
+        printf '   $ %s\n' "gpg --show-keys --with-colons <temporary file>   # must be $KEY_FINGERPRINT"
+        printf '   $ %s\n' "gpg --dearmor -o /usr/share/keyrings/sokar.gpg < <temporary file>"
     else
+        # Checked before it is trusted: the fingerprint is written here, apart from the server the
+        # key comes from, so a changed key on that server is refused rather than installed.
+        # A keyring of its own for reading it, so root's ~/.gnupg is neither made nor touched.
+        KEY_FILE=$(mktemp)
+        KEY_HOME=$(mktemp -d)
+        curl -fsSL "$BASE/api/security/keypair/sokar-packages/public" -o "$KEY_FILE"
+        if ! gpg --homedir "$KEY_HOME" --show-keys --with-colons "$KEY_FILE" 2>/dev/null \
+                | grep -q "^fpr:::::::::$KEY_FINGERPRINT:"; then
+            rm -rf "$KEY_FILE" "$KEY_HOME"
+            echo "sokar-setup: the repository key is not $KEY_FINGERPRINT; neither the key nor the repository was added" >&2
+            exit 3
+        fi
         # Dearmored, not the .asc: apt wants the binary form at that path, and the armored file
         # fails with a verification error that never mentions the format.
-        curl -fsSL "$BASE/api/security/keypair/sokar-packages/public" \
-            | gpg --dearmor -o /usr/share/keyrings/sokar.gpg
-        note "wrote /usr/share/keyrings/sokar.gpg"
+        gpg --homedir "$KEY_HOME" --dearmor -o /usr/share/keyrings/sokar.gpg < "$KEY_FILE"
+        rm -rf "$KEY_FILE" "$KEY_HOME"
+        note "wrote /usr/share/keyrings/sokar.gpg, key $KEY_FINGERPRINT"
     fi
     SOURCE_LINE="deb [signed-by=/usr/share/keyrings/sokar.gpg] $BASE/sokar-dist-deb $DISTRIBUTION main"
     if [ -f /etc/apt/sources.list.d/sokar.list ] \

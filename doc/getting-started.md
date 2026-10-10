@@ -45,14 +45,21 @@ runtime, so a new agent needs no new release of Sokar.
 
 ```
 sudo apt install -y ca-certificates curl gnupg
-curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
-  | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
+curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public -o /tmp/sokar.asc
+gpg --show-keys --with-colons /tmp/sokar.asc \
+  | grep -q '^fpr:::::::::10EDAF73ECE5BB29A2E63E9C6B488A9326920DBE:' \
+  && sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg < /tmp/sokar.asc
 echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb releases main" \
   | sudo tee /etc/apt/sources.list.d/sokar.list
 sudo apt update
 sudo apt install sokar sokar-agent-claude
 ```
 
+- **Check the key before trusting it.** Its fingerprint is
+  `10EDAF73ECE5BB29A2E63E9C6B488A9326920DBE` (Sokar Packages, RSA 4096, made 2026-09-06, valid to
+  2031-09-05). The line before `gpg --dearmor` installs it only when the downloaded key has exactly that
+  fingerprint; when it does not, nothing is installed and `apt update` refuses the repository. The fingerprint
+  is written here, on a page served from elsewhere than the key, so one compromised server cannot change both.
 - **Dearmor the key.** `apt` wants the binary form at that path. The armored `.asc` fails
   with a verification error that never mentions the format.
 
@@ -374,8 +381,10 @@ manager installs whichever is newer: the latest build, and a release on the day 
 
 ```
 sudo apt install -y ca-certificates curl gnupg
-curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
-  | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
+curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public -o /tmp/sokar.asc
+gpg --show-keys --with-colons /tmp/sokar.asc \
+  | grep -q '^fpr:::::::::10EDAF73ECE5BB29A2E63E9C6B488A9326920DBE:' \
+  && sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg < /tmp/sokar.asc
 sudo tee /etc/apt/sources.list.d/sokar.list <<'EOF'
 deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb releases main
 deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb snapshots main

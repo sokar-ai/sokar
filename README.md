@@ -92,8 +92,10 @@ Why build this rather than use it? See [why](doc/why.md)
 
 ```sh
 sudo apt install -y ca-certificates curl gnupg
-curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
-  | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
+curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public -o /tmp/sokar.asc
+gpg --show-keys --with-colons /tmp/sokar.asc \
+  | grep -q '^fpr:::::::::10EDAF73ECE5BB29A2E63E9C6B488A9326920DBE:' \
+  && sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg < /tmp/sokar.asc
 echo "deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb releases main" \
   | sudo tee /etc/apt/sources.list.d/sokar.list
 sudo apt update
