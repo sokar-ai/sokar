@@ -116,7 +116,9 @@ takes `sokar approve TASK`; `--yes` answers for a script.
 - A running task is refused; use `attach`.
 - **What is missing is offered, not only named.** At a terminal a start asks what it would otherwise tell you
   to type: at a host this machine never met, it shows the keys the host offers and asks whether to trust its key
-  (no by default, compare it with what the host's owner publishes). `--no-input` asks nothing and refuses as
+  (no by default, compare it with what the host's owner publishes). A credential the agent lacks is offered the same
+  way: the command the refusal would name - `vault authorize`, `vault login` or `vault put`, which asks a key
+  without echo - runs on this terminal, and the start goes on once the credential is there. `--no-input` asks nothing and refuses as
   without a terminal; `--yes` takes a harmless remedy without asking and never a trust decision.
 - After a reboot, `task list` shows which tasks went down and `sokar task start --restarted` brings
   them all back. Nothing comes back by itself. The first start after a reboot needs the vault open,

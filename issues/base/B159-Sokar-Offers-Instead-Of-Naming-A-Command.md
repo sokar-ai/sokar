@@ -134,6 +134,10 @@ terminal, no terminal, `--no-input` and `--yes`.
   calling it in turn before the start goes on.
 - **Task start, an unmet host key:** the keys the host offers are shown and the person is asked to trust one, no by
   default, never by `--yes` (`HostKeyOfferTest`). `task start` takes `--no-input` and `--yes`.
+- **Task start, a missing credential:** the command the refusal names - `vault authorize`, `vault login`, or
+  `vault put`, which asks a key without echo - runs on this terminal as a child of the start (`context.exec`), the
+  credential is looked for again, and the start goes on (`CredentialOfferTest`). One command for all three keeps
+  rule 1: the remedy is the command's own code.
 - **Task start, hooks:** nothing to offer. A start already registers missing and outdated hooks without asking;
   `DANGLING` means the hook binaries are not where this Sokar has them, which neither `sokar setup` nor anything Sokar
   can run makes good - only installing the package again does, so it stays a message.

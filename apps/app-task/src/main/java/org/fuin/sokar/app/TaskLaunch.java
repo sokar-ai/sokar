@@ -727,7 +727,17 @@ public final class TaskLaunch {
 
             if (refusesWithoutCredential(request.mode())) {
                 final String unavailable = wiring().unavailableFor(select(agents));
-                if (unavailable != null) {
+                final java.util.List<String> command = unavailable == null || offer == Offer.NOBODY
+                        ? java.util.List.of() : signInCommand(select(agents));
+                if (unavailable != null && !command.isEmpty() && offer.resolve(credentialRemedy(unavailable, command,
+                        () -> wiring().unavailableFor(select(agents)) == null), err)) {
+                    out.println("credential " + String.join(" ", command.subList(1, command.size())) + " - in place");
+                    out.flush();
+                } else if (!command.isEmpty()) {
+                    err.println("sokar: nothing was created");
+                    err.flush();
+                    return 69;
+                } else if (unavailable != null) {
                     err.println("sokar: " + unavailable);
                     err.println("sokar: nothing was created; "
                             + (request.mode() == org.fuin.sokar.wire.TaskMode.UNATTENDED
@@ -1367,6 +1377,15 @@ public final class TaskLaunch {
      * @param agent The agent, or {@code null}.
      * @return The sentence, ending in a space, or "".
      */
+    private java.util.List<String> signInCommand(@Nullable InstalledAgent agent) {
+        final SelectedProvider selection = agent == null ? null : credentials().provider(agent);
+        final org.fuin.sokar.agent.api.ProviderDefinition provider =
+                selection == null ? null : context.providers().get(selection.name());
+        return nextCommand(agent == null ? null : agent.name(),
+                agent != null && agent.definition().loginArguments() != null, provider,
+                agent == null ? "" : credentials().credentialName(agent));
+    }
+
     private String signIn(@Nullable InstalledAgent agent) {
         final SelectedProvider selection = agent == null ? null : credentials().provider(agent);
         final org.fuin.sokar.agent.api.ProviderDefinition provider =
@@ -1386,13 +1405,53 @@ public final class TaskLaunch {
      */
     static String nextStep(@Nullable String agent, boolean logsIn,
             org.fuin.sokar.agent.api.@Nullable ProviderDefinition provider, String credential) {
+        final java.util.List<String> command = nextCommand(agent, logsIn, provider, credential);
+        if (command.isEmpty()) {
+            return "";
+        }
+        final String said = "'sokar " + String.join(" ", command) + "'";
+        return switch (command.get(1)) {
+            case "authorize" -> "Grant it first with " + said + "; ";
+            case "login" -> "Sign in first with " + said + "; ";
+            default -> "Store its key first with " + said + "; ";
+        };
+    }
+
+    /**
+     * Returns the one command that gets a task its credential, as {@link #nextStep} says it, as arguments.
+     *
+     * @param agent The agent's name, or {@code null} when none is installed.
+     * @param logsIn Whether the agent declares a login of its own.
+     * @param provider The provider chosen, or {@code null}.
+     * @param credential The vault entry the credential would be under.
+     * @return Its arguments after {@code sokar}, or empty when there is nothing to name.
+     */
+    static java.util.List<String> nextCommand(@Nullable String agent, boolean logsIn,
+            org.fuin.sokar.agent.api.@Nullable ProviderDefinition provider, String credential) {
         if (provider != null && !provider.grant().isEmpty()) {
-            return "Grant it first with 'sokar vault authorize " + provider.name() + "'; ";
+            return java.util.List.of("vault", "authorize", provider.name());
         }
         if (agent != null && logsIn) {
-            return "Sign in first with 'sokar vault login " + agent + "'; ";
+            return java.util.List.of("vault", "login", agent);
         }
-        return credential.isEmpty() ? "" : "Store its key first with 'sokar vault put " + credential + "'; ";
+        return credential.isEmpty() ? java.util.List.of() : java.util.List.of("vault", "put", credential);
+    }
+
+    /**
+     * Returns the remedy for a credential a start lacks: the command a refusal would name, run on this terminal - its
+     * own code, which asks a key without echo or runs the agent's sign-in - and the credential looked for again after.
+     *
+     * @param unavailable What is missing, as the refusal says it.
+     * @param command The command's arguments after {@code sokar}.
+     * @param holds Whether the credential is there.
+     * @return The remedy.
+     */
+    Offer.Remedy credentialRemedy(final String unavailable, final java.util.List<String> command,
+            final java.util.function.BooleanSupplier holds) {
+        final String said = "sokar " + String.join(" ", command);
+        return new Offer.Remedy(unavailable, "Run '" + said + "' now?", said, "", false,
+                () -> context.exec().applyAsInt(java.util.stream.Stream.concat(
+                        java.util.stream.Stream.of(SokarBinary.path()), command.stream()).toList()) == 0, holds);
     }
 
     private CredentialChoice credentials() {
