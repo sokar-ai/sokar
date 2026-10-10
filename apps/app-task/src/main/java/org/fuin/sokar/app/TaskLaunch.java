@@ -407,6 +407,53 @@ public final class TaskLaunch {
      * @param after What to do once it is up.
      * @return The exit code.
      */
+    /** Who is offered a remedy where the start would name a command: nobody, unless a terminal is there. */
+    private Offer offer = Offer.NOBODY;
+
+    /**
+     * Offers what a refusal would name, through the given helper: at a terminal, a person is asked and the remedy run.
+     *
+     * @param offer The helper.
+     * @return This launch.
+     */
+    public TaskLaunch offering(final Offer offer) {
+        this.offer = offer;
+        return this;
+    }
+
+    /**
+     * Shows what a host this machine never met offers, and records its key when a person says it is the one its owner
+     * publishes: a trust decision, so it defaults to no and is never taken by {@code --yes}.
+     *
+     * @param host The host.
+     * @param err Where it is shown and a refusal said.
+     * @return Whether the host is known now.
+     */
+    boolean trustUnmet(final String host, final PrintWriter err) {
+        if (offer == Offer.NOBODY) {
+            return false;
+        }
+        final java.util.List<HostKeys.Offered> offered = HostKeys.offeredBy(context, host);
+        if (offered.isEmpty()) {
+            return false;
+        }
+        final HostKeys.Offered key = offered.stream().filter(one -> one.type().equals("ssh-ed25519")).findFirst()
+                .orElse(offered.get(0));
+        err.println("sokar: " + host + " offers:");
+        offered.forEach(one -> err.printf("    %-20s %s%n", one.type(), one.fingerprint()));
+        err.flush();
+        return offer.resolve(new Offer.Remedy("this machine has never met " + host, "Trust its " + key.type() + " key "
+                + key.fingerprint() + ", as its owner publishes it?", "sokar credentials trust-host " + host, "", true,
+                () -> {
+                    try {
+                        return HostKeys.trust(context, host, key.fingerprint()) != null;
+                    } catch (final java.io.IOException ex) {
+                        err.println("sokar: the key could not be recorded: " + ex.getMessage());
+                        return false;
+                    }
+                }, () -> HostKeys.known(context, host)), err);
+    }
+
     public int launch(PrintWriter out, PrintWriter err, AfterStart after) {
 
         Project project;
@@ -584,7 +631,14 @@ public final class TaskLaunch {
             final String unmet = request.upstream() != null && !request.upstream().isBlank()
                     ? StartCheck.unknownHostOf(context, request.upstream())
                     : StartCheck.unknownHost(context, request.projectFile(), request.repository());
-            if (unmet != null) {
+            if (unmet != null && trustUnmet(unmet, err)) {
+                out.println("trusted   " + unmet);
+                out.flush();
+            } else if (unmet != null && offer != Offer.NOBODY) {
+                err.println("sokar: nothing was created");
+                err.flush();
+                return 69;
+            } else if (unmet != null) {
                 err.println("sokar: this machine has never met " + unmet + ", where the repository is, so it stops"
                         + " rather than deciding for you. See what it offers with 'sokar credentials trust-host "
                         + unmet + "', confirm one against what its owner publishes, and start again.");

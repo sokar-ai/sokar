@@ -1,6 +1,6 @@
 # B159 — Sokar Offers Instead Of Naming A Command
 
-**Status:** decided; built after this push round. B158 (`vault login`) is its first piece.
+**Status:** being built: the helper (`Offer`) and the unmet host key at a start; B158 (`vault login`) was the first piece.
 
 **What must be true.** Where something is missing or in the wrong state and Sokar today tells the person which command
 to type, it offers the remedy at a terminal and carries on; without a terminal it refuses as today, naming the command.
@@ -127,3 +127,14 @@ Only where nobody can answer, or a question would be wrong:
 Each place: with a terminal stood in, the remedy offered, run, and the precondition checked again; declined, and
 without a terminal, today's refusal; a destructive one defaulting to "no". The helper's own decision tested once for
 terminal, no terminal, `--no-input` and `--yes`.
+
+## Built so far, 2026-10-10
+
+- **The helper, `Offer`** (`app-base`): rules 1-4 as above, for every place; `OfferTest`. Rule 5 holds by each place
+  calling it in turn before the start goes on.
+- **Task start, an unmet host key:** the keys the host offers are shown and the person is asked to trust one, no by
+  default, never by `--yes` (`HostKeyOfferTest`). `task start` takes `--no-input` and `--yes`.
+- **Task start, hooks:** nothing to offer. A start already registers missing and outdated hooks without asking;
+  `DANGLING` means the hook binaries are not where this Sokar has them, which neither `sokar setup` nor anything Sokar
+  can run makes good - only installing the package again does, so it stays a message.
+

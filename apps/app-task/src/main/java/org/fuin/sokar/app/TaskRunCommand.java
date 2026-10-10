@@ -136,6 +136,14 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
             description = "Starts the task and returns, instead of handing over a shell.")
     private boolean detach;
 
+    @Option(names = "--no-input",
+            description = "Asks nothing: what is missing is refused and named, as without a terminal.")
+    private boolean noInput;
+
+    @Option(names = "--yes",
+            description = "Takes a harmless remedy for what is missing without asking; never trusts or discards.")
+    private boolean yes;
+
     @Option(names = "--now",
             description = "Returns as soon as the task exists, without waiting for the image"
                     + " build. Needs --detach: there is nothing to attach to yet.")
@@ -272,7 +280,9 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
         // daemon builds the same request and gets the same behavior without running a CLI.
         final TaskLaunch launch = new TaskLaunch(context, new TaskLaunch.Request(task, projectFile,
                 agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
-                clearance, !rm, mode(), prompt, model, maxTurns, minutes, repository, credentials));
+                clearance, !rm, mode(), prompt, model, maxTurns, minutes, repository, credentials))
+                // What a refusal would name is offered at a terminal instead; a script or a pipe is refused as before.
+                .offering(new Offer(Offer.Asker.terminal(), noInput, yes, err));
 
         final TaskLaunch.Existing existing = launch.startExisting(out, err);
         if (existing != null) {

@@ -1,0 +1,2 @@
+title: sokar task start at a host this machine never met shows the keys it offers and asks whether to trust one, instead of naming trust-host; --no-input and --yes for scripts
+type: changed
