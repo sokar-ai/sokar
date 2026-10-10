@@ -7,6 +7,10 @@ on:
     - cron: '17 * * * *'
   workflow_dispatch:
 
+# Read for the workflow as a whole; a job that needs to write says so in its own block.
+permissions:
+  contents: read
+
 jobs:
   sweep:
     runs-on: ubuntu-latest
