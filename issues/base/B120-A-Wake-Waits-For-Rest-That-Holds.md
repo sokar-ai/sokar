@@ -1,6 +1,6 @@
 # B120 — A Wake Waits For Rest That Holds
 
-**Status:** soon.
+**Status:** now.
 
 **What must be true.** Sokar types its wake line into a task's session only when the agent's declared `at_rest` has
 held on two looks at the screen a short while apart, with no sign of work between them, never into a turn that is
