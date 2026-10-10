@@ -146,6 +146,10 @@ terminal, no terminal, `--no-input` and `--yes`.
   discarded or kept, by number; a stopped one to be started for the rescue (`sokar task start` itself); what nobody
   recorded to be discarded unseen, no by default and never by `--yes`. The removal is tried again after each, once
   per kind of refusal (`TaskRemoveOfferTest`). `Offer.confirm` asks under the same rules where the caller acts.
+- **Vault and credentials:** `vault unlock` with no vault offers `vault init`; `vault import` with nothing to
+  import offers `vault login` - each run as the command itself (`VaultOfferTest`). At a start, a credential under
+  the agent's name is offered to move to its provider's, whole and never over what is there (`CredentialMoveTest`),
+  and a copy older than the agent's to be refreshed by `vault import`.
 - **Not yet:** a provider chosen from a list - refused only for an agent that names no default provider, and every
   agent today names one; a task chosen from a list - `TaskTarget` asks already at a terminal; a workspace from
   before a restart copied to `./recovered` (`TaskResumeCommand`).

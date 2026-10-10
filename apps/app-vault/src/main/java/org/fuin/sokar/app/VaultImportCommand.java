@@ -100,6 +100,12 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
                     return Optional.of(org.fuin.sokar.vault.VaultFile.Opener.passphrase(typed[0]));
                 }));
 
+        if (result.outcome() == CredentialImport.Outcome.NOTHING_TO_IMPORT && agentName != null
+                && Offer.atTerminal()) {
+            err.println("sokar: " + result.detail());
+            err.flush();
+            return loginInstead(agentName, new Offer(Offer.Asker.terminal(), false, false, err), context) ? 0 : 69;
+        }
         if (result.outcome() != CredentialImport.Outcome.IMPORTED) {
             err.println("sokar: " + result.detail());
             err.flush();
@@ -118,5 +124,24 @@ public class VaultImportCommand implements Callable<Integer>, SokarFactory.Conte
             err.flush();
         }
         return 0;
+    }
+
+    /**
+     * Offers the agent's own login where there is nothing of it to import, run as {@code sokar vault login} itself on
+     * this terminal.
+     *
+     * @param agent The agent.
+     * @param offer Who is asked.
+     * @param context The machine.
+     * @return Whether the login ran and stored its credential.
+     */
+    static boolean loginInstead(final String agent, final Offer offer, final SokarContext context) {
+        final int[] exit = {-1};
+        return offer.resolve(new Offer.Remedy("nothing of '" + agent + "' to import on this machine",
+                "Log in with it now, as 'sokar vault login " + agent + "' does?", "sokar vault login " + agent, "",
+                false, () -> {
+                    exit[0] = context.exec().applyAsInt(java.util.List.of(SokarBinary.path(), "vault", "login", agent));
+                    return exit[0] == 0;
+                }, () -> exit[0] == 0));
     }
 }

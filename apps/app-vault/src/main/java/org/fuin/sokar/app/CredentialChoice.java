@@ -83,10 +83,54 @@ final class CredentialChoice {
         final SelectedProvider selection = provider(agent);
         if (selection != null && credentialName(agent).equals(agent.name())
                 && !agent.name().equals(selection.name())) {
+            if (offer != Offer.NOBODY && offer.confirm("credential stored under '" + agent.name() + "', which is this"
+                    + " agent's name; it belongs to '" + selection.name() + "'", "Move it there now, without entering it"
+                    + " again?", "", false)) {
+                try {
+                    final var opener = context.opener();
+                    if (opener.isPresent()) {
+                        context.vault().update(opener.get(), entries -> moved(entries, agent.name(), selection.name()));
+                        out.println("credential moved to '" + selection.name() + "'");
+                        return;
+                    }
+                } catch (final RuntimeException ex) {
+                    out.println("credential could not be moved: " + ex.getMessage());
+                }
+            }
             out.println("credential stored under '" + agent.name() + "', which is this agent's"
                     + " name; it belongs to '" + selection.name() + "'. Move it with:"
                     + " sokar vault put " + selection.name());
         }
+    }
+
+    /** Who is offered a remedy where a note would name a command: nobody, unless a terminal is there. */
+    private Offer offer = Offer.NOBODY;
+
+    /**
+     * Offers what a note would name, through the given helper.
+     *
+     * @param offer The helper.
+     * @return This choice.
+     */
+    CredentialChoice offering(final Offer offer) {
+        this.offer = offer;
+        return this;
+    }
+
+    /**
+     * Returns the entries with one moved to another name, whole - never over what that name holds already.
+     *
+     * @param entries The vault's entries.
+     * @param from The name it is under.
+     * @param to The name it belongs under.
+     * @return The entries after the move.
+     */
+    static java.util.Map<String, org.fuin.sokar.vault.VaultEntry> moved(
+            final java.util.Map<String, org.fuin.sokar.vault.VaultEntry> entries, final String from, final String to) {
+        if (entries.containsKey(from) && !entries.containsKey(to)) {
+            entries.put(to, entries.remove(from));
+        }
+        return entries;
     }
 
     /**
@@ -140,6 +184,13 @@ final class CredentialChoice {
             if (staleCredential(context.credentials().get(credentialName(agent)),
                     agent.extractCredential(VaultImportCommand
                             .expand(agent.definition().configDirectory())).orElse(null))) {
+                if (offer != Offer.NOBODY && offer.confirm("the vault's copy of the credential is older than the one '"
+                        + agent.name() + "' holds here", "Refresh it now, as 'sokar vault import " + agent.name()
+                        + "' does?", "", false) && context.exec().applyAsInt(java.util.List.of(SokarBinary.path(),
+                                "vault", "import", agent.name())) == 0) {
+                    out.println("credential refreshed from '" + agent.name() + "'");
+                    return;
+                }
                 out.println("credential the vault's copy is older than the one '" + agent.name()
                         + "' holds here; 'sokar vault import " + agent.name() + "' refreshes it");
             }

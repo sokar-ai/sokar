@@ -103,6 +103,16 @@ public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.Conte
             return VaultLockCommand.lock(context, out);
         }
 
+        if (!context.vault().exists() && asker != Offer.Asker.NOBODY && new Offer(asker, false, false, err).resolve(
+                new Offer.Remedy("there is no vault at " + context.vault().path() + " to unlock",
+                        "Make one now, as 'sokar vault init' does - it asks the passphrase twice and keeps it?",
+                        "sokar vault init", "", false,
+                        () -> context.exec().applyAsInt(java.util.List.of(SokarBinary.path(), "vault", "init")) == 0,
+                        () -> context.vault().exists()))) {
+            out.println("vault     made, and unlocked by 'sokar vault init'");
+            out.flush();
+            return 0;
+        }
         if (!context.vault().exists()) {
             // Refused before anything is asked: a passphrase cached for a vault that does not exist
             // opens nothing, and the first 'vault put' then made the vault with it - typed once, so
@@ -162,4 +172,7 @@ public class VaultUnlockCommand implements Callable<Integer>, SokarFactory.Conte
             return 70;
         }
     }
+
+    /** Who is asked, where a refusal would name the command: this process's terminal, or nobody without one. */
+    Offer.Asker asker = Offer.atTerminal() ? Offer.Asker.terminal() : Offer.Asker.NOBODY;
 }

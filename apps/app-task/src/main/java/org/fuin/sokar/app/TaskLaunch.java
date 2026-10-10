@@ -1483,7 +1483,8 @@ public final class TaskLaunch {
 
     private CredentialChoice credentials() {
         if (credentials == null) {
-            credentials = new CredentialChoice(context, request.providerName(), request.credentialType(), request.agentName());
+            credentials = new CredentialChoice(context, request.providerName(), request.credentialType(),
+                    request.agentName()).offering(offer);
         }
         return credentials;
     }

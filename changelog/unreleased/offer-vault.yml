@@ -1,0 +1,2 @@
+title: vault unlock with no vault offers vault init, vault import with nothing to import offers the agent's login, and a start offers to move a credential stored under the agent's name to its provider's or to refresh an older copy
+type: changed
