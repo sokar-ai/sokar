@@ -80,6 +80,8 @@ the sequences an agent writes; a script played the outside terminal (`TERM=xterm
     the wheel, the agent asked         as sent             as sent             as sent
     Shift+PageUp                       the terminal's      to the agent        tmux's history (no alternate
                                        scrollback                              screen), else to the agent
+    Shift+PageDown                     the terminal's      to the agent        down tmux's history, leaving it
+                                       scrollback                              at the bottom; else to the agent
     truecolour, OSC 52                 passed              dropped             passed
     links (OSC 8), title               passed             dropped             passed (a link gains an id)
     images (kitty protocol)            passed              dropped             only wrapped for tmux
@@ -96,4 +98,9 @@ need wrapping. **What Sokar depends on**, set again after the account's file: `h
 a task as root after it starts (`TaskRunner`, `AccountTmuxTest`); the order checked in a built image, with a binding
 and `mouse off` from the account's file taking effect and its `history-limit` and `default-terminal` set back.
 **Open:** Pi, and each agent in a real task with a person's own terminal; the acceptance kit's per-key test.
+
+**Found in the joint test, 2026-10-10:** scrolled back with Shift+PageUp, Shift+PageDown did nothing - it was bound
+neither outside copy mode nor in it. Bound since: a page down in copy mode, which `-e` leaves at the bottom, and the
+key to the program outside it. Checked in tmux 3.4 with the keys typed through an attached client: 21, 42, 21, out of
+copy mode, then to the program.
 

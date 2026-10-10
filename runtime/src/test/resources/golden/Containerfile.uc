@@ -79,7 +79,8 @@ RUN set -eux; \
 # and the title were dropped on the way out; and the wheel reached an agent in the
 # alternate screen as nothing it had asked for. Shift+PageUp scrolls the session's
 # history where the agent writes into it, and goes to the agent where it draws its
-# own screen. Options an older tmux lacks are set with '-q'.
+# own screen; Shift+PageDown scrolls back down and leaves the history at the bottom.
+# Options an older tmux lacks are set with '-q'.
 #
 # Then a person's own file, copied in when a task starts, and last what Sokar itself
 # depends on, so nothing in that file changes it unawares.
@@ -95,6 +96,7 @@ RUN mkdir -p /etc/sokar \
         'set -g set-titles-string "#T"' \
         'set -g mouse on' \
         'bind -n S-PPage if -F "#{alternate_on}" "send-keys S-PPage" "copy-mode -eu"' \
+        'bind -n S-NPage if -F "#{pane_in_mode}" "send-keys -X page-down" "send-keys S-NPage"' \
         'source-file -q /etc/sokar/account-tmux.conf' \
         'source-file /etc/sokar/tmux-required.conf' \
         > /etc/sokar/tmux.conf \
@@ -138,5 +140,5 @@ ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:/bin
 ENV LANG=C.UTF-8
 
 LABEL org.fuin.sokar.project="uc"
-LABEL org.fuin.sokar.recipe="565f4655c57ba02d"
+LABEL org.fuin.sokar.recipe="89e7a70636253ec9"
 LABEL org.fuin.sokar.security-class="guarded"

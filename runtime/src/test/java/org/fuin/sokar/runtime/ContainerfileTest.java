@@ -175,7 +175,10 @@ class ContainerfileTest {
                 .contains("set -asq terminal-features \"xterm*:RGB:clipboard:hyperlinks:focus:title:extkeys\"")
                 .contains("set -g set-titles on")
                 .contains("set -g mouse on")
-                .contains("bind -n S-PPage if -F \"#{alternate_on}\" \"send-keys S-PPage\" \"copy-mode -eu\"");
+                .contains("bind -n S-PPage if -F \"#{alternate_on}\" \"send-keys S-PPage\" \"copy-mode -eu\"")
+                // Scrolled back with Shift+PageUp, Shift+PageDown did nothing: it was bound neither outside copy mode
+                // nor in it, so the way back down was a key a plain terminal does not need.
+                .contains("bind -n S-NPage if -F \"#{pane_in_mode}\" \"send-keys -X page-down\" \"send-keys S-NPage\"");
     }
 
     @Test

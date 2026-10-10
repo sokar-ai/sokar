@@ -179,7 +179,8 @@ agent that asked for the mouse. Measured with tmux 3.4, the version of the defau
 
 - **Scrolling back.** The session's history is tmux's, not your terminal's: your terminal's own scrollback holds
   nothing of it. The wheel and Shift+PageUp scroll tmux's history wherever the agent writes into it, as Claude Code
-  does. While scrolled back, keys go to tmux rather than to the agent, until you scroll to the bottom or press `q`.
+  does, and Shift+PageDown scrolls back down. While scrolled back, keys go to tmux rather than to the agent, until
+  you scroll to the bottom or press `q`.
   An agent that draws its own screen, as Oh My Pi does, gets the wheel and PageUp itself and scrolls its own view.
 - **Selecting text with the mouse** selects in tmux and copies to your clipboard. Your terminal's own selection is
   reached with Shift held, in most terminals.
