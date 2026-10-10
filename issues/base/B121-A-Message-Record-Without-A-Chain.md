@@ -1,6 +1,7 @@
 # B121 — A Message Record Without A Chain
 
-**Status:** now.
+**Status:** blocked by B154: the chain is the only tamper-evident record today, so it goes only once
+B154's event log replaces it.
 
 **What must be true.** A task's message record says what Sokar did with each message on this host - filtered, held,
 refused, delivered - as plain state, and nothing in it or about it claims to prove what was said or in which order;
