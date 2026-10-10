@@ -38,8 +38,8 @@ the package manager pulls them in.
 Two packages: `sokar` is the tool, `sokar-agent-claude` is one agent. Sokar finds agents at
 runtime, so a new agent needs no new release of Sokar.
 
-`releases` holds the released versions, `snapshots` every build of `main`; to follow the
-builds, change that one word.
+`releases` holds the released versions, and the lines below follow them. To follow every build of
+`main` as well, see [snapshots](#snapshots).
 
 ### Debian and Ubuntu
 
@@ -55,9 +55,6 @@ sudo apt install sokar sokar-agent-claude
 
 - **Dearmor the key.** `apt` wants the binary form at that path. The armored `.asc` fails
   with a verification error that never mentions the format.
-- **A new snapshot keeps its version string**, so `apt` says `sokar is already the newest
-  version` and you keep the old binary. Reinstall instead:
-  `sudo apt install --reinstall sokar sokar-agent-claude`.
 
 ### Fedora and RHEL
 
@@ -75,10 +72,6 @@ sudo dnf install sokar sokar-agent-claude
 - **`gpgcheck=0` is deliberate, and temporary.** The repository metadata is signed; the RPMs
   are not yet, so `dnf` would refuse them. Once they are, this becomes `gpgcheck=1` with a
   `gpgkey=` line.
-- **A new snapshot keeps its version string**, so `dnf` says `Nothing to do`. Remove and
-  install again. `dnf reinstall` silently skips a package that is not installed yet, which
-  leaves you with a fresh `sokar` and no agent:
-  `sudo dnf remove -y sokar sokar-agent-claude && sudo dnf install sokar sokar-agent-claude`.
 
 **From a local build**, see [building](build.md). It produces Sokar and no agent; the Claude
 Code agent is built in [sokar-claude-code](https://github.com/sokar-ai/sokar-claude-code).
@@ -371,3 +364,51 @@ uninstall), the mirrors (`~/.local/share/sokar/mirrors/`), the followed projects
 (`~/.local/share/sokar/projects/`) and agents you installed yourself
 (`~/.local/share/sokar/agents/`). **Check the mirrors first:** an unreviewed push exists only
 there, and `sokar gate pending` still answers while the package is installed.
+
+## Snapshots
+
+`snapshots` holds every build of `main`, published as it passes. With both sources, the package
+manager installs whichever is newer: the latest build, and a release on the day it comes out.
+
+### Debian and Ubuntu
+
+```
+sudo apt install -y ca-certificates curl gnupg
+curl -fsSL https://fuinorg.jfrog.io/artifactory/api/security/keypair/sokar-packages/public \
+  | sudo gpg --dearmor -o /usr/share/keyrings/sokar.gpg
+sudo tee /etc/apt/sources.list.d/sokar.list <<'EOF'
+deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb releases main
+deb [signed-by=/usr/share/keyrings/sokar.gpg] https://fuinorg.jfrog.io/artifactory/sokar-dist-deb snapshots main
+EOF
+sudo apt update
+sudo apt install sokar sokar-agent-claude
+```
+
+### Fedora and RHEL
+
+```
+sudo tee /etc/yum.repos.d/sokar.repo <<'EOF'
+[sokar]
+name=Sokar
+baseurl=https://fuinorg.jfrog.io/artifactory/sokar-dist-rpm/releases
+enabled=1
+gpgcheck=0
+
+[sokar-snapshots]
+name=Sokar snapshots
+baseurl=https://fuinorg.jfrog.io/artifactory/sokar-dist-rpm/snapshots
+enabled=1
+gpgcheck=0
+EOF
+sudo dnf install sokar sokar-agent-claude
+```
+
+- **The same file as for releases, with the snapshot source added**, so it replaces the file from
+  [1. Install](#1-install).
+- **A snapshot sorts below its release and above the release before it**
+  (`0.4.1` < `0.4.2~snapshot.267` < `0.4.2`), so `apt upgrade` or `dnf upgrade` moves from one
+  build to the next and on to the release.
+- **Going back to releases only:** remove the snapshot line or section. That installs nothing older
+  by itself: `0.4.2~snapshot.267` stays until a release above it comes. To go back at once:
+  `sudo apt install --allow-downgrades sokar=<release> sokar-agent-claude=<release>`, or
+  `sudo dnf downgrade sokar sokar-agent-claude`.
