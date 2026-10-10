@@ -69,4 +69,14 @@ class CredentialOfferTest {
         assertThat(ran).isEmpty();
         assertThat(err.toString()).contains("'sokar vault put openrouter'");
     }
+
+    @Test
+    void withoutATerminalOrWithNoInputNothingIsOfferedAndTheRefusalIsTodays() {
+        final java.io.PrintWriter err = new java.io.PrintWriter(new java.io.StringWriter());
+
+        // Offered without anybody to ask, the helper said its own line instead of the refusal a script reads.
+        assertThat(TaskRunCommand.offer(false, false, false, err)).isSameAs(Offer.NOBODY);
+        assertThat(TaskRunCommand.offer(true, false, true, err)).isSameAs(Offer.NOBODY);
+        assertThat(TaskRunCommand.offer(false, false, true, err)).isNotSameAs(Offer.NOBODY);
+    }
 }

@@ -292,7 +292,7 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
                 agentName, providerName, credentialType, tokenHours, upstream, noGate, dryRun,
                 clearance, !rm, mode(), prompt, model, maxTurns, minutes, repository, credentials))
                 // What a refusal would name is offered at a terminal instead; a script or a pipe is refused as before.
-                .offering(new Offer(Offer.Asker.terminal(), noInput, yes, err));
+                .offering(offer(noInput, yes, Offer.atTerminal(), err));
 
         final TaskLaunch.Existing existing = launch.startExisting(out, err);
         if (existing != null) {
@@ -577,5 +577,19 @@ public class TaskRunCommand implements Callable<Integer>, SokarFactory.ContextAw
     static @Nullable String repositoryChosen(final org.fuin.sokar.core.project.Project project, final Offer offer) {
         return offer.choose("say which repository this task is for", project.workRepositoryNames(),
                 "sokar task start --repository <name>");
+    }
+
+    /**
+     * Returns who is offered a remedy at this start: the terminal's person, or nobody - a script, a pipe or
+     * {@code --no-input} - so that the refusal is word for word today's.
+     *
+     * @param noInput Whether {@code --no-input} was given.
+     * @param yes Whether {@code --yes} was given.
+     * @param atTerminal Whether a person is at a terminal.
+     * @param err Where an offer is said.
+     * @return The offer.
+     */
+    static Offer offer(final boolean noInput, final boolean yes, final boolean atTerminal, final PrintWriter err) {
+        return noInput || !atTerminal ? Offer.NOBODY : new Offer(Offer.Asker.terminal(), false, yes, err);
     }
 }
