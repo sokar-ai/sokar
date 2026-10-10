@@ -114,7 +114,7 @@ public final class ProjectSource {
         final Found found = resolve(context, name);
         if (found.outcome() == Outcome.FOLLOWED && found.file() == null) {
             throw new org.fuin.sokar.core.project.ProjectException("'" + name + "' is followed and"
-                    + " nothing of it is in force. 'sokar project following' says why.");
+                    + " nothing of it is in force: " + Shown.whyNotInForce(context, name) + ".");
         }
         if (found.file() == null) {
             final java.util.List<String> known = names(context);

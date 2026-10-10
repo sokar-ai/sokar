@@ -70,8 +70,7 @@ public class TaskLabelCommand implements Callable<Integer>, SokarFactory.Context
             case LABELLED -> out.println("labelled  " + container + " \"" + String.valueOf(caption).strip() + "\"");
             case CLEARED -> out.println("cleared   " + container + " shows its own name again");
             case NOT_A_TASK -> {
-                err.println("sokar: no task named '" + container + "' - 'sokar task list' shows"
-                        + " what is there");
+                err.println("sokar: no task named '" + container + "' - " + Shown.tasks(context));
                 err.flush();
                 return 69;
             }

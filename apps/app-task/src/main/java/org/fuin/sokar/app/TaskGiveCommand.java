@@ -61,8 +61,8 @@ public class TaskGiveCommand implements Callable<Integer>, SokarFactory.ContextA
         final PrintWriter out = spec.commandLine().getOut();
         final PrintWriter err = spec.commandLine().getErr();
         if (!TaskCandidates.running(context).contains(container)) {
-            err.println("sokar: no running task named '" + container + "' - a file goes only to a running task;"
-                    + " 'sokar task list' shows what is there");
+            err.println("sokar: no running task named '" + container + "' - a file goes only to a running task; "
+                    + Shown.tasks(context));
             err.flush();
             return 69;
         }

@@ -39,8 +39,7 @@ public class ProjectRefreshCommand implements Callable<Integer>, SokarFactory.Co
         final PrintWriter err = spec.commandLine().getErr();
         final Map<String, Reconcile.Result> done = new ConfigurationWatch(context, Duration.ZERO).refresh(project);
         if (done == null) {
-            err.println("sokar: this account follows no project '" + project + "'; 'sokar project following' lists"
-                    + " the ones it does");
+            err.println("sokar: this account follows no project '" + project + "'; " + Shown.followed(context));
             err.flush();
             return 66;
         }

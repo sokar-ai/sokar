@@ -88,12 +88,13 @@ class TaskAttachCommandTest {
     }
 
     @Test
-    void aTaskThatIsNotThereIsSentToTheList(@TempDir Path dir) {
+    void aTaskThatIsNotThereNamesTheOnesThereAre(@TempDir Path dir) {
 
+        // It named 'sokar task list' to type; the list is what was wanted, so it is said instead.
         runner.answering("ps", "");
 
         assertThat(run(dir, "task", "attach", "sokar-uc-shell-1")).isEqualTo(69);
-        assertThat(err.toString()).contains("no task called").contains("task list");
+        assertThat(err.toString()).contains("no task called").contains("there is no task here");
     }
 
     @Test

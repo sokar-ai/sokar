@@ -300,7 +300,8 @@ public class ShieldEgressCommand implements Callable<Integer>, SokarFactory.Cont
             case UNREADABLE, REFUSED_BY_CLASS, NO_SUCH_SET -> {
                 err.println("sokar: " + effect.detail()
                         + (effect.outcome() == EgressControl.Outcome.NO_SUCH_SET
-                                ? ". Run 'sokar shield sets' to see the names." : ""));
+                                ? ". The sets are: " + String.join(", ", context.paths().egress().egressSets().all()
+                                        .keySet()) : ""));
                 err.flush();
                 return 2;
             }

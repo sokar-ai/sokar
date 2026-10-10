@@ -158,8 +158,7 @@ public class TaskAttachCommand implements Callable<Integer>, SokarFactory.Contex
             final boolean known = context.podman().sokarTasks().stream()
                     .anyMatch(task -> task.name().equals(container));
             if (!known) {
-                err.println("sokar: no task called " + container + " - 'sokar task list' shows"
-                        + " what is there");
+                err.println("sokar: no task called " + container + " - " + Shown.tasks(context));
                 // A name that is not there is exactly when the ones that are, are worth showing.
                 Suggests.offer(err, this);
                 err.flush();

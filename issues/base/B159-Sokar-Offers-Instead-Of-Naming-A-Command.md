@@ -150,6 +150,11 @@ terminal, no terminal, `--no-input` and `--yes`.
   import offers `vault login` - each run as the command itself (`VaultOfferTest`). At a start, a credential under
   the agent's name is offered to move to its provider's, whole and never over what is there (`CredentialMoveTest`),
   and a copy older than the agent's to be refreshed by `vault import`.
+- **Group (b), without asking:** a refusal for a task that is not there names the tasks there are; one for a
+  project this account does not follow names those it follows; one for a followed project not in force says why,
+  from its record; one for an egress set that does not exist names the sets (`Shown`, `ShownTest`). After
+  `vault passphrase`, the new passphrase is kept where the old one was cached, instead of dropped for a
+  `vault unlock`. Hooks out of date after an update were already registered again by a start, without asking.
 - **Not yet:** a provider chosen from a list - refused only for an agent that names no default provider, and every
   agent today names one; a task chosen from a list - `TaskTarget` asks already at a terminal; a workspace from
   before a restart copied to `./recovered` (`TaskResumeCommand`).

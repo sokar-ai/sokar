@@ -115,8 +115,17 @@ public class VaultPassphraseCommand implements Callable<Integer>, SokarFactory.C
                 final KernelKeyring.Forgotten forgotten =
                         new KernelKeyring(context.paths().vault().vaultKeyringKey()).forget();
                 if (forgotten == KernelKeyring.Forgotten.CLEARED) {
-                    out.println("dropped    the cached passphrase;"
-                            + " 'sokar vault unlock' with the new one");
+                    // Kept where the old one was: the person just typed it twice, and 'vault unlock' would only ask it a
+                    // third time.
+                    final char[] kept = fresh;
+                    out.println(afterRekey(forgotten, passphrase -> {
+                        try {
+                            new KernelKeyring(context.paths().vault().vaultKeyringKey()).store(passphrase, null);
+                            return true;
+                        } catch (final RuntimeException ex) {
+                            return false;
+                        }
+                    }, kept));
                 } else if (forgotten == KernelKeyring.Forgotten.UNKNOWN) {
                     // The cached passphrase is now the wrong one. Silence here would leave the
                     // next command failing in a way that reads like a damaged vault.
@@ -149,5 +158,21 @@ public class VaultPassphraseCommand implements Callable<Integer>, SokarFactory.C
                 }
             }
         }
+    }
+
+    /**
+     * Says what became of a cached passphrase after the vault was re-keyed: the new one kept where the old one was, or,
+     * where that failed, that the old one is gone and how to cache the new one.
+     *
+     * @param forgotten What dropping the old one came to.
+     * @param keep Keeps the new one; {@code false} when it could not.
+     * @param fresh The new passphrase.
+     * @return The line to say.
+     */
+    static String afterRekey(final KernelKeyring.Forgotten forgotten,
+            final java.util.function.Predicate<char[]> keep, final char[] fresh) {
+        return forgotten == KernelKeyring.Forgotten.CLEARED && keep.test(fresh)
+                ? "cached     the new passphrase, where the old one was"
+                : "dropped    the cached passphrase; 'sokar vault unlock' with the new one";
     }
 }

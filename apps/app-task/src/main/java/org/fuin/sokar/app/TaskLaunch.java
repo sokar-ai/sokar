@@ -483,8 +483,8 @@ public final class TaskLaunch {
                     // back to the local file would run the very thing the machine declined to
                     // apply, which is worse than not starting.
                     err.println("sokar: '" + project.name() + "' is followed and nothing of it is"
-                            + " in force, so there is no configuration to start a task with."
-                            + " 'sokar project following' says why.");
+                            + " in force, so there is no configuration to start a task with: "
+                            + Shown.whyNotInForce(context, project.name()) + ".");
                     err.flush();
                     return 2;
                 }

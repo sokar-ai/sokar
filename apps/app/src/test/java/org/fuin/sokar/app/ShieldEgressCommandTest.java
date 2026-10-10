@@ -175,8 +175,9 @@ class ShieldEgressCommandTest {
         assertThat(execute(context(dir), "shield", "egress", "-p", file,
                 "--add-set", "nonesuch")).isEqualTo(2);
 
+        // The names are said, rather than a command to type that would say them.
         assertThat(err.toString()).contains("Unknown egress set 'nonesuch'")
-                .contains("sokar shield sets");
+                .contains("The sets are: ").contains("maven").contains("git-hosting");
         assertThat(Files.readString(projectFileIn(dir))).doesNotContain("egress");
     }
 
