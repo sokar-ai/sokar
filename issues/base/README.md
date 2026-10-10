@@ -37,6 +37,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
+| B157 | [Doctor Says Its Findings In Colour](B157-Doctor-Says-Its-Findings-In-Colour.md) | implemented here | - | `sokar doctor` colours a failure red, a warning yellow and what is fine green, beside the same words, and only on a terminal without `NO_COLOR`. | - | found in the joint test, 2026-10-10: the failing line had to be searched for |
 | B137 | [An Offline Project Never Connects](B137-An-Offline-Project-Never-Connects.md) | implemented here; the suite's round trip open | - | An offline project makes no connection out, from the task or from the host; a repository comes in as a file and the work leaves the same way. | - | decided on 2026-10-09; the host cloned the mirror once over the network |
 | B102 | [A Vault Cleared In One Step](B102-A-Vault-Cleared-In-One-Step.md) | now | - | `sokar vault clear --yes` on a real machine leaves it as a new one: vault, cached passphrase and device shares, and a transport's accounts gone, and `vault init` starts afresh. | - | the operator, 2026-10-03 |
 | B76 | [The Code Checked Against The Skills It Was Written Without](B76-The-Code-Checked-Against-The-Skills-It-Was-Written-Without.md) | open | - | Every Java module has been read against the skills that apply to it, and each finding is fixed with a test watched to fail or declined with its reason. | - | [note](#b76) |

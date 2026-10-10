@@ -389,7 +389,9 @@ the daemon and each followed project. Each line has one of four states:
 | `UNKNOWN` | the check could not tell, and says so rather than assume the good case |
 | `MISSING` | a task would fail, or run without something it needs |
 
-Every state but `OK` names the one thing to do. Only `MISSING` fails the command (exit 69); a degraded
+Every state but `OK` names the one thing to do. On a terminal the states are coloured - `MISSING` red, `DEGRADED`
+and `UNKNOWN` yellow, `OK` green - beside the same words; piped, redirected or with `NO_COLOR` set there is no colour,
+and `--color=always|never` decides it for one run. Only `MISSING` fails the command (exit 69); a degraded
 machine runs tasks. A machine using slirp4netns rather than pasta, for example, is degraded: the gate
 then binds every interface and is reachable from this machine's network, with the per-task token what
 keeps it shut. A binary hidden by another copy is named with both halves:

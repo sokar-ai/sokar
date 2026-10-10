@@ -28,9 +28,55 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
 
     private SokarContext context = SokarContext.real();
 
+    @picocli.CommandLine.Option(names = "--color", paramLabel = "<when>",
+            description = "auto, always or never. Default: ${DEFAULT-VALUE} - colour on a terminal unless NO_COLOR is"
+                    + " set.")
+    private String color = "auto";
+
+    /** Whether this report is coloured, decided once per run. */
+    private boolean colour;
+
     @Override
     public void setContext(SokarContext context) {
         this.context = context;
+    }
+
+    /**
+     * Returns whether the report is coloured: as the command says, else on a terminal unless {@code NO_COLOR} is set.
+     *
+     * @param mode {@code auto}, {@code always} or {@code never}.
+     * @param terminal Whether standard output is a terminal.
+     * @param noColor {@code NO_COLOR}, or {@code null} when it is not set; set at all, even empty, it means none.
+     * @return Whether to colour.
+     */
+    static boolean colours(final String mode, final boolean terminal,
+            final @org.jspecify.annotations.Nullable String noColor) {
+        return switch (mode) {
+            case "always" -> true;
+            case "never" -> false;
+            default -> terminal && noColor == null;
+        };
+    }
+
+    /**
+     * Returns a line's start in its state's colour: a failure red, a warning yellow, what is fine green. Only the colour
+     * is added; the words are what a reader without colour reads.
+     *
+     * @param text What to colour.
+     * @param state What the probe found.
+     * @param colour Whether this report is coloured.
+     * @return The text, coloured or as it was.
+     */
+    static String painted(final String text, final Probe.State state, final boolean colour) {
+        if (!colour) {
+            return text;
+        }
+        final String code = switch (state) {
+            case MISSING -> "31";
+            case DEGRADED, UNKNOWN -> "33";
+            case OK -> "32";
+        };
+        return "\u001b[" + code + "m" + text + "\u001b[0m";
     }
 
     /**
@@ -475,11 +521,11 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         }
         out.println();
         for (final java.nio.file.Path[] pair : hidden) {
-            out.println("not used " + pair[0]);
+            out.println(painted("not used", Probe.State.DEGRADED, colour) + " " + pair[0]);
             out.println("         hidden by " + pair[1]);
         }
         for (final org.fuin.sokar.agent.api.AgentDirectory.Description description : refused) {
-            out.println("not taken " + description.file());
+            out.println(painted("not taken", Probe.State.DEGRADED, colour) + " " + description.file());
             out.println("         " + description.refusal());
         }
     }
@@ -632,6 +678,9 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
     public Integer call() {
 
         final PrintWriter out = spec.commandLine().getOut();
+        // A terminal only: piped or written to a file, the report carries no escape codes.
+        final java.io.Console console = System.console();
+        colour = colours(color, console != null && console.isTerminal(), System.getenv("NO_COLOR"));
         final XdgPaths paths = context.paths().xdg();
         out.println("config   " + paths.config());
         out.println("data     " + paths.data());
@@ -639,7 +688,7 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         // Only when there is something in it. A line naming an empty log on every healthy machine
         // teaches people to skip the line, and then it says nothing on the day it matters.
         if (java.nio.file.Files.isRegularFile(context.paths().failureLog())) {
-            out.println("failures " + context.paths().failureLog()
+            out.println(painted("failures", Probe.State.DEGRADED, colour) + " " + context.paths().failureLog()
                     + " - a command failed unexpectedly");
         }
         out.println("runtime  " + paths.runtime());
@@ -654,8 +703,9 @@ public class DoctorCommand implements Callable<Integer>, SokarFactory.ContextAwa
         out.println();
         final java.util.List<Probe> probes = probes();
         for (final Probe probe : probes) {
-            out.printf("%-19s %s%s%n", probe.name(),
-                    probe.healthy() ? "" : probe.state().name() + " - ", probe.detail());
+            out.printf("%s %s%s%n", painted(String.format("%-19s", probe.name()), probe.state(), colour),
+                    probe.healthy() ? "" : painted(probe.state().name(), probe.state(), colour) + " - ",
+                    probe.detail());
             if (!probe.healthy()) {
                 // Indented under the line it belongs to: an operator reading this is looking for
                 // the one thing to do, and a list of findings without them is a list of worries.
