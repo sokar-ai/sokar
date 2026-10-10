@@ -58,14 +58,16 @@ Feature: An agent's login is stored, through the same chain a real login takes
       """
     Then its output contains "copies left behind: 0"
 
-  Scenario: a login that ends while the vault is shut is stored after it, once the passphrase is typed
+  # Asked before the login, so a wrong passphrase stops it before anything ran - not after a login nobody can store.
+  Scenario: a login asked for while the vault is shut asks for the passphrase first, then logs in and stores
     Given a vault of this scenario's own, unlocked with the passphrase "acceptance"
     And a terminal on the machine
     When I run "sokar vault lock"
     And I run "sokar vault login stub"
-    Then within 600 seconds the terminal shows "stub: logged in"
-    And within 30 seconds the terminal shows "Vault passphrase:"
+    Then within 30 seconds the terminal shows "Vault passphrase"
+    And the terminal does not show "stub: logged in"
     When I type "acceptance"
-    Then within 30 seconds the terminal shows "Signed in - the credential is stored as 'anthropic'"
+    Then within 600 seconds the terminal shows "stub: logged in"
+    And within 30 seconds the terminal shows "Signed in - the credential is stored as 'anthropic'"
     And the terminal shows "Nothing more to do here."
     And the terminal does not show "sokar-stub-fixture-token"
