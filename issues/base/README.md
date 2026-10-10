@@ -54,7 +54,7 @@ into [AGENTS.md](../../AGENTS.md) or `doc/` **first**. An index holds what is st
 
 | # | Requirement | Status | Blocks | What must be true | Open question | Why here |
 |---|---|---|---|---|---|---|
-| B162 | [Task List Names What It Leaves Out](B162-Task-List-Names-What-It-Leaves-Out.md) | in progress | - | `task list` never says "No tasks." over containers named like tasks; it names the ones it leaves out, and why. | taking over a task made before ids were recorded | a prune removed stopped tasks the list had not shown |
+| B162 | [Task List Names What It Leaves Out](B162-Task-List-Names-What-It-Leaves-Out.md) | in progress | - | `task list` never says "No tasks." over containers named like tasks; it names the ones it leaves out, and why. | - | a prune removed stopped tasks the list had not shown |
 | B161 | [Doctor As Data](B161-Doctor-As-Data.md) | open | sokar-frontend F106 | `sokar doctor --json` says every finding as data from the same checks as the text, for a client to read. | a daemon method too | the interface is to show doctor's findings when it adds a machine |
 | B121 | [A Message Record Without A Chain](B121-A-Message-Record-Without-A-Chain.md) | blocked by B154 | - | A task's message record is the host's plain state - filtered, held, refused, delivered - with no hash chain; what was said, and in which order, is the homeserver's to keep. | - | 2026-10-06 |
 | B160 | [A Project Followed From A File Over The Socket](B160-A-Project-Followed-From-A-File-Over-The-Socket.md) | open | sokar-frontend F104 | A client follows a project from a path on the machine, and from a bundle it hands over in the call itself. | the size limit | since offline is followed only from a file, the interface cannot make an offline project |

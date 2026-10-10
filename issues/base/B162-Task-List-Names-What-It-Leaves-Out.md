@@ -23,5 +23,10 @@ and a container prune removed the work in five of them unseen.
 
 - The daemon's list for the interface says the same, as data.
 - `task status <name>` on such a container says why it is not a task, instead of "there is no task called".
-- Whether a task made before 2026-10-04 whose `task.json` names the container may be taken over, its id recorded once
-  by a command a person runs - which re-opens what the 2026-10-04 rule closed, so decided before it is built.
+
+## Decided
+
+- **No adopting** (2026-10-10): a container without the id Sokar recorded when it made it is never taken on as a task,
+  not even once by a command a person runs; the 2026-10-04 rule stays closed. `task list`, `task status` and the
+  daemon's list say what such a container is and that removing it removes what is in it. Saving its workspace is the
+  person's own `podman cp`.
